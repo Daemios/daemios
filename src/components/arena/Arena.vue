@@ -13,14 +13,16 @@
         :cell="cell"
         :x="parseInt(x, 10)"
         :y="parseInt(y, 10)"
-        @click="teleportTestingWrapper"
-        @cell-mouseover="pathToCell(x, y)"
-        @entity-mouseover="highlightShape"
-        @entity-mouseout="clearHighlights"
+        @click="cellClick(x, y)"
+        @cell-mouseover="cellMouseOver(x, y)"
+        @cell-mouseout="cellMouseOut(x, y)"
+        @entity-mouseover="entityMouseOver(x, y)"
+        @entity-mouseout="entityMouseOut(x, y)"
       />
     </div>
   </div>
 </template>
+
 <script>
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
@@ -45,6 +47,8 @@ export default {
       entities: (state) => state.arena.entities,
       active: (state) => state.arena.active,
       plannedPath: (state) => state.arena.plannedPath,
+      shapeOnMouse: (state) => state.arena.shapeOnMouse,
+      playerActive: (state) => state.arena.playerActive,
     }),
   },
   mounted() {
@@ -90,8 +94,10 @@ export default {
         generate[x][y] = {
           terrain: this.randomTerrain(),
           effects: [],
-          validDestination: false,
           passable: Math.random() > 0.1,
+          overlays: {
+            validDestination: false,
+          },
         };
       });
 
@@ -124,7 +130,7 @@ export default {
           entities[x] = {};
         }
         // Assign the cell data
-        entities[x][y] = this.randomEntity();
+        // entities[x][y] = this.randomEntity();
       });
 
       entities[7][7] = playerEntity;
@@ -133,8 +139,32 @@ export default {
     },
 
     // --------- Controls ---------
-    click() {
+    cellClick() {
       console.log('click');
+    },
+    cellMouseOver(mouseX, mouseY) {
+      const x = Number(mouseX);
+      const y = Number(mouseY);
+
+      // Draw shape if one is toggled onto mouse cell
+      if (this.shapeOnMouse) {
+        this.highlightShape(x, y, 2, 'targeting');
+      }
+
+      // Draw path if you're currently active
+      if (this.playerActive) {
+        this.pathToCell(x, y);
+      }
+    },
+    cellMouseOut() {
+      // clear shapes
+      // console.log(x, y);
+    },
+    entityMouseOver() {
+      // console.log(x, y);
+    },
+    entityMouseOut() {
+      // console.log(x, y);
     },
 
     // --------- Cartesian Helpers ---------
@@ -149,8 +179,20 @@ export default {
      * Highlights a path on the arena from the active entity to the selected coordinate
      */
     pathToCell(toX, toY) {
-      // this.clearHighlights();
+      this.$store.commit('arena/clearOverlay', {
+        overlay: 'validDestination',
+      });
+
       const entity = this.entities[this.active.x][this.active.y][0];
+      let squaresAwayFromToPos = 0;
+
+      if (this.plannedPath && this.plannedPath.length > 0) {
+        squaresAwayFromToPos = this.checkDistance(
+          this.plannedPath.at(-1)[0], this.plannedPath.at(-1)[1], toX, toY,
+        );
+      } else {
+        squaresAwayFromToPos = -1;
+      }
 
       /**
        * First of two modes of laying out a path:
@@ -159,156 +201,170 @@ export default {
        * or if we're a single cell away from the active entity
        * (or last planned move), and if so, add a record next cell into
        * path buffer
-       */
-      if (false && this.plannedPath.length) {
-        // Clear existing highlights in cell data
-        this.clearHighlights();
-
-        // Iterate through buffer and apply new highlights
-        this.plannedPath.forEach((movement) => {
-          console.log(movement);
-        });
-
-        // if there is, check to see if its one cell away from the last entry in the buffer
-        if (false) {
-          // if it is, add this coordinate to the buffer and end
-          // eslint-disable-next-line no-console
-          console.log('cell is 1 cell');
-          return true;
-        }
-        // if it is not, clear the buffer
-      }
-
-      /**
+       *
        * Second of two modes of laying out a path:
        *
        * If there isn't planned movement check to see if this cell is within movement
        * range of the active turn entity's MP range
        */
-      if (entity.mp.current >= this.checkDistance(toX, toY, this.active.x, this.active.y)) {
-        /**
-         * Determines if we're moving in a positive or negative direction in the
-         * respective axes on the cartesian map
-         */
-        const xDirection = toX >= this.active.x ? 1 : -1;
-        const yDirection = toY >= this.active.y ? 1 : -1;
 
-        /**
-         * Checks to see whether the X or Y should be our primary axis
-         * by checking which axes from->to delta is greatest
-         *
-         * We also use x and y path length to loop through and plot
-         * whether the cell is part of the path highlight
-         */
-        const xPathLength = Math.abs(toX - this.active.x);
-        const yPathLength = Math.abs(toY - this.active.y);
-        const xMain = xPathLength >= yPathLength;
+      // TODO disabled for now since this requires more thought as to how this should be used
+      // uses method #2 as only method atm
+      if (
+        false && ((squaresAwayFromToPos < 2 && squaresAwayFromToPos > 0)
+        || this.checkDistance(this.active[0], this.active[1], toX, toY))
+      ) {
+        // Append new position to plannedPath
+        this.$store.commit('arena/appendPlannedPath', [toX, toY]);
+      } else {
+        // Clear address path (not overlays) in prep for new path
+        this.$store.commit('arena/clearPlannedPath');
 
-        /**
-         * Two loops generate an X- and Y- locked coordinate group
-         * and set the path highlight of those cells to true
-         *
-         * if it's an X main, we start our x path y coordinate
-         * from the origin cell's Y otherwise, we start
-         * our x path from the termination's Y of the y path
-         * and we do the reverse for the y path x coordinate
-         */
-        const xPathYCoord = xMain ? this.active.y : this.active.y + (yPathLength * yDirection);
-        const yPathXCoord = xMain ? this.active.x + (xPathLength * xDirection) : this.active.y;
+        // Second path method
+        if (entity.mp.current >= this.checkDistance(toX, toY, this.active.x, this.active.y)) {
+          /**
+           * Determines if we're moving in a positive or negative direction in the
+           * respective axes on the cartesian map
+           */
+          const xDirection = toX >= this.active.x ? 1 : -1;
+          const yDirection = toY >= this.active.y ? 1 : -1;
 
-        for (let x = 0; x <= xPathLength; x += 1) {
-          const xCoord = this.active.x + (x * xDirection);
-          const coords = [xCoord, xPathYCoord];
-          this.$store.commit('arena/setCellPathHighlight', coords);
-          this.$store.commit('arena/appendPath', coords);
-        }
-        // can start at 1 because the x path already filled in the first cell
-        for (let y = 0; y <= yPathLength; y += 1) {
-          const yCoord = this.active.y + (y * yDirection);
-          const coords = [yPathXCoord, yCoord];
-          this.$store.commit('arena/setCellPathHighlight', coords);
-          this.$store.commit('arena/appendPath', coords);
+          /**
+           * Checks to see whether the X or Y should be our primary axis
+           * by checking which axes from->to delta is greatest
+           *
+           * We also use x and y path length to loop through and plot
+           * whether the cell is part of the path highlight
+           */
+          const xPathLength = Math.abs(toX - this.active.x);
+          const yPathLength = Math.abs(toY - this.active.y);
+          const xMain = xPathLength >= yPathLength;
+
+          /**
+           * Two loops generate an X- and Y- locked coordinate group
+           * and set the path highlight of those cells to true
+           *
+           * if it's an X main, we start our x path y coordinate
+           * from the origin cell's Y otherwise, we start
+           * our x path from the termination's Y of the y path
+           * and we do the reverse for the y path x coordinate
+           */
+          const xPathYCoord = xMain ? this.active.y : this.active.y + (yPathLength * yDirection);
+          const yPathXCoord = xMain ? this.active.x + (xPathLength * xDirection) : this.active.y;
+
+          for (let x = 0; x <= xPathLength; x += 1) {
+            const xCoord = this.active.x + (x * xDirection);
+            const coords = {
+              x: xCoord,
+              y: xPathYCoord,
+              overlay: 'validDestination',
+              boolean: true,
+            };
+            this.$store.commit('arena/appendPlannedPath', coords);
+            this.$store.commit('arena/setOverlay', coords);
+          }
+          for (let y = 0; y <= yPathLength; y += 1) {
+            const yCoord = this.active.y + (y * yDirection);
+            const coords = {
+              x: yPathXCoord,
+              y: yCoord,
+              overlay: 'validDestination',
+              boolean: true,
+            };
+            this.$store.commit('arena/appendPlannedPath', coords);
+            this.$store.commit('arena/setOverlay', coords);
+          }
         }
       }
+
       return false;
     },
-    highlightShape(startX, startY, radius, shape = 'diamond', key = 'validDestination') {
-      this.clearHighlights();
 
-      const x = parseInt(startX, 10);
-      const y = parseInt(startY, 10);
+    /**
+     * Highlights a shape on a center point, radius does not include center square.
+     * Shape options include diamond, square, and cross
+     *
+     * @param centerX
+     * @param centerY
+     * @param radius
+     * @param shape
+     * @param overlay
+     */
+    highlightShape(centerX, centerY, radius, overlay = 'targeting', shape = 'diamond') {
+      this.$store.commit('arena/clearOverlay', { overlay });
+
+      const x = Number(centerX);
+      const y = Number(centerY);
 
       if (shape === 'diamond') {
-        this.iterateCells((iterX, iterY) => {
-          const distX = Math.abs(Number(x) - Number(iterX));
-          const distY = Math.abs(Number(y) - Number(iterY));
-          if (distX + distY <= radius) {
-            this.map[iterX][iterY][key] = true;
-          }
+        this.$store.commit('arena/setOverlay', {
+          x,
+          y,
+          overlay,
+          boolean: true,
         });
+        /*
+        this.iterateCells((iterX, iterY) => {
+          const distX = Math.abs(x - iterX);
+          const distY = Math.abs(y - iterY);
+          if (distX + distY <= radius) {
+            this.$store.commit('arena/setCell', {
+              x,
+              y,
+              overlay,
+              boolean: true,
+            });
+          }
+        }); */
       } else if (shape === 'square') {
         this.iterateCells((iterX, iterY) => {
-          this.map[iterX][iterY][key] = true;
+          this.map[iterX][iterY].overlays[overlay] = true;
         }, x - radius, y - radius, radius);
       } else if (shape === 'cross') {
         this.iterateCells((iterX, iterY) => {
-          if (parseInt(iterX, 10) === parseInt(x, 10) || parseInt(iterY, 10) === parseInt(y, 10)) {
-            this.map[iterX][iterY][key] = true;
+          if (iterX === x || iterY === y) {
+            this.map[iterX][iterY].overlays[overlay] = true;
           }
         }, x - radius, y - radius, radius);
       }
     },
-    clearHighlights() {
-      this.$store.commit('arena/clearPath');
-      this.iterateCells((x, y) => {
-        this.map[x][y].validDestination = null;
-      });
-    },
     iterateCells(callback, startX = 0, startY = 0, limit = null) {
-      let limitRefined;
-      if (limit === null) {
-        limitRefined = this.generation.cell_count;
-      } else {
-        limitRefined = limit * 2 + 1;
-      }
+      const limitRefined = limit === null ? this.generation.cell_count : limit * 2 + 1;
 
       // Row
       for (let x = startX; x < startX + limitRefined; x += 1) {
         // Cells
         for (let y = startY; y < startY + limitRefined; y += 1) {
-          callback(x, y);
+          callback(Number(x), Number(y));
         }
       }
     },
     teleport(newX, newY, oldX, oldY) {
       if (!this.arena.entities[oldX][oldY].length) {
-        // eslint-disable-next-line no-console
         console.log(`No entity at grid [${oldX}|${oldY}]`);
         return false;
       }
       if (this.arena.entities[newX][newY].length) {
-        // eslint-disable-next-line no-console
-        console.log('Cannot overrite entities: ', this.arena.entities[newX][newY]);
+        console.log('Cannot override entities: ', this.arena.entities[newX][newY]);
         return false;
       }
-      this.arena.entities[newX][newY] = this.arena.entities[oldX][oldY];
+      // TODO make more robust by selecting specific entity by ID, see arena store 'activeEntityId'
+      this.arena.entities[newX][newY].push(this.arena.entities[oldX][oldY]);
       this.arena.entities[oldX][oldY] = [];
 
       return true;
     },
     teleportTestingWrapper(newX, newY) {
-      this.teleport(newX, newY, this.arena.turnActive.x, this.arena.turnActive.y);
-
-      // Client testing only
-      this.arena.turnActive.x = parseInt(newX, 10);
-      this.arena.turnActive.y = parseInt(newY, 10);
+      this.teleport(newX, newY, this.$store.state.arena.active.x, this.$store.state.arena.active.y);
     },
   },
 };
 </script>
+
 <style lang="sass">
 .arena
   display: flex
+
   .column
     display: flex
     flex-direction: column

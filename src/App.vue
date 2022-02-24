@@ -31,8 +31,8 @@ strictly forbidden unless prior written permission is obtained.
 
     </v-main>
 
-    <div class="dialogButtons d-flex justify-center">
-      <div class="dialogButtonCenter grey pa-1 rounded mb-1">
+    <div class="dialog-buttons d-flex justify-center">
+      <div class="dialog-button-center grey pa-1 rounded mb-1">
         <v-btn
           depressed
           x-small
@@ -106,7 +106,12 @@ html, body, .v-application, .v-application--wrap
   -webkit-font-smoothing: antialiased
   -moz-osx-font-smoothing: grayscale
 
-.dialogButtonCenter
+.dialog-buttons
+  position: absolute
+  bottom: 0
+  width: 100%
+
+.dialog-button-center
   display: flex
   gap: 4px
   z-index: 999999

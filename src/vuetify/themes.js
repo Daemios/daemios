@@ -23,18 +23,10 @@ export default {
       'header-text': '#fff',
       'header-button': '#279681',
       'background': '#F1F2F3',
-      'orders': '#3F51B5',
-      'receiving': '#795548',
-      'tasks': '#607D8B',
-      'deliveries': '#AB47BC',
     },
     dark: {
       'primary': '#0D8A72',
       'secondary': '#fff',
-      'orders': '#3F51B5',
-      'receiving': '#795548',
-      'tasks': '#607D8B',
-      'deliveries': '#AB47BC',
     },
   },
 };
