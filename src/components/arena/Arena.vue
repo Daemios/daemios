@@ -20,15 +20,19 @@
         @entity-mouseout="entityMouseOut(x, y)"
       />
     </div>
+    <div class="entity-list">
+      <ListEntity />
+    </div>
   </div>
 </template>
 
 <script>
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
+import ListEntity from '@/components/arena/ListEntity';
 
 export default {
-  components: { ArenaCell },
+  components: { ArenaCell, ListEntity },
   data() {
     return {
       generation: {

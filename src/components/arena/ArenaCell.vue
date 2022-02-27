@@ -4,8 +4,6 @@
     :class="cellClasses"
     oncontextmenu="return false"
     @click="$emit('click')"
-    @mouseover.self="$emit('cell-mouseover')"
-    @mouseout.self="$emit('cell-mouseout')"
   >
     <!-- Overlays -->
     <div
@@ -20,6 +18,8 @@
     <div
       v-if="entities && entities.length"
       class="entities"
+      @mouseover.self="$emit('cell-mouseover')"
+      @mouseout.self="$emit('cell-mouseout')"
     >
       <Entity
         v-for="entity in entities[x][y]"

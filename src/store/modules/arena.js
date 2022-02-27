@@ -44,8 +44,6 @@ export default {
           x: args.x,
           y: args.y,
         });
-        console.log(args.overlay);
-        console.log(state.overlayRegistry[args.overlay]);
         state.map[args.x][args.y].overlays[args.overlay] = args.boolean;
       } else {
         console.log('Tried to register overlay but overlay type was not provided');
