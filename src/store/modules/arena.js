@@ -51,6 +51,9 @@ export default {
     clearPlannedPath(state) {
       state.plannedPath = [];
     },
+    moveEntity() {
+
+    },
     setOverlay(state, args) {
       if (args.overlay) {
         state.overlayRegistry[args.overlay].push({

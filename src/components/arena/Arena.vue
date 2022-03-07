@@ -23,6 +23,7 @@
 </template>
 
 <script>
+import { mdiFire, mdiHospital } from '@mdi/js';
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
 import ListEntityList from '@/components/arena/ListEntityList';
@@ -84,6 +85,56 @@ export default {
           current: Math.floor(Math.random() * 4) + 1,
           max: 4,
         },
+        effects: [
+          {
+            icon: mdiFire,
+            description: 'Burning for 5 life at the start of unit\'s turn',
+          },
+          {
+            icon: mdiHospital,
+            description: 'Regenerating 5 life at the start of unit\'s turn',
+          },
+          {
+            icon: mdiHospital,
+            description: 'Regenerating 5 life at the start of unit\'s turn',
+          },
+          {
+            icon: mdiHospital,
+            description: 'Regenerating 5 life at the start of unit\'s turn',
+          },
+          {
+            icon: mdiHospital,
+            description: 'Regenerating 5 life at the start of unit\'s turn',
+          },
+        ],
+        log: [
+          {
+            turn: 2,
+            entries: [{
+              message: "took 16 damage from Drizzt Do'urden",
+            },
+            {
+              message: "took 16 damage from Drizzt Do'urden",
+            },
+            {
+              message: "took 16 damage from Drizzt Do'urden",
+            }],
+          },
+          {
+            turn: 1,
+            entries: [
+              {
+                message: "took 16 damage from Drizzt Do'urden",
+              },
+              {
+                message: "took 16 damage from Drizzt Do'urden",
+              },
+              {
+                message: "effect 'Regeneration' healed for 5 life",
+              },
+            ],
+          },
+        ],
       }];
     },
     generateTerrain() {

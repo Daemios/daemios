@@ -1,27 +1,88 @@
 <template>
-  <div
-    class="list-entity rounded"
-    :class="entityClasses"
-    @mouseover="entityMouseOver"
-    @mouseleave="entityMouseOut"
+  <v-dialog
+    width="800"
+    content-class="overflow-hidden"
   >
-    <div class="background-container overflow-hidden rounded">
-      <v-img
-        height="130"
-        width="60"
-        :src="entities[x][y][0].img"
-        class="overflow-hidden"
-      />
-    </div>
-    <div
-      class="turn-active-indicator"
-      :class="turnActiveClasses"
-    />
-    <div
-      class="control-indicator"
-      :class="controlClasses"
-    />
-  </div>
+    <template #activator="{ attrs, on }">
+      <div
+        class="list-entity rounded"
+        :class="entityClasses"
+        @mouseover="entityMouseOver"
+        @mouseleave="entityMouseOut"
+        v-on="on"
+      >
+        <div class="background-container overflow-hidden rounded">
+          <v-img
+            height="130"
+            width="60"
+            :src="entities[x][y][0].img"
+            class="overflow-hidden"
+          />
+        </div>
+        <div
+          class="turn-active-indicator"
+          :class="turnActiveClasses"
+        />
+        <div
+          class="control-indicator"
+          :class="controlClasses"
+        />
+      </div>
+    </template>
+    <v-card class="list-entity-dialog-card">
+      <v-card-text class="pa-0 d-flex">
+        <v-row no-gutters>
+          <v-col cols="7">
+            <v-img :src="entities[x][y][0].img" />
+          </v-col>
+          <v-col
+            cols="5"
+            class="d-flex"
+          >
+            <div class="panel-blend" />
+            <div class="panel py-6 px-6">
+              <div class="effects">
+                <h3 class="mb-2">
+                  Effects
+                </h3>
+                <v-chip
+                  v-for="(effect, i) in entities[x][y][0].effects"
+                  :key="i"
+                  class="mr-2 mb-2"
+                >
+                  <v-icon>{{ effect.icon }}</v-icon> 5
+                </v-chip>
+              </div>
+
+              <v-divider class="my-2" />
+              <div class="log">
+                <h3 class="mt-3 mb-2 text-center">
+                  Log
+                </h3>
+                <div
+                  v-for="(turn, i) in entities[x][y][0].log"
+                  :key="i"
+                  class="entry mb-2"
+                >
+                  <h4 class="mb-2">
+                    Turn {{ turn.turn }}
+                  </h4>
+                  <div
+                    v-for="(entry, j) in turn.entries"
+                    :key="j"
+                    class="entry mb-2"
+                  >
+                    {{ entities[x][y][0].name }} {{ entry.message }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </v-col>
+        </v-row>
+
+      </v-card-text>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script>
@@ -75,6 +136,16 @@ export default {
 <style lang="sass">
 $width: 60px
 $height: 100px
+
+.list-entity-dialog-card
+  position: relative
+
+  .panel-blend
+    width: 10%
+    margin-left: -8%
+    background: green
+    background: linear-gradient(90deg, rgba(9,9,121,0) 0%, rgba(255,255,255,1) 90%)
+    z-index: 2
 
 .list-entity
   width: $width
