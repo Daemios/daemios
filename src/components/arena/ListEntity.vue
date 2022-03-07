@@ -73,14 +73,12 @@ export default {
 </script>
 
 <style lang="sass">
-$height: 100px
 $width: 60px
+$height: 100px
 
 .list-entity
-  min-width: 60px
-  min-height: 100px
-  width: 60px
-  height: 100px
+  width: $width
+  height: $height
   transition: all .2s
   position: relative
   cursor: pointer
