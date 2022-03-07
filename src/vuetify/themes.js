@@ -1,17 +1,3 @@
-/**
- * This file is part of Special Order Manager.
- *
- * NOTICE: All information contained herein is, and remains the property of
- * Walnut Creek Hardware Inc and its suppliers, if any. The intellectual and
- * technical concepts contained herein are proprietary to Walnut Creek Hardware
- * Inc and its suppliers and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material is
- * strictly forbidden unless prior written permission is obtained.
- *
- * @author Grant Martin <commgdog@gmail.com>
- * @copyright 2021 Walnut Creek Hardware Inc.
- */
-
 /* eslint-disable quote-props */
 
 export default {
@@ -23,6 +9,13 @@ export default {
       'header-text': '#fff',
       'header-button': '#279681',
       'background': '#F1F2F3',
+      'enemy': '#cc0000',
+      'enemy-border': '#ff0000',
+      'ally': '#0099cc',
+      'ally-border': '#00bfff',
+      'player': '#63c900',
+      'player-border': '#7cfc00',
+
     },
     dark: {
       'primary': '#0D8A72',

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="arena"
+    class="arena d-flex justify-center"
   >
     <div
       v-for="(column, x) in map"
@@ -20,19 +20,17 @@
         @entity-mouseout="entityMouseOut(x, y)"
       />
     </div>
-    <div class="entity-list">
-      <ListEntity />
-    </div>
+    <ListEntityList />
   </div>
 </template>
 
 <script>
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
-import ListEntity from '@/components/arena/ListEntity';
+import ListEntityList from '@/components/arena/ListEntityList';
 
 export default {
-  components: { ArenaCell, ListEntity },
+  components: { ArenaCell, ListEntityList },
   data() {
     return {
       generation: {
@@ -66,11 +64,14 @@ export default {
       return this.generation.terrain[index];
     },
     randomEntity() {
+      const faction = Math.random() > 0.2 ? 'enemy' : 'ally';
+
       const actual = [{
         id: Math.floor(Math.random() * 1000000) + 1,
         owned: false,
-        faction: Math.random() > 0.2 ? 'enemy' : 'ally',
-        name: 'Random',
+        faction,
+        name: 'Entity',
+        active: false,
         life: {
           current: Math.floor(Math.random() * 10),
           max: 10,
@@ -101,6 +102,7 @@ export default {
           passable: Math.random() > 0.1,
           overlays: {
             validDestination: false,
+            targeting: false,
           },
         };
       });
@@ -113,6 +115,7 @@ export default {
         owned: true,
         faction: 'player',
         name: 'Test',
+        active: true,
         life: {
           current: 2,
           max: 10,
@@ -134,7 +137,7 @@ export default {
           entities[x] = {};
         }
         // Assign the cell data
-        // entities[x][y] = this.randomEntity();
+        entities[x][y] = this.randomEntity();
       });
 
       entities[7][7] = playerEntity;
@@ -151,8 +154,14 @@ export default {
       const y = Number(mouseY);
 
       // Draw shape if one is toggled onto mouse cell
-      if (this.shapeOnMouse) {
-        this.highlightShape(x, y, 2, 'targeting');
+      if (this.shapeOnMouse.show) {
+        this.highlightShape(
+          x,
+          y,
+          this.shapeOnMouse.radius,
+          'targeting',
+          this.shapeOnMouse.shape,
+        );
       }
 
       // Draw path if you're currently active
@@ -183,9 +192,7 @@ export default {
      * Highlights a path on the arena from the active entity to the selected coordinate
      */
     pathToCell(toX, toY) {
-      this.$store.commit('arena/clearOverlay', {
-        overlay: 'validDestination',
-      });
+      this.$store.commit('arena/clearOverlay', 'validDestination');
 
       const entity = this.entities[this.active.x][this.active.y][0];
       let squaresAwayFromToPos = 0;
@@ -295,39 +302,42 @@ export default {
      * @param overlay
      */
     highlightShape(centerX, centerY, radius, overlay = 'targeting', shape = 'diamond') {
-      this.$store.commit('arena/clearOverlay', { overlay });
+      this.$store.commit('arena/clearOverlay', overlay);
 
       const x = Number(centerX);
       const y = Number(centerY);
 
       if (shape === 'diamond') {
-        this.$store.commit('arena/setOverlay', {
-          x,
-          y,
-          overlay,
-          boolean: true,
-        });
-        /*
         this.iterateCells((iterX, iterY) => {
           const distX = Math.abs(x - iterX);
           const distY = Math.abs(y - iterY);
           if (distX + distY <= radius) {
-            this.$store.commit('arena/setCell', {
-              x,
-              y,
+            this.$store.commit('arena/setOverlay', {
+              x: iterX,
+              y: iterY,
               overlay,
               boolean: true,
             });
           }
-        }); */
+        });
       } else if (shape === 'square') {
         this.iterateCells((iterX, iterY) => {
-          this.map[iterX][iterY].overlays[overlay] = true;
+          this.$store.commit('arena/setOverlay', {
+            x: iterX,
+            y: iterY,
+            overlay,
+            boolean: true,
+          });
         }, x - radius, y - radius, radius);
       } else if (shape === 'cross') {
         this.iterateCells((iterX, iterY) => {
           if (iterX === x || iterY === y) {
-            this.map[iterX][iterY].overlays[overlay] = true;
+            this.$store.commit('arena/setOverlay', {
+              x: iterX,
+              y: iterY,
+              overlay,
+              boolean: true,
+            });
           }
         }, x - radius, y - radius, radius);
       }
@@ -339,7 +349,14 @@ export default {
       for (let x = startX; x < startX + limitRefined; x += 1) {
         // Cells
         for (let y = startY; y < startY + limitRefined; y += 1) {
-          callback(Number(x), Number(y));
+          if (
+            x >= 0
+            && y >= 0
+            && x < this.generation.cell_count
+            && y < this.generation.cell_count
+          ) {
+            callback(Number(x), Number(y));
+          }
         }
       }
     },
@@ -367,9 +384,18 @@ export default {
 
 <style lang="sass">
 .arena
-  display: flex
+  width: 100%
+  position: relative
 
   .column
     display: flex
     flex-direction: column
+
+  .entity-list
+    position: absolute
+    bottom: 2rem
+    right: 0
+    gap: 4px
+    padding: 4px
+    z-index: 3
 </style>

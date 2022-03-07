@@ -1,7 +1,7 @@
 <template>
-  <v-container>
+  <div class="world d-flex justify-center">
     <Arena />
-  </v-container>
+  </div>
 </template>
 
 <script>
@@ -13,3 +13,9 @@ export default {
   },
 };
 </script>
+
+<style lang="sass">
+.world
+  width: 100%
+  max-width: 100%
+</style>

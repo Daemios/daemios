@@ -1,20 +1,22 @@
 export default {
   namespaced: true,
   state: {
-    active: { x: 7, y: 7 },
     playerActive: true,
-    activeEntityId: 0, // used only to deconflict when there are multiple entities in same square
+    activeEntityId: 0,
     plannedPath: [],
     map: null,
+    entities: null,
+    active: { x: 7, y: 7 },
     overlayRegistry: {
       validDestination: [],
       targeting: [],
     },
+    entityRegistry: {},
     shapeOnMouse: {
+      show: false,
       shape: null, // string for highlightShape
       radius: null,
     },
-    entities: null,
   },
   mutations: {
     setActive(state, active) {
@@ -22,9 +24,6 @@ export default {
     },
     setMap(state, map) {
       state.map = map;
-    },
-    setCell(state, args) {
-      state.map[args.x][args.y].overlays[args.overlay] = args.boolean;
     },
     setEntities(state, entities) {
       state.entities = entities;
@@ -49,13 +48,14 @@ export default {
         console.log('Tried to register overlay but overlay type was not provided');
       }
     },
-    clearOverlay(state, args) {
+    clearOverlay(state, overlay) {
       // Iterate through coordinates and clear overlays
-      state.overlayRegistry[args.overlay].forEach((address) => {
-        state.map[address.x][address.y].overlays[args.overlay] = false;
-      });
-
-      state.overlayRegistry[args.overlay] = [];
+      if (state.overlayRegistry[overlay]) {
+        state.overlayRegistry[overlay].forEach((address) => {
+          state.map[address.x][address.y].overlays[overlay] = false;
+        });
+      }
+      state.overlayRegistry[overlay] = [];
     },
   },
 };

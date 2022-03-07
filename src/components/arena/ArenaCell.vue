@@ -21,7 +21,7 @@
       @mouseover.self="$emit('cell-mouseover')"
       @mouseout.self="$emit('cell-mouseout')"
     >
-      <Entity
+      <ArenaEntity
         v-for="entity in entities[x][y]"
         :key="entity.id"
         :entity="entity"
@@ -33,11 +33,11 @@
 </template>
 <script>
 import { mapState } from 'vuex';
-import Entity from '@/components/arena/Entity';
+import ArenaEntity from '@/components/arena/ArenaEntity';
 
 export default {
   components: {
-    Entity,
+    ArenaEntity,
   },
   props: {
     cell: {
@@ -86,6 +86,7 @@ $cell-index: 1
   width: 50px
   position: relative
   margin: -1px 0 0 -1px
+  cursor: pointer
 
   &:not(.impassable)
     border: 1px solid black
@@ -100,7 +101,7 @@ $cell-index: 1
       background: rgba(82, 189, 34, 0.7)
 
     &.targeting-overlay
-      background: rgba(255, 255, 255, 0.7)
+      background: orangered
 
   &.grass
     background: $grass

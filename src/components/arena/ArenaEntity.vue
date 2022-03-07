@@ -5,9 +5,11 @@
     @mouseover.self="$emit('entity-mouseover')"
     @mouseout.self="$emit('entity-mouseout')"
   >
-    <div class="active-arrow-container">
+    <div
+      v-if="activeEntityId === entity.id"
+      class="active-arrow-container"
+    >
       <div
-        v-if="activeEntityId === entity.id"
         class="active-arrow"
       />
     </div>
@@ -53,11 +55,12 @@ export default {
       activeEntityId: (state) => state.arena.activeEntityId,
     }),
     classes() {
-      let string = this.entity.faction;
-      if (this.activeEntityId === this.entity.id) {
-        string += ' active';
-      }
-      return string;
+      return {
+        active: this.entity.active,
+        enemy: this.entity.faction === 'enemy',
+        ally: this.entity.faction === 'ally',
+        player: this.entity.faction === 'player',
+      };
     },
   },
 };
@@ -112,27 +115,6 @@ $tooltip-index: 3
   align-items: center
   cursor: pointer
   z-index: $entity-index
-
-  &.player
-    border: 2px solid lawngreen
-    background: darken(lawngreen, 10%)
-
-    &.active
-      @include active-entity
-
-  &.ally
-    border: 2px solid deepskyblue
-    background: darken(deepskyblue, 10%)
-
-    &.active
-      @include active-entity
-
-  &.enemy
-    border: 2px solid red
-    background: darken(red, 10%)
-
-    &.active
-      @include active-entity
 
   &:hover > .stats
     display: grid !important
