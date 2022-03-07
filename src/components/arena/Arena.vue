@@ -66,12 +66,13 @@ export default {
     randomEntity() {
       const faction = Math.random() > 0.2 ? 'enemy' : 'ally';
 
-      const actual = [{
+      return [{
         id: Math.floor(Math.random() * 1000000) + 1,
         owned: false,
         faction,
         name: 'Entity',
         active: false,
+        img: faction === 'enemy' ? this.randomEnemyImg() : this.randomAllyImg(),
         life: {
           current: Math.floor(Math.random() * 10),
           max: 10,
@@ -85,7 +86,6 @@ export default {
           max: 4,
         },
       }];
-      return Math.random() > 0.9 ? actual : [];
     },
     generateTerrain() {
       const generate = [];
@@ -110,11 +110,14 @@ export default {
       this.$store.commit('arena/setMap', generate);
     },
     generateEntities() {
+      this.$store.commit('arena/clearEntityRegistry');
+
       const playerEntity = [{
         id: 0,
         owned: true,
         faction: 'player',
         name: 'Test',
+        img: 'https://i.pinimg.com/564x/46/22/0b/46220b30d9406bcd34e93851081e3fa5.jpg',
         active: true,
         life: {
           current: 2,
@@ -137,12 +140,35 @@ export default {
           entities[x] = {};
         }
         // Assign the cell data
-        entities[x][y] = this.randomEntity();
+        if (Math.random() > 0.97) {
+          entities[x][y] = this.randomEntity();
+          this.$store.commit('arena/registerEntity', { x, y });
+        }
       });
 
       entities[7][7] = playerEntity;
-
+      this.$store.commit('arena/registerEntity', { x: 7, y: 7 });
       this.$store.commit('arena/setEntities', entities);
+    },
+
+    randomAllyImg() {
+      const images = [
+        'https://i.pinimg.com/564x/51/e0/a8/51e0a8f8b1dfe4bc7a8fbac386ae0510.jpg',
+        'https://i.pinimg.com/564x/43/89/60/43896082a4f5464217d028f348e11e00.jpg',
+        'https://i.pinimg.com/564x/2f/36/cd/2f36cd42dcf583da901afd854ab82cf1.jpg',
+        'https://i.pinimg.com/564x/db/4c/3c/db4c3cc49dc0cf8342c86d86bc3200e7.jpg',
+      ];
+
+      return images[Math.floor(Math.random() * images.length)];
+    },
+    randomEnemyImg() {
+      const images = [
+        'https://i.pinimg.com/564x/fd/83/78/fd83780c6fe297027c505ab5fda5202b.jpg',
+        'https://i.pinimg.com/564x/83/15/ab/8315ab2665eeb330b3181651f8e0f88d.jpg',
+        'https://i.pinimg.com/564x/09/af/62/09af6265634c97f267c09a2ecfbde158.jpg',
+      ];
+
+      return images[Math.floor(Math.random() * images.length)];
     },
 
     // --------- Controls ---------
@@ -390,12 +416,4 @@ export default {
   .column
     display: flex
     flex-direction: column
-
-  .entity-list
-    position: absolute
-    bottom: 2rem
-    right: 0
-    gap: 4px
-    padding: 4px
-    z-index: 3
 </style>

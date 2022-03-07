@@ -1,21 +1,20 @@
 export default {
   namespaced: true,
   state: {
+    entities: null,
+    entityRegistry: [],
     playerActive: true,
-    activeEntityId: 0,
     plannedPath: [],
     map: null,
-    entities: null,
     active: { x: 7, y: 7 },
     overlayRegistry: {
       validDestination: [],
       targeting: [],
     },
-    entityRegistry: {},
     shapeOnMouse: {
       show: false,
-      shape: null, // string for highlightShape
-      radius: null,
+      shape: 'diamond', // string for highlightShape
+      radius: 3,
     },
   },
   mutations: {
@@ -27,6 +26,15 @@ export default {
     },
     setEntities(state, entities) {
       state.entities = entities;
+    },
+    registerEntity(state, args) {
+      state.entityRegistry.push({
+        x: args.x,
+        y: args.y,
+      });
+    },
+    clearEntityRegistry(state) {
+      state.entityRegistry = [];
     },
     setPlannedPath(state, path) {
       state.plannedPath = path;

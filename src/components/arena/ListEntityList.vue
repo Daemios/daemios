@@ -1,9 +1,10 @@
 <template>
   <div class="entity-list d-flex">
     <ListEntity
-      v-for="(entity, i) in entities"
+      v-for="(address, i) in entityRegistry"
       :key="i"
-      :entity="entity"
+      :x="address.x"
+      :y="address.y"
     />
   </div>
 </template>
@@ -18,8 +19,18 @@ export default {
   },
   computed: {
     ...mapState({
-      entities: (state) => state.arena.entities,
+      entityRegistry: (state) => state.arena.entityRegistry,
     }),
   },
 };
 </script>
+
+<style lang="sass">
+.entity-list
+  position: absolute
+  bottom: 2rem
+  right: 0
+  padding: 4px
+  z-index: 3
+  gap: 8px
+</style>

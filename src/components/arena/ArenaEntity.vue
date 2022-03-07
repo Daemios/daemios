@@ -6,37 +6,17 @@
     @mouseout.self="$emit('entity-mouseout')"
   >
     <div
-      v-if="activeEntityId === entity.id"
-      class="active-arrow-container"
+      v-if="entity.active"
+      class="active-arrow-container d-flex justify-center"
     >
       <div
-        class="active-arrow"
+        class="active-arrow turn-active"
       />
     </div>
-    <div class="nameplate">
-      {{ entity.name }}
-    </div>
-    <div class="stats">
-      <div
-        class="ap"
-        @mouseover.self="$emit('entity-mouseover')"
-        @mouseout.self="$emit('entity-mouseout')"
-      >
-        {{ entity.ap.current }}
-      </div>
-      <div
-        class="mp"
-        @mouseover.self="$emit('entity-mouseover')"
-        @mouseout.self="$emit('entity-mouseout')"
-      >
-        {{ entity.mp.current }}
-      </div>
-    </div>
-    <div
-      v-if="false"
-      class="hp"
-    >
-      {{ entity.life.current }}|{{ entity.life.max }}
+    <div class="background overflow-hidden">
+      <v-img
+        :src="entity.img"
+      />
     </div>
   </div>
 </template>
@@ -110,74 +90,24 @@ $tooltip-index: 3
   border-radius: 50%
   height: 80%
   width: 80%
-  display: flex
-  justify-content: center
-  align-items: center
   cursor: pointer
   z-index: $entity-index
+  position: relative
 
-  &:hover > .stats
-    display: grid !important
-
-  &:hover > .nameplate, &:hover > .hp
-    display: flex !important
+  .background
+    border-radius: 50%
+    height: 100%
+    width: 100%
 
   .active-arrow-container
     position: absolute
-    width: 50%
-    height: 50%
-    margin-top: -400%
+    top: 80%
+    width: 100%
     animation: active-entity-arrow-container 2s infinite
 
     .active-arrow
-      background-color: red
       clip-path: polygon(50% 100%, 100% 0, 65% 0, 50% 25%, 35% 0, 0 0)
-      width: 100%
-      height: 100%
-
-  .nameplate, .stats
-    position: absolute
-    font-size: .8rem
-    border-radius: .25rem
-    padding: 2px 4px
-    z-index: $tooltip-index
-
-  .nameplate
-    top: -1rem
-    display: none
-    background: rgba(0, 0, 0, .6)
-
-    .name
-      grid-column: 1/3
-      white-space: nowrap
-
-  .stats
-    bottom: -1rem
-    display: none
-    grid-template-columns: 1fr 1fr
-    grid-gap: .5rem
-    justify-content: center
-    white-space: nowrap
-
-    .ap, .mp
-      text-align: center
-      height: 24px
-      width: 24px
-      border-radius: 50%
-      display: flex
-      justify-content: center
-      align-items: center
-      z-index: $tooltip-index
-
-    .ap
-      grid-column: 1
-      background: blue
-
-    .mp
-      grid-column: 2
-      background: green
-
-  .hp
-    display: none
+      width: 20px
+      height: 20px
 
 </style>
