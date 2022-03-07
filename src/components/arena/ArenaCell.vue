@@ -24,9 +24,8 @@
       <ArenaEntity
         v-for="entity in entities[x][y]"
         :key="entity.id"
-        :entity="entity"
-        @entity-mouseover="$emit('entity-mouseover', entity.mp.current)"
-        @entity-mouseout="$emit('entity-mouseout')"
+        :x="x"
+        :y="y"
       />
     </div>
   </div>
@@ -98,7 +97,7 @@ $cell-index: 1
     width: 100%
 
     &.destination-overlay
-      background: rgba(82, 189, 34, 0.7)
+      background: rgba(82, 189, 34, 1)
 
     &.targeting-overlay
       background: orangered

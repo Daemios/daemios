@@ -2,11 +2,11 @@
   <div
     class="entity"
     :class="classes"
-    @mouseover.self="$emit('entity-mouseover')"
-    @mouseout.self="$emit('entity-mouseout')"
+    @mouseover="entityMouseOver"
+    @mouseout="entityMouseOut"
   >
     <div
-      v-if="entity.active"
+      v-if="entities[x][y][0].active"
       class="active-arrow-container d-flex justify-center"
     >
       <div
@@ -15,7 +15,7 @@
     </div>
     <div class="background overflow-hidden">
       <v-img
-        :src="entity.img"
+        :src="entities[x][y][0].img"
       />
     </div>
   </div>
@@ -25,22 +25,35 @@ import { mapState } from 'vuex';
 
 export default {
   props: {
-    entity: {
-      type: Object,
+    x: {
+      type: Number,
+      required: true,
+    },
+    y: {
+      type: Number,
       required: true,
     },
   },
   computed: {
     ...mapState({
-      activeEntityId: (state) => state.arena.activeEntityId,
+      entities: (state) => state.arena.entities,
     }),
     classes() {
       return {
-        active: this.entity.active,
-        enemy: this.entity.faction === 'enemy',
-        ally: this.entity.faction === 'ally',
-        player: this.entity.faction === 'player',
+        active: this.entities[this.x][this.y][0].active,
+        hover: this.entities[this.x][this.y][0].hover,
+        enemy: this.entities[this.x][this.y][0].faction === 'enemy',
+        ally: this.entities[this.x][this.y][0].faction === 'ally',
+        player: this.entities[this.x][this.y][0].faction === 'player',
       };
+    },
+  },
+  methods: {
+    entityMouseOver() {
+      this.$store.commit('arena/entityMouseOver', { x: this.x, y: this.y });
+    },
+    entityMouseOut() {
+      this.$store.commit('arena/entityMouseOut', { x: this.x, y: this.y });
     },
   },
 };
@@ -93,6 +106,9 @@ $tooltip-index: 3
   cursor: pointer
   z-index: $entity-index
   position: relative
+
+  &.hover
+    box-shadow: 0 0 10px 1px #FFF
 
   .background
     border-radius: 50%

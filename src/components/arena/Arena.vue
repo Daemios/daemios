@@ -16,8 +16,6 @@
         @click="cellClick(x, y)"
         @cell-mouseover="cellMouseOver(x, y)"
         @cell-mouseout="cellMouseOut(x, y)"
-        @entity-mouseover="entityMouseOver(x, y)"
-        @entity-mouseout="entityMouseOut(x, y)"
       />
     </div>
     <ListEntityList />
@@ -72,6 +70,7 @@ export default {
         faction,
         name: 'Entity',
         active: false,
+        hover: false,
         img: faction === 'enemy' ? this.randomEnemyImg() : this.randomAllyImg(),
         life: {
           current: Math.floor(Math.random() * 10),
@@ -119,6 +118,7 @@ export default {
         name: 'Test',
         img: 'https://i.pinimg.com/564x/46/22/0b/46220b30d9406bcd34e93851081e3fa5.jpg',
         active: true,
+        hover: false,
         life: {
           current: 2,
           max: 10,
@@ -197,12 +197,6 @@ export default {
     },
     cellMouseOut() {
       // clear shapes
-      // console.log(x, y);
-    },
-    entityMouseOver() {
-      // console.log(x, y);
-    },
-    entityMouseOut() {
       // console.log(x, y);
     },
 

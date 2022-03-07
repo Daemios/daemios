@@ -2,6 +2,8 @@
   <div
     class="list-entity rounded"
     :class="entityClasses"
+    @mouseover="entityMouseOver"
+    @mouseleave="entityMouseOut"
   >
     <div class="background-container overflow-hidden rounded">
       <v-img
@@ -13,7 +15,7 @@
     </div>
     <div
       class="turn-active-indicator"
-      :class="chevronTurnActiveClasses"
+      :class="turnActiveClasses"
     />
     <div
       class="control-indicator"
@@ -40,6 +42,7 @@ export default {
     entityClasses() {
       return {
         active: this.entities[this.x][this.y][0].active,
+        hover: this.entities[this.x][this.y][0].hover,
       };
     },
     controlClasses() {
@@ -49,8 +52,7 @@ export default {
         player: this.entities[this.x][this.y][0].faction === 'player',
       };
     },
-    chevronTurnActiveClasses() {
-      console.log(this.entities[this.x][this.y][0].active);
+    turnActiveClasses() {
       return {
         'turn-active': this.entities[this.x][this.y][0].active,
       };
@@ -58,6 +60,14 @@ export default {
     ...mapState({
       entities: (state) => state.arena.entities,
     }),
+  },
+  methods: {
+    entityMouseOver() {
+      this.$store.commit('arena/entityMouseOver', { x: this.x, y: this.y });
+    },
+    entityMouseOut() {
+      this.$store.commit('arena/entityMouseOut', { x: this.x, y: this.y });
+    },
   },
 };
 </script>
@@ -79,8 +89,9 @@ $width: 60px
     transform: translateY(-10px)
     box-shadow: 0 0 10px 1px #FFD700
 
-  &:hover:not(.active)
+  &.hover:not(.active)
     transform: translateY(-5px)
+    box-shadow: 0 0 10px 1px #FFF
 
   .background-container
     width: 100%

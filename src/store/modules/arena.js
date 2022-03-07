@@ -33,6 +33,12 @@ export default {
         y: args.y,
       });
     },
+    entityMouseOver(state, args) {
+      state.entities[args.x][args.y][0].hover = true;
+    },
+    entityMouseOut(state, args) {
+      state.entities[args.x][args.y][0].hover = false;
+    },
     clearEntityRegistry(state) {
       state.entityRegistry = [];
     },
