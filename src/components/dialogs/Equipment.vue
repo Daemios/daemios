@@ -3,7 +3,9 @@
     v-model="$store.state.dialogs.isEquipmentOpen"
     width="unset"
   >
-    <v-card class="pa-2">
+    <v-card
+      class="pa-2 background text--header-text"
+    >
       <v-card-title class="mb-2">
         <h1>Equipment (C)</h1>
         <v-icon
