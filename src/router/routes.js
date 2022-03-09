@@ -43,6 +43,15 @@ export default [
     },
   },
   {
+    path: '/alpha-test',
+    name: 'Alpha Test',
+    component: () => import('@/views/primary/AlphaTest'),
+    meta: {
+      render: true,
+      icon: mdiAbacus,
+    },
+  },
+  {
     path: '*',
     name: 'Page Not Found',
     component: () => import('@/views/hidden/NotFound'),
