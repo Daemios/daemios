@@ -1,3 +1,5 @@
+import Vue from 'vue';
+
 export default {
   namespaced: true,
   state: {
@@ -6,9 +8,10 @@ export default {
     playerActive: true,
     plannedPath: [],
     map: null,
-    active: { x: 7, y: 7 },
+    activeRegister: { x: 7, y: 7 },
     overlayRegistry: {
       validDestination: [],
+      validY: [],
       targeting: [],
     },
     shapeOnMouse: {
@@ -18,8 +21,13 @@ export default {
     },
   },
   mutations: {
-    setActive(state, active) {
-      state.active = active;
+    setActive(state, args) {
+      // Deactivate old active entity
+      state.entities[state.activeRegister.x][args.activeRegister.y].active = false;
+
+      // Activate and register new active entity
+      state.activeRegister = args;
+      state.entities[args.x][args.y].active = true;
     },
     setMap(state, map) {
       state.map = map;
@@ -34,10 +42,10 @@ export default {
       });
     },
     entityMouseOver(state, args) {
-      state.entities[args.x][args.y][0].hover = true;
+      state.entities[args.x][args.y].hover = true;
     },
     entityMouseOut(state, args) {
-      state.entities[args.x][args.y][0].hover = false;
+      state.entities[args.x][args.y].hover = false;
     },
     clearEntityRegistry(state) {
       state.entityRegistry = [];
@@ -51,8 +59,28 @@ export default {
     clearPlannedPath(state) {
       state.plannedPath = [];
     },
-    moveEntity() {
+    moveEntity(state) {
+      if (state.plannedPath.length > 0) {
+        const { x } = state.plannedPath[0];
+        const { y } = state.plannedPath[0];
+        setTimeout(() => {
+          // Remove the OLD active entity from the entity registry and replace with new entry
+          const index = state.entityRegistry.findIndex((entry) => (
+            entry.x === state.activeRegister.x && entry.y === state.activeRegister.y
+          ));
+          Vue.set(state.entityRegistry, index, { x, y }); // preserves reactivity
 
+          // Copy the active entity to a new position
+          state.entities[x][y] = state.entities[state.activeRegister.x][state.activeRegister.y];
+
+          state.entities[state.activeRegister.x][state.activeRegister.y] = null;
+          state.activeRegister = { x, y };
+
+          state.plannedPath.splice(0, 1);
+        }, 500);
+      }
+
+      // this.commit('moveEntity', payload);
     },
     setOverlay(state, args) {
       if (args.overlay) {

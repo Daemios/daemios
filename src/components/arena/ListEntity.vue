@@ -1,6 +1,6 @@
 <template>
   <v-dialog
-    width="800"
+    width="900"
     content-class="overflow-hidden"
   >
     <template #activator="{ attrs, on }">
@@ -15,7 +15,7 @@
           <v-img
             height="130"
             width="60"
-            :src="entities[x][y][0].img"
+            :src="entities[x][y].img"
             class="overflow-hidden"
           />
         </div>
@@ -33,7 +33,7 @@
       <v-card-text class="pa-0 d-flex">
         <v-row no-gutters>
           <v-col cols="7">
-            <v-img :src="entities[x][y][0].img" />
+            <v-img :src="entities[x][y].img" />
           </v-col>
           <v-col
             cols="5"
@@ -46,7 +46,7 @@
                   Effects
                 </h3>
                 <v-chip
-                  v-for="(effect, i) in entities[x][y][0].effects"
+                  v-for="(effect, i) in entities[x][y].effects"
                   :key="i"
                   class="mr-2 mb-2"
                 >
@@ -60,7 +60,7 @@
                   Log
                 </h3>
                 <div
-                  v-for="(turn, i) in entities[x][y][0].log"
+                  v-for="(turn, i) in entities[x][y].log"
                   :key="i"
                   class="entry mb-2"
                 >
@@ -72,7 +72,7 @@
                     :key="j"
                     class="entry mb-2"
                   >
-                    {{ entities[x][y][0].name }} {{ entry.message }}
+                    {{ entities[x][y].name }} {{ entry.message }}
                   </div>
                 </div>
               </div>
@@ -102,20 +102,20 @@ export default {
   computed: {
     entityClasses() {
       return {
-        active: this.entities[this.x][this.y][0].active,
-        hover: this.entities[this.x][this.y][0].hover,
+        active: this.entities[this.x][this.y].active,
+        hover: this.entities[this.x][this.y].hover,
       };
     },
     controlClasses() {
       return {
-        enemy: this.entities[this.x][this.y][0].faction === 'enemy',
-        ally: this.entities[this.x][this.y][0].faction === 'ally',
-        player: this.entities[this.x][this.y][0].faction === 'player',
+        enemy: this.entities[this.x][this.y].faction === 'enemy',
+        ally: this.entities[this.x][this.y].faction === 'ally',
+        player: this.entities[this.x][this.y].faction === 'player',
       };
     },
     turnActiveClasses() {
       return {
-        'turn-active': this.entities[this.x][this.y][0].active,
+        'turn-active': this.entities[this.x][this.y].active,
       };
     },
     ...mapState({

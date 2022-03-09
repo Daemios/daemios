@@ -6,7 +6,7 @@
     @mouseout="entityMouseOut"
   >
     <div
-      v-if="entities[x][y][0].active"
+      v-if="entities[x][y].active"
       class="active-arrow-container d-flex justify-center"
     >
       <div
@@ -15,7 +15,7 @@
     </div>
     <div class="background overflow-hidden">
       <v-img
-        :src="entities[x][y][0].img"
+        :src="entities[x][y].img"
       />
     </div>
   </div>
@@ -40,11 +40,11 @@ export default {
     }),
     classes() {
       return {
-        active: this.entities[this.x][this.y][0].active,
-        hover: this.entities[this.x][this.y][0].hover,
-        enemy: this.entities[this.x][this.y][0].faction === 'enemy',
-        ally: this.entities[this.x][this.y][0].faction === 'ally',
-        player: this.entities[this.x][this.y][0].faction === 'player',
+        active: this.entities[this.x][this.y].active,
+        hover: this.entities[this.x][this.y].hover,
+        enemy: this.entities[this.x][this.y].faction === 'enemy',
+        ally: this.entities[this.x][this.y].faction === 'ally',
+        player: this.entities[this.x][this.y].faction === 'player',
       };
     },
   },

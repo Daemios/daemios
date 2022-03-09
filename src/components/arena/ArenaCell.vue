@@ -11,6 +11,10 @@
       class="overlay destination-overlay"
     />
     <div
+      v-if="cell.overlays['validY'] && cell.passable"
+      class="overlay y-overlay"
+    />
+    <div
       v-if="cell.overlays['targeting'] && cell.passable"
       class="overlay targeting-overlay"
     />
@@ -22,8 +26,7 @@
       @mouseout.self="$emit('cell-mouseout')"
     >
       <ArenaEntity
-        v-for="entity in entities[x][y]"
-        :key="entity.id"
+        v-if="entities[x][y]"
         :x="x"
         :y="y"
       />
@@ -98,6 +101,9 @@ $cell-index: 1
 
     &.destination-overlay
       background: rgba(82, 189, 34, 1)
+
+    &.y-overlay
+      background: yellow
 
     &.targeting-overlay
       background: orangered

@@ -46,7 +46,7 @@ export default {
     ...mapState({
       map: (state) => state.arena.map,
       entities: (state) => state.arena.entities,
-      active: (state) => state.arena.active,
+      active: (state) => state.arena.activeRegister,
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
       playerActive: (state) => state.arena.playerActive,
@@ -65,7 +65,7 @@ export default {
     randomEntity() {
       const faction = Math.random() > 0.2 ? 'enemy' : 'ally';
 
-      return [{
+      return {
         id: Math.floor(Math.random() * 1000000) + 1,
         owned: false,
         faction,
@@ -135,7 +135,7 @@ export default {
             ],
           },
         ],
-      }];
+      };
     },
     generateTerrain() {
       const generate = [];
@@ -153,6 +153,7 @@ export default {
           overlays: {
             validDestination: false,
             targeting: false,
+            validY: false,
           },
         };
       });
@@ -162,7 +163,7 @@ export default {
     generateEntities() {
       this.$store.commit('arena/clearEntityRegistry');
 
-      const playerEntity = [{
+      const playerEntity = {
         id: 0,
         owned: true,
         faction: 'player',
@@ -175,14 +176,14 @@ export default {
           max: 10,
         },
         mp: {
-          current: 9,
+          current: 4,
           max: 4,
         },
         ap: {
           current: 2,
           max: 4,
         },
-      }];
+      };
       const entities = [];
 
       // Row
@@ -225,6 +226,7 @@ export default {
     // --------- Controls ---------
     cellClick() {
       console.log('click');
+      this.$store.commit('arena/moveEntity');
     },
     cellMouseOver(mouseX, mouseY) {
       const x = Number(mouseX);
@@ -264,8 +266,11 @@ export default {
      */
     pathToCell(toX, toY) {
       this.$store.commit('arena/clearOverlay', 'validDestination');
+      this.$store.commit('arena/clearOverlay', 'validY');
 
-      const entity = this.entities[this.active.x][this.active.y][0];
+      const distance = this.checkDistance(this.active.x, this.active.y, toX, toY);
+
+      const entity = this.entities[this.active.x][this.active.y];
       let squaresAwayFromToPos = 0;
 
       if (this.plannedPath && this.plannedPath.length > 0) {
@@ -292,24 +297,16 @@ export default {
 
       // TODO disabled for now since this requires more thought as to how this should be used
       // uses method #2 as only method atm
-      if (
-        false && ((squaresAwayFromToPos < 2 && squaresAwayFromToPos > 0)
-        || this.checkDistance(this.active[0], this.active[1], toX, toY))
-      ) {
+      if (false && ((squaresAwayFromToPos < 2 && squaresAwayFromToPos > 0) || distance)) {
         // Append new position to plannedPath
         this.$store.commit('arena/appendPlannedPath', [toX, toY]);
       } else {
-        // Clear address path (not overlays) in prep for new path
+        // Clear planned path (not overlays, done above) in prep for new path
         this.$store.commit('arena/clearPlannedPath');
 
         // Second path method
         if (entity.mp.current >= this.checkDistance(toX, toY, this.active.x, this.active.y)) {
-          /**
-           * Determines if we're moving in a positive or negative direction in the
-           * respective axes on the cartesian map
-           */
-          const xDirection = toX >= this.active.x ? 1 : -1;
-          const yDirection = toY >= this.active.y ? 1 : -1;
+          // Comments here are verbose because its a confusing dance of code
 
           /**
            * Checks to see whether the X or Y should be our primary axis
@@ -323,6 +320,13 @@ export default {
           const xMain = xPathLength >= yPathLength;
 
           /**
+           * Determines if we're moving in a positive or negative direction in the
+           * respective axes on the cartesian map
+           */
+          const xDirection = toX >= this.active.x ? 1 : -1;
+          const yDirection = toY >= this.active.y ? 1 : -1;
+
+          /**
            * Two loops generate an X- and Y- locked coordinate group
            * and set the path highlight of those cells to true
            *
@@ -334,27 +338,54 @@ export default {
           const xPathYCoord = xMain ? this.active.y : this.active.y + (yPathLength * yDirection);
           const yPathXCoord = xMain ? this.active.x + (xPathLength * xDirection) : this.active.y;
 
-          for (let x = 0; x <= xPathLength; x += 1) {
-            const xCoord = this.active.x + (x * xDirection);
+          // TODO This very likely can be simplified, and is a tack-on of adapted old code
+
+          // Length of the dominant path (the one that protrudes from origin)
+          const dominant = xMain ? xPathLength : yPathLength;
+          // Length of the submissive path (the one that protrudes from the end of the dominant)
+          const submissive = xMain ? yPathLength : xPathLength;
+
+          /**
+           * The start of the dominant line in terms of it's relevant axis.
+           * X dominant lines start at the active entities X coordinate, vice versa
+           */
+          const dom_start = xMain ? this.active.x : this.active.y;
+
+          // Uses pos/neg direction of each axis, determine what direction the dom/sub line moves
+          const dom_direction = xMain ? xDirection : yDirection;
+          const sub_direction = xMain ? yDirection : xDirection;
+
+          // This object stores the last coordinates of the dom line
+          let exit_coords = {};
+
+          // Builds a set of coordinates along the dominant axis and sets overlays
+          for (let i = 1; i <= dominant; i += 1) {
             const coords = {
-              x: xCoord,
-              y: xPathYCoord,
-              overlay: 'validDestination',
-              boolean: true,
+              x: xMain ? (i * dom_direction) + dom_start : yPathXCoord,
+              y: xMain ? xPathYCoord : (i * dom_direction) + dom_start,
             };
             this.$store.commit('arena/appendPlannedPath', coords);
-            this.$store.commit('arena/setOverlay', coords);
+            this.$store.commit('arena/setOverlay', {
+              ...coords,
+              overlay: 'validDestination',
+              boolean: true,
+            });
+            exit_coords = coords;
           }
-          for (let y = 0; y <= yPathLength; y += 1) {
-            const yCoord = this.active.y + (y * yDirection);
+
+          // Same as dom, but uses exit coords instead as an origin instead of entity location
+          for (let j = 1; j <= submissive; j += 1) {
             const coords = {
-              x: yPathXCoord,
-              y: yCoord,
+              x: xMain ? exit_coords.x : (j * sub_direction) + exit_coords.x,
+              y: xMain ? (j * sub_direction) + exit_coords.y : exit_coords.y,
+            };
+
+            this.$store.commit('arena/appendPlannedPath', coords);
+            this.$store.commit('arena/setOverlay', {
+              ...coords,
               overlay: 'validDestination',
               boolean: true,
-            };
-            this.$store.commit('arena/appendPlannedPath', coords);
-            this.$store.commit('arena/setOverlay', coords);
+            });
           }
         }
       }
