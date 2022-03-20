@@ -3,16 +3,19 @@ import Vue from 'vue';
 export default {
   namespaced: true,
   state: {
+    debug: true,
     entities: null,
     entityRegistry: [],
     playerActive: true,
     plannedPath: [],
+    confirmedPath: [],
+    moving: false,
     map: null,
     activeRegister: { x: 7, y: 7 },
     overlayRegistry: {
       validDestination: [],
-      validY: [],
       targeting: [],
+      confirmedPath: [],
     },
     shapeOnMouse: {
       show: false,
@@ -59,28 +62,30 @@ export default {
     clearPlannedPath(state) {
       state.plannedPath = [];
     },
-    moveEntity(state) {
-      if (state.plannedPath.length > 0) {
-        const { x } = state.plannedPath[0];
-        const { y } = state.plannedPath[0];
-        setTimeout(() => {
-          // Remove the OLD active entity from the entity registry and replace with new entry
-          const index = state.entityRegistry.findIndex((entry) => (
-            entry.x === state.activeRegister.x && entry.y === state.activeRegister.y
-          ));
-          Vue.set(state.entityRegistry, index, { x, y }); // preserves reactivity
+    setConfirmedPath(state) {
+      state.confirmedPath = state.plannedPath;
+      state.confirmedPath.forEach((coordinates) => {
+        state.overlayRegistry.confirmedPath.push(coordinates);
+        const args = {
+          ...coordinates,
+          overlay: 'confirmedPath',
+          boolean: true,
+        };
+        this.commit('arena/setOverlay', args);
+      });
+    },
+    moveEntity(state, teleport = false) {
+      if (state.plannedPath.length > 0 && !state.moving) {
+        this.commit('arena/clearOverlay', 'validDestination');
+        this.commit('arena/setConfirmedPath');
+        state.moving = true;
 
-          // Copy the active entity to a new position
-          state.entities[x][y] = state.entities[state.activeRegister.x][state.activeRegister.y];
-
-          state.entities[state.activeRegister.x][state.activeRegister.y] = null;
-          state.activeRegister = { x, y };
-
-          state.plannedPath.splice(0, 1);
-        }, 500);
+        if (teleport) {
+          // this.dispatch('arena/moveTeleport');
+        } else {
+          this.dispatch('arena/moveByCell');
+        }
       }
-
-      // this.commit('moveEntity', payload);
     },
     setOverlay(state, args) {
       if (args.overlay) {
@@ -102,5 +107,57 @@ export default {
       }
       state.overlayRegistry[overlay] = [];
     },
+    clearOverlayAt(state, args) {
+      // Iterate through coordinates and clear overlays
+      if (state.overlayRegistry[args.overlay]) {
+        state.map[args.x][args.y].overlays[args.overlay] = false;
+      }
+      const index = state.overlayRegistry[args.overlay].findIndex((entry) => (
+        entry.x === args.x && entry.y === args.y
+      ));
+      state.overlayRegistry[args.overlay][index] = [];
+    },
+  },
+  actions: {
+    moveByCell(context) {
+      if (context.state.confirmedPath.length > 0) {
+        const { x } = context.state.confirmedPath[0];
+        const { y } = context.state.confirmedPath[0];
+
+        setTimeout(() => {
+          // Remove the OLD active entity from the entity registry and replace with new entry
+          const index = context.state.entityRegistry.findIndex((entry) => (
+            entry.x === context.state.activeRegister.x && entry.y === context.state.activeRegister.y
+          ));
+          Vue.set(context.state.entityRegistry, index, { x, y }); // preserves reactivity
+
+          // Copy the active entity to a new position
+          Vue.set(context.state.entities[x], y,
+            context.state.entities[context.state.activeRegister.x][context.state.activeRegister.y]);
+
+          Vue.set(
+            context.state.entities[context.state.activeRegister.x],
+            context.state.activeRegister.y,
+            null,
+          );
+          Vue.set(context.state, 'activeRegister', { x, y });
+
+          // Clean up the state and overlays
+          context.state.confirmedPath.splice(0, 1);
+          context.commit('clearOverlayAt', {
+            overlay: 'confirmedPath',
+            x,
+            y,
+          });
+
+          // Recurse
+          context.dispatch('moveByCell');
+        }, 500);
+      } else {
+        // Movement is done, so we can reactivate pathing and do any cleanup required
+        Vue.set(context.state, 'moving', false);
+      }
+    },
+    moveTeleport() {},
   },
 };

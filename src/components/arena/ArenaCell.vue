@@ -11,13 +11,19 @@
       class="overlay destination-overlay"
     />
     <div
-      v-if="cell.overlays['validY'] && cell.passable"
-      class="overlay y-overlay"
+      v-if="cell.overlays['confirmedPath'] && cell.passable"
+      class="overlay confirmed-path-overlay"
     />
     <div
       v-if="cell.overlays['targeting'] && cell.passable"
       class="overlay targeting-overlay"
     />
+    <div
+      v-if="$store.state.arena.debug"
+      class="overlay d-flex align-center justify-center"
+    >
+      {{ x }}|{{ y }}
+    </div>
 
     <div
       v-if="entities && entities.length"
@@ -102,8 +108,8 @@ $cell-index: 1
     &.destination-overlay
       background: rgba(82, 189, 34, 1)
 
-    &.y-overlay
-      background: yellow
+    &.confirmed-path-overlay
+      background: rgba(100, 100, 255, 1)
 
     &.targeting-overlay
       background: orangered

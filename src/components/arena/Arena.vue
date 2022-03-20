@@ -19,6 +19,7 @@
       />
     </div>
     <ListEntityList />
+    <DebugPane v-if="$store.state.arena.debug" />
   </div>
 </template>
 
@@ -27,9 +28,10 @@ import { mdiFire, mdiHospital } from '@mdi/js';
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
 import ListEntityList from '@/components/arena/ListEntityList';
+import DebugPane from '@/components/arena/DebugPane';
 
 export default {
-  components: { ArenaCell, ListEntityList },
+  components: { ArenaCell, ListEntityList, DebugPane },
   data() {
     return {
       generation: {
@@ -50,6 +52,7 @@ export default {
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
       playerActive: (state) => state.arena.playerActive,
+      moving: (state) => state.arena.moving,
     }),
   },
   mounted() {
@@ -153,7 +156,7 @@ export default {
           overlays: {
             validDestination: false,
             targeting: false,
-            validY: false,
+            confirmedPath: false,
           },
         };
       });
@@ -176,7 +179,7 @@ export default {
           max: 10,
         },
         mp: {
-          current: 4,
+          current: 8,
           max: 4,
         },
         ap: {
@@ -265,8 +268,11 @@ export default {
      * Highlights a path on the arena from the active entity to the selected coordinate
      */
     pathToCell(toX, toY) {
+      if (this.moving) {
+        return false;
+      }
+
       this.$store.commit('arena/clearOverlay', 'validDestination');
-      this.$store.commit('arena/clearOverlay', 'validY');
 
       const distance = this.checkDistance(this.active.x, this.active.y, toX, toY);
 
@@ -306,7 +312,7 @@ export default {
 
         // Second path method
         if (entity.mp.current >= this.checkDistance(toX, toY, this.active.x, this.active.y)) {
-          // Comments here are verbose because its a confusing dance of code
+          // Comments here are verbose because it's a confusing dance of code
 
           /**
            * Checks to see whether the X or Y should be our primary axis
@@ -336,7 +342,7 @@ export default {
            * and we do the reverse for the y path x coordinate
            */
           const xPathYCoord = xMain ? this.active.y : this.active.y + (yPathLength * yDirection);
-          const yPathXCoord = xMain ? this.active.x + (xPathLength * xDirection) : this.active.y;
+          const yPathXCoord = xMain ? this.active.x + (xPathLength * xDirection) : this.active.x;
 
           // TODO This very likely can be simplified, and is a tack-on of adapted old code
 
@@ -461,24 +467,6 @@ export default {
           }
         }
       }
-    },
-    teleport(newX, newY, oldX, oldY) {
-      if (!this.arena.entities[oldX][oldY].length) {
-        console.log(`No entity at grid [${oldX}|${oldY}]`);
-        return false;
-      }
-      if (this.arena.entities[newX][newY].length) {
-        console.log('Cannot override entities: ', this.arena.entities[newX][newY]);
-        return false;
-      }
-      // TODO make more robust by selecting specific entity by ID, see arena store 'activeEntityId'
-      this.arena.entities[newX][newY].push(this.arena.entities[oldX][oldY]);
-      this.arena.entities[oldX][oldY] = [];
-
-      return true;
-    },
-    teleportTestingWrapper(newX, newY) {
-      this.teleport(newX, newY, this.$store.state.arena.active.x, this.$store.state.arena.active.y);
     },
   },
 };
