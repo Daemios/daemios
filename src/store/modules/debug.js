@@ -18,7 +18,7 @@ export default {
       ],
       archetype: {
         roles: [
-          { archetype_role_id: 1, label: 'Healer\r\n', description: 'Focus on repairing damage instead of dealing it.' },
+          { archetype_role_id: 1, label: 'Healer', description: 'Focus on repairing damage instead of dealing it.' },
           { archetype_role_id: 2, label: 'Damage', description: 'Things need bonk? You bonk.' },
           { archetype_role_id: 3, label: 'Debuff', description: 'Killing your enemies through control.' },
           { archetype_role_id: 4, label: 'Utility', description: 'Buff allies and manipulate the battlefield.' },
@@ -96,7 +96,7 @@ export default {
     },
 
     // This is necessary because vuetify indexes from 0 on its
-    // selects and doesn't allowed key/value pairs for the items it lists
+    // selects and doesn't allow key/value pairs for the items it lists
     selects: {
       ability: {
         range: [

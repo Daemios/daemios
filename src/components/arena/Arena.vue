@@ -19,6 +19,7 @@
       />
     </div>
     <ListEntityList />
+    <TurnIndicator v-if="$store.state.arena.showTurn" />
     <DebugPane v-if="$store.state.arena.debug" />
   </div>
 </template>
@@ -28,10 +29,13 @@ import { mdiFire, mdiHospital } from '@mdi/js';
 import { mapState } from 'vuex';
 import ArenaCell from '@/components/arena/ArenaCell';
 import ListEntityList from '@/components/arena/ListEntityList';
+import TurnIndicator from '@/components/arena/TurnIndicator';
 import DebugPane from '@/components/arena/DebugPane';
 
 export default {
-  components: { ArenaCell, ListEntityList, DebugPane },
+  components: {
+    ArenaCell, ListEntityList, TurnIndicator, DebugPane,
+  },
   data() {
     return {
       generation: {
@@ -48,6 +52,7 @@ export default {
     ...mapState({
       map: (state) => state.arena.map,
       entities: (state) => state.arena.entities,
+      entityRegistry: (state) => state.arena.entityRegistry,
       active: (state) => state.arena.activeRegister,
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
@@ -55,12 +60,36 @@ export default {
       moving: (state) => state.arena.moving,
     }),
   },
+  watch: {
+    active() {
+      console.log('active changed');
+    },
+  },
   mounted() {
     this.generateTerrain();
     this.generateEntities();
   },
   methods: {
     // --------- Generation Helpers ---------
+    randomAllyImg() {
+      const images = [
+        'https://i.pinimg.com/564x/51/e0/a8/51e0a8f8b1dfe4bc7a8fbac386ae0510.jpg',
+        'https://i.pinimg.com/564x/43/89/60/43896082a4f5464217d028f348e11e00.jpg',
+        'https://i.pinimg.com/564x/2f/36/cd/2f36cd42dcf583da901afd854ab82cf1.jpg',
+        'https://i.pinimg.com/564x/db/4c/3c/db4c3cc49dc0cf8342c86d86bc3200e7.jpg',
+      ];
+
+      return images[Math.floor(Math.random() * images.length)];
+    },
+    randomEnemyImg() {
+      const images = [
+        'https://i.pinimg.com/564x/fd/83/78/fd83780c6fe297027c505ab5fda5202b.jpg',
+        'https://i.pinimg.com/564x/83/15/ab/8315ab2665eeb330b3181651f8e0f88d.jpg',
+        'https://i.pinimg.com/564x/09/af/62/09af6265634c97f267c09a2ecfbde158.jpg',
+      ];
+
+      return images[Math.floor(Math.random() * images.length)];
+    },
     randomTerrain() {
       const index = Math.floor(Math.random() * this.generation.terrain.length);
       return this.generation.terrain[index];
@@ -72,7 +101,7 @@ export default {
         id: Math.floor(Math.random() * 1000000) + 1,
         owned: false,
         faction,
-        name: 'Entity',
+        name: `Random ${faction}`,
         active: false,
         hover: false,
         img: faction === 'enemy' ? this.randomEnemyImg() : this.randomAllyImg(),
@@ -170,7 +199,7 @@ export default {
         id: 0,
         owned: true,
         faction: 'player',
-        name: 'Test',
+        name: 'Gamer Guy',
         img: 'https://i.pinimg.com/564x/46/22/0b/46220b30d9406bcd34e93851081e3fa5.jpg',
         active: true,
         hover: false,
@@ -187,6 +216,8 @@ export default {
           max: 4,
         },
       };
+      // This is up here because it will force the active to be 0 index aka round start
+      this.$store.commit('arena/registerEntity', { x: 7, y: 7, index: 0 });
       const entities = [];
 
       // Row
@@ -202,28 +233,7 @@ export default {
       });
 
       entities[7][7] = playerEntity;
-      this.$store.commit('arena/registerEntity', { x: 7, y: 7 });
       this.$store.commit('arena/setEntities', entities);
-    },
-
-    randomAllyImg() {
-      const images = [
-        'https://i.pinimg.com/564x/51/e0/a8/51e0a8f8b1dfe4bc7a8fbac386ae0510.jpg',
-        'https://i.pinimg.com/564x/43/89/60/43896082a4f5464217d028f348e11e00.jpg',
-        'https://i.pinimg.com/564x/2f/36/cd/2f36cd42dcf583da901afd854ab82cf1.jpg',
-        'https://i.pinimg.com/564x/db/4c/3c/db4c3cc49dc0cf8342c86d86bc3200e7.jpg',
-      ];
-
-      return images[Math.floor(Math.random() * images.length)];
-    },
-    randomEnemyImg() {
-      const images = [
-        'https://i.pinimg.com/564x/fd/83/78/fd83780c6fe297027c505ab5fda5202b.jpg',
-        'https://i.pinimg.com/564x/83/15/ab/8315ab2665eeb330b3181651f8e0f88d.jpg',
-        'https://i.pinimg.com/564x/09/af/62/09af6265634c97f267c09a2ecfbde158.jpg',
-      ];
-
-      return images[Math.floor(Math.random() * images.length)];
     },
 
     // --------- Controls ---------
@@ -363,6 +373,7 @@ export default {
 
           // This object stores the last coordinates of the dom line
           let exit_coords = {};
+          let stop = false;
 
           // Builds a set of coordinates along the dominant axis and sets overlays
           for (let i = 1; i <= dominant; i += 1) {
@@ -370,13 +381,22 @@ export default {
               x: xMain ? (i * dom_direction) + dom_start : yPathXCoord,
               y: xMain ? xPathYCoord : (i * dom_direction) + dom_start,
             };
-            this.$store.commit('arena/appendPlannedPath', coords);
-            this.$store.commit('arena/setOverlay', {
-              ...coords,
-              overlay: 'validDestination',
-              boolean: true,
-            });
-            exit_coords = coords;
+            if (
+              this.map[coords.x][coords.y].passable
+              && this.entities[coords.x] // required because y isnt built unless entity exists
+              && !this.entities[coords.x][coords.y]
+            ) {
+              this.$store.commit('arena/appendPlannedPath', coords);
+              this.$store.commit('arena/setOverlay', {
+                ...coords,
+                overlay: 'validDestination',
+                boolean: true,
+              });
+              exit_coords = coords;
+            } else {
+              stop = true;
+              break;
+            }
           }
 
           // Same as dom, but uses exit coords instead as an origin instead of entity location
@@ -386,12 +406,24 @@ export default {
               y: xMain ? (j * sub_direction) + exit_coords.y : exit_coords.y,
             };
 
-            this.$store.commit('arena/appendPlannedPath', coords);
-            this.$store.commit('arena/setOverlay', {
-              ...coords,
-              overlay: 'validDestination',
-              boolean: true,
-            });
+            if (stop) {
+              break;
+            }
+
+            if (
+              this.map[coords.x][coords.y].passable
+              && this.entities[coords.x] // required because y isnt built unless entity exists
+              && !this.entities[coords.x][coords.y]
+            ) {
+              this.$store.commit('arena/appendPlannedPath', coords);
+              this.$store.commit('arena/setOverlay', {
+                ...coords,
+                overlay: 'validDestination',
+                boolean: true,
+              });
+            } else {
+              break;
+            }
           }
         }
       }

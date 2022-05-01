@@ -4,14 +4,15 @@ export default {
   namespaced: true,
   state: {
     debug: true,
-    entities: null,
-    entityRegistry: [],
     playerActive: true,
+    moving: false,
+    showTurn: true,
+    entities: null,
+    map: null,
+    entityRegistry: [],
     plannedPath: [],
     confirmedPath: [],
-    moving: false,
-    map: null,
-    activeRegister: { x: 7, y: 7 },
+    activeRegister: { x: 7, y: 7, index: 0 },
     overlayRegistry: {
       validDestination: [],
       targeting: [],
@@ -26,11 +27,17 @@ export default {
   mutations: {
     setActive(state, args) {
       // Deactivate old active entity
-      state.entities[state.activeRegister.x][args.activeRegister.y].active = false;
+      state.entities[state.activeRegister.x][state.activeRegister.y].active = false;
 
       // Activate and register new active entity
       state.activeRegister = args;
       state.entities[args.x][args.y].active = true;
+
+      // Activate the cosmetic turn indicator and disable it after a little bit
+      state.showTurn = true;
+      setTimeout(() => {
+        state.showTurn = false;
+      }, 2000);
     },
     setMap(state, map) {
       state.map = map;
@@ -43,12 +50,6 @@ export default {
         x: args.x,
         y: args.y,
       });
-    },
-    entityMouseOver(state, args) {
-      state.entities[args.x][args.y].hover = true;
-    },
-    entityMouseOut(state, args) {
-      state.entities[args.x][args.y].hover = false;
     },
     clearEntityRegistry(state) {
       state.entityRegistry = [];
@@ -116,6 +117,12 @@ export default {
         entry.x === args.x && entry.y === args.y
       ));
       state.overlayRegistry[args.overlay][index] = [];
+    },
+    entityMouseOver(state, args) {
+      state.entities[args.x][args.y].hover = true;
+    },
+    entityMouseOut(state, args) {
+      state.entities[args.x][args.y].hover = false;
     },
   },
   actions: {

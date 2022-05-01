@@ -13,7 +13,7 @@
     <Inventory />
 
     <v-main class="background">
-      <router-view class="fill-height pa-4 pt-8" />
+      <router-view class="fill-height" />
 
     </v-main>
 
