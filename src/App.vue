@@ -3,21 +3,25 @@
     id="app"
   >
     <!-- Header -->
-    <Header />
+    <Header v-if="$route.meta['overlay']" />
 
     <!-- Nav Drawer -->
-    <Navigation />
+    <Navigation v-if="$route.meta['overlay']" />
 
     <!-- Game Dialogs -->
     <Equipment />
     <Inventory />
 
+    <!-- Main Content -->
     <v-main class="background">
       <router-view class="fill-height" />
-
     </v-main>
 
-    <div class="dialog-buttons d-flex justify-center">
+    <!-- Micro menu -->
+    <div
+      v-if="$route.meta['overlay']"
+      class="dialog-buttons d-flex justify-center"
+    >
       <div class="dialog-button-center grey pa-1 rounded mb-1">
         <v-btn
           depressed
@@ -76,6 +80,15 @@ export default {
 </script>
 
 <style lang="sass">
+
+@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap')
+@import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap')
+
+.v-application
+  .permanent-marker
+    font-family: 'Permanent Marker', cursive !important
+  .square-peg
+    font-family: 'Square Peg', cursive !important
 
 /* Overflow overrides to hide scrollbar */
 html

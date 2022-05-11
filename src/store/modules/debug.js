@@ -11,10 +11,10 @@ export default {
         { race_id: 6, label: 'Dwetherlin', description: 'Taking technological prowess to the extreme, these descendants of ancient mountain dwarf clans reside in massive floating airships with the rest of their specific clan, which basically equates to their extended family. All those who serve aboard an airship develop some sense of the arcane magics that propel the ship forward, and train their minds to see into the innerworkings of the complex machines that surround them.' },
         { race_id: 7, label: 'Critterling', description: 'These short, furred oddities resemble several different types of small mammals. Standing roughly as tall as a Dwarf, they usually prefer the natural places in the world, though there is a not-insignificant portion of their population living in large cities. Naturally stealthy and mentally sharp as a tack, these reclusive people prefer the outskirts of society where they live in small familial packs.' },
         { race_id: 8, label: 'Human', description: 'The elder race. While short lived compared to some of their descendants, humans are the riverbank from which the forest of other races has grown. Humanity rules over the majority of territory in the world, and are by far the most prominent race. Versatile and naturally viewed as socially superior to most other races, Humanity has spread itself over the plains, mountains, forests and oceans of the world.' },
-        { race_id: 9, label: 'Mantii', description: 'One of the strangest looking of the races, Mantii are insect-like humanoids with large, flat heads and two enormous, bulbous coupound eyes. While often hunted purely based on their appearance and fear, Mantii are actually one of the kinder races, tending to their home forests with a delicate grace and respect.' },
+        { race_id: 9, label: 'Mantii', description: 'One of the strangest looking of the races, Mantii are insect-like humanoids with large, flat heads and two enormous, bulbous compound eyes. While often hunted purely based on their appearance and fear, Mantii are actually one of the kinder races, tending to their home forests with a delicate grace and respect.' },
         { race_id: 10, label: 'Savrian', description: 'With protruding scales that give them a natural defense and an intimidating look, the lizardfolk of the deserts are often viewed by the kings and queens of the lands as trouble not worth having, and are left to their own devices in the land where few other races can survive. A significant portion of their population is dedicated to tending of the great Singing Crystals; enormous structures require constant attention serving to both condense what little moisture the desert air holds and act as sacred sites for their racial religion.' },
-        { race_id: 11, label: 'Etter', description: 'Etter, sometimes known as naturelings or ents, are odd and extremely rare creatures that live solitary lives. Measuring just a few feet tall for many years of their lives and having a naturally bark-like skin, Etter are stirred to life, starting as a small tough rootlike creature that forms deep underground and only emerges once it has absorbed enough nutrients from the surrounding soil. Etter often and inexplicitly have an almost reflexive knowledge about nature and the whims of the Divines that is hard to explain given their earthy origins.' },
-        { race_id: 12, label: 'Tyrak', description: 'From the Great Eyries across the world, the once-reclusive Tyrak have descended into the rest of the world. Dominated by a fiercely matriarchal society that values both physical prowess and a honed mind, Tyrak are not recognized as members of Tyrian society until they take part in Decimation, a ritual celebration once a year where the newest generation must fight to the death until roughly one tenth lay dead.' },
+        { race_id: 11, label: 'Etter', description: 'Etter, sometimes known as naturelings or ents, are odd and extremely rare creatures that live solitary lives. Measuring just a few feet tall for many years of their lives and having a naturally bark-like skin, Etter are stirred to life, starting as a small tough rootlike creature that forms deep underground and only emerges once it has absorbed enough nutrients from the surrounding soil. Etter often and inexplicably have an almost reflexive knowledge about nature and the whims of the Divines that is hard to explain given their earthy origins.' },
+        { race_id: 12, label: 'Tyrak', description: 'From the Great Eyries across the world, the once-reclusive Tyrak have again descended into the rest of the world. Dominated by a fiercely matriarchal society that values both physical prowess and a honed mind, Tyrak are not recognized as members of Tyrian society until they take part in Decimation, a ritual celebration once a year where the newest generation must fight to the death until one tenth lay dead.' },
       ],
       archetype: {
         roles: [
@@ -91,6 +91,48 @@ export default {
           8: {
             ability_type_id: 8, label: 'Wall', description: null, tag: 'wall',
           },
+        },
+      },
+      elements: {
+        0: {
+          name: 'Fire',
+          description: 'Fire description',
+          imgs: {
+            core: '/img/cores/fire.jpg',
+          },
+          color: '',
+        },
+        1: {
+          name: 'Nature',
+          description: 'Nature description',
+          imgs: {
+            core: '/img/cores/nature.jpg',
+          },
+          color: '',
+        },
+        2: {
+          name: 'Ice',
+          description: 'Ice description',
+          imgs: {
+            core: '/img/cores/ice.jpg',
+          },
+          color: '',
+        },
+        3: {
+          name: 'Lightning',
+          description: 'Lightning description',
+          imgs: {
+            core: '/img/cores/lightning.jpg',
+          },
+          color: '',
+        },
+        4: {
+          name: 'Water',
+          description: 'Water description',
+          imgs: {
+            core: '/img/cores/water.jpg',
+          },
+          color: '',
         },
       },
     },

@@ -4,7 +4,18 @@ export default [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/primary/Login'),
+    component: () => import('@/views/hidden/Login'),
+    meta: {
+      overlay: false,
+    },
+  },
+  {
+    path: '/builder',
+    name: 'Builder',
+    component: () => import('@/views/hidden/Builder'),
+    meta: {
+      overlay: false,
+    },
   },
   {
     path: '/world',
