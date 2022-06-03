@@ -10,7 +10,7 @@ export default {
   methods: {
     handleKeypress(event) {
       console.log(event.code);
-      if (!this.enabled) {
+      if (!this.keybinds_enabled) {
         console.log('keybinds not enabled');
         return;
       }
@@ -30,6 +30,7 @@ export default {
     },
     keybindDisable(event) {
       if (event.target.tagName.toUpperCase() === 'INPUT') {
+        console.log('keys disabled');
         this.keybinds_enabled = false;
       }
     },
