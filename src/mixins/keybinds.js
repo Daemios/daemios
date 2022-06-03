@@ -1,7 +1,19 @@
 export default {
-  created() {
-    document.addEventListener('keyup', (event) => {
+  data: () => ({
+    keybinds_enabled: true,
+    keybind_listeners: {
+      keybind: null,
+      focusIn: null,
+      focusOut: null,
+    },
+  }),
+  methods: {
+    handleKeypress(event) {
       console.log(event.code);
+      if (!this.enabled) {
+        console.log('keybinds not enabled');
+        return;
+      }
       switch (event.code) {
         case 'Escape':
           this.$store.commit('dialogs/closeEquipment');
@@ -15,9 +27,24 @@ export default {
           break;
         default: break;
       }
-    });
+    },
+    keybindDisable(event) {
+      if (event.target.tagName.toUpperCase() === 'INPUT') {
+        this.keybinds_enabled = false;
+      }
+    },
+    keybindEnable() {
+      this.keybinds_enabled = true;
+    },
   },
-  destroyed() {
-    document.removeEventListener('keyup', this.listener);
+  created() {
+    document.addEventListener('keyup', this.handleKeypress);
+    document.addEventListener('focusin', this.keybindDisable);
+    document.addEventListener('focusout', this.keybindEnable);
+  },
+  beforeDestroy() {
+    document.removeEventListener('keyup', this.handleKeypress);
+    document.removeEventListener('focusin', this.keybindDisable);
+    document.removeEventListener('focusout', this.keybindEnable);
   },
 };
