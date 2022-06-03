@@ -4,6 +4,6 @@
     align-center
     justify-center
   >
-    Craft
+    Mount
   </v-layout>
 </template>

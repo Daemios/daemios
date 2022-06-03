@@ -88,7 +88,7 @@ export default {
   .permanent-marker
     font-family: 'Permanent Marker', cursive !important
   .square-peg
-    font-family: 'Square Peg', cursive !important
+    font-family: 'Square Peg', sans-serif, cursive !important
 
 /* Overflow overrides to hide scrollbar */
 html

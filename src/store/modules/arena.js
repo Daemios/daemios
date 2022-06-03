@@ -3,10 +3,11 @@ import Vue from 'vue';
 export default {
   namespaced: true,
   state: {
-    debug: true,
+    debug: false,
+    combat: false,
     playerActive: true,
     moving: false,
-    showTurn: true,
+    showTurn: false,
     entities: null,
     map: null,
     entityRegistry: [],
@@ -33,7 +34,7 @@ export default {
       state.activeRegister = args;
       state.entities[args.x][args.y].active = true;
 
-      // Activate the cosmetic turn indicator and disable it after a little bit
+      // Activate the cosmetic turn indicator and disable it after a little while
       state.showTurn = true;
       setTimeout(() => {
         state.showTurn = false;

@@ -15,13 +15,6 @@
           {{ $store.state.player.character.firstName }}
           {{ $store.state.player.character.lastName }}
         </v-list-item-title>
-
-        <v-btn
-          icon
-          @click="$store.state.navigation = !$store.state.navigation"
-        >
-          <v-icon>{{ mdiChevronLeft }}</v-icon>
-        </v-btn>
       </v-list-item>
 
       <v-divider />
@@ -31,10 +24,18 @@
           v-for="route in routes"
           :key="route.path"
           :to="route.path"
+          :disabled="showLock(route)"
         >
-          <v-list-item-icon>
+          <v-list-item-icon class="lock-anchor">
             <v-icon>
               {{ route.icon }}
+            </v-icon>
+            <v-icon
+              v-if="showLock(route)"
+              class="combat-lock"
+              color="red"
+            >
+              {{ mdiLock }}
             </v-icon>
           </v-list-item-icon>
 
@@ -48,12 +49,14 @@
 </template>
 
 <script>
-import { mdiChevronLeft } from '@mdi/js';
+import { mdiChevronLeft, mdiLock } from '@mdi/js';
+import { mapState } from 'vuex';
 
 export default {
   data() {
     return {
       mdiChevronLeft,
+      mdiLock,
     };
   },
   computed: {
@@ -64,12 +67,32 @@ export default {
           routes.push({
             path: route.path,
             name: route.name,
-            icon: route.meta.icon,
+            ...route.meta,
           });
         }
       });
       return routes;
     },
+    ...mapState({
+      combat: (state) => state.arena.combat,
+    }),
+  },
+  methods: {
+    showLock(route) {
+      console.log(route);
+      return route.combat_lock && this.combat;
+    },
   },
 };
 </script>
+
+<style lang="sass">
+.lock-anchor
+  position: relative
+.combat-lock
+  position: absolute !important
+  right: -.5rem
+  svg
+    height: 1rem
+    width: 1rem
+</style>

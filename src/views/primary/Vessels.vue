@@ -23,7 +23,7 @@
 </template>
 
 <script>
-import Core from '@/components/cores/Core';
+import Core from '@/components/ability/Vessel';
 
 export default {
   components: {

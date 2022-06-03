@@ -1,4 +1,6 @@
-import { mdiAbacus, mdiEarth } from '@mdi/js';
+import {
+  mdiAbacus, mdiEarth, mdiHammer, mdiHorse,
+} from '@mdi/js';
 
 export default [
   {
@@ -7,6 +9,7 @@ export default [
     component: () => import('@/views/hidden/Login'),
     meta: {
       overlay: false,
+      combat_lock: false,
     },
   },
   {
@@ -15,6 +18,7 @@ export default [
     component: () => import('@/views/hidden/Builder'),
     meta: {
       overlay: false,
+      combat_lock: false,
     },
   },
   {
@@ -25,23 +29,19 @@ export default [
     meta: {
       render: true,
       icon: mdiEarth,
+      overlay: true,
+      combat_lock: false,
     },
   },
   {
     path: '/cores',
     name: 'Cores',
-    component: () => import('@/views/primary/Cores'),
+    component: () => import('@/views/primary/Vessels'),
     meta: {
       render: true,
       icon: mdiAbacus,
-    },
-  },
-  {
-    path: '/cores/edit/*',
-    name: 'Edit Core',
-    component: () => import('@/views/primary/EditCore'),
-    meta: {
-      render: false,
+      overlay: true,
+      combat_lock: true,
     },
   },
   {
@@ -50,7 +50,20 @@ export default [
     component: () => import('@/views/primary/Crafting'),
     meta: {
       render: true,
-      icon: mdiAbacus,
+      icon: mdiHammer,
+      overlay: true,
+      combat_lock: true,
+    },
+  },
+  {
+    path: '/mount',
+    name: 'Mount',
+    component: () => import('@/views/primary/Mount'),
+    meta: {
+      render: true,
+      icon: mdiHorse,
+      overlay: true,
+      combat_lock: true,
     },
   },
   {
@@ -60,6 +73,7 @@ export default [
     meta: {
       render: true,
       icon: mdiAbacus,
+      overlay: true,
     },
   },
   {
@@ -69,6 +83,7 @@ export default [
     meta: {
       requiresAuth: false,
       permission: null,
+      overlay: true,
     },
   },
 ];
