@@ -60,6 +60,7 @@ import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
 
 import mixin_keybinds from '@/mixins/keybinds';
+import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
@@ -68,7 +69,7 @@ export default {
     Equipment,
     Inventory,
   },
-  mixins: [mixin_keybinds],
+  mixins: [mixin_keybinds, mixin_socket],
   data() {
     return {
       mdiHumanMale,

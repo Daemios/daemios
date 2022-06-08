@@ -1,14 +1,12 @@
 export default {
   namespaced: true,
   state: {
-    socket: null,
+    connection: false,
   },
-  actions: {
-    connect() {
-
-    },
-    send(context, payload) {
-      this.socket.send(payload)
+  mutations: {
+    setConnection(state, status) {
+      console.log('socket status: ' + status)
+      state.connection = status;
     }
   }
 }

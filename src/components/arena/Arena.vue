@@ -238,8 +238,7 @@ export default {
 
     // --------- Controls ---------
     cellClick() {
-      console.log('click');
-      this.$store.commit('arena/moveEntity');
+      this.$store.dispatch('arena/arenaMovement')
     },
     cellMouseOver(mouseX, mouseY) {
       const x = Number(mouseX);

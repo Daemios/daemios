@@ -7,8 +7,7 @@ import arena from '@/store/modules/arena';
 import debug from '@/store/modules/debug';
 import audio from '@/store/modules/audio';
 import chat from '@/store/modules/chat';
-
-import socket from '@/store/plugins/socket'
+import socket from '@/store/modules/socket';
 
 Vue.use(Vuex);
 
@@ -22,10 +21,7 @@ export default new Vuex.Store({
     arena,
     debug,
     audio,
-    socket,
     chat,
+    socket,
   },
-  plugins: [
-    socket()
-  ]
 });

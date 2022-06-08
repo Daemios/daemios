@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import api from "@/functions/api";
 
 export default {
   namespaced: true,
@@ -77,7 +78,6 @@ export default {
       });
     },
     moveEntity(state, teleport = false) {
-
       if (state.plannedPath.length > 0 && !state.moving) {
         this.commit('arena/clearOverlay', 'validDestination');
         this.commit('arena/setConfirmedPath');
@@ -167,6 +167,14 @@ export default {
         Vue.set(context.state, 'moving', false);
       }
     },
-    moveTeleport() {},
+    arenaMovement(context) {
+      api.post('http://localhost:3000/arena/move', { to: [1,1]})
+        .then(response => {
+          if (!response) {
+            // display errors
+          }
+        })
+
+    }
   },
 };
