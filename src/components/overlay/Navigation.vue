@@ -79,7 +79,6 @@ export default {
   },
   methods: {
     showLock(route) {
-      console.log(route);
       return route.combat_lock && this.combat;
     },
   },

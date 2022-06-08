@@ -1,5 +1,10 @@
 <template>
   <v-layout class="builder-background">
+    <AnimatedBackground
+      src="/video/forest.mp4"
+      :zoom="zoom"
+    />
+
     <!-- Intro -->
     <v-layout
       v-if="stage === 'intro'"
@@ -38,7 +43,7 @@
     <v-layout
       v-if="stage === 'ability-builder'"
     >
-      <AbilityBuilder />
+      <AbilityBuilder :ability="abilities[0]" />
     </v-layout>
   </v-layout>
 </template>
@@ -47,12 +52,14 @@
 import VesselGraphic from '@/components/ability/VesselGraphic';
 import CoresGraphic from '@/components/ability/CoresGraphic';
 import AbilityBuilder from '@/components/ability/AbilityBuilder';
+import AnimatedBackground from '@/components/general/AnimatedBackground';
 
 export default {
   components: {
     VesselGraphic,
     CoresGraphic,
     AbilityBuilder,
+    AnimatedBackground,
   },
   data: () => ({
     count: 0,
@@ -124,9 +131,20 @@ export default {
     },
     stage: 'ability-builder',
     abilities: {
-      0: {},
-      1: {},
+      0: {
+        name: null,
+        vessel: null,
+        core: null,
+        fragments: null,
+      },
+      1: {
+        name: null,
+        vessel: null,
+        core: null,
+        fragments: null,
+      },
     },
+    zoom: false,
   }),
   mounted() {
     // eslint-disable-next-line prefer-destructuring

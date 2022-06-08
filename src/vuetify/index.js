@@ -1,10 +1,11 @@
 import Vue from 'vue';
 import Vuetify from 'vuetify/lib/framework';
+import themes from '@/vuetify/themes';
 
 Vue.use(Vuetify);
 
 const vuetify = new Vuetify({
-  theme: { dark: true },
+  theme: themes,
   icons: {
     iconfont: 'mdiSvg',
   },

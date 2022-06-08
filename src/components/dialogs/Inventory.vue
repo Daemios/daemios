@@ -1,9 +1,8 @@
 <template>
   <v-dialog
     v-model="$store.state.dialogs.isInventoryOpen"
-    persistent
-    fullscreen
     app
+    class="ma-2"
   >
     <v-card>
       <v-toolbar

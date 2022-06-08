@@ -1,5 +1,5 @@
 import {
-  mdiAbacus, mdiEarth, mdiHammer, mdiHorse,
+  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse,
 } from '@mdi/js';
 
 export default [
@@ -62,6 +62,18 @@ export default [
     meta: {
       render: true,
       icon: mdiHorse,
+      overlay: true,
+      combat_lock: true,
+    },
+  },
+
+  {
+    path: '/test',
+    name: 'Test',
+    component: () => import('@/views/hidden/Test'),
+    meta: {
+      render: true,
+      icon: mdiHeadQuestion,
       overlay: true,
       combat_lock: true,
     },

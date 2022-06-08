@@ -7,10 +7,10 @@
     >
       <div class="core">
         <v-img
-          v-if="element.imgs.core"
+          v-if="element.imgs.vessel"
           class="core-img"
-          :lazy-src="element.imgs.core"
-          :src="element.imgs.core"
+          :lazy-src="element.imgs.vessel"
+          :src="element.imgs.vessel"
         />
         <div class="core-effects" />
       </div>

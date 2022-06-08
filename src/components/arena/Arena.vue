@@ -1,6 +1,6 @@
 <template>
   <div
-    class="arena d-flex justify-center"
+    class="arena d-flex justify-center align-center"
   >
     <div
       v-for="(column, x) in map"
@@ -507,6 +507,7 @@ export default {
 <style lang="sass">
 .arena
   width: 100%
+  height: 100%
   position: relative
 
   .column

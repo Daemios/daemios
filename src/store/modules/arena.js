@@ -77,6 +77,7 @@ export default {
       });
     },
     moveEntity(state, teleport = false) {
+
       if (state.plannedPath.length > 0 && !state.moving) {
         this.commit('arena/clearOverlay', 'validDestination');
         this.commit('arena/setConfirmedPath');

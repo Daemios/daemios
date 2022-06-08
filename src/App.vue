@@ -13,7 +13,7 @@
     <Inventory />
 
     <!-- Main Content -->
-    <v-main class="background">
+    <v-main class="background fill-height">
       <router-view class="fill-height" />
     </v-main>
 
@@ -56,11 +56,10 @@ import { mdiTreasureChest, mdiHumanMale } from '@mdi/js';
 
 import Header from '@/components/overlay/Header';
 import Navigation from '@/components/overlay/Navigation';
-
-// Drawer Imports
 import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
-import Keybinds from '@/mixins/keybinds';
+
+import mixin_keybinds from '@/mixins/keybinds';
 
 export default {
   components: {
@@ -69,7 +68,7 @@ export default {
     Equipment,
     Inventory,
   },
-  mixins: [Keybinds],
+  mixins: [mixin_keybinds],
   data() {
     return {
       mdiHumanMale,
@@ -84,11 +83,23 @@ export default {
 @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap')
 @import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap')
 
+@font-face
+  font-family: 'Colors Of Autumn'
+  //src: url('/fonts/coa.ttf')
+  // project cant grab this for some reason?
+
+/* Fonts */
 .v-application
   .permanent-marker
     font-family: 'Permanent Marker', cursive !important
   .square-peg
     font-family: 'Square Peg', sans-serif, cursive !important
+  .colors-of-autumn
+    font-family: 'Colors Of Autumn', sans-serif !important
+
+/* Opacity workaround since vuetify doesn't support this */
+.glass
+  background: rgba(0,0,0,.5) !important
 
 /* Overflow overrides to hide scrollbar */
 html

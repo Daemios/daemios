@@ -2,12 +2,9 @@
 
 export default {
   themes: {
-    light: {
-      'background': '#fff',
-      'dialog-background': '#fff',
-      'primary': '#0D8A72',
-      'secondary': '#616161',
-      'header': '#00050E',
+    dark: {
+      'primary': '#49b69d',
+      'tertiary': '#49a9b6',
 
       // Arena specific
       'turn-inactive': '#AAAAAA',
@@ -19,9 +16,6 @@ export default {
       'player': '#63c900',
       'player-border': '#7cfc00',
     },
-    dark: {
-      'primary': '#0D8A72',
-      'secondary': '#fff',
-    },
   },
+  dark: true,
 };
