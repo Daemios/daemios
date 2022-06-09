@@ -16,7 +16,8 @@ const CODES = {
 
 const api = {
   call: (method, url, input) => {
-    return fetch(url, {
+    let path = `${store.state.endpoint}/${url}`;
+    return fetch(path, {
       method,
 
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
@@ -41,6 +42,7 @@ const api = {
               document.location.href = '/login';
               break;
             default:
+              console.log(response)
               // Setup API failure means something is really screwed up. Rather than notifying
               // the user and letting them try again, enforce a hard refresh (fatal)
               //store.commit('overlay/showWarning', response.statusText);
