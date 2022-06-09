@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import api from "@/functions/api";
+const cartesian = require('../../mixins/cartesian')
 
 export default {
   namespaced: true,
@@ -10,7 +11,8 @@ export default {
     moving: false,
     showTurn: false,
     entities: null,
-    map: null,
+    terrain: null,
+    overlays: [],
     entityRegistry: [],
     plannedPath: [],
     confirmedPath: [],
@@ -41,8 +43,8 @@ export default {
         state.showTurn = false;
       }, 2000);
     },
-    setMap(state, map) {
-      state.map = map;
+    setTerrain(state, terrain) {
+      state.terrain = terrain;
     },
     setEntities(state, entities) {
       state.entities = entities;
@@ -90,13 +92,29 @@ export default {
         }
       }
     },
+    entityMouseOver(state, args) {
+      state.entities[args.x][args.y].hover = true;
+    },
+    entityMouseOut(state, args) {
+      state.entities[args.x][args.y].hover = false;
+    },
+
+    // New and confirmed
+    buildOverlays(state, arena) {
+      cartesian.iterate(arena, (x, y) => {
+        if (!(x in state.overlays) ) {
+          state.overlays[x] = []
+        }
+        state.overlays[x][y] = []
+      })
+    },
     setOverlay(state, args) {
       if (args.overlay) {
         state.overlayRegistry[args.overlay].push({
           x: args.x,
           y: args.y,
         });
-        state.map[args.x][args.y].overlays[args.overlay] = args.boolean;
+        state.overlays[args.x][args.y][args.overlay] = args.boolean;
       } else {
         console.log('Tried to register overlay but overlay type was not provided');
       }
@@ -105,7 +123,7 @@ export default {
       // Iterate through coordinates and clear overlays
       if (state.overlayRegistry[overlay]) {
         state.overlayRegistry[overlay].forEach((address) => {
-          state.map[address.x][address.y].overlays[overlay] = false;
+          state.overlays[address.x][address.y][overlay] = false;
         });
       }
       state.overlayRegistry[overlay] = [];
@@ -113,18 +131,12 @@ export default {
     clearOverlayAt(state, args) {
       // Iterate through coordinates and clear overlays
       if (state.overlayRegistry[args.overlay]) {
-        state.map[args.x][args.y].overlays[args.overlay] = false;
+        state.overlays[args.x][args.y][args.overlay] = false;
       }
       const index = state.overlayRegistry[args.overlay].findIndex((entry) => (
         entry.x === args.x && entry.y === args.y
       ));
       state.overlayRegistry[args.overlay][index] = [];
-    },
-    entityMouseOver(state, args) {
-      state.entities[args.x][args.y].hover = true;
-    },
-    entityMouseOut(state, args) {
-      state.entities[args.x][args.y].hover = false;
     },
   },
   actions: {
@@ -167,14 +179,22 @@ export default {
         Vue.set(context.state, 'moving', false);
       }
     },
-    arenaMovement(context) {
-      api.post('http://localhost:3000/arena/move', { to: [1,1]})
+    movement(context) {
+      api.post('arena/move', { to: [1,1]})
         .then(response => {
-          if (!response) {
-            // display errors
-          }
+          // todo update board and move pieces
         })
 
+    },
+    getTerrain(context) {
+      api.get('arena/terrain')
+        .then(response => {
+          // First we need to build the overlay arrays to match dimensions of arena
+          context.commit('buildOverlays', response)
+
+          // Then we need to update our arena
+          context.commit('setTerrain', response)
+        })
     }
   },
 };

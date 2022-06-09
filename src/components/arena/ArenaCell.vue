@@ -2,21 +2,28 @@
   <div
     class="cell"
     :class="cellClasses"
+    :style="`background: ${cellColor}`"
     oncontextmenu="return false"
     @click="$emit('click')"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
   >
     <!-- Overlays -->
     <div
-      v-if="cell.overlays['validDestination'] && cell.passable"
+      v-if="overlays[x][y]['validDestination'] && cell.passable"
       class="overlay destination-overlay"
     />
     <div
-      v-if="cell.overlays['confirmedPath'] && cell.passable"
+      v-if="overlays[x][y]['confirmedPath'] && cell.passable"
       class="overlay confirmed-path-overlay"
     />
     <div
-      v-if="cell.overlays['targeting'] && cell.passable"
+      v-if="overlays[x][y]['targeting'] && cell.passable"
       class="overlay targeting-overlay"
+    />
+    <div
+      v-if="hovered"
+      class="overlay hover-overlay"
     />
     <div
       v-if="$store.state.arena.debug"
@@ -42,6 +49,7 @@
 <script>
 import { mapState } from 'vuex';
 import ArenaEntity from '@/components/arena/ArenaEntity';
+const cell_colors = require('../../mixins/cell_colors')
 
 export default {
   components: {
@@ -61,31 +69,59 @@ export default {
       required: true,
     },
   },
+  data: () => ({
+    hovered: false,
+  }),
   computed: {
     ...mapState({
       entities: (state) => state.arena.entities,
+      overlays: (state) => state.arena.overlays,
     }),
     cellClasses() {
+
       const classes = {
-        impassable: !this.cell.passable,
+        impassable: !this.cell.terrain.passable,
       };
 
       // efficient way to assign variable terrain types but still
       // take the impassable property into account to avoid rendering
       // impassable cell backgrounds
-      classes[this.cell.terrain] = this.cell.passable;
+      classes['grass'] = this.cell.terrain.passable;
 
       return classes;
     },
+    cellColor() {
+      // variance adds pleasing variation
+      const variance = Math.floor(Math.random() * 10) - 5
+
+      // !passable returns null
+      if (!this.cell.terrain.passable) {
+        return null;
+      }
+
+      let hue;
+      let sat;
+      let light;
+
+      // moisture determines grass or water
+      if (this.cell.terrain.moisture > .7) {
+        hue = 205;
+        sat = 100;
+        light = 40;
+      } else {
+        hue = 95;
+        sat = 100 * this.cell.terrain.flora;
+        light = 30;
+      }
+
+      return cell_colors.hslToHex(hue, sat, light)
+      console.log(cell_colors.hslToHex(360,100,50))
+    }
   },
 };
 </script>
 
 <style lang="sass">
-$grass: darken(green, 10%)
-$water: darken(teal, 10%)
-$stone: darken(grey, 10%)
-
 $cell-index: 1
 
 .cell
@@ -114,23 +150,8 @@ $cell-index: 1
     &.targeting-overlay
       background: orangered
 
-  &.grass
-    background: $grass
-
-    &:hover
-      background: lighten($grass, 10%)
-
-  &.water
-    background: $water
-
-    &:hover
-      background: lighten($water, 10%)
-
-  &.stone
-    background: $stone
-
-    &:hover
-      background: lighten($stone, 10%)
+    &.hover-overlay
+      background: rgba(255,255,255,.1)
 
   .entities
     height: 100%

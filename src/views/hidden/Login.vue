@@ -31,7 +31,6 @@
           type="password"
           @keydown.enter="authenticate"
         />
-        <div>stuff</div>
       </div>
     </v-layout>
     <v-layout

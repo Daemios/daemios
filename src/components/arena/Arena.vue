@@ -3,7 +3,7 @@
     class="arena d-flex justify-center align-center"
   >
     <div
-      v-for="(column, x) in map"
+      v-for="(column, x) in terrain"
       :key="x"
       class="column"
     >
@@ -36,21 +36,9 @@ export default {
   components: {
     ArenaCell, ListEntityList, TurnIndicator, DebugPane,
   },
-  data() {
-    return {
-      generation: {
-        cell_count: 16,
-        terrain: [
-          'grass',
-          'water',
-          'stone',
-        ],
-      },
-    };
-  },
   computed: {
     ...mapState({
-      map: (state) => state.arena.map,
+      terrain: (state) => state.arena.terrain,
       entities: (state) => state.arena.entities,
       entityRegistry: (state) => state.arena.entityRegistry,
       active: (state) => state.arena.activeRegister,
@@ -66,8 +54,7 @@ export default {
     },
   },
   mounted() {
-    this.generateTerrain();
-    this.generateEntities();
+    this.$store.dispatch('arena/getTerrain')
   },
   methods: {
     // --------- Generation Helpers ---------
@@ -169,29 +156,6 @@ export default {
         ],
       };
     },
-    generateTerrain() {
-      const generate = [];
-
-      this.iterateCells((x, y) => {
-        if (y === 0) {
-          generate[x] = {};
-        }
-
-        // Assign the cell data
-        generate[x][y] = {
-          terrain: this.randomTerrain(),
-          effects: [],
-          passable: Math.random() > 0.1,
-          overlays: {
-            validDestination: false,
-            targeting: false,
-            confirmedPath: false,
-          },
-        };
-      });
-
-      this.$store.commit('arena/setMap', generate);
-    },
     generateEntities() {
       this.$store.commit('arena/clearEntityRegistry');
 
@@ -238,7 +202,7 @@ export default {
 
     // --------- Controls ---------
     cellClick() {
-      this.$store.dispatch('arena/arenaMovement')
+      this.$store.dispatch('arena/movement')
     },
     cellMouseOver(mouseX, mouseY) {
       const x = Number(mouseX);

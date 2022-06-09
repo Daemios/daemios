@@ -23,7 +23,6 @@ export default {
       if (event.data) {
         data = JSON.parse(event.data)
       }
-      console.log(data)
       switch (data.type) {
         case 'movement':
           this.movement(data);
@@ -32,8 +31,6 @@ export default {
           this.chat(data);
           break;
         default:
-          console.log(`Unknown ws type received: ${data.type}`)
-          console.log(data)
           break;
       }
     }

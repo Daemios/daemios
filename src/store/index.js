@@ -13,6 +13,7 @@ Vue.use(Vuex);
 
 export default new Vuex.Store({
   state: {
+    endpoint: 'http://localhost:3000',
     navigation: false,
   },
   modules: {

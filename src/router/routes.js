@@ -1,5 +1,5 @@
 import {
-  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse,
+  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse, mdiWizardHat
 } from '@mdi/js';
 
 export default [
@@ -64,6 +64,17 @@ export default [
       icon: mdiHorse,
       overlay: true,
       combat_lock: true,
+    },
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('@/views/primary/Admin'),
+    meta: {
+      render: true,
+      icon: mdiWizardHat,
+      overlay: true,
+      combat_lock: false,z
     },
   },
 
