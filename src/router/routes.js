@@ -74,7 +74,7 @@ export default [
       render: true,
       icon: mdiWizardHat,
       overlay: true,
-      combat_lock: false,z
+      combat_lock: false,
     },
   },
 
