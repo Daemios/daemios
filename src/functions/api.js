@@ -43,9 +43,6 @@ const api = {
               break;
             default:
               console.log(response)
-              // Setup API failure means something is really screwed up. Rather than notifying
-              // the user and letting them try again, enforce a hard refresh (fatal)
-              //store.commit('overlay/showWarning', response.statusText);
               // TODO create error dialog/toast
           }
           throw new Error();

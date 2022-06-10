@@ -48,6 +48,23 @@
       </div>
     </div>
 
+    <v-dialog
+      :value="!$store.state.socket.connection"
+      persistent
+      max-width="400"
+    >
+      <v-card class="pa-4">
+        <v-card-text class="pa-0 d-flex align-center justify-center">
+          <v-progress-circular
+            size="20"
+            indeterminate
+            class="mr-4"
+          />
+          Attempting to reconnect to Websocket server...
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
   </v-app>
 </template>
 

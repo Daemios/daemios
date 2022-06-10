@@ -22,5 +22,8 @@ export default {
   data: () => ({
     mdiLogout,
   }),
+  computed: {
+
+  }
 };
 </script>

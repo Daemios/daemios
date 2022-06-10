@@ -186,14 +186,17 @@ export default {
         })
 
     },
+    setTerrain(context, data) {
+      // First we need to build the overlay arrays to match dimensions of arena
+      context.commit('buildOverlays', data)
+
+      // Then we need to update our arena
+      context.commit('setTerrain', data)
+    },
     getTerrain(context) {
       api.get('arena/terrain')
         .then(response => {
-          // First we need to build the overlay arrays to match dimensions of arena
-          context.commit('buildOverlays', response)
-
-          // Then we need to update our arena
-          context.commit('setTerrain', response)
+          context.dispatch('setTerrain', response)
         })
     }
   },
