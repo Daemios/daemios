@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 
+import api from '@/store/modules/api';
 import dialogs from '@/store/modules/dialogs';
 import player from '@/store/modules/player';
 import arena from '@/store/modules/arena';
@@ -13,10 +14,10 @@ Vue.use(Vuex);
 
 export default new Vuex.Store({
   state: {
-    endpoint: 'http://localhost:3000',
     navigation: false,
   },
   modules: {
+    api,
     dialogs,
     player,
     arena,

@@ -16,7 +16,7 @@ const CODES = {
 
 const api = {
   call: (method, url, input) => {
-    let path = `${store.state.endpoint}/${url}`;
+    let path = `${store.state.api.endpoint}/${url}`;
     return fetch(path, {
       method,
 

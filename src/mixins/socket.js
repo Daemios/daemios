@@ -39,8 +39,6 @@ export default {
 
     },
     arena(data) {
-      console.log('changing arena')
-      console.log(data.body.terrain)
       this.$store.dispatch('arena/setTerrain', data.body.terrain)
     }
   },

@@ -77,7 +77,6 @@ export default [
       combat_lock: false,
     },
   },
-
   {
     path: '/test',
     name: 'Test',

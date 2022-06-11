@@ -1,5 +1,5 @@
 <template>
-  <v-layout class="pa-4">
+  <v-container class="align-start">
     <v-card>
       <v-card-title>
         Arena
@@ -10,6 +10,7 @@
         >
           <template #activator="{ on }">
             <v-btn
+              small
               color="primary"
               v-on="on"
               @click="create.show = true"
@@ -44,12 +45,18 @@
                   <v-select label="Biome" />
                 </v-col>
               </v-row>
-              <v-layout>
-                <v-btn elevation="0">
+              <v-layout align-center>
+                <v-btn
+                  small
+                  elevation="0"
+                  @click="create.show = false"
+                >
                   Cancel
                 </v-btn>
                 <v-spacer />
+                <span class="success--text mr-2">{{ create.status }}</span>
                 <v-btn
+                  small
                   color="primary"
                   @click="createArena()"
                 >
@@ -61,67 +68,47 @@
         </v-dialog>
       </v-card-title>
       <v-card-text>
-        <v-row>
-          <v-col cols="3">
-            Name
-          </v-col>
-          <v-col cols="2">
-            Size
-          </v-col>
-          <v-col cols="3">
-            Date
-          </v-col>
-          <v-col cols="4">
-            Actions
-          </v-col>
-        </v-row>
-        <v-row
-          v-for="(row, i) in saved_arenas"
-          :key="i"
+        <v-data-table
+          dark
+          :headers="headers"
+          :items="saved_arenas"
         >
-          <v-col
-            class="text-no-wrap"
-            cols="3"
+          <template
+            v-for="header in headers.filter((header) => header.format)"
+            #[`item.${header.value}`]="{ value }"
           >
-            {{ row.name }}
-          </v-col>
-          <v-col
-            cols="2"
-            class="text-no-wrap"
-          >
-            {{ row.size }}
-          </v-col>
-          <v-col cols="3">
-            {{ new Date(row.last_updated).toLocaleDateString('en-us') }}
-          </v-col>
-          <v-col
-            cols="2"
-          >
+            {{ new Date(value).toLocaleDateString('en-us', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute:'2-digit'
+            }) }}
+          </template>
+          <template #item.actions="{ item }">
             <v-btn
               x-small
+              min-width="66"
               color="primary"
               class="mr-1"
-              @click="loadArena(row.arena_history_id)"
+              :disabled="item.arena_history_id === active_arena_history_id"
+              @click="loadArena(item.arena_history_id)"
             >
-              Load
+              {{ item.arena_history_id === active_arena_history_id ? 'Loaded' : 'Load' }}
             </v-btn>
-          </v-col>
-          <v-col cols="1">
             <v-btn
               x-small
               color="failure"
-              @click="deleteArena(row.arena_history_id)"
+              @click="deleteArena(item.arena_history_id)"
             >
               <v-icon small>
                 {{ mdiTrashCan }}
               </v-icon>
             </v-btn>
-          </v-col>
-        </v-row>
+          </template>
+        </v-data-table>
       </v-card-text>
     </v-card>
-
-  </v-layout>
+  </v-container>
 </template>
 
 <script>
@@ -132,17 +119,27 @@ export default {
   data: () => ({
     mdiTrashCan,
     mdiPlus,
+    active_arena_history_id: null,
+    headers: [
+      {text: 'Name', value: 'name'},
+      {text: 'Size', value: 'size'},
+      {text: 'Date', value: 'last_active', format: true},
+      {text: 'Actions', value: 'actions'},
+    ],
     saved_arenas: [],
     create: {
       show: false,
       name: null,
       size: 16,
+      status: null,
+      calling: false,
     },
   }),
   mounted() {
     api.get('arena/list')
       .then(response => {
-        this.saved_arenas = response
+        this.active_arena_history_id = response.active_arena_history_id;
+        this.saved_arenas = response.saved_arenas;
       })
   },
   methods: {
@@ -151,23 +148,32 @@ export default {
         name: this.create.name,
         size: this.create.size,
       }
+      if (this.create.calling) {
+        return;
+      }
+      this.create.calling = true;
       api.post('arena/create', body)
         .then(response => {
           if (response) {
-            console.log(response)
-            this.create.status = response.message;
+            this.create.status = 'Created';
             setTimeout(() => {
+              this.saved_arenas = response;
+              this.create.calling = false;
               this.create.show = false;
+              this.create.name = null;
+              this.create.size = 16;
+              this.create.status = null;
             }, 1000)
           } else {
-            this.create.status = response;
+            this.create.status = 'Error';
           }
         })
     },
     loadArena(arena_history_id) {
       api.post(`arena/load/${arena_history_id}`)
       .then(response => {
-        console.log(response)
+        this.active_arena_history_id = response.active_arena_history_id;
+        this.saved_arenas = response.saved_arenas;
       })
     },
     deleteArena(arena_history_id) {
