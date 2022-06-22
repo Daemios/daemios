@@ -9,21 +9,23 @@ export default {
   }),
   methods: {
     handleKeypress(event) {
-      console.log(event.code);
       if (!this.keybinds_enabled) {
-        console.log('keybinds not enabled');
         return;
       }
       switch (event.code) {
         case 'Escape':
           this.$store.commit('dialogs/closeEquipment');
           this.$store.commit('dialogs/closeInventory');
+          this.$store.commit('dialogs/closeMap');
           break;
         case 'KeyC':
           this.$store.commit('dialogs/toggleEquipment');
           break;
         case 'KeyI':
           this.$store.commit('dialogs/toggleInventory');
+          break;
+        case 'KeyM':
+          this.$store.commit('dialogs/toggleMap');
           break;
         default: break;
       }

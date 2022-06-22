@@ -82,9 +82,9 @@ export default [
     name: 'Test',
     component: () => import('@/views/hidden/Test'),
     meta: {
-      render: true,
+      render: false,
       icon: mdiHeadQuestion,
-      overlay: true,
+      overlay: false,
       combat_lock: true,
     },
   },

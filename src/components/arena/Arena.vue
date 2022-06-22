@@ -53,9 +53,6 @@ export default {
       console.log('active changed');
     },
   },
-  mounted() {
-    this.$store.dispatch('arena/getTerrain')
-  },
   methods: {
     // --------- Generation Helpers ---------
     randomAllyImg() {

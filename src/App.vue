@@ -75,6 +75,7 @@ import Header from '@/components/overlay/Header';
 import Navigation from '@/components/overlay/Navigation';
 import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
+import Map from '@/components/dialogs/Map';
 
 import mixin_keybinds from '@/mixins/keybinds';
 import mixin_socket from '@/mixins/socket';
@@ -85,6 +86,7 @@ export default {
     Navigation,
     Equipment,
     Inventory,
+    Map,
   },
   mixins: [mixin_keybinds, mixin_socket],
   data() {
@@ -92,6 +94,10 @@ export default {
       mdiHumanMale,
       mdiTreasureChest,
     };
+  },
+  mounted() {
+    this.$store.dispatch('arena/getTerrain')
+    this.$store.dispatch('world/getTerrain')
   },
 };
 </script>

@@ -3,6 +3,7 @@ export default {
   state: {
     isEquipmentOpen: false,
     isInventoryOpen: false,
+    isMapOpen: true,
   },
   mutations: {
     // Closers
@@ -12,6 +13,9 @@ export default {
     closeInventory(state) {
       state.isInventoryOpen = false;
     },
+    closeMap(state) {
+      state.isMapOpen = false;
+    },
 
     // Toggles
     toggleEquipment(state) {
@@ -19,6 +23,9 @@ export default {
     },
     toggleInventory(state) {
       state.isInventoryOpen = !state.isInventoryOpen;
+    },
+    toggleMap(state) {
+      state.isMapOpen = !state.isMapOpen;
     },
   },
 };

@@ -4,6 +4,7 @@ import Vuex from 'vuex';
 import api from '@/store/modules/api';
 import dialogs from '@/store/modules/dialogs';
 import player from '@/store/modules/player';
+import world from '@/store/modules/world';
 import arena from '@/store/modules/arena';
 import debug from '@/store/modules/debug';
 import audio from '@/store/modules/audio';
@@ -20,6 +21,7 @@ export default new Vuex.Store({
     api,
     dialogs,
     player,
+    world,
     arena,
     debug,
     audio,
