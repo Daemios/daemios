@@ -1,7 +1,11 @@
+import api from "@/functions/api";
+
 export default {
   namespaced: true,
   state: {
-    player_id: 1,
+    user_id: 1,
+    display_name: null,
+    characters: null,
     character: {
       character_id: 1,
       firstName: 'First',
@@ -163,85 +167,116 @@ export default {
           effect: null,
         },
       },
-      inventory: [
-        {
-          label: 'Hardwood',
-          rarity: 'Common',
-          quantity: 23,
-          description: 'This is a bundle of hardwood used for constructing tools and buildings.',
-          img: 'https://cdna.artstation.com/p/assets/images/images/016/529/474/large/christina-kozlova-material-studies1-wood.jpg?1552496782',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Iron Ore',
-          rarity: 'Common',
-          quantity: Math.floor(Math.random() * 100),
-          description: 'Raw iron ore ready to be processed into ingots.',
-          img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
-        },
-        {
-          label: 'Bloodstone',
-          rarity: 'Rare',
-          quantity: 1,
-          description: 'A rare gem with a connection to necromancy.',
-          img: 'https://i.pinimg.com/originals/cc/d2/b6/ccd2b680faa9d5855232ecd54b40fa4b.jpg',
-        },
-      ],
     },
+    inventory: [
+      {
+        label: 'Hardwood',
+        rarity: 'Common',
+        quantity: 23,
+        description: 'This is a bundle of hardwood used for constructing tools and buildings.',
+        img: 'https://cdna.artstation.com/p/assets/images/images/016/529/474/large/christina-kozlova-material-studies1-wood.jpg?1552496782',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Iron Ore',
+        rarity: 'Common',
+        quantity: Math.floor(Math.random() * 100),
+        description: 'Raw iron ore ready to be processed into ingots.',
+        img: 'https://cdnb.artstation.com/p/assets/images/images/002/986/011/large/vera-velichko-22.jpg?1468145160',
+      },
+      {
+        label: 'Bloodstone',
+        rarity: 'Rare',
+        quantity: 1,
+        description: 'A rare gem with a connection to necromancy.',
+        img: 'https://i.pinimg.com/originals/cc/d2/b6/ccd2b680faa9d5855232ecd54b40fa4b.jpg',
+      },
+    ],
   },
+  mutations: {
+    setUserId(state, user_id) {
+      state.user_id = user_id;
+    },
+    setCharacters(state, characters) {
+      state.characters = characters;
+    },
+    setCharacter(state, character) {
+      state.character = character;
+    },
+    setInventory(state, inventory) {
+      state.inventory = inventory;
+    }
+  },
+  actions: {
+    getCharacters(context) {
+      api.get('user/characters', { user_id: context.state.user_id }).then(response => {
+        context.commit('setCharacters', response.characters);
+      })
+    },
+    getCharacter(context, character_id) {
+      api.get('user/character', { user_id: context.state.user_id, character_id: character_id }).then(response => {
+        context.commit('setCharacter', response.data);
+      })
+    },
+    getInventory(context) {
+      api.get('user/inventory', { user_id: context.state.user_id }).then(response => {
+        context.commit('setInventory', response.data);
+      })
+    }
+  }
 };

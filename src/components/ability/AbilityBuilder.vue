@@ -5,7 +5,6 @@
     <v-row
       class="builder-vessels"
       align="end"
-      1
     >
       <v-col>
         <v-card

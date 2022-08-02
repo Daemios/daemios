@@ -7,13 +7,13 @@
       app
     >
       <v-list-item class="px-2">
-        <v-list-item-avatar>
+        <v-list-item-avatar class="my-0">
           <v-img src="https://randomuser.me/api/portraits/lego/1.jpg" />
         </v-list-item-avatar>
 
         <v-list-item-title>
-          {{ $store.state.player.character.firstName }}
-          {{ $store.state.player.character.lastName }}
+          {{ $store.state.user.character.firstName }}
+          {{ $store.state.user.character.lastName }}
         </v-list-item-title>
       </v-list-item>
 
@@ -65,7 +65,7 @@ export default {
       this.$router.getRoutes().forEach((route) => {
         if (route.meta.render) {
           routes.push({
-            path: route.path,
+            path: route.path.length ? route.path : '/',
             name: route.name,
             ...route.meta,
           });

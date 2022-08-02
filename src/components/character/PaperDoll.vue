@@ -8,46 +8,46 @@
       <div class="trinkets d-flex">
         <!-- Additional Items -->
         <DollSlot
-          :item="$store.state.player.character.equipped.trinket1"
+          :item="$store.state.user.character.equipped.trinket1"
           left
-          @click="selected = $store.state.player.character.equipped.trinket1"
+          @click="selected = $store.state.user.character.equipped.trinket1"
         />
         <DollSlot
-          :item="$store.state.player.character.equipped.trinket2"
+          :item="$store.state.user.character.equipped.trinket2"
           left
-          @click="selected = $store.state.player.character.equipped.trinket2"
+          @click="selected = $store.state.user.character.equipped.trinket2"
         />
         <DollSlot
-          :item="$store.state.player.character.equipped.trinket3"
+          :item="$store.state.user.character.equipped.trinket3"
           left
-          @click="selected = $store.state.player.character.equipped.trinket3"
+          @click="selected = $store.state.user.character.equipped.trinket3"
         />
       </div>
 
       <!-- Left Column -->
       <DollSlot
         label="Head"
-        :item="$store.state.player.character.equipped.head"
+        :item="$store.state.user.character.equipped.head"
         left
-        @click="selected = $store.state.player.character.equipped.head"
+        @click="selected = $store.state.user.character.equipped.head"
       />
       <DollSlot
         label="Shoulders"
-        :item="$store.state.player.character.equipped.shoulders"
+        :item="$store.state.user.character.equipped.shoulders"
         left
-        @click="selected = $store.state.player.character.equipped.shoulders"
+        @click="selected = $store.state.user.character.equipped.shoulders"
       />
       <DollSlot
         label="Back"
-        :item="$store.state.player.character.equipped.back"
+        :item="$store.state.user.character.equipped.back"
         left
-        @click="selected = $store.state.player.character.equipped.back"
+        @click="selected = $store.state.user.character.equipped.back"
       />
       <DollSlot
         label="Chest"
-        :item="$store.state.player.character.equipped.chest"
+        :item="$store.state.user.character.equipped.chest"
         left
-        @click="selected = $store.state.player.character.equipped.chest"
+        @click="selected = $store.state.user.character.equipped.chest"
       />
 
       <!-- Avatar -->
@@ -60,40 +60,40 @@
       <!-- Right Column -->
       <DollSlot
         label="Hands"
-        :item="$store.state.player.character.equipped.hands"
+        :item="$store.state.user.character.equipped.hands"
         right
-        @click="selected = $store.state.player.character.equipped.hands"
+        @click="selected = $store.state.user.character.equipped.hands"
       />
       <DollSlot
         label="Waist"
-        :item="$store.state.player.character.equipped.waist"
+        :item="$store.state.user.character.equipped.waist"
         right
-        @click="selected = $store.state.player.character.equipped.waist"
+        @click="selected = $store.state.user.character.equipped.waist"
       />
       <DollSlot
         label="Legs"
-        :item="$store.state.player.character.equipped.legs"
+        :item="$store.state.user.character.equipped.legs"
         right
-        @click="selected = $store.state.player.character.equipped.legs"
+        @click="selected = $store.state.user.character.equipped.legs"
       />
       <DollSlot
         label="Feet"
-        :item="$store.state.player.character.equipped.feet"
+        :item="$store.state.user.character.equipped.feet"
         right
       />
 
       <!-- Weapons -->
       <DollSlot
         label="mainhand"
-        :item="$store.state.player.character.equipped.mainhand"
+        :item="$store.state.user.character.equipped.mainhand"
         class="weapon-mainhand"
-        @click="selected = {...$store.state.player.character.equipped.mainhand}"
+        @click="selected = {...$store.state.user.character.equipped.mainhand}"
       />
       <DollSlot
         label="offhand"
-        :item="$store.state.player.character.equipped.offhand"
+        :item="$store.state.user.character.equipped.offhand"
         class="weapon-offhand"
-        @click="selected = {...$store.state.player.character.equipped.offhand}"
+        @click="selected = {...$store.state.user.character.equipped.offhand}"
       />
     </div>
 

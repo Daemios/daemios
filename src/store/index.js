@@ -3,7 +3,7 @@ import Vuex from 'vuex';
 
 import api from '@/store/modules/api';
 import dialogs from '@/store/modules/dialogs';
-import player from '@/store/modules/player';
+import user from '@/store/modules/user';
 import world from '@/store/modules/world';
 import arena from '@/store/modules/arena';
 import debug from '@/store/modules/debug';
@@ -20,7 +20,7 @@ export default new Vuex.Store({
   modules: {
     api,
     dialogs,
-    player,
+    user,
     world,
     arena,
     debug,

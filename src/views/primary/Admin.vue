@@ -95,15 +95,48 @@
             >
               {{ item.arena_history_id === active_arena_history_id ? 'Loaded' : 'Load' }}
             </v-btn>
-            <v-btn
-              x-small
-              color="failure"
-              @click="deleteArena(item.arena_history_id)"
+            <v-dialog
+              v-model="delete_dialog"
+              max-width="400"
             >
-              <v-icon small>
-                {{ mdiTrashCan }}
-              </v-icon>
-            </v-btn>
+              <template #activator="{ on }">
+                <v-btn
+                  x-small
+                  color="failure"
+                  :on="on"
+                  @click="delete_dialog = true"
+                >
+                  <v-icon small>
+                    {{ mdiTrashCan }}
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-card>
+                <v-card-title>
+                  Delete Arena
+                </v-card-title>
+                <v-card-text>
+                  Are you sure you want to delete this arena?
+                </v-card-text>
+                <v-card-actions>
+                  <v-spacer />
+                  <v-btn
+                    x-small
+                    color="secondary"
+                    @click="delete_dialog = false"
+                  >
+                    Cancel
+                  </v-btn>
+                  <v-btn
+                    x-small
+                    color="error"
+                    @click="deleteArena(item.arena_history_id)"
+                  >
+                    Delete
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-dialog>
           </template>
         </v-data-table>
       </v-card-text>
@@ -119,6 +152,7 @@ export default {
   data: () => ({
     mdiTrashCan,
     mdiPlus,
+    delete_dialog: false,
     active_arena_history_id: null,
     headers: [
       {text: 'Name', value: 'name'},

@@ -24,7 +24,7 @@ export default {
       active: (state) => state.arena.activeRegister,
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
-      playerActive: (state) => state.arena.playerActive,
+      playerActive: (state) => state.arena.userActive,
     }),
   },
   methods: {

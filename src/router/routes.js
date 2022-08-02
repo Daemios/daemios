@@ -22,8 +22,7 @@ export default [
     },
   },
   {
-    path: '/world',
-    alias: '/',
+    path: '/',
     name: 'World',
     component: () => import('@/views/primary/World'),
     meta: {

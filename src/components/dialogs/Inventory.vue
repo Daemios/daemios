@@ -2,7 +2,7 @@
   <v-dialog
     v-model="$store.state.dialogs.isInventoryOpen"
     app
-    class="ma-2"
+    fullscreen
   >
     <v-card>
       <v-toolbar
@@ -29,7 +29,7 @@
         </v-toolbar-items>
       </v-toolbar>
       <v-data-iterator
-        :items.sync="$store.state.player.character.inventory"
+        :items.sync="$store.state.user.inventory"
         :items-per-page.sync="numberOfPages"
         :page.sync="page"
         :search="search"
@@ -37,7 +37,7 @@
         :sort-desc="sortDesc"
         class="overflow-hidden"
       >
-        <template v-slot:header>
+        <template #header>
           <v-toolbar
             dark
             color="blue darken-3"
@@ -89,14 +89,14 @@
           </v-toolbar>
         </template>
         <template
-          v-slot:default
+          #default
         >
           <v-row
             dense
             class="pa-2"
           >
             <v-col
-              v-for="(item, n) in $store.state.player.character.inventory"
+              v-for="(item, n) in $store.state.user.inventory"
               :key="n"
               cols="6"
               sm="4"
@@ -164,7 +164,7 @@ export default {
   },
   computed: {
     numberOfPages() {
-      return Math.ceil(this.$store.state.player.character.inventory.length / this.itemsPerPage);
+      return Math.ceil(this.$store.state.user.inventory.length / this.itemsPerPage);
     },
     filteredKeys() {
       return this.keys.filter((key) => key !== 'Name');

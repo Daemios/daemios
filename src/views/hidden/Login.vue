@@ -11,30 +11,110 @@
       :zoom="zoom"
     />
 
+    <!-- Register -->
     <v-layout
-      v-if="!characters"
+      v-if="!characters && showRegister"
+      class="flex-grow-0 pane pa-4"
       column
-      class="flex-grow-0 mb-2"
+      align-center
+    >
+      <v-form>
+        <v-text-field
+          v-model="form.email"
+          label="Email"
+          type="email"
+          autocomplete="email"
+        />
+        <v-text-field
+          v-model="form.new_password"
+          label="Password"
+          type="password"
+          autocomplete="new-password"
+        />
+        <v-text-field
+          v-model="form.confirm_password"
+          label="Confirm Password"
+          type="password"
+          autocomplete="new-password"
+        />
+        <v-text-field
+          v-model="form.display_name"
+          label="Display Name"
+        />
+      </v-form>
+      <v-row>
+        <v-col>
+          <v-btn
+            text
+            small
+            @click="showRegister = false"
+          >
+            Cancel
+          </v-btn>
+        </v-col>
+        <v-col>
+          <v-btn
+            color="primary"
+            small
+            @click="registerUser()"
+          >
+            Register
+          </v-btn>
+        </v-col>
+      </v-row>
+    </v-layout>
+
+    <!-- Login -->
+    <v-layout
+      v-else-if="characters === null && !showRegister"
+      column
+      class="flex-grow-0"
       align-center
     >
       <h1 class="header text-center colors-of-autumn">
         Dungeons and Daemios
       </h1>
       <div class="login-pane pane pa-4">
-        <v-text-field
-          label="Username"
-          type="username"
-          @keydown.enter="authenticate"
-        />
-        <v-text-field
-          label="Password"
-          type="password"
-          @keydown.enter="authenticate"
-        />
+        <div>
+          <v-text-field
+            v-model="form.email"
+            label="Email"
+            type="email"
+            @keydown.enter="authenticate()"
+          />
+          <v-text-field
+            v-model="form.password"
+            label="Password"
+            type="password"
+            @keydown.enter="authenticate()"
+          />
+        </div>
+        <v-row>
+          <v-col>
+            <v-btn
+              text
+              small
+              @click="showRegister = true"
+            >
+              Register
+            </v-btn>
+          </v-col>
+          <v-col class="d-flex justify-end">
+            <v-btn
+              color="primary"
+              small
+              @click="authenticate()"
+            >
+              Login
+            </v-btn>
+          </v-col>
+        </v-row>
       </div>
     </v-layout>
+
+    <!-- Character Select -->
     <v-layout
-      v-else
+      v-else-if="characters !== null && !showRegister"
       column
       align-center
       justify-center
@@ -100,8 +180,10 @@
         Create New Character
       </v-btn>
     </v-layout>
+
+    <!-- Sound Control -->
     <div
-      class="audio-pane pane d-flex justify-space-between px-1"
+      class="audio-pane pane d-flex justify-space-between px-1 mt-2"
     >
       <v-icon
         class="mr-1"
@@ -115,6 +197,7 @@
         :value="volume"
       />
     </div>
+
   </v-layout>
 </template>
 
@@ -124,14 +207,15 @@ import mixin_audio from '@/mixins/audio';
 import mixin_locations from '@/mixins/locations';
 import VesselMini from '@/components/ability/VesselMini';
 import AnimatedBackground from '@/components/general/AnimatedBackground';
+import api from "@/functions/api";
+import {mapState} from "vuex";
 
 export default {
   components: { VesselMini, AnimatedBackground },
   mixins: [mixin_audio, mixin_locations],
   data: () => ({
     mdiPlus,
-    character: null,
-    characters: null,
+    showRegister: false,
     characters_temp: [
       {
         name: 'Daemios',
@@ -162,12 +246,52 @@ export default {
       },
     ],
     zoom: false,
+    form: {
+      new_email: '',
+      new_password: '',
+      confirm_password: '',
+      display_name: '',
+      email: '',
+      password: '',
+    },
   }),
   computed: {
+    ...mapState({
+      characters: (state) => state.debug.db.characters,
+    }),
   },
   methods: {
     authenticate() {
-      this.characters = this.characters_temp;
+      api.post('user/authenticate', {
+        email: this.form.email,
+        password: this.form.password,
+      })
+        .then(res => {
+          if (res.success) {
+            this.$store.commit('player/setPlayerId', res.user_id);
+            this.$store.dispatch('player/getCharacters');
+          }
+        })
+        .catch(err => {
+          console.log(err);
+        });
+    },
+    registerUser() {
+      api.post('user/register', {
+        email: this.form.new_email,
+        password: this.form.new_password,
+        password_confirm: this.form.confirm_password,
+        display_name: this.form.display_name,
+      })
+        .then(res => {
+          if (res.success) {
+            this.showRegister = false;
+            this.authenticate();
+          }
+        })
+        .catch(err => {
+          console.log(err);
+        });
     },
     characterSelect(char) {
       console.log(char);

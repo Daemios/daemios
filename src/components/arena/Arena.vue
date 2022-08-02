@@ -44,7 +44,7 @@ export default {
       active: (state) => state.arena.activeRegister,
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
-      playerActive: (state) => state.arena.playerActive,
+      playerActive: (state) => state.arena.userActive,
       moving: (state) => state.arena.moving,
     }),
   },
@@ -217,7 +217,7 @@ export default {
       }
 
       // Draw path if you're currently active
-      if (this.playerActive) {
+      if (this.userActive) {
         this.pathToCell(x, y);
       }
     },

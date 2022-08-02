@@ -43,6 +43,7 @@ import * as Three from 'three';
 import * as dat from 'dat.gui';
 import {mapState} from "vuex";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
+import {Rectangle, QuadTree} from "@/classes/QuadTree";
 
 export default {
   data: () => ({
@@ -78,9 +79,7 @@ export default {
     // Plane specifics
     terrain: {
       noise: null,
-      mesh: null,
-      geometry: null,
-      material: null,
+      meshes: null,
     },
     water: {
       mesh: null,
@@ -194,12 +193,15 @@ export default {
       this.gui.add(this.orbit_light.object.rotation, 'y')
     },
     rebuildTerrain() {
-      this.terrain.mesh.geometry.dispose()
-      this.buildTerrain();
+      this.terrain.forEach(offsetX => {
+        x.forEach((terrain, offsetY) => {
+          terrain.mesh.geometry.dispose()
+          this.buildTerrain(offsetX, offsetY);
+        })
+      })
     },
     buildTerrain(offsetX, offsetY) {
-      const {array} = this.terrain.geometry.attributes.position;
-      console.log(offsetX, offsetY)
+      const {array} = this.terrain.meshes[offsetX][offsetY].geometry.attributes.position;
       for (let i = 0; i < array.length; i=i+3) {
         const x = i / 3 % this.config.segments;
         const y = Math.floor((i / 3) / this.config.segments);
@@ -207,25 +209,26 @@ export default {
       }
     },
     createChunk(offsetX = 0, offsetY = 0) {
-      this.terrain.material = new Three.MeshStandardMaterial({
+      const material = new Three.MeshStandardMaterial({
         wireframe: false,
         color: 0x666666,
-        side: Three.DoubleSide,
         vertexColors: false,
         flatShading: Three.FlatShading,
       })
       const size = new Three.Vector3(
         this.config.segments * this.config.scale, this.config.segments * this.config.scale, 0);
-      this.terrain.geometry = new Three.PlaneGeometry(size.x, size.y, this.config.segments-1, this.config.segments-1)
+      const geometry = new Three.PlaneGeometry(size.x, size.y, this.config.segments-1, this.config.segments-1)
       this.buildTerrain(offsetX, offsetY);
-      this.terrain.mesh = new Three.Mesh(this.terrain.geometry, this.terrain.material)
-      this.terrain.mesh.translateX(this.config.segments * this.config.scale * offsetX)
-      this.terrain.mesh.translateY(this.config.segments * this.config.scale * offsetY)
+      this.terrain.meshes[offsetX][offsetY].mesh = new Three.Mesh(geometry, material)
+      this.terrain.meshes[offsetX][offsetY].mesh.translateX(this.config.segments * this.config.scale * offsetX)
+      this.terrain.meshes[offsetX][offsetY].mesh.translateY(this.config.segments * this.config.scale * offsetY)
       //this.terrain.mesh.rotateX(-1.5708)
-      this.scene.add(this.terrain.mesh)
+      this.scene.add(this.terrain.meshes[offsetX][offsetY].mesh)
     },
     createChunks() {
-
+      // generate quadtree
+      const rootNode = new Rectangle()
+      this.terrain.quadtree = new QuadTree()
     },
     createMenus() {
       const terrainNoiseFolder = this.gui.addFolder('Terrain.Noise')
@@ -242,20 +245,26 @@ export default {
     setup() {
       this.createBasics();
       this.createMenus();
-      this.createChunk();
-      this.createChunk(0, -1);
-      this.createChunk(0, 1);
+      this.createChunks();
+      //this.createChunk();
+      //this.createChunk(-1, 1);
+      //this.createChunk(0, -1);
+      //this.createChunk(1, 1);
+      //this.createChunk(0, 1);
 
       let light = new Three.DirectionalLight(0x808080, 1, 100);
       light.position.set(-this.config.segments * this.config.scale, this.config.segments * this.config.scale, this.config.segments * this.config.scale);
       light.target.position.set(this.config.segments * this.config.scale, -(this.config.segments * this.config.scale), this.config.segments * this.config.scale);
       light.castShadow = false;
-      this.scene.add(light);
+      //this.scene.add(light);
 
       light = new Three.DirectionalLight(0x404040, 1.5, 100);
       light.position.set(-(this.config.segments * this.config.scale), -(this.config.segments * this.config.scale), this.config.segments * this.config.scale);
       light.target.position.set(0, 0, 0);
       light.castShadow = false;
+      //this.scene.add(light);'
+
+      light = new Three.AmbientLight(0x404040, 1.5);
       this.scene.add(light);
 
       //this.createLights()

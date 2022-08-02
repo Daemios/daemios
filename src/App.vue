@@ -86,7 +86,6 @@ export default {
     Navigation,
     Equipment,
     Inventory,
-    Map,
   },
   mixins: [mixin_keybinds, mixin_socket],
   data() {
@@ -97,8 +96,10 @@ export default {
   },
   mounted() {
     this.$store.dispatch('arena/getTerrain')
-    this.$store.dispatch('world/getTerrain')
+    // TODO improve this, but disabled for immediate development
+    //this.$store.dispatch('world/getTerrain')
   },
+
 };
 </script>
 

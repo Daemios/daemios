@@ -3,7 +3,7 @@ export default {
   state: {
     isEquipmentOpen: false,
     isInventoryOpen: false,
-    isMapOpen: true,
+    isMapOpen: false,
   },
   mutations: {
     // Closers
