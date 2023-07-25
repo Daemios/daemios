@@ -2,7 +2,9 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 
 import api from '@/store/modules/api';
+import ability from "@/store/modules/ability";
 import dialogs from '@/store/modules/dialogs';
+import characters from '@/store/modules/characters';
 import user from '@/store/modules/user';
 import world from '@/store/modules/world';
 import arena from '@/store/modules/arena';
@@ -19,7 +21,9 @@ export default new Vuex.Store({
   },
   modules: {
     api,
+    ability,
     dialogs,
+    characters,
     user,
     world,
     arena,

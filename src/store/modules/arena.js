@@ -49,6 +49,9 @@ export default {
     setEntities(state, entities) {
       state.entities = entities;
     },
+    setCombat(state, combat) {
+      state.combat = combat;
+    },
     registerEntity(state, args) {
       state.entityRegistry.push({
         x: args.x,

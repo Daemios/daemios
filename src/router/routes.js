@@ -66,9 +66,9 @@ export default [
     },
   },
   {
-    path: '/admin',
-    name: 'Admin',
-    component: () => import('@/views/primary/Admin'),
+    path: '/dungeon-master',
+    name: 'Dungeon Master',
+    component: () => import('@/views/primary/DungeonMaster'),
     meta: {
       render: true,
       icon: mdiWizardHat,
@@ -95,6 +95,15 @@ export default [
       render: true,
       icon: mdiAbacus,
       overlay: true,
+    },
+  },
+  {
+    path: '/characters',
+    name: 'Characters',
+    component: () => import('@/views/hidden/Characters'),
+    meta: {
+      render: false,
+      overlay: false,
     },
   },
   {

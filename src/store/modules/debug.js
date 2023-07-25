@@ -18,17 +18,29 @@ export default {
       ],
       archetype: {
         roles: [
-          { archetype_role_id: 1, label: 'Healer', description: 'Focus on repairing damage instead of dealing it.' },
-          { archetype_role_id: 2, label: 'Damage', description: 'Things need bonk? You bonk.' },
-          { archetype_role_id: 3, label: 'Debuff', description: 'Killing your enemies through control.' },
-          { archetype_role_id: 4, label: 'Utility', description: 'Buff allies and manipulate the battlefield.' },
-          { archetype_role_id: 5, label: 'Summoner', description: 'Become a puppet master and control the spirits.' },
+          {
+            archetype_role_id: 1, label: 'Damage',
+            description: 'Things need bonk? You bonk.',
+            background: '/img/safe/archetype_roles/damage.png',
+          },
+          {
+            archetype_role_id: 2,
+            label: 'Healer',
+            description: 'Focus on repairing damage instead of dealing it.',
+            background: '/img/safe/archetype_roles/healer.png',
+          },
+          { archetype_role_id: 3, label: 'Debuff', description: 'Killing your enemies through control.',
+            background: '/img/safe/archetype_roles/debuff.png', },
+          { archetype_role_id: 4, label: 'Utility', description: 'Buff allies and manipulate the battlefield.',
+            background: '/img/safe/archetype_roles/utility.png', },
+          { archetype_role_id: 5, label: 'Summoner', description: 'Become a puppet master and control the spirits.',
+            background: '/img/safe/archetype_roles/summoner.png', },
         ],
         ranges: {
-          1: { archetype_role_id: 1, label: 'Melee', description: 'Disables some ranges, but adds more HP and Power.' },
-          2: { archetype_role_id: 2, label: 'Mix', description: 'Jack of all trades, without any specialization.' },
+          1: { archetype_range_id: 1, label: 'Melee', description: 'Disables some ranges, but adds more HP and Power.' },
+          2: { archetype_range_id: 2, label: 'Mix', description: 'Jack of all trades, without any specialization.' },
           3: {
-            archetype_role_id: 3,
+            archetype_range_id: 3,
             label: 'Ranged',
             description: 'Grants a range modifier to all abilties but reduces HP.',
           },
@@ -130,7 +142,7 @@ export default {
           buff: 1.00,
           description: 'Fire description',
           imgs: {
-            core: '/img/cores/fire.jpg',
+            core: '/img/vessels/fire.jpg',
           },
           color: '#ff602b',
         },
@@ -386,7 +398,7 @@ export default {
           },
           light: {
             type: 'Damage',
-            description: 'A ray of light that pierces the first target hit and continues on',
+            description: 'A cone of light blasts forth from you',
             cost: 0,
             range: 0,
             radius: 0,

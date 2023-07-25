@@ -1,9 +1,5 @@
 <template>
   <v-layout class="builder-background">
-    <AnimatedBackground
-      src="/video/forest.mp4"
-      :zoom="zoom"
-    />
 
     <!-- Intro -->
     <v-layout
@@ -43,7 +39,7 @@
     <v-layout
       v-if="stage === 'ability-builder'"
     >
-      <AbilityBuilder :ability="abilities[0]" />
+      <CharacterBuilder />
     </v-layout>
   </v-layout>
 </template>
@@ -51,15 +47,14 @@
 <script>
 import VesselGraphic from '@/components/ability/VesselGraphic';
 import CoresGraphic from '@/components/ability/CoresGraphic';
-import AbilityBuilder from '@/components/ability/AbilityBuilder';
-import AnimatedBackground from '@/components/general/AnimatedBackground';
+import CharacterBuilder from '@/components/character/CharacterBuilder';
+import api from "@/functions/api";
 
 export default {
   components: {
     VesselGraphic,
     CoresGraphic,
-    AbilityBuilder,
-    AnimatedBackground,
+    CharacterBuilder,
   },
   data: () => ({
     count: 0,
@@ -130,19 +125,8 @@ export default {
       },
     },
     stage: 'ability-builder',
-    abilities: {
-      0: {
-        name: null,
-        vessel: null,
-        core: null,
-        fragments: null,
-      },
-      1: {
-        name: null,
-        vessel: null,
-        core: null,
-        fragments: null,
-      },
+    show:{
+      ability: false,
     },
     zoom: false,
   }),
@@ -166,11 +150,4 @@ export default {
 </script>
 
 <style lang="sass">
-strong
-  color: #49b69d
-
-.builder-background
-  background: black
-  height: 100%
-  width: 100%
 </style>

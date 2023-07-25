@@ -94,11 +94,6 @@ export default {
       mdiTreasureChest,
     };
   },
-  mounted() {
-    this.$store.dispatch('arena/getTerrain')
-    // TODO improve this, but disabled for immediate development
-    //this.$store.dispatch('world/getTerrain')
-  },
 
 };
 </script>

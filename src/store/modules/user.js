@@ -3,7 +3,6 @@ import api from "@/functions/api";
 export default {
   namespaced: true,
   state: {
-    user_id: 1,
     display_name: null,
     characters: null,
     character: {
@@ -249,9 +248,6 @@ export default {
     ],
   },
   mutations: {
-    setUserId(state, user_id) {
-      state.user_id = user_id;
-    },
     setCharacters(state, characters) {
       state.characters = characters;
     },
@@ -264,17 +260,18 @@ export default {
   },
   actions: {
     getCharacters(context) {
-      api.get('user/characters', { user_id: context.state.user_id }).then(response => {
+      api.get('user/characters').then(response => {
+        console.log(response)
         context.commit('setCharacters', response.characters);
       })
     },
-    getCharacter(context, character_id) {
-      api.get('user/character', { user_id: context.state.user_id, character_id: character_id }).then(response => {
+    getCharacter(context) {
+      api.get('user/character').then(response => {
         context.commit('setCharacter', response.data);
       })
     },
     getInventory(context) {
-      api.get('user/inventory', { user_id: context.state.user_id }).then(response => {
+      api.get('user/inventory').then(response => {
         context.commit('setInventory', response.data);
       })
     }

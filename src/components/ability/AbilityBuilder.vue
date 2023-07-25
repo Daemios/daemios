@@ -6,27 +6,60 @@
       class="builder-vessels"
       align="end"
     >
-      <v-col>
+      <v-col cols="7">
         <v-card
-          class="glass flex-grow-1"
+          class="glass"
+          height="200"
         >
           <v-card-title>
             <h1>
-              {{ element ? `${element.name} Vessel` : 'Choose a Vessel' }}
+              {{ selected_element ? `${elements[selected_element].name} Vessel` : 'Choose a Vessel' }}
             </h1>
           </v-card-title>
           <v-card-text>
-            <v-layout justify-space-between>
-              <v-btn
-                v-for="(el, i) in $store.state.debug.db.elements"
-                :key="i"
-                fab
-                small
-                @click="element = el"
-              >
-                <VesselMini :color="el.color" />
-              </v-btn>
-            </v-layout>
+
+
+            <v-btn
+              v-for="(el, i) in elements"
+              :key="i"
+              fab
+              small
+              class="ma-2"
+              @click="selected_element = el.element_id"
+            >
+              <VesselMini
+                :color="el.color"
+              />
+            </v-btn>
+
+          </v-card-text>
+        </v-card>
+      </v-col>
+      <v-col>
+        <v-card
+          class="glass fill-height"
+          min-height="200"
+        >
+          <v-card-text>
+            <h2>
+              About Vessels
+            </h2>
+            <div>Using multiple types of Elements reduces your overall power.</div>
+            <h2
+              v-if="selected_element"
+              class="mt-4"
+            >
+              <v-layout>
+                {{ elements[selected_element].name }} Effect
+                <VesselMini
+                  class="ml-2"
+                  :color="elements[selected_element].color"
+                />
+              </v-layout>
+            </h2>
+            <p v-if="selected_element">
+              {{ elements[selected_element].effect }}
+            </p>
           </v-card-text>
         </v-card>
       </v-col>
@@ -35,13 +68,13 @@
       class="builder-cores"
     >
       <v-col
-        v-for="(core, i) in $store.state.debug.db.cores"
-        :key="i"
+        v-for="preset_core_id in core_options"
+        :key="preset_core_id"
         cols="4"
-        class="flex-grow-1"
       >
         <v-card
           class="glass"
+          height="300"
         >
           <v-card-title class="d-flex justify-space-between align-start">
 
@@ -49,22 +82,31 @@
               column
               justify-start
             >
-              {{ core.name }}
+              {{ selected_element ? presets[preset_core_id][selected_element].preset_core_name : '' }}
               <div
                 class="text-caption"
               >
-                {{ coreType(core) }}
+                {{ abilitySubtext(preset_core_id, selected_element) }}
               </div>
             </v-layout>
             <v-btn
               x-small
               color="primary"
-              :disabled="!element"
+              :disabled="!selected_element"
             >
-              {{ element ? 'Select' : 'Awaiting Element' }}
+              {{ selected_element ? 'Select' : 'Awaiting Element' }}
             </v-btn>
           </v-card-title>
-          <v-card-text>{{ coreDescription(core) }}</v-card-text>
+          <v-card-text>
+            {{ selected_element ? presets[preset_core_id][selected_element].preset_description : '' }}
+
+            <AbilityMockup
+              v-if="selected_element"
+              :key_prefix="selected_element"
+              :height="10"
+              :width="10"
+            />
+          </v-card-text>
         </v-card>
       </v-col>
     </v-row>
@@ -75,42 +117,40 @@
 import { mdiClose } from '@mdi/js';
 import { mapState } from 'vuex';
 import VesselMini from '@/components/ability/VesselMini';
+import AbilityMockup from '@/components/ability/AbilityMockup';
 
 export default {
-  components: { VesselMini },
+  components: { VesselMini, AbilityMockup },
   props: {
     ability: {
       type: Object,
       required: true,
     },
+    presets: {
+      type: Object,
+      required: true,
+    },
+    core_options: {
+      type: Array,
+      required: true,
+    },
   },
   data: () => ({
     mdiClose,
-    element: null,
+    selected_element: null,
   }),
   computed: {
     ...mapState({
-      elements: (state) => state.debug.db.elements,
-      cores: (state) => state.debug.db.cores,
-      core_effects: (state) => state.debug.db.core_effects,
+      elements: (state) => state.ability.elements,
     }),
   },
   methods: {
-    coreType(core) {
-      if (!this.element) {
-        const data = this.cores.filter((el) => el.tag === core.tag);
-        return data[0].type ? data[0].type : '';
+    abilitySubtext(preset_core_id, selected_element) {
+      if (!selected_element) {
+        return '';
       }
-      const { type } = this.core_effects[core.tag][this.element.tag];
-      return type ? `${type} - ${this.element.name} ` : 'Unavailable';
-    },
-    coreDescription(core) {
-      if (!this.element) {
-        const data = this.cores.filter((el) => el.tag === core.tag);
-        return data[0].description ? data[0].description : 'Not Implemented';
-      }
-      return this.core_effects[core.tag][this.element.tag].description
-        ? this.core_effects[core.tag][this.element.tag].description : 'This core provides nothing for this element';
+      const preset = this.presets[preset_core_id][selected_element];
+      return `${preset.type_name} - ${this.elements[selected_element].name}`;
     },
   },
 };
@@ -121,9 +161,4 @@ export default {
   &>*
     width: 100%
 
-.builder-vessels
-  flex: 1
-
-.builder-cores
-  flex: 2
 </style>

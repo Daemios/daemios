@@ -105,21 +105,51 @@ export default {
   mounted() {
   },
   methods: {
+    /**
+     * scale: This parameter determines the scale at which the noise value is calculated. Increasing the scale will make
+     * the noise value vary more slowly, while decreasing the scale will make it vary more quickly.
+     *
+     * persistence: This parameter determines the rate at which the amplitude of the noise decreases for each octave.
+     * A higher persistence value will result in a greater overall variation in the noise value, while a lower
+     * persistence value will result in a smaller overall variation.
+     *
+     * octaves: This parameter determines the number of octaves of noise that are added together to calculate the final
+     * noise value. Increasing the number of octaves will make the noise value more complex and varied, while decreasing
+     * the number of octaves will make it simpler and less varied.
+     *
+     * lacunarity: This parameter determines the rate at which the frequency of the noise increases for each octave.
+     * A higher lacunarity value will result in a greater overall variation in the noise value, while a lower lacunarity
+     * value will result in a smaller overall variation.
+     *
+     * exponentiation: This parameter determines the exponent to which the final noise value is raised before
+     * it is scaled and returned by the function. Increasing the exponentiation value will make the noise value
+     * more peaked, while decreasing the exponentiation value will make it flatter.
+     *
+     * height: This parameter determines the overall height of the noise value, after it has been scaled
+     * and exponentiated. Increasing the height will make the noise value range over a greater range of values,
+     * while decreasing the height will make it range over a smaller range of values.
+     *
+     * @param x
+     * @param y
+     * @returns {number}
+     */
     getNoise(x, y) {
       const xs = x / this.config.scale;
       const ys = y / this.config.scale;
-      const G = 2.0**(-this.config.persistence);
+      const G = 2 ** (-this.config.persistence);
       let amplitude = 1.0;
       let frequency = 1.0;
       let normalization = 0;
       let total = 0;
-      for (let o = 0; o < this.config.octaves; o++) {
+
+      for (let octave = 0; octave < this.config.octaves; octave++) {
         const noiseValue = this.terrain.noise.noise2D(xs * frequency, ys * frequency) * 0.5 + 0.5;
         total += noiseValue * amplitude;
         normalization += amplitude;
         amplitude *= G;
         frequency *= this.config.lacunarity;
       }
+
       total /= normalization;
       return Math.pow(total, this.config.exponentiation) * (this.config.height * this.config.scale);
     },

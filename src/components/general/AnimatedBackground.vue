@@ -36,6 +36,23 @@ export default {
 </script>
 
 <style lang="sass">
+@keyframes entry-zoom
+  0%
+    margin: 0
+    height: 100vh
+    width: 100vw
+    opacity: 1
+  50%
+    margin: -10%
+    height: 120vh
+    width: 120vw
+    opacity: 1
+  100%
+    margin: -10%
+    height: 120vh
+    width: 120vw
+    opacity: 0
+
 .animated-background
   position: absolute
   height: 100vh
@@ -45,9 +62,7 @@ export default {
   justify-content: center
 
   &.zoom
-    animation-duration: 3s
-    animation-name: login-zoom
-    animation: 2s forwards login-zoom
+    animation: 2s forwards entry-zoom
 
   video
     width: auto

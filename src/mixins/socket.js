@@ -27,7 +27,16 @@ export default {
           case 'arena':
             this.arena(data);
             break;
+          case 'combat_start':
+            this.combatStart(data);
+            console.log(data)
+            break;
+          case 'combat_end':
+            this.combatEnd(data);
+            console.log(data)
+            break;
           default:
+            console.log(data)
             break;
         }
       }
@@ -39,7 +48,14 @@ export default {
 
     },
     arena(data) {
-      this.$store.dispatch('arena/setTerrain', data.body.terrain)
+      this.$store.commit('arena/setTerrain', data.body.terrain)
+    },
+    combatStart(data) {
+      //this.$store.dispatch('arena/setCombat', data.body.combat)
+      this.$store.commit('arena/setCombat', true)
+    },
+    combatEnd(data) {
+      this.$store.commit('arena/setCombat', false)
     }
   },
   created() {

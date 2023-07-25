@@ -1,19 +1,5 @@
 import store from '@/store';
 
-// API headers
-const HEADERS = {
-  ALIAS: 'X-Organization-Alias',
-  AUTH: 'Authorization',
-  CACHE: 'Cache-Control',
-  ACCEPT: 'Accept',
-  CONTENT: 'Content-Type',
-};
-
-// HTTP codes
-const CODES = {
-  AUTH_REQUIRED: 401,
-};
-
 const api = {
   call: (method, url, input) => {
     let path = `${store.state.api.endpoint}/${url}`;
@@ -22,27 +8,27 @@ const api = {
 
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
       mode: 'cors',
-      credentials: 'omit',
+      credentials: 'include',
 
       headers: {
-        [HEADERS.ALIAS]: 'web-client',
-        [HEADERS.CACHE]: 'no-cache',
-        [HEADERS.ACCEPT]: 'application/json',
-        [HEADERS.CONTENT]: 'application/json',
+        'Access-Control-Allow-Origin': 'http://localhost:8080',
+        'X-Organization-Alias': 'web-client',
+        'Cache-Control': 'no-cache',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
 
       body: method === 'POST' || method === 'PATCH' ? JSON.stringify(input) : null,
     })
       .then((response) => {
+        console.log(response);
+        // If there is something wrong
         if (!response.ok) {
           switch (response.status) {
-            // Authorization requests do a hard refresh to the login page rather than route
-            // This is so that any state is safely purged
-            case CODES.AUTH_REQUIRED:
+            case 401:
               document.location.href = '/login';
               break;
             default:
-              console.log(response)
               // TODO create error dialog/toast
           }
           throw new Error();

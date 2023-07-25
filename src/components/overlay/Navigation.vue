@@ -19,7 +19,10 @@
 
       <v-divider />
 
-      <v-list dense>
+      <v-list
+        dense
+        class="pa-0"
+      >
         <v-list-item
           v-for="route in routes"
           :key="route.path"
