@@ -17,6 +17,7 @@ export default {
         if (event.data) {
           data = JSON.parse(event.data)
         }
+        console.log(data)
         switch (data.type) {
           case 'movement':
             this.movement(data);

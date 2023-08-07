@@ -2,6 +2,7 @@ export default {
   namespaced: true,
   state: {
     isEquipmentOpen: false,
+    isAbilitiesOpen: false,
     isInventoryOpen: false,
     isMapOpen: false,
   },
@@ -20,6 +21,10 @@ export default {
     // Toggles
     toggleEquipment(state) {
       state.isEquipmentOpen = !state.isEquipmentOpen;
+    },
+    toggleAbilities(state) {
+      console.log('test');
+      state.isAbilitiesOpen = !state.isAbilitiesOpen;
     },
     toggleInventory(state) {
       state.isInventoryOpen = !state.isInventoryOpen;

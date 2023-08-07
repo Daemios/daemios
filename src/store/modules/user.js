@@ -45,21 +45,6 @@ export default {
           cost: 0,
           cooldown: 0,
         },
-        2: {
-          id: 2,
-          label: 'My Second Best Spell',
-          prefix: 'Cracked',
-          tier: 1,
-          sockets: 1,
-
-          range: 2,
-          shape: 1,
-          type: 1,
-
-          power: 0,
-          cost: 0,
-          cooldown: 0,
-        },
       },
       equipped: {
         trinket1: {

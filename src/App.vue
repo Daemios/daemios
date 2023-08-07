@@ -11,6 +11,7 @@
     <!-- Game Dialogs -->
     <Equipment />
     <Inventory />
+    <Abilities />
 
     <!-- Main Content -->
     <v-main class="background fill-height">
@@ -45,6 +46,17 @@
             {{ mdiTreasureChest }}
           </v-icon>
         </v-btn>
+        <v-btn
+          depressed
+          x-small
+          height="30"
+          width="30"
+          @click="$store.commit('dialogs/toggleAbilities')"
+        >
+          <v-icon small>
+            {{ mdiSword }}
+          </v-icon>
+        </v-btn>
       </div>
     </div>
 
@@ -69,12 +81,13 @@
 </template>
 
 <script>
-import { mdiTreasureChest, mdiHumanMale } from '@mdi/js';
+import { mdiTreasureChest, mdiHumanMale, mdiSword } from '@mdi/js';
 
 import Header from '@/components/overlay/Header';
 import Navigation from '@/components/overlay/Navigation';
 import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
+import Abilities from '@/components/dialogs/Abilities'
 import Map from '@/components/dialogs/Map';
 
 import mixin_keybinds from '@/mixins/keybinds';
@@ -86,12 +99,14 @@ export default {
     Navigation,
     Equipment,
     Inventory,
+    Abilities,
   },
   mixins: [mixin_keybinds, mixin_socket],
   data() {
     return {
       mdiHumanMale,
       mdiTreasureChest,
+      mdiSword,
     };
   },
 
@@ -127,8 +142,6 @@ html
 
 /* iOS Fix height */
 html, body, .v-application, .v-application--wrap
-  //noinspection CssInvalidPropertyValue
-  min-height: -webkit-fill-available
 
 /* General global styling */
 #app

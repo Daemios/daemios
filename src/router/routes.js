@@ -1,5 +1,5 @@
 import {
-  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse, mdiWizardHat
+  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse, mdiHorseVariantFast, mdiWizardHat
 } from '@mdi/js';
 
 export default [
@@ -66,6 +66,17 @@ export default [
     },
   },
   {
+    path: '/travel',
+    name: 'Travel',
+    component: () => import('@/views/primary/Travel'),
+    meta: {
+      render: true,
+      icon: mdiHorseVariantFast,
+      overlay: true,
+      combat_lock: true,
+    },
+  },
+  {
     path: '/dungeon-master',
     name: 'Dungeon Master',
     component: () => import('@/views/primary/DungeonMaster'),
@@ -85,16 +96,6 @@ export default [
       icon: mdiHeadQuestion,
       overlay: false,
       combat_lock: true,
-    },
-  },
-  {
-    path: '/alpha-test',
-    name: 'Alpha Test',
-    component: () => import('@/views/primary/AlphaTest'),
-    meta: {
-      render: true,
-      icon: mdiAbacus,
-      overlay: true,
     },
   },
   {

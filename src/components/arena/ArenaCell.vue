@@ -10,15 +10,15 @@
   >
     <!-- Overlays -->
     <div
-      v-if="overlays[x][y]['validDestination'] && cell.passable"
+      v-if="overlays.length && overlays[x][y]['validDestination'] && cell.passable"
       class="overlay destination-overlay"
     />
     <div
-      v-if="overlays[x][y]['confirmedPath'] && cell.passable"
+      v-if="overlays.length && overlays[x][y]['confirmedPath'] && cell.passable"
       class="overlay confirmed-path-overlay"
     />
     <div
-      v-if="overlays[x][y]['targeting'] && cell.passable"
+      v-if="overlays.length && overlays[x][y]['targeting'] && cell.passable"
       class="overlay targeting-overlay"
     />
     <div
@@ -38,6 +38,7 @@
       @mouseover.self="$emit('cell-mouseover')"
       @mouseout.self="$emit('cell-mouseout')"
     >
+
       <ArenaEntity
         v-if="entities[x][y]"
         :x="x"

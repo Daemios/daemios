@@ -21,6 +21,9 @@ export default {
         case 'KeyC':
           this.$store.commit('dialogs/toggleEquipment');
           break;
+        case 'KeyA':
+          this.$store.commit('dialogs/toggleAbilities');
+          break;
         case 'KeyI':
           this.$store.commit('dialogs/toggleInventory');
           break;
