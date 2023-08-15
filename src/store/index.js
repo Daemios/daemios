@@ -4,7 +4,7 @@ import Vuex from 'vuex';
 import api from '@/store/modules/api';
 import ability from "@/store/modules/ability";
 import dialogs from '@/store/modules/dialogs';
-import characters from '@/store/modules/characters';
+import creature_data from '@/store/modules/creature_data';
 import user from '@/store/modules/user';
 import world from '@/store/modules/world';
 import arena from '@/store/modules/arena';
@@ -23,7 +23,7 @@ export default new Vuex.Store({
     api,
     ability,
     dialogs,
-    characters,
+    creature_data,
     user,
     world,
     arena,

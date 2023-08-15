@@ -108,11 +108,9 @@ export default {
   },
   methods: {
     characterSelect(char) {
-      console.log(char);
       this.zoom = true;
-      setTimeout(() => {
-        window.location.href = '/world';
-      }, 1500);
+      console.log(char);
+      this.$store.dispatch('user/selectCharacter', char['character_id']);
     },
     characterCreate() {
       this.zoom = true;

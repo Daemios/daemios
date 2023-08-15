@@ -6,17 +6,8 @@ export default {
     display_name: null,
     characters: null,
     character: {
-      character_id: 1,
-      firstName: 'First',
-      lastName: 'Last',
-      race: {
-        label: 'Etter',
-        description: 'Etter, sometimes known as naturelings or ents, are odd and extremely rare creatures that live solitary lives. Measuring just a few feet tall for many years of their lives and having a naturally bark-like skin, Etter are stirred to life, starting as a small tough rootlike creature that forms deep underground and only emerges once it has absorbed enough nutrients from the surrounding soil. Etter often and inexplicitly have an almost reflexive knowledge about nature and the whims of the Divines that is hard to explain given their earthy origins.',
-        bonuses: {
-          1: 4, // index is the id of the skill
-          2: -1,
-        },
-      },
+      name: null,
+      race: null,
       archetype: {
         range: {
           range_id: 1,
@@ -258,6 +249,11 @@ export default {
     getInventory(context) {
       api.get('user/inventory').then(response => {
         context.commit('setInventory', response.data);
+      })
+    },
+    selectCharacter(context, character_id) {
+      api.post('user/character', { character_id }).then(response => {
+        context.commit('setCharacter', response.data);
       })
     }
   }
