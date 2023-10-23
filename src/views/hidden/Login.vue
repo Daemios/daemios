@@ -74,20 +74,22 @@
         Dungeons and Daemios
       </h1>
       <div class="login-pane pane pa-4">
-        <div>
+        <form>
           <v-text-field
             v-model="form.email"
             label="Email"
             type="email"
+            autocomplete="username"
             @keydown.enter="login()"
           />
           <v-text-field
             v-model="form.password"
             label="Password"
             type="password"
+            autocomplete="current-password"
             @keydown.enter="login()"
           />
-        </div>
+        </form>
         <v-row>
           <v-col>
             <v-btn
@@ -153,7 +155,7 @@ export default {
   }),
   methods: {
     login() {
-      api.post('user/login', {
+      api.post('login', {
         email: this.form.email,
         password: this.form.password,
       })

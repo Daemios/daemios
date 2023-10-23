@@ -104,7 +104,7 @@
 
             <!-- Finish -->
             <div v-if="currentStage === 'finish'">
-              You're all done! Click the button below to create your character.
+              Review the character slide above and click "Create Character" to begin your adventure!
             </div>
           </v-card-text>
           <v-card-actions>
@@ -249,9 +249,17 @@ export default {
         name: this.name,
         race_id: this.race_id,
       }
-      api.post('user/character/create', req).then(response => {
-        console.log(response)
-      });
+      api.post('user/character/create', req)
+        .then(response => {
+          if (response.success) {
+            console.log('Character created!');
+            window.location.href = '/world';
+          } else {
+            console.log('Character creation failed!');
+            console.log(response.status)
+            console.log(typeof response.status)
+          }
+        });
     },
   },
 };

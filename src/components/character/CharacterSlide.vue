@@ -53,7 +53,7 @@ export default {
       default: null,
     },
     color: {
-      type: Object,
+      type: String,
       default: null,
     },
     title: {

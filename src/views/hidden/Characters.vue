@@ -17,9 +17,21 @@
       align-center
       justify-center
       class="flex-grow-0"
+      style="height: 584px"
     >
       <v-btn
-        v-for="(char, i) in characters"
+        v-if="characters > 5"
+        class="pane flex-grow-0 pa-2 mb-2"
+        width="400"
+        height="40"
+        :disabled="disableUp"
+        @click="characterUp"
+      >
+        <v-icon>{{ mdiChevronUp }}</v-icon>
+      </v-btn>
+
+      <v-btn
+        v-for="(char, i) in characters.slice(character_index, character_index + 5)"
         :key="i"
         class="pane flex-grow-0 pa-2 mb-2"
         width="400"
@@ -68,10 +80,23 @@
           </v-layout>
         </v-layout>
       </v-btn>
+
+      <v-btn
+        v-if="characters > 5"
+        class="pane flex-grow-0 pa-2 mb-2 mt-auto"
+        width="400"
+        height="40"
+        :disabled="disableDown"
+        @click="characterDown"
+      >
+        <v-icon>{{ mdiChevronDown }}</v-icon>
+      </v-btn>
+
       <v-btn
         class="pane flex-grow-0 pa-2 mb-2"
         width="400"
         height="40"
+        color="success"
         @click="characterCreate"
       >
         <v-icon>{{ mdiPlus }}</v-icon>
@@ -86,7 +111,7 @@ import mixin_audio from '@/mixins/audio';
 import mixin_locations from '@/mixins/locations';
 import VesselMini from '@/components/ability/VesselMini';
 import AnimatedBackground from '@/components/general/AnimatedBackground';
-import { mdiPlus } from '@mdi/js';
+import { mdiPlus, mdiChevronUp, mdiChevronDown } from '@mdi/js';
 import {mapState} from "vuex";
 
 export default {
@@ -95,18 +120,37 @@ export default {
   data() {
     return {
       zoom: false,
+      character_index: 0, // shows i+5 characters
       mdiPlus,
+      mdiChevronUp,
+      mdiChevronDown,
     };
   },
   computed: {
     ...mapState({
       characters: (state) => state.user.characters,
     }),
+    disableUp() {
+      return this.characters.length < 1 || this.character_index === 0;
+    },
+    disableDown() {
+      return this.characters.length < 1 || this.character_index + 5 >= this.characters.length;
+    },
   },
   mounted() {
     this.$store.dispatch('user/getCharacters');
   },
   methods: {
+    characterUp() {
+      if (this.character_index > 0) {
+        this.character_index -= 5;
+      }
+    },
+    characterDown() {
+      if (this.character_index + 5 < this.characters.length) {
+        this.character_index += 5;
+      }
+    },
     characterSelect(char) {
       this.zoom = true;
       console.log(char);
