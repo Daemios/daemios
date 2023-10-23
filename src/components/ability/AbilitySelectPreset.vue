@@ -28,11 +28,9 @@ export default {
     AbilityMockup,
     VesselMini,
   },
-  data() {
-    return {
+  data: () => ({
 
-    };
-  },
+  }),
   computed: {
 
   },

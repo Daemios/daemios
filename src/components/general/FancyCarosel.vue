@@ -60,14 +60,12 @@
 import { mdiCircle, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
 
 export default {
-  data() {
-    return {
+  data: () => ({
       mdiCircle,
       mdiChevronRight,
       mdiChevronLeft,
       index: 0,
-    };
-  },
+  }),
   methods: {
     next() {
       if (this.index < this.$slots.default.length - 1) {

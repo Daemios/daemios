@@ -20,7 +20,7 @@
       style="height: 584px"
     >
       <v-btn
-        v-if="characters > 5"
+        v-if="characters.length > 5"
         class="pane flex-grow-0 pa-2 mb-2"
         width="400"
         height="40"
@@ -82,7 +82,7 @@
       </v-btn>
 
       <v-btn
-        v-if="characters > 5"
+        v-if="characters.length > 5"
         class="pane flex-grow-0 pa-2 mb-2 mt-auto"
         width="400"
         height="40"
@@ -92,16 +92,28 @@
         <v-icon>{{ mdiChevronDown }}</v-icon>
       </v-btn>
 
-      <v-btn
-        class="pane flex-grow-0 pa-2 mb-2"
-        width="400"
-        height="40"
-        color="success"
-        @click="characterCreate"
+      <v-layout
+        justify-space-between
       >
-        <v-icon>{{ mdiPlus }}</v-icon>
-        Create New Character
-      </v-btn>
+        <v-btn
+          class="pane pa-2 mb-2"
+          height="40"
+          color="success"
+          @click="characterCreate"
+        >
+          <v-icon>{{ mdiPlus }}</v-icon>
+          Create New Character
+        </v-btn>
+        <v-btn
+          class="pane pa-2 mb-2"
+          height="40"
+          color="error"
+          @click="characterCreate"
+        >
+          <v-icon>{{ mdiLogout }}</v-icon>
+          Log Out
+        </v-btn>
+      </v-layout>
     </v-layout>
   </v-layout>
 </template>
@@ -111,21 +123,20 @@ import mixin_audio from '@/mixins/audio';
 import mixin_locations from '@/mixins/locations';
 import VesselMini from '@/components/ability/VesselMini';
 import AnimatedBackground from '@/components/general/AnimatedBackground';
-import { mdiPlus, mdiChevronUp, mdiChevronDown } from '@mdi/js';
+import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout } from '@mdi/js';
 import {mapState} from "vuex";
 
 export default {
   components: { VesselMini, AnimatedBackground },
   mixins: [mixin_audio, mixin_locations],
-  data() {
-    return {
+  data: () => ({
       zoom: false,
       character_index: 0, // shows i+5 characters
       mdiPlus,
       mdiChevronUp,
       mdiChevronDown,
-    };
-  },
+      mdiLogout,
+  }),
   computed: {
     ...mapState({
       characters: (state) => state.user.characters,

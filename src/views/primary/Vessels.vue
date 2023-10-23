@@ -29,11 +29,9 @@ export default {
   components: {
     Core,
   },
-  data() {
-    return {
+  data: () => ({
       editing: null,
       selected: null,
-    };
-  },
+  }),
 };
 </script>

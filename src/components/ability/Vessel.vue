@@ -24,11 +24,9 @@ export default {
       required: true,
     },
   },
-  data() {
-    return {
+  data: () => ({
       mdiDiamondStone,
-    };
-  },
+  }),
 };
 </script>
 

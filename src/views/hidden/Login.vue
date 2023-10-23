@@ -203,7 +203,6 @@ export default {
   overflow: hidden
 
 .pane
-  z-index: 100
   border-radius: 4px
   background: rgba(0,0,0,.5) !important
 

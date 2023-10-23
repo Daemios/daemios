@@ -30,10 +30,8 @@ export default {
   components: {
     PaperDoll,
   },
-  data() {
-    return {
+  data: () => ({
       mdiClose,
-    };
-  },
+  }),
 };
 </script>

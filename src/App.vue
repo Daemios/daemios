@@ -2,11 +2,8 @@
   <v-app
     id="app"
   >
-    <!-- Header -->
-    <Header v-if="$route.meta['overlay']" />
-
-    <!-- Nav Drawer -->
-    <Navigation v-if="$route.meta['overlay']" />
+    <!-- Background -->
+    <Background />
 
     <!-- Game Dialogs -->
     <Equipment />
@@ -60,6 +57,7 @@
       </div>
     </div>
 
+    <!-- Websocket lock -->
     <v-dialog
       :value="!$store.state.socket.connection"
       persistent
@@ -89,12 +87,14 @@ import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
 import Abilities from '@/components/dialogs/Abilities'
 import Map from '@/components/dialogs/Map';
+import Background from '@/components/background/Background.vue';
 
 import mixin_keybinds from '@/mixins/keybinds';
 import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
+    Background,
     Header,
     Navigation,
     Equipment,
@@ -102,14 +102,11 @@ export default {
     Abilities,
   },
   mixins: [mixin_keybinds, mixin_socket],
-  data() {
-    return {
-      mdiHumanMale,
-      mdiTreasureChest,
-      mdiSword,
-    };
-  },
-
+  data: () => ({
+    mdiHumanMale,
+    mdiTreasureChest,
+    mdiSword,
+  }),
 };
 </script>
 

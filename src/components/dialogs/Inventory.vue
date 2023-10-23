@@ -134,8 +134,7 @@ export default {
     Item,
     ItemDialog,
   },
-  data() {
-    return {
+  data: () => ({
       // Icons
       mdiClose,
       mdiChevronLeft,
@@ -160,8 +159,7 @@ export default {
         'Rarity',
         'Quantity',
       ],
-    };
-  },
+  }),
   computed: {
     numberOfPages() {
       return Math.ceil(this.$store.state.user.inventory.length / this.itemsPerPage);

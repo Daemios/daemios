@@ -51,13 +51,11 @@ export default {
       default: null,
     },
   },
-  data() {
-    return {
+  data: () => ({
       mdiClose,
       mdiMinus,
       mdiAlertCircleOutline,
-    };
-  },
+  }),
   computed: {
     itemClasses() {
       return {

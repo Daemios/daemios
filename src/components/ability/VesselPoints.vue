@@ -64,13 +64,11 @@ export default {
       default: false,
     },
   },
-  data() {
-    return {
+  data: () => ({
       mdiPlus,
       mdiMinus,
       current: null,
-    };
-  },
+  }),
   computed: {
     divisions() {
       return Math.floor(this.current / 9);

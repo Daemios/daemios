@@ -15,7 +15,7 @@ export default [
   {
     path: '/builder',
     name: 'Builder',
-    component: () => import('@/views/hidden/Builder'),
+    component: () => import('@/views/primary/Builder'),
     meta: {
       overlay: false,
       combat_lock: false,

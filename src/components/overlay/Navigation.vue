@@ -56,12 +56,10 @@ import { mdiChevronLeft, mdiLock } from '@mdi/js';
 import { mapState } from 'vuex';
 
 export default {
-  data() {
-    return {
+  data: () => ({
       mdiChevronLeft,
       mdiLock,
-    };
-  },
+  }),
   computed: {
     routes() {
       const routes = [];

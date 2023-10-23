@@ -30,15 +30,13 @@
 
 <script>
 export default {
-  data() {
-    return {
+  data: () => ({
       images: [
         { hero: '/img/hero-1.png', background: '/img/nebula-1.jpg' },
         { hero: '/img/weapon-1.png', background: '/img/nebula-2.jpg' },
         { hero: '/img/hero-2.png', background: '/img/nebula-3.jpg' },
       ],
-    };
-  },
+  }),
 };
 </script>
 

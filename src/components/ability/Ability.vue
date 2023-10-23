@@ -30,14 +30,12 @@ export default {
     AbilityMockup,
     VesselMini,
   },
-  data() {
-    return {
+  data: () => ({
       ability: {
         name: 'Ability Name',
         element: 'fire',
       },
-    };
-  },
+  }),
   computed: {
     ...mapState({
       elements: (state) => state.ability.elements,

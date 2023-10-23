@@ -116,12 +116,10 @@ export default {
     DollSlot,
     ItemDialog,
   },
-  data() {
-    return {
+  data: () => ({
       mdiClose,
       selected: null,
-    };
-  },
+  })
 };
 </script>
 
