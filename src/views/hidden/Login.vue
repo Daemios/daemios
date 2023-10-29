@@ -6,9 +6,10 @@
     class="login"
   >
 
+    <!--
     <AnimatedBackground
       src="/video/forest.mp4"
-    />
+    /> -->
 
     <!-- Register -->
     <v-layout

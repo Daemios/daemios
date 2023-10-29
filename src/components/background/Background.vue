@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Noise } from 'noisejs';
-
+// TODO remove all variables for the login scene and move that into a mixin
 export default {
   data: () => ({
     scene: null,
@@ -49,7 +49,10 @@ export default {
       this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
       // todo move this eventually when we have other scene content
-      this.addLoginContent();
+      //this.addLoginContent();
+
+      // Keep canvas size in sync with window size
+      window.addEventListener('resize', this.resize);
     },
     addLoginContent() {
       // Initialize plane
@@ -94,6 +97,11 @@ export default {
       this.controls.update();
 
       this.renderer.render(this.scene, this.camera);
+    },
+    resize() {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
   },
 };

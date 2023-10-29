@@ -108,7 +108,7 @@
           class="pane pa-2 mb-2"
           height="40"
           color="error"
-          @click="characterCreate"
+          @click="logout"
         >
           <v-icon>{{ mdiLogout }}</v-icon>
           Log Out
@@ -172,6 +172,9 @@ export default {
       setTimeout(() => {
         window.location.href = '/builder';
       }, 1500);
+    },
+    logout() {
+      this.$store.dispatch('user/logout');
     },
   },
 }

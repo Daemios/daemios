@@ -197,7 +197,6 @@ export default {
   },
   mounted() {
     this.$store.dispatch('data/getRaces')
-    this.$store.dispatch('ability/getElements')
     api.get('user/character/builder/presets').then(response => {
       this.presets = response;
     });
@@ -253,7 +252,6 @@ export default {
         .then(response => {
           if (response.success) {
             console.log('Character created!');
-            window.location.href = '/world';
           } else {
             console.log('Character creation failed!');
             console.log(response.status)

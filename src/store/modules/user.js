@@ -252,8 +252,21 @@ export default {
       })
     },
     selectCharacter(context, character_id) {
-      api.post('user/character', { character_id }).then(response => {
-        context.commit('setCharacter', response.data);
+      api.post('user/character/select', { character_id }).then(response => {
+        console.log(response);
+        if (response.success) {
+          context.commit('setCharacter', response.character);
+        } else {
+          console.log('Error selecting character');
+        }
+      })
+    },
+    logout(context) {
+      api.post('user/logout').then(response => {
+        context.commit('setCharacter', null);
+        context.commit('setCharacters', null);
+        context.commit('setInventory', null);
+        context.commit('setDisplayName', null);
       })
     }
   }
