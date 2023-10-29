@@ -179,7 +179,7 @@ export default {
   }),
   computed: {
     ...mapState({
-      races: state => state.creature_data.races,
+      races: state => state.data.races,
     }),
     // Find the race in races that has a race_id prop that matches the value in this.race
     race() {
@@ -196,7 +196,7 @@ export default {
     }
   },
   mounted() {
-    this.$store.dispatch('creature_data/getRaces')
+    this.$store.dispatch('data/getRaces')
     this.$store.dispatch('ability/getElements')
     api.get('user/character/builder/presets').then(response => {
       this.presets = response;

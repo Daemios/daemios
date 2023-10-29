@@ -10,8 +10,9 @@
     <Inventory />
     <Abilities />
 
+
     <!-- Main Content -->
-    <v-main class="background fill-height">
+    <v-main class="fill-height">
       <router-view class="fill-height" />
     </v-main>
 
@@ -81,12 +82,9 @@
 <script>
 import { mdiTreasureChest, mdiHumanMale, mdiSword } from '@mdi/js';
 
-import Header from '@/components/overlay/Header';
-import Navigation from '@/components/overlay/Navigation';
 import Equipment from '@/components/dialogs/Equipment';
 import Inventory from '@/components/dialogs/Inventory';
 import Abilities from '@/components/dialogs/Abilities'
-import Map from '@/components/dialogs/Map';
 import Background from '@/components/background/Background.vue';
 
 import mixin_keybinds from '@/mixins/keybinds';
@@ -95,8 +93,6 @@ import mixin_socket from '@/mixins/socket';
 export default {
   components: {
     Background,
-    Header,
-    Navigation,
     Equipment,
     Inventory,
     Abilities,

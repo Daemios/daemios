@@ -12,7 +12,7 @@ export default {
   },
   actions: {
     getRaces(context) {
-      api.get('creature_data/races').then(response => {
+      api.get('data/races').then(response => {
         context.commit('setRaces', response.races);
       })
     }
