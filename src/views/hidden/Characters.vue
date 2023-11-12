@@ -92,9 +92,7 @@
         <v-icon>{{ mdiChevronDown }}</v-icon>
       </v-btn>
 
-      <v-layout
-        justify-space-between
-      >
+      <v-layout style="width: 400px;">
         <v-btn
           class="pane pa-2 mb-2"
           height="40"
@@ -104,13 +102,16 @@
           <v-icon>{{ mdiPlus }}</v-icon>
           Create New Character
         </v-btn>
+        <v-spacer />
         <v-btn
           class="pane pa-2 mb-2"
           height="40"
           color="error"
           @click="logout"
         >
-          <v-icon>{{ mdiLogout }}</v-icon>
+          <v-icon small>
+            {{ mdiLogout }}
+          </v-icon>
           Log Out
         </v-btn>
       </v-layout>

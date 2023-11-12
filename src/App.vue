@@ -9,6 +9,7 @@
     <Equipment />
     <Inventory />
     <Abilities />
+    <Options />
 
 
     <!-- Main Content -->
@@ -55,6 +56,17 @@
             {{ mdiSword }}
           </v-icon>
         </v-btn>
+        <v-btn
+          depressed
+          x-small
+          height="30"
+          width="30"
+          @click="$store.commit('dialogs/toggleOptions')"
+        >
+          <v-icon small>
+            {{ mdiCog }}
+          </v-icon>
+        </v-btn>
       </div>
     </div>
 
@@ -80,11 +92,8 @@
 </template>
 
 <script>
-import { mdiTreasureChest, mdiHumanMale, mdiSword } from '@mdi/js';
+import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from '@mdi/js';
 
-import Equipment from '@/components/dialogs/Equipment';
-import Inventory from '@/components/dialogs/Inventory';
-import Abilities from '@/components/dialogs/Abilities'
 import Background from '@/components/background/Background.vue';
 
 import mixin_keybinds from '@/mixins/keybinds';
@@ -92,17 +101,25 @@ import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-    Background,
-    Equipment,
-    Inventory,
-    Abilities,
+    Background: () => import('@/components/background/Background'),
+    Equipment: () => import('@/components/dialogs/Equipment'),
+    Inventory: () => import('@/components/dialogs/Inventory'),
+    Abilities: () => import('@/components/dialogs/Abilities'),
+    Options: () => import('@/components/dialogs/Options'),
   },
-  mixins: [mixin_keybinds, mixin_socket],
+  mixins: [
+    mixin_keybinds,
+    mixin_socket
+  ],
   data: () => ({
     mdiHumanMale,
     mdiTreasureChest,
     mdiSword,
+    mdiCog,
   }),
+  mounted() {
+    this.$store.dispatch('user/getUser');
+  },
 };
 </script>
 

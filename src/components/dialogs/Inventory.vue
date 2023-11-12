@@ -3,6 +3,7 @@
     v-model="$store.state.dialogs.isInventoryOpen"
     app
     fullscreen
+    persistent
   >
     <v-card>
       <v-toolbar

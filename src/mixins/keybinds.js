@@ -14,9 +14,19 @@ export default {
       }
       switch (event.code) {
         case 'Escape':
-          this.$store.commit('dialogs/closeEquipment');
-          this.$store.commit('dialogs/closeInventory');
-          this.$store.commit('dialogs/closeMap');
+          if (
+            this.$store.state.dialogs.isEquipmentOpen ||
+            this.$store.state.dialogs.isInventoryOpen ||
+            this.$store.state.dialogs.isAbilitiesOpen ||
+            this.$store.state.dialogs.isOptionsOpen
+          ) {
+            this.$store.commit('dialogs/closeEquipment');
+            this.$store.commit('dialogs/closeInventory');
+            this.$store.commit('dialogs/closeAbilities');
+            this.$store.commit('dialogs/closeOptions');
+          } else {
+            this.$store.commit('dialogs/toggleOptions');
+          }
           break;
         case 'KeyC':
           this.$store.commit('dialogs/toggleEquipment');
@@ -26,9 +36,6 @@ export default {
           break;
         case 'KeyI':
           this.$store.commit('dialogs/toggleInventory');
-          break;
-        case 'KeyM':
-          this.$store.commit('dialogs/toggleMap');
           break;
         default: break;
       }

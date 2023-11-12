@@ -1,28 +1,28 @@
 <template>
   <BasicDialog
-    v-model="isAbilitiesOpen"
-    title="Abilities"
-    keybind="A"
+    v-model="isOptionsOpen"
+    title="Options"
+    keybind="Esc"
   >
-    Ability Test
+    Options
   </BasicDialog>
 </template>
 
 <script>
 import { mdiClose } from '@mdi/js';
-import BasicDialog from '@/components/dialogs/BasicDialog.vue';
 import { mapState } from 'vuex';
+import BasicDialog from '@/components/dialogs/BasicDialog.vue';
 
 export default {
   components: {
-    BasicDialog,
+    BasicDialog
   },
   data: () => ({
       mdiClose,
   }),
   computed: {
     ...mapState({
-      isAbilitiesOpen: state => state.dialogs.isAbilitiesOpen,
+      isOptionsOpen: state => state.dialogs.isOptionsOpen,
     }),
   }
 };

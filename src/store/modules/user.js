@@ -1,9 +1,10 @@
 import api from "@/functions/api";
+import router from '@/router';
 
 export default {
   namespaced: true,
   state: {
-    display_name: null,
+    displayName: null,
     characters: null,
     character: {
       name: null,
@@ -235,9 +236,15 @@ export default {
     }
   },
   actions: {
+    // catchall action for re-syncing a refreshed client
+    getUser(context) {
+      api.get('user/refresh').then(response => {
+        context.commit('setCharacter', response.character);
+        context.commit('setInventory', response.inventory);
+      })
+    },
     getCharacters(context) {
       api.get('user/characters').then(response => {
-        console.log(response)
         context.commit('setCharacters', response.characters);
       })
     },
@@ -253,20 +260,22 @@ export default {
     },
     selectCharacter(context, character_id) {
       api.post('user/character/select', { character_id }).then(response => {
-        console.log(response);
         if (response.success) {
+          router.push('/');
           context.commit('setCharacter', response.character);
+          context.commit('setInventory', response.inventory);
         } else {
-          console.log('Error selecting character');
+          console.log(response.error);
         }
       })
     },
     logout(context) {
       api.post('user/logout').then(response => {
-        context.commit('setCharacter', null);
-        context.commit('setCharacters', null);
-        context.commit('setInventory', null);
-        context.commit('setDisplayName', null);
+        if (response.success) {
+          router.push('/login');
+        } else {
+          console.log(response.error);
+        }
       })
     }
   }

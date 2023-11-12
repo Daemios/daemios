@@ -23,8 +23,8 @@ export default [
   },
   {
     path: '/',
-    name: 'World',
-    component: () => import('@/views/primary/World'),
+    name: 'DnDaemios',
+    component: () => import('@/views/primary/Main'),
     meta: {
       render: true,
       icon: mdiEarth,

@@ -20,7 +20,7 @@
     >
       <v-form>
         <v-text-field
-          v-model="form.email"
+          v-model="form.new_email"
           label="Email"
           type="email"
           autocomplete="email"
@@ -38,7 +38,7 @@
           autocomplete="new-password"
         />
         <v-text-field
-          v-model="form.display_name"
+          v-model="form.displayName"
           label="Display Name"
         />
       </v-form>
@@ -135,13 +135,10 @@
 </template>
 
 <script>
-import AnimatedBackground from '@/components/general/AnimatedBackground';
 import mixin_audio from '@/mixins/audio';
 import api from "@/functions/api";
-import {mapState} from "vuex";
 
 export default {
-  components: {AnimatedBackground},
   mixins: [mixin_audio],
   data: () => ({
     showRegister: false,
@@ -149,14 +146,14 @@ export default {
       new_email: '',
       new_password: '',
       confirm_password: '',
-      display_name: '',
+      displayName: '',
       email: '',
       password: '',
     },
   }),
   methods: {
     login() {
-      api.post('login', {
+      api.post('open/login', {
         email: this.form.email,
         password: this.form.password,
       })
@@ -171,11 +168,11 @@ export default {
         });
     },
     registerUser() {
-      api.post('user/register', {
+      api.post('open/register', {
         email: this.form.new_email,
         password: this.form.new_password,
-        password_confirm: this.form.confirm_password,
-        display_name: this.form.display_name,
+        passwordConfirm: this.form.confirm_password,
+        displayName: this.form.displayName,
       })
         .then(res => {
           if (res.success) {

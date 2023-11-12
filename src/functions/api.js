@@ -1,4 +1,5 @@
 import store from '@/store';
+import router from '@/router';
 
 const api = {
   call: (method, url, input) => {
@@ -26,7 +27,9 @@ const api = {
         if (!response.ok) {
           switch (response.status) {
             case 401:
-              document.location.href = '/login';
+              if (document.location.pathname !== '/login') {
+                router.push('/login');
+              }
               break;
             default:
               // TODO create error dialog/toast

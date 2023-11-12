@@ -2,9 +2,9 @@ export default {
   namespaced: true,
   state: {
     isEquipmentOpen: false,
-    isAbilitiesOpen: false,
     isInventoryOpen: false,
-    isMapOpen: false,
+    isAbilitiesOpen: false,
+    isOptionsOpen: false,
   },
   mutations: {
     // Closers
@@ -14,8 +14,11 @@ export default {
     closeInventory(state) {
       state.isInventoryOpen = false;
     },
-    closeMap(state) {
-      state.isMapOpen = false;
+    closeAbilities(state) {
+      state.isAbilitiesOpen = false;
+    },
+    closeOptions(state) {
+      state.isOptionsOpen = false;
     },
 
     // Toggles
@@ -23,14 +26,13 @@ export default {
       state.isEquipmentOpen = !state.isEquipmentOpen;
     },
     toggleAbilities(state) {
-      console.log('test');
       state.isAbilitiesOpen = !state.isAbilitiesOpen;
     },
     toggleInventory(state) {
       state.isInventoryOpen = !state.isInventoryOpen;
     },
-    toggleMap(state) {
-      state.isMapOpen = !state.isMapOpen;
-    },
+    toggleOptions(state) {
+      state.isOptionsOpen = !state.isOptionsOpen;
+    }
   },
 };

@@ -247,6 +247,7 @@ export default {
       const req = {
         name: this.name,
         race_id: this.race_id,
+        image: this.avatar,
       }
       api.post('user/character/create', req)
         .then(response => {
