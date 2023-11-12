@@ -33,50 +33,6 @@ export default [
     },
   },
   {
-    path: '/cores',
-    name: 'Cores',
-    component: () => import('@/views/primary/Vessels'),
-    meta: {
-      render: true,
-      icon: mdiAbacus,
-      overlay: true,
-      combat_lock: true,
-    },
-  },
-  {
-    path: '/crafting',
-    name: 'Crafting',
-    component: () => import('@/views/primary/Crafting'),
-    meta: {
-      render: true,
-      icon: mdiHammer,
-      overlay: true,
-      combat_lock: true,
-    },
-  },
-  {
-    path: '/mount',
-    name: 'Mount',
-    component: () => import('@/views/primary/Mount'),
-    meta: {
-      render: true,
-      icon: mdiHorse,
-      overlay: true,
-      combat_lock: true,
-    },
-  },
-  {
-    path: '/travel',
-    name: 'Travel',
-    component: () => import('@/views/primary/Travel'),
-    meta: {
-      render: true,
-      icon: mdiHorseVariantFast,
-      overlay: true,
-      combat_lock: true,
-    },
-  },
-  {
     path: '/dungeon-master',
     name: 'Dungeon Master',
     component: () => import('@/views/primary/DungeonMaster'),
@@ -85,17 +41,6 @@ export default [
       icon: mdiWizardHat,
       overlay: true,
       combat_lock: false,
-    },
-  },
-  {
-    path: '/test',
-    name: 'Test',
-    component: () => import('@/views/hidden/Test'),
-    meta: {
-      render: false,
-      icon: mdiHeadQuestion,
-      overlay: false,
-      combat_lock: true,
     },
   },
   {

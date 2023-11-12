@@ -20,7 +20,7 @@
       style="height: 584px"
     >
       <v-btn
-        v-if="characters.length > 5"
+        v-if="characters && characters.length > 5"
         class="pane flex-grow-0 pa-2 mb-2"
         width="400"
         height="40"
@@ -82,7 +82,7 @@
       </v-btn>
 
       <v-btn
-        v-if="characters.length > 5"
+        v-if="characters && characters.length > 5"
         class="pane flex-grow-0 pa-2 mb-2 mt-auto"
         width="400"
         height="40"
@@ -143,9 +143,11 @@ export default {
       characters: (state) => state.user.characters,
     }),
     disableUp() {
+      return true;
       return this.characters.length < 1 || this.character_index === 0;
     },
     disableDown() {
+      return true;
       return this.characters.length < 1 || this.character_index + 5 >= this.characters.length;
     },
   },
