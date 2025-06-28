@@ -43,10 +43,22 @@ export default {
       }
     },
     movement(data) {
-
+      if (data && data.body) {
+        if (data.body.entities) {
+          this.$store.commit('arena/setEntities', data.body.entities);
+        }
+        if (data.body.active) {
+          this.$store.commit('arena/setActive', data.body.active);
+        }
+      }
     },
     chat(data) {
-
+      if (data && data.body) {
+        const message = data.body.message || data.body;
+        if (message) {
+          this.$store.commit('chat/ADD_MESSAGE', message);
+        }
+      }
     },
     arena(data) {
       this.$store.commit('arena/setTerrain', data.body.terrain)
