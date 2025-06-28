@@ -143,11 +143,9 @@ export default {
       characters: (state) => state.user.characters,
     }),
     disableUp() {
-      return true;
       return this.characters.length < 1 || this.character_index === 0;
     },
     disableDown() {
-      return true;
       return this.characters.length < 1 || this.character_index + 5 >= this.characters.length;
     },
   },
