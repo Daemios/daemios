@@ -116,7 +116,6 @@ export default {
       }
 
       return cell_colors.hslToHex(hue, sat, light)
-      console.log(cell_colors.hslToHex(360,100,50))
     }
   },
 };
