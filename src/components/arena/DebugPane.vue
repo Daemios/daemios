@@ -18,13 +18,13 @@ import { mapState } from 'vuex';
 export default {
   computed: {
     ...mapState({
-      map: (state) => state.arena.map,
+      terrain: (state) => state.arena.terrain,
       entities: (state) => state.arena.entities,
       entityRegistry: (state) => state.arena.entityRegistry,
       active: (state) => state.arena.activeRegister,
       plannedPath: (state) => state.arena.plannedPath,
       shapeOnMouse: (state) => state.arena.shapeOnMouse,
-      playerActive: (state) => state.arena.userActive,
+      playerActive: (state) => state.arena.playerActive,
     }),
   },
   methods: {

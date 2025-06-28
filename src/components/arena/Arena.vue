@@ -217,7 +217,7 @@ export default {
       }
 
       // Draw path if you're currently active
-      if (this.userActive) {
+      if (this.playerActive) {
         this.pathToCell(x, y);
       }
     },
