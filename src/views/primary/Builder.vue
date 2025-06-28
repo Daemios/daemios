@@ -70,7 +70,7 @@
               <!-- Image selector to pick from races -->
               <v-select
                 v-model="race_id"
-                item-value="race_id"
+                item-value="id"
                 item-text="name"
                 :items="races"
                 class="mt-0 pt-0"
@@ -184,7 +184,7 @@ export default {
     // Find the race in races that has a race_id prop that matches the value in this.race
     race() {
       if (this.race_id) {
-        return this.races.find(race => race.race_id === this.race_id);
+        return this.races.find(race => race.id === this.race_id);
       } else {
         return {};
       }
@@ -197,9 +197,9 @@ export default {
   },
   mounted() {
     this.$store.dispatch('data/getRaces')
-    api.get('user/character/builder/presets').then(response => {
-      this.presets = response;
-    });
+    //api.get('user/character/builder/presets').then(response => {
+    //  this.presets = response;
+    //});
   },
   methods: {
     stepForward() {
@@ -237,7 +237,7 @@ export default {
       }
     },
     buildAvatarUrl(image_index) {
-      return `/img/avatars/${this.race.race_folder}/${image_index}.png`;
+      return `/img/avatars/${this.race['raceFolder']}/${image_index}.png`;
     },
     setAvatar(image_index) {
       this.avatar = this.buildAvatarUrl(image_index);
@@ -246,13 +246,13 @@ export default {
     createCharacter() {
       const req = {
         name: this.name,
-        race_id: this.race_id,
+        raceId: this.race_id,
         image: this.avatar,
       }
       api.post('user/character/create', req)
         .then(response => {
           if (response.success) {
-            console.log('Character created!');
+            this.$router.push('/characters');
           } else {
             console.log('Character creation failed!');
             console.log(response.status)

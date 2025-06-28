@@ -30,56 +30,60 @@
         <v-icon>{{ mdiChevronUp }}</v-icon>
       </v-btn>
 
-      <v-btn
-        v-for="(char, i) in characters.slice(character_index, character_index + 5)"
-        :key="i"
-        class="pane flex-grow-0 pa-2 mb-2"
-        width="400"
-        height="80"
-        @click="characterSelect(char)"
+      <div
+        v-if="characters"
       >
-        <v-layout class="justify-space-between">
-          <div>
-            <h2 class="text-h4">
-              {{ char.name }}
-            </h2>
-            <div
-              class="location d-flex align-center"
-              :class="isDangerousText(char.location)"
-            >
-              <v-icon
-                small
-                class="mr-1"
+        <v-btn
+          v-for="(char, i) in characters.slice(character_index, character_index + 5)"
+          :key="i"
+          class="pane flex-grow-0 pa-2 mb-2"
+          width="400"
+          height="80"
+          @click="characterSelect(char.id)"
+        >
+          <v-layout class="justify-space-between">
+            <div>
+              <h2 class="text-h4">
+                {{ char.name }}
+              </h2>
+              <div
+                class="location d-flex align-center"
+                :class="isDangerousText(char.location)"
               >
-                {{ isDangerousIcon(char.location) }}
-              </v-icon>
-              {{ char.location.name }}
+                <v-icon
+                  small
+                  class="mr-1"
+                >
+                  {{ isDangerousIcon(char.location) }}
+                </v-icon>
+                {{ char.location.name }}
+              </div>
             </div>
-          </div>
-          <v-layout
-            column
-            justify-end
-            class="flex-grow-0"
-          >
-            <v-layout justify-end>
-              <span class="text-body mr-1">LV</span>
-              <h3 class="text-h4 mt-n1">
-                {{ char.level }}
-              </h3>
+            <v-layout
+              column
+              justify-end
+              class="flex-grow-0"
+            >
+              <v-layout justify-end>
+                <span class="text-body mr-1">LV</span>
+                <h3 class="text-h4 mt-n1">
+                  {{ char.level }}
+                </h3>
+              </v-layout>
+              <v-row dense>
+                <v-col
+                  v-for="(v, i) in char.vessels"
+                  :key="i"
+                >
+                  <VesselMini
+                    :color="v.color"
+                  />
+                </v-col>
+              </v-row>
             </v-layout>
-            <v-row dense>
-              <v-col
-                v-for="(v, i) in char.vessels"
-                :key="i"
-              >
-                <VesselMini
-                  :color="v.color"
-                />
-              </v-col>
-            </v-row>
           </v-layout>
-        </v-layout>
-      </v-btn>
+        </v-btn>
+      </div>
 
       <v-btn
         v-if="characters && characters.length > 5"
@@ -165,10 +169,9 @@ export default {
         this.character_index += 5;
       }
     },
-    characterSelect(char) {
+    characterSelect(id) {
       this.zoom = true;
-      console.log(char);
-      this.$store.dispatch('user/selectCharacter', char['character_id']);
+      this.$store.dispatch('user/selectCharacter', id);
     },
     characterCreate() {
       this.zoom = true;

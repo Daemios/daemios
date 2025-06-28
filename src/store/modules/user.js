@@ -258,8 +258,8 @@ export default {
         context.commit('setInventory', response.data);
       })
     },
-    selectCharacter(context, character_id) {
-      api.post('user/character/select', { character_id }).then(response => {
+    selectCharacter(context, characterId) {
+      api.post('user/character/select', { characterId }).then(response => {
         if (response.success) {
           router.push('/');
           context.commit('setCharacter', response.character);

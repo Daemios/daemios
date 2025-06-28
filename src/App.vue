@@ -11,7 +11,6 @@
     <Abilities />
     <Options />
 
-
     <!-- Main Content -->
     <v-main class="fill-height">
       <router-view class="fill-height" />
@@ -118,7 +117,15 @@ export default {
     mdiCog,
   }),
   mounted() {
-    this.$store.dispatch('user/getUser');
+    const uri = this.$route.path;
+    if (
+      uri !== '/login' &&
+      uri !== '/register' &&
+      uri !== '/characters' &&
+      uri !== '/builder'
+    ) {
+      this.$store.dispatch('user/getUser');
+    }
   },
 };
 </script>

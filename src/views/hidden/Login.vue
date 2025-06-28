@@ -6,11 +6,6 @@
     class="login"
   >
 
-    <!--
-    <AnimatedBackground
-      src="/video/forest.mp4"
-    /> -->
-
     <!-- Register -->
     <v-layout
       v-if="showRegister"
@@ -71,9 +66,12 @@
       class="flex-grow-0"
       align-center
     >
-      <h1 class="header text-center colors-of-autumn">
-        Dungeons and Daemios
-      </h1>
+      <v-img
+        class="hover-animate"
+        height="512"
+        width="512"
+        src="/img/branding/splash.png"
+      />
       <div class="login-pane pane pa-4">
         <form>
           <v-text-field
@@ -112,6 +110,7 @@
           </v-col>
         </v-row>
       </div>
+      </v-img>
     </v-layout>
 
     <!-- Sound Control -->
@@ -189,6 +188,14 @@ export default {
 </script>
 
 <style lang="sass">
+@keyframes zoomEffect
+  0%, 100%
+    //transform: scale(1)
+
+  50%
+    //transform: scale(1.05)
+
+
 
 .header
   z-index: 100
@@ -209,5 +216,12 @@ export default {
 
 .audio-pane
   width: 200px
+
+.hover-animate
+  animation: zoomEffect 5s ease-in-out infinite
+
+
+
+
 
 </style>
