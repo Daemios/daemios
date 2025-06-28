@@ -3,7 +3,7 @@ export default {
   state: {
     connected: false,
     error: null,
-    messages: [],
+    chatMessages: [],
     limit: 50,
   },
   getters: {
