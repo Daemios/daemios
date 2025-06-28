@@ -64,15 +64,13 @@ export default {
       // Get the positions attribute from geometry
       const positions = geometry.attributes.position.array;
 
-      // Create noise values that are half the size of the plane segments
-      const noiseValues = [];
-      for (let i = 0; i < this.plane_segments / 2; i++) {
-        noiseValues.push(noise.simplex2(i, i));
-      }
-
-      // TODO do position manipulation here
-      for (let i = 0; i < positions.length; i++) {
-
+      // Manipulate vertex positions using simplex noise
+      // Scale coordinates to keep deformations subtle
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i] * 0.05;
+        const y = positions[i + 1] * 0.05;
+        const n = noise.simplex2(x, y);
+        positions[i + 2] = n * 2;
       }
 
       // Update geometry after modifying vertices
