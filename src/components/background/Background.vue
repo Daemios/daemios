@@ -49,7 +49,7 @@ export default {
       this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
       // todo move this eventually when we have other scene content
-      //this.addLoginContent();
+    this.addLoginContent();
 
       // Keep canvas size in sync with window size
       window.addEventListener('resize', this.resize);
