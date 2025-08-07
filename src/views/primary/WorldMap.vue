@@ -4,6 +4,9 @@
 
 <script>
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
 
@@ -14,22 +17,26 @@ export default {
       scene: null,
       camera: null,
       renderer: null,
+      composer: null,
       hexes: [],
       heightNoise: new SimplexNoise('height'),
       moistureNoise: new SimplexNoise('moisture'),
       temperatureNoise: new SimplexNoise('temperature'),
       raycaster: new THREE.Raycaster(),
       mouse: new THREE.Vector2(),
+      hoveredHex: null,
     };
   },
   mounted() {
     this.init();
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
+    this.$refs.sceneContainer.addEventListener('pointermove', this.onPointerMove);
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.onResize);
     this.$refs.sceneContainer.removeEventListener('pointerdown', this.onPointerDown);
+    this.$refs.sceneContainer.removeEventListener('pointermove', this.onPointerMove);
   },
   methods: {
     init() {
@@ -43,8 +50,14 @@ export default {
       this.camera.lookAt(0, 0, 0);
 
       this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.setSize(width, height);
       this.$refs.sceneContainer.appendChild(this.renderer.domElement);
+
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.3, 0.2, 0.85);
+      this.composer.addPass(bloomPass);
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.5);
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -56,12 +69,14 @@ export default {
       this.animate();
     },
     createHexGrid() {
-      const hexRadius = 0.95;
-      const geometry = new THREE.CylinderGeometry(hexRadius, hexRadius, 1, 6, 1, false);
+      const layoutRadius = 1;
+      const baseRadius = layoutRadius * 0.95;
+      const topRadius = baseRadius * 0.9;
+      const geometry = new THREE.CylinderGeometry(topRadius, baseRadius, 1, 6, 1, false);
       geometry.translate(0, 0.5, 0);
       const size = 10;
-      const hexWidth = 1.5;
-      const hexHeight = Math.sqrt(3);
+      const hexWidth = layoutRadius * 1.5;
+      const hexHeight = Math.sqrt(3) * layoutRadius;
       const maxHeight = 5;
       const tan = new THREE.Color('#d2b48c');
       const green = new THREE.Color('#22c55e');
@@ -92,10 +107,10 @@ export default {
           }
           color.setHSL(hsl.h, hsl.s, hsl.l);
 
-          const topMaterial = new THREE.MeshStandardMaterial({ color });
+          const topMaterial = new THREE.MeshStandardMaterial({ color, emissive: 0x000000 });
           const hex = new THREE.Mesh(geometry, [sideMaterial, topMaterial, bottomMaterial]);
-          const x = hexWidth * (q + r / 2);
-          const z = hexHeight * r;
+          const x = hexWidth * q;
+          const z = hexHeight * (r + q / 2);
           hex.position.set(x, 0, z);
           hex.scale.y = h * maxHeight + 0.1;
           hex.userData = { q, r };
@@ -106,7 +121,7 @@ export default {
     },
     animate() {
       requestAnimationFrame(this.animate);
-      this.renderer.render(this.scene, this.camera);
+      this.composer.render();
     },
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
@@ -114,6 +129,7 @@ export default {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
+      this.composer.setSize(width, height);
     },
     onPointerDown(event) {
       const rect = this.renderer.domElement.getBoundingClientRect();
@@ -124,6 +140,26 @@ export default {
       if (intersects.length > 0) {
         const hex = intersects[0].object;
         api.post('world/move', { q: hex.userData.q, r: hex.userData.r });
+      }
+    },
+    onPointerMove(event) {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObjects(this.hexes);
+      if (intersects.length > 0) {
+        const hex = intersects[0].object;
+        if (this.hoveredHex !== hex) {
+          if (this.hoveredHex) {
+            this.hoveredHex.material[1].emissive.setHex(0x000000);
+          }
+          hex.material[1].emissive.setHex(0x333333);
+          this.hoveredHex = hex;
+        }
+      } else if (this.hoveredHex) {
+        this.hoveredHex.material[1].emissive.setHex(0x000000);
+        this.hoveredHex = null;
       }
     },
   },
