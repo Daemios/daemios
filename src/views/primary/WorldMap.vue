@@ -49,6 +49,105 @@
             >
             Sand underlay
           </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="features.chunkColors"
+              type="checkbox"
+              @change="onToggleChunkColors"
+            >
+            Chunk colors
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="radialFade.enabled"
+              type="checkbox"
+              @change="onToggleRadialFade"
+            >
+            Radial fade
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="atlasOverlay.enabled"
+              type="checkbox"
+              @change="onToggleAtlasOverlay"
+            >
+            Atlas overlay
+          </label>
+          <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Fade radius</span>
+              <input
+                v-model.number="radialFade.radius"
+                type="range"
+                min="1"
+                :max="layoutRadius * chunkCols"
+                step="0.5"
+                :disabled="!radialFade.enabled"
+                style="flex: 1;"
+              >
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Fade width</span>
+              <input
+                v-model.number="radialFade.width"
+                type="range"
+                min="0.25"
+                :max="layoutRadius * 8"
+                step="0.25"
+                :disabled="!radialFade.enabled"
+                style="flex: 1;"
+              >
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Min height scale</span>
+              <input
+                v-model.number="radialFade.minHeightScale"
+                type="range"
+                min="0"
+                max="0.5"
+                step="0.01"
+                :disabled="!radialFade.enabled"
+                style="flex: 1;"
+              >
+            </div>
+            <div style="height: 1px; background: rgba(255,255,255,0.15);" />
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Atlas inner</span>
+              <input
+                v-model.number="atlasOverlay.inner"
+                type="range"
+                min="0"
+                max="0.95"
+                step="0.01"
+                :disabled="!atlasOverlay.enabled"
+                style="flex: 1;"
+              >
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Atlas edge</span>
+              <input
+                v-model.number="atlasOverlay.edge"
+                type="range"
+                min="0.01"
+                max="0.5"
+                step="0.01"
+                :disabled="!atlasOverlay.enabled"
+                style="flex: 1;"
+              >
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+              <span style="opacity: 0.8;">Atlas opacity</span>
+              <input
+                v-model.number="atlasOverlay.opacity"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                :disabled="!atlasOverlay.enabled"
+                style="flex: 1;"
+              >
+            </div>
+          </div>
         </div>
       </details>
       <!-- Future sections go here -->
@@ -92,6 +191,12 @@ export default {
   hoverPrevColor: null,
   hoverMesh: null,
   playerMarker: null,
+  recenterTimer: null,
+  pendingCenterChunk: null,
+  // Trail layer to keep previous chunk neighborhood visible briefly
+  trailTopIM: null,
+  trailSideIM: null,
+  trailTimer: null,
   // Water
   waterMesh: null,
   sandMesh: null,
@@ -125,6 +230,7 @@ export default {
       // model/meta
       hexModel: null,
       fxaaPass: null,
+      atlasPass: null,
       modelScaleFactor: 1,
       modelCenter: new THREE.Vector3(0, 0, 0),
       orientation: 'flat',
@@ -145,6 +251,17 @@ export default {
   spacingFactor: 1.0, // exact geometric spacing for hex lattice
   contactScale: 1.0, // auto-computed after model load to make tiles touch
   gapFraction: 0.0, // desired gap size as a fraction of layoutRadius (0 = touching)
+
+  // Chunking (rectangular chunks over hex grid using even-q offset)
+  chunkCols: 28,
+  chunkRows: 24,
+  countPerChunk: 0, // computed in init of chunks
+  neighborOffsets: [
+    { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+    { dx: -1, dy:  0 }, { dx: 0, dy:  0 }, { dx: 1, dy:  0 },
+    { dx: -1, dy:  1 }, { dx: 0, dy:  1 }, { dx: 1, dy:  1 },
+  ],
+  centerChunk: { x: 1, y: 1 },
 
       // elevation shaping
       elevation: {
@@ -174,7 +291,12 @@ export default {
   
   // Debug / Features
   debug: { show: true },
-  features: { shadows: true, water: true, sandUnderlay: false },
+  features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true },
+  radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
+  atlasOverlay: { enabled: false, inner: 0.5, edge: 0.12, color: 0xF3EED9, opacity: 1.0 },
+  // Rendering toggles
+  // Default chunkColors: true (use per-chunk pastel overrides)
+  // The object above is initialized in data(); extend it here for clarity
 
   // Lights
   ambientLight: null,
@@ -200,6 +322,354 @@ export default {
     this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
   },
   methods: {
+    setupRadialFade(mat, bucketKey) {
+      const self = this;
+  /* eslint-disable no-param-reassign */
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uFadeCenter = { value: new THREE.Vector2(0, 0) };
+        shader.uniforms.uFadeRadius = { value: self.radialFade.radius };
+        shader.uniforms.uFadeWidth = { value: self.radialFade.width };
+        shader.uniforms.uFadeEnabled = { value: self.radialFade.enabled ? 1 : 0 };
+        shader.uniforms.uMinHeightScale = { value: self.radialFade.minHeightScale != null ? self.radialFade.minHeightScale : 0.05 };
+        // Vertex stage: compress height within (radius - width, radius)
+        const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale;\n varying vec3 vWorldPos;\n';
+        shader.vertexShader = vertDecl + shader.vertexShader
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+            mat4 imat = mat4(1.0);
+            #ifdef USE_INSTANCING
+              imat = instanceMatrix;
+            #endif
+            vec4 wpos_pre = modelMatrix * imat * vec4(transformed, 1.0);
+            float distXZ_v = length(wpos_pre.xz - vec2(uFadeCenter.x, uFadeCenter.y));
+            float inner_v = max(0.0, uFadeRadius - uFadeWidth);
+            float f_v = float(uFadeEnabled) * smoothstep(inner_v, uFadeRadius, distXZ_v);
+            transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
+          `)
+          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+        // Fragment stage: discard fragments beyond radius (remove hexes where fade applies)
+  const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale;\n varying vec3 vWorldPos;\n';
+        const injectFrag = `
+            // RADIAL_FADE_APPLIED
+            float distXZ = length(vWorldPos.xz - uFadeCenter);
+            if(uFadeEnabled == 1 && distXZ >= uFadeRadius) { discard; }
+            #include <premultiplied_alpha_fragment>
+        `;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>' + fadeDecl)
+          .replace('#include <premultiplied_alpha_fragment>', injectFrag);
+        if (shader.fragmentShader.indexOf('RADIAL_FADE_APPLIED') === -1) {
+          // Fallback for materials without premultiplied include
+          shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
+            // RADIAL_FADE_APPLIED
+            float distXZ = length(vWorldPos.xz - uFadeCenter);
+            if(uFadeEnabled == 1 && distXZ >= uFadeRadius) { discard; }
+            #include <dithering_fragment>
+          `);
+        }
+        if (!self._fadeUniforms) self._fadeUniforms = {};
+        self._fadeUniforms[bucketKey] = shader.uniforms;
+      };
+  mat.needsUpdate = true;
+  /* eslint-enable no-param-reassign */
+    },
+    snapshotTrailAndArmClear(delayMs = 3000) {
+      if (!this.topIM || !this.sideIM || !this.trailTopIM || !this.trailSideIM) return;
+      const count = this.topIM.count;
+      // Copy matrices
+      this.trailTopIM.instanceMatrix.copy(this.topIM.instanceMatrix);
+      this.trailSideIM.instanceMatrix.copy(this.sideIM.instanceMatrix);
+      this.trailTopIM.instanceMatrix.needsUpdate = true;
+      this.trailSideIM.instanceMatrix.needsUpdate = true;
+      // Colors
+      if (this.topIM.instanceColor && this.trailTopIM.instanceColor) {
+        this.trailTopIM.instanceColor.array.set(this.topIM.instanceColor.array);
+        this.trailTopIM.instanceColor.needsUpdate = true;
+      }
+      if (this.sideIM.instanceColor && this.trailSideIM.instanceColor) {
+        this.trailSideIM.instanceColor.array.set(this.sideIM.instanceColor.array);
+        this.trailSideIM.instanceColor.needsUpdate = true;
+      }
+      // Show trail
+      this.trailTopIM.visible = true;
+      this.trailSideIM.visible = true;
+      // Reset any previous timer
+      if (this.trailTimer) { clearTimeout(this.trailTimer); this.trailTimer = null; }
+      // Auto-hide after delayMs
+      this.trailTimer = setTimeout(() => {
+        this.trailTimer = null;
+        this.trailTopIM.visible = false;
+        this.trailSideIM.visible = false;
+      }, Math.max(0, delayMs | 0));
+    },
+    initAtlasOverlay() {
+      const col = new THREE.Color(this.atlasOverlay.color);
+      const AtlasShader = {
+        uniforms: {
+          tDiffuse: { value: null },
+          innerRadius: { value: this.atlasOverlay.inner },
+          edgeWidth: { value: this.atlasOverlay.edge },
+          color: { value: new THREE.Vector3(col.r, col.g, col.b) },
+          opacity: { value: this.atlasOverlay.opacity },
+          enabled: { value: this.atlasOverlay.enabled ? 1 : 0 },
+        },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: 'varying vec2 vUv; uniform sampler2D tDiffuse; uniform float innerRadius; uniform float edgeWidth; uniform vec3 color; uniform float opacity; uniform int enabled; void main(){ vec4 base = texture2D(tDiffuse, vUv); if(enabled==0){ gl_FragColor = base; return; } vec2 c = vUv - vec2(0.5); float d = length(c); float a = smoothstep(innerRadius, innerRadius+edgeWidth, d) * opacity; gl_FragColor = vec4(mix(base.rgb, color, a), base.a); }',
+      };
+      const pass = new ShaderPass(AtlasShader);
+      // Ensure transparency so we see the scene beneath
+      pass.material.transparent = true;
+      pass.material.depthTest = false;
+      pass.material.depthWrite = false;
+      pass.material.blending = THREE.NormalBlending;
+      this.atlasPass = pass;
+      this.composer.addPass(pass);
+    },
+    onToggleChunkColors() {
+      this.applyChunkColors(!!this.features.chunkColors);
+    },
+    onToggleRadialFade() {
+      // Force materials to recompile if toggled on after init
+      if (this.topIM && this.sideIM && this.topIM.material && this.sideIM.material) {
+        const topMat = this.topIM.material;
+        const sideMat = this.sideIM.material;
+        if (this.radialFade.enabled) {
+          // Inject if missing
+          if (!this._fadeUniforms || !this._fadeUniforms.top) this.setupRadialFade(topMat, 'top');
+          if (!this._fadeUniforms || !this._fadeUniforms.side) this.setupRadialFade(sideMat, 'side');
+        }
+        // Trigger refresh either way
+        topMat.needsUpdate = true;
+        sideMat.needsUpdate = true;
+      }
+    },
+    onToggleAtlasOverlay() {
+      // Uniform is synced each frame; nothing else needed
+    },
+    applyChunkColors(enabled) {
+      if (!this.topIM || !this.sideIM || !this.indexToQR) return;
+      const count = this.indexToQR.length;
+      const tmpColor = new THREE.Color();
+      const tmpSide = new THREE.Color();
+      for (let i = 0; i < count; i += 1) {
+        const info = this.indexToQR[i];
+        if (!info) continue;
+        if (enabled) {
+          // Pastel per-chunk
+          const c = this.pastelColorForChunk(info.wx || 0, info.wy || 0);
+          const s = tmpSide.copy(c).multiplyScalar(0.8);
+          this.topIM.setColorAt(i, c);
+          this.sideIM.setColorAt(i, s);
+        } else {
+          // Biome colors
+          const cell = this.world ? this.world.getCell(info.q, info.r) : null;
+          const c = cell ? cell.colorTop : tmpColor.set(0xffffff);
+          const s = cell ? cell.colorSide : tmpSide.copy(c).multiplyScalar(0.85);
+          this.topIM.setColorAt(i, c);
+          this.sideIM.setColorAt(i, s);
+        }
+      }
+      if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+      if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+  // Ensure materials recompile after colors exist so USE_INSTANCING_COLOR is enabled
+  if (this.topIM.material) this.topIM.material.needsUpdate = true;
+  if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+    },
+    // Generate a stable pastel color per chunk coordinate (wx, wy)
+    pastelColorForChunk(wx, wy) {
+      const seed = Math.sin(wx * 12.9898 + wy * 78.233) * 43758.5453;
+      const h = (seed - Math.floor(seed));
+      const s = 0.45; const l = 0.68;
+      const c = new THREE.Color();
+      c.setHSL(h, s, l);
+      return c;
+    },
+    // Convert even-q offset (col,row) to axial (q,r)
+    offsetToAxial(col, row) {
+      const q = col;
+      const r = row - Math.floor(col / 2);
+      return { q, r };
+    },
+    // Convert axial (q,r) to even-q offset (col,row)
+    axialToOffset(q, r) {
+      const col = q;
+      const row = r + Math.floor(q / 2);
+      return { col, row };
+    },
+    // Determine chunk (wx, wy) for axial coordinates
+    chunkForAxial(q, r) {
+      const { col, row } = this.axialToOffset(q, r);
+      const wx = Math.floor(col / this.chunkCols);
+      const wy = Math.floor(row / this.chunkRows);
+      return { wx, wy };
+    },
+    // Fill one chunk slot with instances for world chunk (wx, wy)
+    fillChunk(slotIndex, wx, wy) {
+      if (!this.topIM || !this.sideIM) return;
+      const layoutRadius = this.layoutRadius;
+      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+      const sx = this.modelScaleFactor;
+      const xzScale = sx * this.contactScale;
+      const baseCol = wx * this.chunkCols;
+      const baseRow = wy * this.chunkRows;
+      const startIdx = slotIndex * this.countPerChunk;
+      let local = 0;
+      const useChunkColors = !!this.features.chunkColors;
+      const cTop = this.pastelColorForChunk(wx, wy);
+      const cSide = cTop.clone().multiplyScalar(0.8);
+      const dummy = new THREE.Object3D();
+      for (let row = 0; row < this.chunkRows; row += 1) {
+        for (let col = 0; col < this.chunkCols; col += 1) {
+          const gCol = baseCol + col;
+          const gRow = baseRow + row;
+          const { q, r } = this.offsetToAxial(gCol, gRow);
+          const x = hexWidth * q;
+          const z = hexHeight * (r + q / 2);
+          const cell = this.world ? this.world.getCell(q, r) : null;
+          dummy.position.set(x, 0, z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+          dummy.updateMatrix();
+          const instIdx = startIdx + local;
+          this.topIM.setMatrixAt(instIdx, dummy.matrix);
+          this.sideIM.setMatrixAt(instIdx, dummy.matrix);
+          if (useChunkColors) {
+            this.topIM.setColorAt(instIdx, cTop);
+            this.sideIM.setColorAt(instIdx, cSide);
+          } else {
+            const topC = cell ? cell.colorTop : cTop;
+            const sideC = cell ? cell.colorSide : cSide;
+            this.topIM.setColorAt(instIdx, topC);
+            this.sideIM.setColorAt(instIdx, sideC);
+          }
+          this.indexToQR[instIdx] = { q, r, wx, wy, col: gCol, row: gRow };
+          local += 1;
+        }
+      }
+    },
+    // Position 3x3 chunk neighborhood around a center (wx, wy)
+    setCenterChunk(wx, wy) {
+  // Snapshot current visible neighborhood to trail before switching
+  this.snapshotTrailAndArmClear(3000);
+  this.centerChunk.x = wx; this.centerChunk.y = wy;
+      if (!this.topIM || !this.sideIM) return;
+      // Fill each of 9 slots in fixed order
+      for (let s = 0; s < this.neighborOffsets.length; s += 1) {
+        const off = this.neighborOffsets[s];
+        this.fillChunk(s, wx + off.dx, wy + off.dy);
+      }
+      this.topIM.instanceMatrix.needsUpdate = true;
+      this.sideIM.instanceMatrix.needsUpdate = true;
+      if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+      if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+  // Refresh materials to pick up instanced color defines
+  if (this.topIM.material) this.topIM.material.needsUpdate = true;
+  if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+    },
+    // Build instanced meshes for 3x3 rectangular chunks (even-q offset); then set center
+    createChunkGrid() {
+      if (!this.topGeom || !this.sideGeom) return;
+      const layoutRadius = this.layoutRadius;
+      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+      const sx = this.modelScaleFactor;
+      const xzScale = sx * this.contactScale;
+      // Prepare instancing
+      this.countPerChunk = this.chunkCols * this.chunkRows;
+      const total = 9 * this.countPerChunk;
+      const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  // Inject radial fade into terrain materials (gated by uniform uFadeEnabled)
+  this.setupRadialFade(topMat, 'top');
+  this.setupRadialFade(sideMat, 'side');
+  this.topIM = new THREE.InstancedMesh(this.topGeom, topMat, total);
+  this.sideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, total);
+      this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  // Pre-create instanceColor attributes to avoid white/black flashes and ensure flags
+  const colorsTop = new Float32Array(total * 3);
+  const colorsSide = new Float32Array(total * 3);
+  this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
+  this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(colorsSide, 3);
+      this.indexToQR = new Array(total);
+  this.scene.add(this.sideIM);
+  this.scene.add(this.topIM);
+  // Trail instancers (reuse same materials so fade applies consistently)
+  this.trailTopIM = new THREE.InstancedMesh(this.topGeom, topMat, total);
+  this.trailSideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, total);
+  this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const tColorsTop = new Float32Array(total * 3);
+  const tColorsSide = new Float32Array(total * 3);
+  this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(tColorsTop, 3);
+  this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(tColorsSide, 3);
+  this.trailTopIM.visible = false;
+  this.trailSideIM.visible = false;
+  this.trailTopIM.renderOrder = (this.topIM.renderOrder || 0) - 1;
+  this.trailSideIM.renderOrder = (this.sideIM.renderOrder || 0) - 1;
+  this.scene.add(this.trailSideIM);
+  this.scene.add(this.trailTopIM);
+      // Picking targets
+      this.pickMeshes = [this.topIM, this.sideIM];
+      // Defer water for chunks for now (mask mapping needs redesign)
+      // Initialize center and fill chunks
+      this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+  // Ensure colors are applied based on current toggle at startup
+  this.applyChunkColors(!!this.features.chunkColors);
+
+      // Compute a sensible default radius for radial fade based on current 3x3 chunk extents
+      // Create a tan underlay plane to show through where hexes are discarded by the radial fade
+      if (!this.fadeUnderlay) {
+        const planeSize = (this.chunkCols * this.layoutRadius * this.spacingFactor * 8);
+        const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
+        geom.rotateX(-Math.PI / 2);
+        const mat = new THREE.MeshBasicMaterial({ color: this.atlasOverlay.color, transparent: true, opacity: 1.0, depthWrite: false });
+        const plane = new THREE.Mesh(geom, mat);
+        // Place slightly below the minimum terrain height
+        const y = Math.max(0.02 * this.hexMaxY * this.modelScaleFactor, 0.05);
+        plane.position.y = y;
+        plane.renderOrder = -1;
+        plane.frustumCulled = false;
+        plane.receiveShadow = false;
+        plane.castShadow = false;
+        this.scene.add(plane);
+        this.fadeUnderlay = plane;
+      }
+
+      if (this.radialFade) {
+        const totalCols = this.chunkCols * 3;
+        const totalRows = this.chunkRows * 3;
+        const halfW = 0.5 * hexWidth * Math.max(1, (totalCols - 1));
+        const halfH = 0.5 * hexHeight * Math.max(1, (totalRows - 1));
+        // Start fade well inside edges (~60% of min half-extent) so it's clearly visible
+        const inner = 0.60 * Math.min(halfW, halfH);
+        const minRadius = Math.max(2.0 * this.layoutRadius, hexHeight * 1.5);
+        this.radialFade.radius = Math.max(minRadius, inner);
+        // Keep width reasonable in world units
+        const minWidth = Math.max(hexHeight * 1.5, this.layoutRadius * 1.0);
+        this.radialFade.width = Math.max(minWidth, this.radialFade.width || 0.0);
+        // Initialize fade center to current camera target
+        if (!this._fadeUniforms) this._fadeUniforms = {};
+      }
+
+      // Initial spawn: center of the center chunk (1,1)
+      const spawnWx = 1; const spawnWy = 1;
+      if (spawnWx !== this.centerChunk.x || spawnWy !== this.centerChunk.y) {
+        this.setCenterChunk(spawnWx, spawnWy);
+      }
+      const midCol = spawnWx * this.chunkCols + Math.floor(this.chunkCols / 2);
+      const midRow = spawnWy * this.chunkRows + Math.floor(this.chunkRows / 2);
+      const { q: startQ, r: startR } = this.offsetToAxial(midCol, midRow);
+      let startIdx = null;
+      for (let iSearch = 0; iSearch < this.indexToQR.length; iSearch += 1) {
+        const info = this.indexToQR[iSearch];
+        if (info && info.q === startQ && info.r === startR) { startIdx = iSearch; break; }
+      }
+      if (startIdx != null) {
+        this.addLocationMarkerAtIndex(startIdx);
+        this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
+      }
+    },
     computeContactScaleFromGeom() {
       if (!this.topGeom || !this.topGeom.attributes || !this.topGeom.attributes.position) return 1.0;
       const pos = this.topGeom.attributes.position;
@@ -284,6 +754,8 @@ export default {
   this.fxaaPass = new ShaderPass(FXAAShader);
   this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   this.composer.addPass(this.fxaaPass);
+  // Atlas overlay (screen-space) stand-in above the scene
+  this.initAtlasOverlay();
 
   this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
       this.keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -414,7 +886,7 @@ export default {
           this.contactScale = applied;
           console.info('[WorldMap] gapFraction =', (this.gapFraction || 0).toFixed(4), 'contactScale =', applied.toFixed(4));
         }
-        this.createHexGrid();
+  this.createChunkGrid();
       }, undefined, (err) => {
         console.error('[WorldMap] Failed to load /models/hex-can.glb', err);
       });
@@ -486,11 +958,24 @@ export default {
         };
         this.clutter.loadAssets().then(commit);
       }
-      // Initial marker placement on a random land tile and smooth focus
-      const startIdx = this.chooseRandomTileIndex({ landOnly: true });
+      // Initial spawn: center of the center chunk (1,1) in world chunk coords
+      // Compute midpoint even-q offset within a chunk and convert to axial
+      const midCol = this.chunkCols * 1 + Math.floor(this.chunkCols / 2);
+      const midRow = this.chunkRows * 1 + Math.floor(this.chunkRows / 2);
+      const centerAxial = this.offsetToAxial(midCol, midRow);
+      const { q: startQ, r: startR } = centerAxial;
+      // Find a matching instance index (search indexToQR for first match)
+      let startIdx = null;
+      for (let iSearch = 0; iSearch < this.indexToQR.length; iSearch += 1) {
+        const info = this.indexToQR[iSearch];
+        if (info && info.q === startQ && info.r === startR) { startIdx = iSearch; break; }
+      }
       if (startIdx != null) {
         this.addLocationMarkerAtIndex(startIdx);
         this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
+        // Ensure chunk center alignment
+        const { wx, wy } = this.chunkForAxial(startQ, startR);
+        if (wx !== this.centerChunk.x || wy !== this.centerChunk.y) this.setCenterChunk(wx, wy);
       }
       // Create a single hover overlay mesh to avoid relying on instance colors
   if (this.topIM) {
@@ -700,6 +1185,44 @@ export default {
       if (this.waterMaterial) {
         this.waterMaterial.uniforms.uTime.value = (performance.now() * 0.001);
       }
+      // Update radial fade uniforms to follow the camera target
+      if (this._fadeUniforms) {
+        const cx = this.orbit.target.x;
+        const cz = this.orbit.target.z;
+        const col = new THREE.Color(this.radialFade.color);
+        const uTop = this._fadeUniforms.top;
+        const uSide = this._fadeUniforms.side;
+        if (uTop) {
+          if (uTop.uFadeCenter && uTop.uFadeCenter.value) uTop.uFadeCenter.value.set(cx, cz);
+          if (uTop.uFadeRadius) uTop.uFadeRadius.value = this.radialFade.radius;
+          if (uTop.uFadeWidth) uTop.uFadeWidth.value = this.radialFade.width;
+          if (uTop.uFadeColor && uTop.uFadeColor.value) uTop.uFadeColor.value.copy(col);
+          if (uTop.uFadeEnabled) uTop.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
+          if (uTop.uMinHeightScale) uTop.uMinHeightScale.value = this.radialFade.minHeightScale;
+        }
+        if (uSide) {
+          if (uSide.uFadeCenter && uSide.uFadeCenter.value) uSide.uFadeCenter.value.set(cx, cz);
+          if (uSide.uFadeRadius) uSide.uFadeRadius.value = this.radialFade.radius;
+          if (uSide.uFadeWidth) uSide.uFadeWidth.value = this.radialFade.width;
+          if (uSide.uFadeColor && uSide.uFadeColor.value) uSide.uFadeColor.value.copy(col);
+          if (uSide.uFadeEnabled) uSide.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
+          if (uSide.uMinHeightScale) uSide.uMinHeightScale.value = this.radialFade.minHeightScale;
+        }
+      }
+      // Stick large planes to the camera target to avoid visible seams
+      if (this.waterMesh) { this.waterMesh.position.x = this.orbit.target.x; this.waterMesh.position.z = this.orbit.target.z; }
+      if (this.sandMesh) { this.sandMesh.position.x = this.orbit.target.x; this.sandMesh.position.z = this.orbit.target.z; }
+      if (this.fadeUnderlay) { this.fadeUnderlay.position.x = this.orbit.target.x; this.fadeUnderlay.position.z = this.orbit.target.z; }
+      // Sync atlas overlay uniforms
+      if (this.atlasPass && this.atlasPass.uniforms) {
+        const u = this.atlasPass.uniforms;
+        const col = new THREE.Color(this.atlasOverlay.color);
+        if (u.enabled) u.enabled.value = this.atlasOverlay.enabled ? 1 : 0;
+        if (u.innerRadius) u.innerRadius.value = this.atlasOverlay.inner;
+        if (u.edgeWidth) u.edgeWidth.value = this.atlasOverlay.edge;
+        if (u.color && u.color.value) u.color.value.set(col.r, col.g, col.b);
+        if (u.opacity) u.opacity.value = this.atlasOverlay.opacity;
+      }
       // Update billboards (yaw-only) before render
       if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
       if (this.locationMarker && this.locationMarker.visible) {
@@ -710,8 +1233,8 @@ export default {
         this.locationMarker.matrix.decompose(pos, quat, scl);
         const dx = this.camera.position.x - pos.x;
         const dz = this.camera.position.z - pos.z;
-  // Add 90° to align the marker's flat face toward the camera
-  const yaw = Math.atan2(dx, dz) + Math.PI / 2;
+        // Add 90° to align the marker's flat face toward the camera
+        const yaw = Math.atan2(dx, dz) + Math.PI / 2;
         const yQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
         this.locationMarker.matrix.compose(pos, yQuat, scl);
       }
@@ -761,6 +1284,12 @@ export default {
           // Also move camera focus and location marker locally with smoothing
           this.focusCameraOnQR(q, r, { smooth: true, duration: 700 });
           this.addLocationMarkerAtIndex(idx);
+          // Update chunks if player entered a new chunk
+          const { wx, wy } = this.chunkForAxial(q, r);
+          if (wx !== this.centerChunk.x || wy !== this.centerChunk.y) {
+            // Spawn new chunks immediately; do not delay recentering
+            this.setCenterChunk(wx, wy);
+          }
         }
       }
     },
@@ -809,6 +1338,13 @@ export default {
     },
     onPointerUp(event) {
       if (event.button === 2) this.rotating = false;
+    },
+    scheduleChunkRecentering(wx, wy, delayMs = 3000) {
+      // Currently we spawn new chunks immediately via setCenterChunk.
+      // This hook can be used to delay disposal of any old resources if needed.
+      // No-op for now because we reuse fixed instanced slots (no per-chunk meshes to delete).
+      // Keeping it for future extension (e.g., async asset streaming, texture unloading).
+      void wx; void wy; void delayMs;
     },
     updateCameraFromOrbit() {
       const { radius, theta, phi, target } = this.orbit;
