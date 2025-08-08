@@ -20,7 +20,7 @@
         style="margin: 0 0 6px 0;"
       >
         <summary
-          style="cursor: pointer; user-select: none; outline: none;"
+          style="cursor: pointer; user-select: none; outline: none; text-align: right;"
         >
           Rendering
         </summary>
@@ -65,14 +65,6 @@
             >
             Radial fade
           </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="atlasOverlay.enabled"
-              type="checkbox"
-              @change="onToggleAtlasOverlay"
-            >
-            Atlas overlay
-          </label>
           <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px;">
             <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
               <span style="opacity: 0.8;">Fade radius</span>
@@ -107,43 +99,6 @@
                 max="0.5"
                 step="0.01"
                 :disabled="!radialFade.enabled"
-                style="flex: 1;"
-              >
-            </div>
-            <div style="height: 1px; background: rgba(255,255,255,0.15);" />
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Atlas inner</span>
-              <input
-                v-model.number="atlasOverlay.inner"
-                type="range"
-                min="0"
-                max="0.95"
-                step="0.01"
-                :disabled="!atlasOverlay.enabled"
-                style="flex: 1;"
-              >
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Atlas edge</span>
-              <input
-                v-model.number="atlasOverlay.edge"
-                type="range"
-                min="0.01"
-                max="0.5"
-                step="0.01"
-                :disabled="!atlasOverlay.enabled"
-                style="flex: 1;"
-              >
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Atlas opacity</span>
-              <input
-                v-model.number="atlasOverlay.opacity"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                :disabled="!atlasOverlay.enabled"
                 style="flex: 1;"
               >
             </div>
@@ -230,7 +185,7 @@ export default {
       // model/meta
       hexModel: null,
       fxaaPass: null,
-      atlasPass: null,
+      
       modelScaleFactor: 1,
       modelCenter: new THREE.Vector3(0, 0, 0),
       orientation: 'flat',
@@ -289,11 +244,11 @@ export default {
 
   // Post FX
   
-  // Debug / Features
+  // Debug / Features (defaults; will be overridden from settings if present)
   debug: { show: true },
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  atlasOverlay: { enabled: false, inner: 0.5, edge: 0.12, color: 0xF3EED9, opacity: 1.0 },
+  
   // Rendering toggles
   // Default chunkColors: true (use per-chunk pastel overrides)
   // The object above is initialized in data(); extend it here for clarity
@@ -304,6 +259,24 @@ export default {
     };
   },
   mounted() {
+    // Load persisted settings for this view (header: settings.worldMap)
+    try {
+      const saved = this.$store.getters['settings/get']('worldMap', null);
+      if (saved && typeof saved === 'object') {
+        if (saved.debug && typeof saved.debug === 'object') Object.assign(this.debug, saved.debug);
+        if (saved.features && typeof saved.features === 'object') Object.assign(this.features, saved.features);
+        if (saved.radialFade && typeof saved.radialFade === 'object') Object.assign(this.radialFade, saved.radialFade);
+      }
+    } catch (e) { /* noop */ }
+    // Persist any changes back to settings
+    this.$watch(() => ({
+      debug: this.debug,
+      features: this.features,
+      radialFade: this.radialFade,
+    }), (val) => {
+      this.$store.commit('settings/mergeAtPath', { path: 'worldMap', value: val });
+    }, { deep: true, immediate: true });
+
     this.init();
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
@@ -331,14 +304,20 @@ export default {
         shader.uniforms.uFadeWidth = { value: self.radialFade.width };
         shader.uniforms.uFadeEnabled = { value: self.radialFade.enabled ? 1 : 0 };
         shader.uniforms.uMinHeightScale = { value: self.radialFade.minHeightScale != null ? self.radialFade.minHeightScale : 0.05 };
+        // New uniforms to support whole-hex culling (no slicing of tiles)
+        shader.uniforms.uCullWholeHex = { value: 1 };
+        shader.uniforms.uHexCornerRadius = { value: self.layoutRadius * self.contactScale };
         // Vertex stage: compress height within (radius - width, radius)
-        const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale;\n varying vec3 vWorldPos;\n';
+        const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
         shader.vertexShader = vertDecl + shader.vertexShader
           .replace('#include <begin_vertex>', `#include <begin_vertex>
             mat4 imat = mat4(1.0);
             #ifdef USE_INSTANCING
               imat = instanceMatrix;
             #endif
+            // Compute instance world center (hex center)
+            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);
+            vInstCenter = wcenter.xyz;
             vec4 wpos_pre = modelMatrix * imat * vec4(transformed, 1.0);
             float distXZ_v = length(wpos_pre.xz - vec2(uFadeCenter.x, uFadeCenter.y));
             float inner_v = max(0.0, uFadeRadius - uFadeWidth);
@@ -346,12 +325,20 @@ export default {
             transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
           `)
           .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
-        // Fragment stage: discard fragments beyond radius (remove hexes where fade applies)
-  const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale;\n varying vec3 vWorldPos;\n';
+        // Fragment stage: either discard entire instances (whole-hex) or slice fragments (legacy)
+  const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
         const injectFrag = `
             // RADIAL_FADE_APPLIED
             float distXZ = length(vWorldPos.xz - uFadeCenter);
-            if(uFadeEnabled == 1 && distXZ >= uFadeRadius) { discard; }
+            // Whole-hex culling: hide entire instance if its center plus hex reach crosses the radius
+            if (uFadeEnabled == 1) {
+              if (uCullWholeHex == 1) {
+                float cDist = length(vInstCenter.xz - uFadeCenter);
+                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }
+              } else {
+                if (distXZ >= uFadeRadius) { discard; }
+              }
+            }
             #include <premultiplied_alpha_fragment>
         `;
         shader.fragmentShader = shader.fragmentShader
@@ -362,7 +349,14 @@ export default {
           shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
             // RADIAL_FADE_APPLIED
             float distXZ = length(vWorldPos.xz - uFadeCenter);
-            if(uFadeEnabled == 1 && distXZ >= uFadeRadius) { discard; }
+            if (uFadeEnabled == 1) {
+              if (uCullWholeHex == 1) {
+                float cDist = length(vInstCenter.xz - uFadeCenter);
+                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }
+              } else {
+                if (distXZ >= uFadeRadius) { discard; }
+              }
+            }
             #include <dithering_fragment>
           `);
         }
@@ -401,29 +395,7 @@ export default {
         this.trailSideIM.visible = false;
       }, Math.max(0, delayMs | 0));
     },
-    initAtlasOverlay() {
-      const col = new THREE.Color(this.atlasOverlay.color);
-      const AtlasShader = {
-        uniforms: {
-          tDiffuse: { value: null },
-          innerRadius: { value: this.atlasOverlay.inner },
-          edgeWidth: { value: this.atlasOverlay.edge },
-          color: { value: new THREE.Vector3(col.r, col.g, col.b) },
-          opacity: { value: this.atlasOverlay.opacity },
-          enabled: { value: this.atlasOverlay.enabled ? 1 : 0 },
-        },
-        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-        fragmentShader: 'varying vec2 vUv; uniform sampler2D tDiffuse; uniform float innerRadius; uniform float edgeWidth; uniform vec3 color; uniform float opacity; uniform int enabled; void main(){ vec4 base = texture2D(tDiffuse, vUv); if(enabled==0){ gl_FragColor = base; return; } vec2 c = vUv - vec2(0.5); float d = length(c); float a = smoothstep(innerRadius, innerRadius+edgeWidth, d) * opacity; gl_FragColor = vec4(mix(base.rgb, color, a), base.a); }',
-      };
-      const pass = new ShaderPass(AtlasShader);
-      // Ensure transparency so we see the scene beneath
-      pass.material.transparent = true;
-      pass.material.depthTest = false;
-      pass.material.depthWrite = false;
-      pass.material.blending = THREE.NormalBlending;
-      this.atlasPass = pass;
-      this.composer.addPass(pass);
-    },
+    
     onToggleChunkColors() {
       this.applyChunkColors(!!this.features.chunkColors);
     },
@@ -442,9 +414,9 @@ export default {
         sideMat.needsUpdate = true;
       }
     },
-    onToggleAtlasOverlay() {
-      // Uniform is synced each frame; nothing else needed
-    },
+  // Ensure slider changes also trigger any runtime effects where needed
+  // WorldMap rendering reacts to values each frame via uniforms; here we only persist
+    
     applyChunkColors(enabled) {
       if (!this.topIM || !this.sideIM || !this.indexToQR) return;
       const count = this.indexToQR.length;
@@ -623,7 +595,7 @@ export default {
         const planeSize = (this.chunkCols * this.layoutRadius * this.spacingFactor * 8);
         const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
         geom.rotateX(-Math.PI / 2);
-        const mat = new THREE.MeshBasicMaterial({ color: this.atlasOverlay.color, transparent: true, opacity: 1.0, depthWrite: false });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xF3EED9, transparent: true, opacity: 1.0, depthWrite: false });
         const plane = new THREE.Mesh(geom, mat);
         // Place slightly below the minimum terrain height
         const y = Math.max(0.02 * this.hexMaxY * this.modelScaleFactor, 0.05);
@@ -754,8 +726,7 @@ export default {
   this.fxaaPass = new ShaderPass(FXAAShader);
   this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   this.composer.addPass(this.fxaaPass);
-  // Atlas overlay (screen-space) stand-in above the scene
-  this.initAtlasOverlay();
+  
 
   this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
       this.keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -1199,6 +1170,8 @@ export default {
           if (uTop.uFadeColor && uTop.uFadeColor.value) uTop.uFadeColor.value.copy(col);
           if (uTop.uFadeEnabled) uTop.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
           if (uTop.uMinHeightScale) uTop.uMinHeightScale.value = this.radialFade.minHeightScale;
+          if (uTop.uCullWholeHex) uTop.uCullWholeHex.value = 1;
+          if (uTop.uHexCornerRadius) uTop.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
         }
         if (uSide) {
           if (uSide.uFadeCenter && uSide.uFadeCenter.value) uSide.uFadeCenter.value.set(cx, cz);
@@ -1207,22 +1180,15 @@ export default {
           if (uSide.uFadeColor && uSide.uFadeColor.value) uSide.uFadeColor.value.copy(col);
           if (uSide.uFadeEnabled) uSide.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
           if (uSide.uMinHeightScale) uSide.uMinHeightScale.value = this.radialFade.minHeightScale;
+          if (uSide.uCullWholeHex) uSide.uCullWholeHex.value = 1;
+          if (uSide.uHexCornerRadius) uSide.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
         }
       }
       // Stick large planes to the camera target to avoid visible seams
       if (this.waterMesh) { this.waterMesh.position.x = this.orbit.target.x; this.waterMesh.position.z = this.orbit.target.z; }
       if (this.sandMesh) { this.sandMesh.position.x = this.orbit.target.x; this.sandMesh.position.z = this.orbit.target.z; }
       if (this.fadeUnderlay) { this.fadeUnderlay.position.x = this.orbit.target.x; this.fadeUnderlay.position.z = this.orbit.target.z; }
-      // Sync atlas overlay uniforms
-      if (this.atlasPass && this.atlasPass.uniforms) {
-        const u = this.atlasPass.uniforms;
-        const col = new THREE.Color(this.atlasOverlay.color);
-        if (u.enabled) u.enabled.value = this.atlasOverlay.enabled ? 1 : 0;
-        if (u.innerRadius) u.innerRadius.value = this.atlasOverlay.inner;
-        if (u.edgeWidth) u.edgeWidth.value = this.atlasOverlay.edge;
-        if (u.color && u.color.value) u.color.value.set(col.r, col.g, col.b);
-        if (u.opacity) u.opacity.value = this.atlasOverlay.opacity;
-      }
+  // No atlas overlay; nothing to sync
       // Update billboards (yaw-only) before render
       if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
       if (this.locationMarker && this.locationMarker.visible) {
