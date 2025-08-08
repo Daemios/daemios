@@ -2,8 +2,58 @@
   <div
     ref="sceneContainer"
     class="world-map"
-    style="width: 100%; height: 100vh;"
-  />
+    style="position: relative; width: 100%; height: 100vh;"
+  >
+    <!-- Debug overlay -->
+    <div
+      v-if="debug.show"
+      style="position: absolute; right: 6px; top: 28px; z-index: 2; background: rgba(0,0,0,0.55); color: #fff; padding: 8px 10px; border-radius: 6px; min-width: 220px;"
+      @pointerdown.stop
+      @pointermove.stop
+      @pointerup.stop
+      @click.stop
+      @wheel.stop.prevent
+      @contextmenu.stop.prevent
+    >
+      <details
+        open
+        style="margin: 0 0 6px 0;"
+      >
+        <summary
+          style="cursor: pointer; user-select: none; outline: none;"
+        >
+          Rendering
+        </summary>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="features.shadows"
+              type="checkbox"
+              @change="onToggleShadows"
+            >
+            Shadows
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="features.water"
+              type="checkbox"
+              @change="onToggleWater"
+            >
+            Water
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
+              v-model="features.sandUnderlay"
+              type="checkbox"
+              @change="onToggleSand"
+            >
+            Sand underlay
+          </label>
+        </div>
+      </details>
+      <!-- Future sections go here -->
+    </div>
+  </div>
 </template>
 
 <script>
@@ -12,8 +62,6 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-import { HorizontalTiltShiftShader } from 'three/examples/jsm/shaders/HorizontalTiltShiftShader.js';
-import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTiltShiftShader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
@@ -21,6 +69,7 @@ import { BIOME_THRESHOLDS } from '@/terrain/biomes';
 import WorldGrid from '@/world/WorldGrid';
 import PlayerMarker from '@/renderer/PlayerMarker';
 import ClutterManager from '@/world/ClutterManager';
+import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMaterial';
 
 export default {
   name: 'WorldMap',
@@ -43,11 +92,21 @@ export default {
   hoverPrevColor: null,
   hoverMesh: null,
   playerMarker: null,
+  // Water
+  waterMesh: null,
+  sandMesh: null,
+  waterMaterial: null,
+  waterMaskTex: null,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
+  markerTopOffset: 0, // world-space top offset for marker focus
   hexMaxY: 1, // max Y of a tile in local space after recenter
   cameraTween: null,
+  tweenSaved: {
+    tilt: { h: null, v: null },
+    pixelRatio: null,
+  },
   tmpMatrix: new THREE.Matrix4(),
   hoverTmpPos: new THREE.Vector3(),
   hoverTmpQuat: new THREE.Quaternion(),
@@ -113,11 +172,14 @@ export default {
       fpsEl: null,
 
   // Post FX
-  hTiltPass: null,
-  vTiltPass: null,
-  tiltShiftEnabled: true,
-  tiltShiftRadius: 0.285, // halfway between 0.35 (old) and 0.22 (current)
-  tiltShiftStrength: 1.375, // halfway between 1.0 (old) and 1.75 (current)
+  
+  // Debug / Features
+  debug: { show: true },
+  features: { shadows: true, water: true, sandUnderlay: false },
+
+  // Lights
+  ambientLight: null,
+  keyLight: null,
     };
   },
   mounted() {
@@ -218,27 +280,18 @@ export default {
   const renderPass = new RenderPass(this.scene, this.camera);
   this.composer.addPass(renderPass);
 
-  // Tilt-shift passes (before FXAA)
   const pr = this.renderer.getPixelRatio();
-  this.hTiltPass = new ShaderPass(HorizontalTiltShiftShader);
-  this.vTiltPass = new ShaderPass(VerticalTiltShiftShader);
-  this.hTiltPass.uniforms.h.value = (this.tiltShiftStrength || 1) * (1 / (width * pr));
-  this.hTiltPass.uniforms.r.value = this.tiltShiftRadius;
-  this.vTiltPass.uniforms.v.value = (this.tiltShiftStrength || 1) * (1 / (height * pr));
-  this.vTiltPass.uniforms.r.value = this.tiltShiftRadius;
-  this.hTiltPass.enabled = this.tiltShiftEnabled;
-  this.vTiltPass.enabled = this.tiltShiftEnabled;
-  this.composer.addPass(this.hTiltPass);
-  this.composer.addPass(this.vTiltPass);
 
   this.fxaaPass = new ShaderPass(FXAAShader);
   this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   this.composer.addPass(this.fxaaPass);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-      const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
-      keyLight.position.set(22, 40, 28);
-      this.scene.add(ambient, keyLight);
+  this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+      this.keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      this.keyLight.position.set(22, 40, 28);
+      this.scene.add(this.ambientLight, this.keyLight);
+      // Apply initial feature toggles
+      this.applyShadows(this.features.shadows);
 
       // Wheel zoom
       this.onWheel = this.onWheel.bind(this);
@@ -251,7 +304,7 @@ export default {
         elevation: this.elevation,
         terrainShape: this.terrainShape,
       });
-      this.clutter = new ClutterManager();
+  this.clutter = new ClutterManager();
 
       this.loadModel();
       this.animate = this.animate.bind(this);
@@ -412,11 +465,28 @@ export default {
       this.sideIM.instanceMatrix.needsUpdate = true;
       if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
       if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-  this.scene.add(this.sideIM);
+    this.scene.add(this.sideIM);
   this.scene.add(this.topIM);
-      // Prepare clutter for the current grid (placeholder)
-      if (this.clutter) this.clutter.prepareFromGrid(this.world);
-      if (this.clutter) this.clutter.addTo(this.scene);
+  // Water after terrain
+  this.buildWater();
+  // Respect initial water toggle
+  if (this.waterMesh) this.waterMesh.visible = this.features.water;
+      // Prepare clutter for the current grid
+      if (this.clutter) {
+        this.clutter.addTo(this.scene);
+        this.clutter.prepareFromGrid(this.world);
+        const commit = () => {
+          const layoutRadius = this.layoutRadius;
+          const contactScale = this.contactScale;
+          const hexMaxY = this.hexMaxY;
+          const modelScaleY = (q, r) => {
+            const c = this.world.getCell(q, r);
+            return this.modelScaleFactor * (c ? c.yScale : 1);
+          };
+          this.clutter.commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY });
+        };
+        this.clutter.loadAssets().then(commit);
+      }
       // Initial marker placement on a random land tile and smooth focus
       const startIdx = this.chooseRandomTileIndex({ landOnly: true });
       if (startIdx != null) {
@@ -424,7 +494,7 @@ export default {
         this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
       }
       // Create a single hover overlay mesh to avoid relying on instance colors
-      if (!this.hoverMesh) {
+  if (this.topIM) {
         const hoverMat = new THREE.MeshBasicMaterial({
           color: 0xffff66,
           transparent: true,
@@ -444,8 +514,141 @@ export default {
       if (!this.playerMarker) {
         this.playerMarker = new PlayerMarker();
         this.playerMarker.addTo(this.scene);
+  // Ensure current shadow setting applied to new meshes
+  this.applyShadows(this.features.shadows);
       }
       this.pickMeshes = [this.topIM, this.sideIM];
+    },
+    buildWater() {
+      // Remove old
+      if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
+      if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
+      // 1) Create land mask texture (N x N), R channel 1.0=land, 0.0=water
+      const N = (2 * this.gridSize + 1);
+      const data = new Uint8Array(N * N * 4);
+      let i = 0;
+      for (let r = -this.gridSize; r <= this.gridSize; r += 1) {
+        for (let q = -this.gridSize; q <= this.gridSize; q += 1) {
+          const cell = this.world.getCell(q, r);
+          const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
+          const v = isWater ? 0 : 255;
+          data[i] = v; // R
+          data[i + 1] = 0;
+          data[i + 2] = 0;
+          data[i + 3] = 255;
+          i += 4;
+        }
+      }
+      const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+      tex.needsUpdate = true;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      this.waterMaskTex = tex;
+
+      // 2) Cull water tile TOPS and compress SIDE height to a tiny sliver; remove any blue tint
+      if (this.topIM) {
+        const tmpColor = new THREE.Color(0, 0, 0);
+        const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scl = new THREE.Vector3();
+        let culled = 0;
+        for (let idx = 0; idx < this.indexToQR.length; idx += 1) {
+          const coord = this.indexToQR[idx];
+          if (!coord) continue;
+          const cell = this.world.getCell(coord.q, coord.r);
+          const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
+          if (isWater) {
+            // Zero color (in case material uses per-instance colors)
+            if (this.topIM.instanceColor) this.topIM.setColorAt(idx, tmpColor);
+            // Cull TOP: set scale to zero
+            this.topIM.getMatrixAt(idx, this.tmpMatrix);
+            this.tmpMatrix.decompose(pos, quat, scl);
+            const zero = new THREE.Vector3(0, 0, 0);
+            this.tmpMatrix.compose(pos, quat, zero);
+            this.topIM.setMatrixAt(idx, this.tmpMatrix);
+            // Keep SIDES as a very short skirt to avoid corner highlights without forming visible walls
+            if (this.sideIM) {
+              // Use original X/Z scale, compress Y to a tiny epsilon
+              const sideScale = new THREE.Vector3(scl.x, Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)), scl.z);
+              this.tmpMatrix.compose(pos, quat, sideScale);
+              this.sideIM.setMatrixAt(idx, this.tmpMatrix);
+              if (this.sideIM.instanceColor) this.sideIM.setColorAt(idx, tmpColor);
+            }
+            culled += 1;
+          }
+        }
+        this.topIM.instanceMatrix.needsUpdate = true;
+        if (this.sideIM) this.sideIM.instanceMatrix.needsUpdate = true;
+        if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+        if (this.sideIM && this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+        console.info('[WorldMap] buildWater: culled water tiles =', culled);
+      }
+
+      // Compute minima
+      let minTop = Infinity;
+      let minTopWater = Infinity;
+      let waterCount = 0;
+      const modelScaleY = (q, r) => {
+        const c = this.world.getCell(q, r);
+        return this.modelScaleFactor * (c ? c.yScale : 1);
+      };
+      this.world.forEach((q, r) => {
+        const cell = this.world.getCell(q, r);
+        const topY = this.hexMaxY * modelScaleY(q, r);
+        if (topY < minTop) minTop = topY;
+        const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
+        if (isWater) {
+          if (topY < minTopWater) minTopWater = topY;
+          waterCount += 1;
+        }
+      });
+      if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
+      if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
+
+      // 3) Single large planes spanning the map
+      const planeSize = (this.gridSize * this.layoutRadius * this.spacingFactor * 4);
+      const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
+      geom.rotateX(-Math.PI / 2);
+
+      // Simple sand underlay to avoid black background
+      const sandGeom = geom.clone();
+      const sandMat = new THREE.MeshBasicMaterial({ color: 0xD7C49E, transparent: true, opacity: 1.0, depthWrite: false });
+      const sand = new THREE.Mesh(sandGeom, sandMat);
+      const sandY = Math.max(0.01 * this.hexMaxY * this.modelScaleFactor, 0.10 * minTop);
+      sand.position.y = sandY;
+      sand.renderOrder = 0;
+      sand.frustumCulled = false;
+      sand.castShadow = false;
+      sand.receiveShadow = false;
+      this.scene.add(sand);
+      this.sandMesh = sand;
+
+      // Water plane
+      const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+      const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+      const mat = createStylizedWaterMaterial({
+        opacity: 0.96,
+        maskTexture: this.waterMaskTex,
+        hexW,
+        hexH,
+        gridN: (2 * this.gridSize + 1),
+        gridOffset: this.gridSize,
+        shoreWidth: 0.12,
+      });
+      this.waterMaterial = mat;
+      const mesh = new THREE.Mesh(geom, mat);
+      const waterY = Math.max(0.05 * this.hexMaxY * this.modelScaleFactor, 0.50 * minTop);
+      mesh.position.y = waterY;
+      mesh.renderOrder = 1;
+      mesh.frustumCulled = false;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      this.scene.add(mesh);
+      this.waterMesh = mesh;
+
+      const visible = !!this.features.water;
+      if (this.waterMesh) this.waterMesh.visible = visible;
+      if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && visible;
     },
     getHeight(q, r) {
       const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
@@ -482,9 +685,38 @@ export default {
         // Lerp phi
         this.orbit.phi = this.cameraTween.start.phi + (this.cameraTween.end.phi - this.cameraTween.start.phi) * tt;
         this.updateCameraFromOrbit();
-        if (t >= 1) this.cameraTween.active = false;
+        if (t >= 1) {
+          this.cameraTween.active = false;
+          // Restore pixel ratio after tween
+          if (this.tweenSaved.pixelRatio != null) {
+            this.renderer.setPixelRatio(this.tweenSaved.pixelRatio);
+            this.tweenSaved.pixelRatio = null;
+            this.onResize();
+          }
+        }
+      }
+      // Animate water
+      if (this.waterMaterial) {
+        this.waterMaterial.uniforms.uTime.value = (performance.now() * 0.001);
+      }
+      // Update billboards (yaw-only) before render
+      if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
+      if (this.locationMarker && this.locationMarker.visible) {
+        // Extract position and scale from marker's current matrix
+        const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scl = new THREE.Vector3();
+        this.locationMarker.matrix.decompose(pos, quat, scl);
+        const dx = this.camera.position.x - pos.x;
+        const dz = this.camera.position.z - pos.z;
+  // Add 90° to align the marker's flat face toward the camera
+  const yaw = Math.atan2(dx, dz) + Math.PI / 2;
+        const yQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
+        this.locationMarker.matrix.compose(pos, yQuat, scl);
       }
       this.composer.render();
+      // Keep tilt-shift focal line tracking the current target each frame
+      if (this.tiltShiftEnabled) this.updateTiltFocus();
       const now = performance.now();
       if (!this.fpsTime) { this.fpsTime = now; this.fpsFrames = 0; }
       this.fpsFrames += 1;
@@ -504,8 +736,7 @@ export default {
       this.composer.setSize(width, height);
   const pr = this.renderer.getPixelRatio();
   if (this.fxaaPass) this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
-  if (this.hTiltPass) this.hTiltPass.uniforms.h.value = (this.tiltShiftStrength || 1) * (1 / (width * pr));
-  if (this.vTiltPass) this.vTiltPass.uniforms.v.value = (this.tiltShiftStrength || 1) * (1 / (height * pr));
+  if (this.tiltShiftEnabled) this.updateTiltFocus();
     },
     onPointerDown(event) {
       if (event.button === 2) {
@@ -547,6 +778,12 @@ export default {
         this.dragStart.y = event.clientY;
         return;
       }
+      // Skip hover work during camera tween to reduce CPU/GPU contention
+      if (this.cameraTween && this.cameraTween.active) {
+        this.hoverIdx = null;
+        if (this.hoverMesh) this.hoverMesh.visible = false;
+        return;
+      }
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -580,6 +817,7 @@ export default {
       this.camera.position.set(target.x + x, target.y + y, target.z + z);
       this.camera.lookAt(target);
     },
+    
     startCameraTween(to) {
       const clampedPhi = Math.min(this.orbit.maxPhi, Math.max(this.orbit.minPhi, to.phi != null ? to.phi : this.orbit.phi));
       const end = {
@@ -588,6 +826,14 @@ export default {
         theta: to.theta != null ? to.theta : this.orbit.theta,
         phi: clampedPhi,
       };
+  // Perf boost during tween: reduce pixel ratio (keep tilt-shift enabled to avoid disorientation)
+      if (this.tweenSaved.pixelRatio == null) {
+        this.tweenSaved.pixelRatio = this.renderer.getPixelRatio();
+        if (this.tweenSaved.pixelRatio > 1.0) {
+          this.renderer.setPixelRatio(1.0);
+          this.onResize();
+        }
+      }
       this.cameraTween = {
         active: true,
         startTime: performance.now(),
@@ -664,15 +910,36 @@ export default {
         const m = new THREE.Matrix4().makeTranslation(-center.x, -minY, -center.z);
         marker.traverse((child) => { if (child.isMesh) child.geometry && child.geometry.applyMatrix4(m); });
         // Recompute bbox after bake
-        const geomBox = new THREE.Box3().setFromObject(marker);
+  const geomBox = new THREE.Box3().setFromObject(marker);
         // Compute current XZ radius
         const size = new THREE.Vector3(); geomBox.getSize(size);
         const currentR = Math.max(size.x, size.z) * 0.5 || 1;
         const desiredR = this.layoutRadius * this.markerDesiredRadius;
         const s = desiredR / currentR;
         marker.scale.setScalar(s);
+  // After scaling, recompute size to capture world-space height
+  const scaledBox = new THREE.Box3().setFromObject(marker);
+  const scaledSize = new THREE.Vector3(); scaledBox.getSize(scaledSize);
+  this.markerTopOffset = scaledSize.y;
         marker.visible = false;
         marker.matrixAutoUpdate = false;
+        // Apply a subtle red tint to all meshes in the marker
+        const tintMat = new THREE.MeshBasicMaterial({
+          color: 0xb53a3a,
+          transparent: false,
+          opacity: 1.0,
+          depthTest: true,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        });
+        marker.traverse((n) => {
+          const mesh = n;
+          if (mesh && mesh.isMesh) {
+            mesh.material = tintMat;
+          }
+        });
         this.locationMarker = marker;
         this.scene.add(marker);
         cb && cb();
@@ -716,6 +983,55 @@ export default {
       this.updateCameraFromOrbit();
     },
     blockContext(e) { e.preventDefault(); },
+
+    // Debug / Features
+    onToggleShadows() {
+      this.applyShadows(this.features.shadows);
+    },
+    onToggleWater() {
+      if (!this.waterMesh) this.buildWater();
+    if (this.waterMesh) this.waterMesh.visible = this.features.water;
+    if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && this.features.water;
+    },
+    onToggleSand() {
+      if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && !!this.features.water;
+    },
+    applyShadows(enabled) {
+      if (!this.renderer || !this.scene) return;
+      // Renderer shadow map
+      this.renderer.shadowMap.enabled = !!enabled;
+      if (enabled) this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // Key light shadows
+      if (this.keyLight) {
+        this.keyLight.castShadow = !!enabled;
+        const cam = this.keyLight.shadow.camera;
+        // Cover the grid extents generously
+        const range = Math.max(40, this.gridSize * this.layoutRadius * 3.0);
+        cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range;
+        this.keyLight.shadow.near = 1;
+        this.keyLight.shadow.far = 250;
+        this.keyLight.shadow.mapSize.set(2048, 2048);
+  this.keyLight.shadow.bias = -0.00006;
+  this.keyLight.shadow.normalBias = 0.12;
+        cam.updateProjectionMatrix();
+      }
+      // Hex meshes
+      if (this.topIM) { this.topIM.castShadow = !!enabled; this.topIM.receiveShadow = !!enabled; }
+      if (this.sideIM) { this.sideIM.castShadow = !!enabled; this.sideIM.receiveShadow = !!enabled; }
+      // Clutter instances
+      if (this.clutter && this.clutter.setShadows) this.clutter.setShadows(!!enabled);
+      // Location marker: cast only (MeshBasic won't receive)
+      if (this.locationMarker) {
+        const setShadows = (node) => {
+          if (node && node.isMesh) {
+            const mesh = node;
+            mesh.castShadow = !!enabled;
+            mesh.receiveShadow = false;
+          }
+        };
+        this.locationMarker.traverse(setShadows);
+      }
+    },
   },
 };
 </script>
