@@ -17,7 +17,10 @@ import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTilt
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
-import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '@/terrain/biomes';
+import { BIOME_THRESHOLDS } from '@/terrain/biomes';
+import WorldGrid from '@/world/WorldGrid';
+import PlayerMarker from '@/renderer/PlayerMarker';
+import ClutterManager from '@/world/ClutterManager';
 
 export default {
   name: 'WorldMap',
@@ -39,17 +42,20 @@ export default {
   hoverIdx: null,
   hoverPrevColor: null,
   hoverMesh: null,
+  playerMarker: null,
+  // Location marker (GLB)
+  locationMarker: null,
+  markerDesiredRadius: 0.6, // as fraction of layoutRadius
+  hexMaxY: 1, // max Y of a tile in local space after recenter
+  cameraTween: null,
   tmpMatrix: new THREE.Matrix4(),
   hoverTmpPos: new THREE.Vector3(),
   hoverTmpQuat: new THREE.Quaternion(),
   hoverTmpScale: new THREE.Vector3(),
 
-      // noise
-      heightNoise: new SimplexNoise('height'),
-      foliageNoise: new SimplexNoise('foliage'),
-      temperatureNoise: new SimplexNoise('temperature'),
-      mountainNoise: new SimplexNoise('mountain'),
-  waterMaskNoise: null,
+  // world data / systems
+  world: null, // WorldGrid instance
+  clutter: null, // ClutterManager instance
 
       // interaction
       raycaster: new THREE.Raycaster(),
@@ -76,7 +82,7 @@ export default {
 
       // layout
       layoutRadius: 0.5,
-      gridSize: 20,
+  gridSize: 20,
   spacingFactor: 1.0, // exact geometric spacing for hex lattice
   contactScale: 1.015, // initialized; auto-computed after load
   contactBias: 1.0, // additional multiplier (keep at 1.0 when using gapFraction)
@@ -229,7 +235,7 @@ export default {
   this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   this.composer.addPass(this.fxaaPass);
 
-      const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
       const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
       keyLight.position.set(22, 40, 28);
       this.scene.add(ambient, keyLight);
@@ -237,6 +243,15 @@ export default {
       // Wheel zoom
       this.onWheel = this.onWheel.bind(this);
       this.$refs.sceneContainer.addEventListener('wheel', this.onWheel, { passive: false });
+
+      // Init world data and auxiliary systems
+      this.world = new WorldGrid({
+        layoutRadius: this.layoutRadius,
+        gridSize: this.gridSize,
+        elevation: this.elevation,
+        terrainShape: this.terrainShape,
+      });
+      this.clutter = new ClutterManager();
 
       this.loadModel();
       this.animate = this.animate.bind(this);
@@ -324,6 +339,13 @@ export default {
         recenter(this.sideGeom);
         // After normalization, compute modelScaleFactor from corner radius (max distance to corner in XZ)
         if (this.topGeom && this.topGeom.attributes && this.topGeom.attributes.position) {
+          // Cache max Y extent of combined tile geoms
+          this.topGeom.computeBoundingBox();
+          this.sideGeom && this.sideGeom.computeBoundingBox();
+          const topMaxY = this.topGeom.boundingBox ? this.topGeom.boundingBox.max.y : 1;
+          const sideMaxY = (this.sideGeom && this.sideGeom.boundingBox) ? this.sideGeom.boundingBox.max.y : topMaxY;
+          this.hexMaxY = Math.max(topMaxY, sideMaxY);
+
           const pos = this.topGeom.attributes.position;
           let maxR = 0;
           for (let i = 0; i < pos.count; i += 1) {
@@ -368,83 +390,60 @@ export default {
       const dummy = new THREE.Object3D();
       this.indexToQR = new Array(count);
       let i = 0;
-      for (let q = -size; q <= size; q += 1) {
-        for (let r = -size; r <= size; r += 1) {
-          const h = this.getHeight(q, r);
-          const f = (this.foliageNoise.noise2D(q * 0.075 + 100, r * 0.075 + 100) + 1) / 2;
-          const t = (this.temperatureNoise.noise2D(q * 0.075 - 100, r * 0.075 - 100) + 1) / 2;
-          let color = biomeColor(h, f, t, tmpColor);
-          let biome = classifyBiome(h);
+      this.world.forEach((q, r) => {
+        const cell = this.world.getCell(q, r);
+        const color = cell.colorTop;
+        const sideColor = cell.colorSide;
 
-          const curved = Math.pow(h, this.elevation.curve);
-          let baseScaleY = this.elevation.base + curved * maxHeight;
-          if (!this.waterMaskNoise) this.waterMaskNoise = new SimplexNoise('waterMask');
-          const waterMask = (this.waterMaskNoise.noise2D((q + 250) * 0.035, (r - 120) * 0.035) + 1) / 2;
-          const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
-          baseScaleY = baseScaleY * (1 - 0.35 * waterCut);
-
-          let yScale = baseScaleY;
-          const shoreTop = BIOME_THRESHOLDS.shallowWater;
-          const blendRange = this.elevation.shorelineBlend;
-          if (biome !== 'deepWater' && biome !== 'shallowWater') {
-            if (h <= shoreTop + blendRange) {
-              const tt = (h - shoreTop) / blendRange;
-              const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : (tt * tt * (3 - 2 * tt));
-              const raised = Math.max(baseScaleY, this.elevation.minLand);
-              yScale = THREE.MathUtils.lerp(baseScaleY, raised, smoothT);
-            } else if (baseScaleY < this.elevation.minLand) {
-              const deficit = (this.elevation.minLand - baseScaleY);
-              yScale = baseScaleY + deficit * 0.85;
-            }
-          }
-
-          const hVisual = Math.max(0, Math.min(1, (yScale - this.elevation.base) / maxHeight));
-          biome = classifyBiome(hVisual);
-          color = biomeColor(hVisual, f, t, tmpColor);
-          tmpSide.copy(color);
-          const hslTmp = { h: 0, s: 0, l: 0 };
-          tmpSide.getHSL(hslTmp);
-          hslTmp.l = Math.min(1, hslTmp.l * 0.55 + 0.25);
-          tmpSide.setHSL(hslTmp.h, hslTmp.s * 0.5, hslTmp.l);
-
-          const x = hexWidth * q;
-          const z = hexHeight * (r + q / 2);
-          const px = x;
-          const py = 0;
-          const pz = z;
-
-          dummy.position.set(px, py, pz);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(xzScale, sx * yScale, xzScale);
-          dummy.updateMatrix();
-          this.topIM.setMatrixAt(i, dummy.matrix);
-          this.sideIM.setMatrixAt(i, dummy.matrix);
-          this.topIM.setColorAt(i, color);
-          this.sideIM.setColorAt(i, tmpSide);
-          this.indexToQR[i] = { q, r };
-          i++;
-        }
-      }
+        const x = hexWidth * q;
+        const z = hexHeight * (r + q / 2);
+        dummy.position.set(x, 0, z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(xzScale, sx * cell.yScale, xzScale);
+        dummy.updateMatrix();
+        this.topIM.setMatrixAt(i, dummy.matrix);
+        this.sideIM.setMatrixAt(i, dummy.matrix);
+        this.topIM.setColorAt(i, color);
+        this.sideIM.setColorAt(i, sideColor);
+        this.indexToQR[i] = { q, r };
+        i += 1;
+      });
       this.topIM.instanceMatrix.needsUpdate = true;
       this.sideIM.instanceMatrix.needsUpdate = true;
       if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
       if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
   this.scene.add(this.sideIM);
   this.scene.add(this.topIM);
-      // Create a single hover overlay mesh (slightly larger) to avoid relying on instance colors
+      // Prepare clutter for the current grid (placeholder)
+      if (this.clutter) this.clutter.prepareFromGrid(this.world);
+      if (this.clutter) this.clutter.addTo(this.scene);
+      // Initial marker placement on a random land tile and smooth focus
+      const startIdx = this.chooseRandomTileIndex({ landOnly: true });
+      if (startIdx != null) {
+        this.addLocationMarkerAtIndex(startIdx);
+        this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
+      }
+      // Create a single hover overlay mesh to avoid relying on instance colors
       if (!this.hoverMesh) {
         const hoverMat = new THREE.MeshBasicMaterial({
           color: 0xffff66,
           transparent: true,
-          opacity: 0.4,
-          depthTest: false,
+          opacity: 0.35,
+          depthTest: true,
           depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
         });
         this.hoverMesh = new THREE.Mesh(this.topGeom, hoverMat);
         this.hoverMesh.visible = false;
         this.hoverMesh.matrixAutoUpdate = false;
-        this.hoverMesh.renderOrder = 9999;
+        // No forced renderOrder; rely on depth for proper occlusion
         this.scene.add(this.hoverMesh);
+      }
+      if (!this.playerMarker) {
+        this.playerMarker = new PlayerMarker();
+        this.playerMarker.addTo(this.scene);
       }
       this.pickMeshes = [this.topIM, this.sideIM];
     },
@@ -464,6 +463,27 @@ export default {
     },
     animate() {
       requestAnimationFrame(this.animate);
+      // Camera tween update before render
+      if (this.cameraTween && this.cameraTween.active) {
+        const now = performance.now();
+        const t = Math.min(1, (now - this.cameraTween.startTime) / this.cameraTween.duration);
+        // Smoothstep ease
+        const tt = t * t * (3 - 2 * t);
+        // Lerp target
+        this.orbit.target.lerpVectors(this.cameraTween.start.target, this.cameraTween.end.target, tt);
+        // Lerp radius
+        this.orbit.radius = this.cameraTween.start.radius + (this.cameraTween.end.radius - this.cameraTween.start.radius) * tt;
+        // Shortest-angle lerp for theta
+        const a = this.cameraTween.start.theta;
+        const b = this.cameraTween.end.theta;
+        let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
+        if (d < -Math.PI) d += Math.PI * 2;
+        this.orbit.theta = a + d * tt;
+        // Lerp phi
+        this.orbit.phi = this.cameraTween.start.phi + (this.cameraTween.end.phi - this.cameraTween.start.phi) * tt;
+        this.updateCameraFromOrbit();
+        if (t >= 1) this.cameraTween.active = false;
+      }
       this.composer.render();
       const now = performance.now();
       if (!this.fpsTime) { this.fpsTime = now; this.fpsFrames = 0; }
@@ -499,13 +519,16 @@ export default {
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
+  const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
       if (intersects.length > 0) {
         const hit = intersects[0];
         const idx = hit.instanceId;
         if (idx != null && this.indexToQR[idx]) {
           const { q, r } = this.indexToQR[idx];
           api.post('world/move', { q, r });
+          // Also move camera focus and location marker locally with smoothing
+          this.focusCameraOnQR(q, r, { smooth: true, duration: 700 });
+          this.addLocationMarkerAtIndex(idx);
         }
       }
     },
@@ -535,12 +558,11 @@ export default {
         if (idx != null) {
           this.topIM.getMatrixAt(idx, this.tmpMatrix);
           this.hoverMesh.matrix.copy(this.tmpMatrix);
-          // Slight scale up to make outline visible
-          this.hoverMesh.matrix.decompose(this.hoverTmpPos, this.hoverTmpQuat, this.hoverTmpScale);
-          this.hoverTmpScale.multiplyScalar(1.02);
-          this.hoverMesh.matrix.compose(this.hoverTmpPos, this.hoverTmpQuat, this.hoverTmpScale);
+          // Keep scale identical; rely on polygonOffset to avoid z-fighting
           this.hoverMesh.visible = true;
           this.hoverIdx = idx;
+          // Update player marker preview to current hover (prepping for movement UX)
+          if (this.playerMarker) this.playerMarker.setPosition(idx, this.topIM);
         }
       } else {
         this.hoverIdx = null;
@@ -557,6 +579,134 @@ export default {
       const y = radius * Math.cos(phi);
       this.camera.position.set(target.x + x, target.y + y, target.z + z);
       this.camera.lookAt(target);
+    },
+    startCameraTween(to) {
+      const clampedPhi = Math.min(this.orbit.maxPhi, Math.max(this.orbit.minPhi, to.phi != null ? to.phi : this.orbit.phi));
+      const end = {
+        target: to.target ? to.target.clone() : this.orbit.target.clone(),
+        radius: to.radius != null ? to.radius : this.orbit.radius,
+        theta: to.theta != null ? to.theta : this.orbit.theta,
+        phi: clampedPhi,
+      };
+      this.cameraTween = {
+        active: true,
+        startTime: performance.now(),
+        duration: to.duration != null ? to.duration : 700,
+        start: {
+          target: this.orbit.target.clone(),
+          radius: this.orbit.radius,
+          theta: this.orbit.theta,
+          phi: this.orbit.phi,
+        },
+        end,
+      };
+    },
+    // Compute world XZ for a flat-top axial coordinate
+    getTileWorldPos(q, r) {
+      const layoutRadius = this.layoutRadius;
+      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+      const x = hexWidth * q;
+      const z = hexHeight * (r + q / 2);
+      return { x, z };
+    },
+    // Focus camera target on tile. opts: { radius, phi, theta, smooth, duration }
+    focusCameraOnQR(q, r, opts = {}) {
+      const { x, z } = this.getTileWorldPos(q, r);
+      if (opts.smooth) {
+        this.startCameraTween({
+          target: new THREE.Vector3(x, 0, z),
+          radius: opts.radius != null ? opts.radius : this.orbit.radius,
+          theta: opts.theta != null ? opts.theta : this.orbit.theta,
+          phi: opts.phi != null ? opts.phi : this.orbit.phi,
+          duration: opts.duration,
+        });
+      } else {
+        this.orbit.target.set(x, 0, z);
+        if (opts.radius != null) this.orbit.radius = opts.radius;
+        if (opts.theta != null) this.orbit.theta = opts.theta;
+        if (opts.phi != null) this.orbit.phi = Math.min(this.orbit.maxPhi, Math.max(this.orbit.minPhi, opts.phi));
+        this.updateCameraFromOrbit();
+      }
+    },
+    focusCameraOnIndex(idx, opts = {}) {
+      if (idx == null || !this.indexToQR[idx]) return;
+      const { q, r } = this.indexToQR[idx];
+      this.focusCameraOnQR(q, r, opts);
+    },
+    // Random tile selection. landOnly defaults true to avoid ocean.
+    chooseRandomTileIndex({ landOnly = true } = {}) {
+      if (!this.indexToQR || this.indexToQR.length === 0) return null;
+      const attempts = Math.min(200, this.indexToQR.length * 2);
+      for (let k = 0; k < attempts; k += 1) {
+        const idx = Math.floor(Math.random() * this.indexToQR.length);
+        const coord = this.indexToQR[idx];
+        if (!coord) continue;
+        if (!landOnly || !this.world) return idx;
+        const cell = this.world.getCell(coord.q, coord.r);
+        if (cell && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') return idx;
+      }
+      // Fallback
+      return Math.floor(Math.random() * this.indexToQR.length);
+    },
+    // Ensure the GLB location marker is loaded and normalized.
+    ensureLocationMarkerLoaded(cb) {
+      if (this.locationMarker) { cb && cb(); return; }
+      const loader = new GLTFLoader();
+      loader.load('/models/location-marker.glb', (gltf) => {
+        const marker = gltf.scene;
+        // Normalize: center XZ and sit base on y=0
+        marker.updateWorldMatrix(true, true);
+        const box = new THREE.Box3().setFromObject(marker);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        const minY = box.min.y;
+        const m = new THREE.Matrix4().makeTranslation(-center.x, -minY, -center.z);
+        marker.traverse((child) => { if (child.isMesh) child.geometry && child.geometry.applyMatrix4(m); });
+        // Recompute bbox after bake
+        const geomBox = new THREE.Box3().setFromObject(marker);
+        // Compute current XZ radius
+        const size = new THREE.Vector3(); geomBox.getSize(size);
+        const currentR = Math.max(size.x, size.z) * 0.5 || 1;
+        const desiredR = this.layoutRadius * this.markerDesiredRadius;
+        const s = desiredR / currentR;
+        marker.scale.setScalar(s);
+        marker.visible = false;
+        marker.matrixAutoUpdate = false;
+        this.locationMarker = marker;
+        this.scene.add(marker);
+        cb && cb();
+      }, undefined, (err) => {
+        console.error('[WorldMap] Failed to load /models/location-marker.glb', err);
+        cb && cb(err);
+      });
+    },
+    // Place marker at tile instance index (uses instance matrix for position)
+    addLocationMarkerAtIndex(idx) {
+      if (idx == null || !this.topIM) return;
+      this.ensureLocationMarkerLoaded((err) => {
+        if (err) return;
+        const m = new THREE.Matrix4();
+        this.topIM.getMatrixAt(idx, m);
+        const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scl = new THREE.Vector3();
+        m.decompose(pos, quat, scl);
+  // Keep marker’s own scale; ignore instance scale. Position above tile top surface.
+        const markerQuat = new THREE.Quaternion();
+        const markerScale = this.locationMarker.scale.clone();
+  const lift = 0.05 * this.layoutRadius; // small world-space lift
+  pos.y = this.hexMaxY * scl.y + lift;
+        this.locationMarker.matrix.compose(pos, markerQuat, markerScale);
+        this.locationMarker.visible = true;
+      });
+    },
+    addRandomLocationMarker() {
+      const idx = this.chooseRandomTileIndex({ landOnly: true });
+      if (idx != null) {
+        this.addLocationMarkerAtIndex(idx);
+        this.focusCameraOnIndex(idx);
+      }
     },
     onWheel(e) {
       e.preventDefault();
