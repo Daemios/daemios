@@ -143,9 +143,8 @@ export default {
       layoutRadius: 0.5,
   gridSize: 20,
   spacingFactor: 1.0, // exact geometric spacing for hex lattice
-  contactScale: 1.015, // initialized; auto-computed after load
-  contactBias: 1.0, // additional multiplier (keep at 1.0 when using gapFraction)
-  gapFraction: 0.03, // desired gap size as a fraction of layoutRadius (e.g., 3%)
+  contactScale: 1.0, // auto-computed after model load to make tiles touch
+  gapFraction: 0.0, // desired gap size as a fraction of layoutRadius (0 = touching)
 
       // elevation shaping
       elevation: {
@@ -411,9 +410,9 @@ export default {
             this.modelScaleFactor = this.layoutRadius / maxR;
           }
           const suggested = this.computeContactScaleFromGeom();
-          const applied = Math.max(0.5, Math.min(1.5, suggested * (this.contactBias || 1.0)));
+          const applied = Math.max(0.5, Math.min(1.5, suggested));
           this.contactScale = applied;
-          console.info('[WorldMap] gapFraction =', (this.gapFraction || 0).toFixed(4), 'suggested contactScale =', suggested.toFixed(4), 'applied =', applied.toFixed(4));
+          console.info('[WorldMap] gapFraction =', (this.gapFraction || 0).toFixed(4), 'contactScale =', applied.toFixed(4));
         }
         this.createHexGrid();
       }, undefined, (err) => {
