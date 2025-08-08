@@ -35,6 +35,13 @@ export default function createStylizedWaterMaterial(options = {}) {
     shoreStripeWidth: 0.28,   // 0..1 threshold for sin stripe width
     shoreAnimSpeed: 0.12,     // world units/sec (relative to min hex dim)
     gradEpsScale: 0.12,       // derivative epsilon as fraction of min hex dim
+    // shoreline breakup controls
+    shoreNoiseScale: 0.35,       // relative to min hex dim (bigger = larger blotches)
+    shoreNoiseStrength: 1.0,    // 0..1 how strongly noise fades bands
+    shoreNoiseThresholdLow: 0.35,// lower edge for fade-in
+    shoreNoiseThresholdHigh: 0.75,// upper edge for fade-in
+    shorePhaseJitter: 0.30,      // offsets band phase locally (-0.5..0.5 scaled)
+    shoreNoiseSpeed: 0.03,       // gentle drift
     ...options,
   };
 
@@ -70,6 +77,13 @@ export default function createStylizedWaterMaterial(options = {}) {
     uShoreStripeWidth: { value: opt.shoreStripeWidth },
     uShoreAnimSpeed: { value: opt.shoreAnimSpeed },
     uGradEpsScale: { value: opt.gradEpsScale },
+    // breakup
+    uShoreNoiseScale: { value: opt.shoreNoiseScale },
+    uShoreNoiseStrength: { value: opt.shoreNoiseStrength },
+    uShoreNoiseThresholdLow: { value: opt.shoreNoiseThresholdLow },
+    uShoreNoiseThresholdHigh: { value: opt.shoreNoiseThresholdHigh },
+    uShorePhaseJitter: { value: opt.shorePhaseJitter },
+    uShoreNoiseSpeed: { value: opt.shoreNoiseSpeed },
   };
 
   const vertexShader = `
@@ -99,6 +113,7 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniform float uHexW, uHexH; uniform int uGridN, uGridOffset;
     uniform vec3 uLightDir;
     uniform float uShoreMaxDist, uShoreStripeSpacing, uShoreStripeWidth, uShoreAnimSpeed, uGradEpsScale;
+    uniform float uShoreNoiseScale, uShoreNoiseStrength, uShoreNoiseThresholdLow, uShoreNoiseThresholdHigh, uShorePhaseJitter, uShoreNoiseSpeed;
 
     // Helpers
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -123,8 +138,29 @@ export default function createStylizedWaterMaterial(options = {}) {
       int N = uGridN; int S = uGridOffset; if(N<=0) return 0.0;
       vec2 qr = worldToAxial(xz);
       float iq = qr.x + float(S); float ir = qr.y + float(S);
+      // Treat OOB as water (0.0) so no false shoreline at map edges
+      if(iq < 0.0 || iq > float(N-1) || ir < 0.0 || ir > float(N-1)) return 0.0;
       float u = (iq + 0.5) / float(N); float v = (ir + 0.5) / float(N);
       return texture2D(uMask, vec2(u,v)).r;
+    }
+
+    // Value noise + fbm using hash12
+    float valueNoise(vec2 p){
+      vec2 i = floor(p); vec2 f = fract(p);
+      float a = hash12(i);
+      float b = hash12(i + vec2(1.0, 0.0));
+      float c = hash12(i + vec2(0.0, 1.0));
+      float d = hash12(i + vec2(1.0, 1.0));
+      vec2 u = f*f*(3.0-2.0*f);
+      return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+    }
+    float fbm(vec2 p){
+      float v = 0.0; float amp = 0.6; float freq = 1.0;
+      for(int k=0;k<3;k++){
+        v += amp * valueNoise(p * freq);
+        freq *= 2.0; amp *= 0.5;
+      }
+      return v;
     }
 
     void main(){
@@ -149,24 +185,47 @@ export default function createStylizedWaterMaterial(options = {}) {
       vec3 H = normalize(normalize(uLightDir) + V);
       float spec = pow(max(0.0, dot(N, H)), uShininess) * uSpecularStrength;
 
-      // Signed-distance approximation from mask for shoreline bands
+      // Compute local edge presence; if none, suppress shoreline bands (fix outer edges)
       float s = min(uHexW, uHexH) * uGradEpsScale;
       vec2 ex = vec2(s, 0.0), ey = vec2(0.0, s);
-      float m = sampleMaskXZ(xz);
-      float gx = (sampleMaskXZ(xz + ex) - sampleMaskXZ(xz - ex)) / (2.0 * s);
-      float gy = (sampleMaskXZ(xz + ey) - sampleMaskXZ(xz - ey)) / (2.0 * s);
-      float gmag = max(1e-4, length(vec2(gx, gy)));
-      float signedDist = (m - 0.5) / gmag; // +land, -water (approx world units)
-      float d = clamp(-signedDist, 0.0, uShoreMaxDist * min(uHexW, uHexH)); // distance into water side
+      float m0 = sampleMaskXZ(xz);
+      float m1 = sampleMaskXZ(xz + ex);
+      float m2 = sampleMaskXZ(xz - ex);
+      float m3 = sampleMaskXZ(xz + ey);
+      float m4 = sampleMaskXZ(xz - ey);
+      float localMax = max(m0, max(m1, max(m2, max(m3, m4))));
+      float localMin = min(m0, min(m1, min(m2, min(m3, m4))));
+      float hasEdge = step(0.02, localMax - localMin);
 
-      float spacing = uShoreStripeSpacing * min(uHexW, uHexH);
-      float pos = (d - (uShoreAnimSpeed * min(uHexW, uHexH)) * uTime) / max(0.001, spacing);
-      float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
-      float bands = smoothstep(1.0 - uShoreStripeWidth, 1.0, stripe);
-      float falloff = 1.0 - clamp(d / (uShoreMaxDist * min(uHexW, uHexH)), 0.0, 1.0);
-      float shoreWhite = bands * falloff * uFoamShoreStrength;
+      float shoreWhite = 0.0;
+      if(hasEdge > 0.5){
+        // Signed-distance into water side
+        float gx = (m1 - m2) / (2.0 * s);
+        float gy = (m3 - m4) / (2.0 * s);
+        float gmag = max(1e-3, length(vec2(gx, gy)));
+        float signedDist = (m0 - 0.5) / gmag;
+        float d = clamp(-signedDist, 0.0, uShoreMaxDist * min(uHexW, uHexH));
 
-      // Optionally add interior crest foam (default 0)
+        // Breakup noise in world space; scale normalized by min hex dim
+        float invMin = 1.0 / max(1e-4, min(uHexW, uHexH));
+        vec2 nuv = xz * (uShoreNoiseScale * invMin) + uTime * uShoreNoiseSpeed * vec2(0.13, -0.11);
+        float n = fbm(nuv);
+        float breakup = smoothstep(uShoreNoiseThresholdLow, uShoreNoiseThresholdHigh, n);
+        float phaseJitter = (n - 0.5) * uShorePhaseJitter;
+
+        float spacing = uShoreStripeSpacing * min(uHexW, uHexH);
+        float pos = (d + (uShoreAnimSpeed * min(uHexW, uHexH)) * uTime) / max(0.001, spacing);
+        pos += phaseJitter;
+        float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
+        float bands = smoothstep(1.0 - uShoreStripeWidth, 1.0, stripe);
+        float falloff = 1.0 - clamp(d / (uShoreMaxDist * min(uHexW, uHexH)), 0.0, 1.0);
+
+        // Apply breakup as an intensity fade
+        float fade = mix(1.0, breakup, clamp(uShoreNoiseStrength, 0.0, 1.0));
+        shoreWhite = bands * falloff * fade * uFoamShoreStrength;
+      }
+
+      // Interior crest foam (default 0)
       float slopeFoam = smoothstep(0.65, 0.95, 1.0 - N.y) * uFoamCrestStrength;
       float heightFoam = smoothstep(0.15, 0.45, h);
       float crestFoam = clamp(slopeFoam * heightFoam, 0.0, 1.0);

@@ -543,6 +543,8 @@ export default {
       tex.needsUpdate = true;
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
       this.waterMaskTex = tex;
 
       // 2) Cull water tile TOPS and compress SIDE height to a tiny sliver; remove any blue tint
