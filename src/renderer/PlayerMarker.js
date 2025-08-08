@@ -8,7 +8,7 @@ import * as THREE from 'three';
 export default class PlayerMarker {
   constructor(geometry = null) {
     const geom = geometry || new THREE.RingGeometry(0.35, 0.5, 32);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xb53a3a, transparent: false, opacity: 1.0, depthTest: true, depthWrite: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xb53a3a, transparent: true, opacity: 1.0, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.mesh = new THREE.Mesh(geom, mat);
     this.mesh.renderOrder = 3; // draw after water to ensure visibility on water
   // Note: matrixAutoUpdate=false; orientation is driven by composed matrix below

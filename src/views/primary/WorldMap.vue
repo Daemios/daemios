@@ -609,7 +609,7 @@ export default {
 
       // 3) Single large planes spanning the map
       const planeSize = (this.gridSize * this.layoutRadius * this.spacingFactor * 4);
-      const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
+      const geom = new THREE.PlaneGeometry(planeSize * 3, planeSize * 3, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
       // Simple sand underlay to avoid black background
@@ -928,7 +928,7 @@ export default {
         // Apply a subtle red tint to all meshes in the marker
         const tintMat = new THREE.MeshBasicMaterial({
           color: 0xb53a3a,
-          transparent: false,
+          transparent: true,
           opacity: 1.0,
           depthTest: true,
           depthWrite: false,
@@ -940,6 +940,7 @@ export default {
           const mesh = n;
           if (mesh && mesh.isMesh) {
             mesh.material = tintMat;
+            mesh.renderOrder = 4; // draw after water (water is 1)
           }
         });
         this.locationMarker = marker;

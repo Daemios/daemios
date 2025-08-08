@@ -41,7 +41,8 @@ export default function createStylizedWaterMaterial(options = {}) {
     shoreNoiseThresholdLow: 0.35,// lower edge for fade-in
     shoreNoiseThresholdHigh: 0.75,// upper edge for fade-in
     shorePhaseJitter: 0.30,      // offsets band phase locally (-0.5..0.5 scaled)
-    shoreNoiseSpeed: 0.03,       // gentle drift
+    shoreNoiseSpeed: 0.03,
+    shoreTailCut: 0.15,         // fraction of range to fade to zero at the outer edge
     ...options,
   };
 
@@ -84,6 +85,7 @@ export default function createStylizedWaterMaterial(options = {}) {
     uShoreNoiseThresholdHigh: { value: opt.shoreNoiseThresholdHigh },
     uShorePhaseJitter: { value: opt.shorePhaseJitter },
     uShoreNoiseSpeed: { value: opt.shoreNoiseSpeed },
+    uShoreTailCut: { value: opt.shoreTailCut },
   };
 
   const vertexShader = `
@@ -112,7 +114,7 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniform sampler2D uMask; // R:1 land, 0 water
     uniform float uHexW, uHexH; uniform int uGridN, uGridOffset;
     uniform vec3 uLightDir;
-    uniform float uShoreMaxDist, uShoreStripeSpacing, uShoreStripeWidth, uShoreAnimSpeed, uGradEpsScale;
+    uniform float uShoreMaxDist, uShoreStripeSpacing, uShoreStripeWidth, uShoreAnimSpeed, uGradEpsScale, uShoreTailCut;
     uniform float uShoreNoiseScale, uShoreNoiseStrength, uShoreNoiseThresholdLow, uShoreNoiseThresholdHigh, uShorePhaseJitter, uShoreNoiseSpeed;
 
     // Helpers
@@ -204,9 +206,10 @@ export default function createStylizedWaterMaterial(options = {}) {
         float gy = (m3 - m4) / (2.0 * s);
         float gmag = max(1e-3, length(vec2(gx, gy)));
         float signedDist = (m0 - 0.5) / gmag;
-        float d = clamp(-signedDist, 0.0, uShoreMaxDist * min(uHexW, uHexH));
+        float maxR = uShoreMaxDist * min(uHexW, uHexH);
+        float d = clamp(-signedDist, 0.0, maxR);
 
-        // Breakup noise in world space; scale normalized by min hex dim
+        // Breakup noise
         float invMin = 1.0 / max(1e-4, min(uHexW, uHexH));
         vec2 nuv = xz * (uShoreNoiseScale * invMin) + uTime * uShoreNoiseSpeed * vec2(0.13, -0.11);
         float n = fbm(nuv);
@@ -218,11 +221,16 @@ export default function createStylizedWaterMaterial(options = {}) {
         pos += phaseJitter;
         float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
         float bands = smoothstep(1.0 - uShoreStripeWidth, 1.0, stripe);
-        float falloff = 1.0 - clamp(d / (uShoreMaxDist * min(uHexW, uHexH)), 0.0, 1.0);
 
-        // Apply breakup as an intensity fade
+        // Range falloff with tail cut to avoid flashes near the end
+        float nd = d / max(1e-4, maxR);
+        float falloff = 1.0 - clamp(nd, 0.0, 1.0);
+        float tailGate = 1.0 - smoothstep(max(0.0, 1.0 - uShoreTailCut), 1.0, nd);
+
+        // Apply breakup and ensure contribution only on water side (m0 ~ 0)
         float fade = mix(1.0, breakup, clamp(uShoreNoiseStrength, 0.0, 1.0));
-        shoreWhite = bands * falloff * fade * uFoamShoreStrength;
+        float waterOnly = 1.0 - smoothstep(0.5, 0.55, m0); // quickly drops on land
+        shoreWhite = bands * falloff * tailGate * fade * waterOnly * uFoamShoreStrength;
       }
 
       // Interior crest foam (default 0)
