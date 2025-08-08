@@ -12,6 +12,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { HorizontalTiltShiftShader } from 'three/examples/jsm/shaders/HorizontalTiltShiftShader.js';
+import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTiltShiftShader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
@@ -103,6 +105,13 @@ export default {
       fpsTime: 0,
       fps: 0,
       fpsEl: null,
+
+  // Post FX
+  hTiltPass: null,
+  vTiltPass: null,
+  tiltShiftEnabled: true,
+  tiltShiftRadius: 0.285, // halfway between 0.35 (old) and 0.22 (current)
+  tiltShiftStrength: 1.375, // halfway between 1.0 (old) and 1.75 (current)
     };
   },
   mounted() {
@@ -180,8 +189,8 @@ export default {
 
   this.renderer = new THREE.WebGLRenderer({ antialias: false });
   // Slightly upscale to reduce aliasing while keeping perf in check
-  const pr = Math.min(1.5, (window.devicePixelRatio || 1));
-  this.renderer.setPixelRatio(pr);
+  const devicePR = Math.min(1.5, (window.devicePixelRatio || 1));
+  this.renderer.setPixelRatio(devicePR);
       this.renderer.setSize(width, height);
       if (this.renderer.outputEncoding !== undefined) this.renderer.outputEncoding = THREE.sRGBEncoding;
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -199,12 +208,26 @@ export default {
       this.fpsEl.textContent = 'FPS: --';
       this.$refs.sceneContainer.appendChild(this.fpsEl);
 
-      this.composer = new EffectComposer(this.renderer);
-      this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.fxaaPass = new ShaderPass(FXAAShader);
-      const pixelRatio = this.renderer.getPixelRatio();
-      this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
-      this.composer.addPass(this.fxaaPass);
+  this.composer = new EffectComposer(this.renderer);
+  const renderPass = new RenderPass(this.scene, this.camera);
+  this.composer.addPass(renderPass);
+
+  // Tilt-shift passes (before FXAA)
+  const pr = this.renderer.getPixelRatio();
+  this.hTiltPass = new ShaderPass(HorizontalTiltShiftShader);
+  this.vTiltPass = new ShaderPass(VerticalTiltShiftShader);
+  this.hTiltPass.uniforms.h.value = (this.tiltShiftStrength || 1) * (1 / (width * pr));
+  this.hTiltPass.uniforms.r.value = this.tiltShiftRadius;
+  this.vTiltPass.uniforms.v.value = (this.tiltShiftStrength || 1) * (1 / (height * pr));
+  this.vTiltPass.uniforms.r.value = this.tiltShiftRadius;
+  this.hTiltPass.enabled = this.tiltShiftEnabled;
+  this.vTiltPass.enabled = this.tiltShiftEnabled;
+  this.composer.addPass(this.hTiltPass);
+  this.composer.addPass(this.vTiltPass);
+
+  this.fxaaPass = new ShaderPass(FXAAShader);
+  this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
+  this.composer.addPass(this.fxaaPass);
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.4);
       const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -459,10 +482,10 @@ export default {
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
       this.composer.setSize(width, height);
-      if (this.fxaaPass) {
-        const pixelRatio = this.renderer.getPixelRatio();
-        this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
-      }
+  const pr = this.renderer.getPixelRatio();
+  if (this.fxaaPass) this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
+  if (this.hTiltPass) this.hTiltPass.uniforms.h.value = (this.tiltShiftStrength || 1) * (1 / (width * pr));
+  if (this.vTiltPass) this.vTiltPass.uniforms.v.value = (this.tiltShiftStrength || 1) * (1 / (height * pr));
     },
     onPointerDown(event) {
       if (event.button === 2) {
