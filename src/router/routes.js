@@ -44,6 +44,15 @@ export default [
     },
   },
   {
+    path: '/worldmap',
+    name: 'World Map',
+    component: () => import('@/views/primary/WorldMap'),
+    meta: {
+      overlay: false,
+      combat_lock: false,
+    },
+  },
+  {
     path: '/characters',
     name: 'Characters',
     component: () => import('@/views/hidden/Characters'),

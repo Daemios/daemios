@@ -157,6 +157,11 @@ export default {
       this.renderer = new Three.WebGLRenderer();
       this.renderer.setSize( window.innerWidth, window.innerHeight );
       this.renderer.setPixelRatio(devicePixelRatio)
+  // Improve color/lighting fidelity
+  this.renderer.outputEncoding = Three.sRGBEncoding;
+  this.renderer.toneMapping = Three.ACESFilmicToneMapping;
+  this.renderer.toneMappingExposure = 1.0;
+  this.renderer.physicallyCorrectLights = true;
       this.$refs.worldMap.appendChild( this.renderer.domElement );
 
       /**
@@ -182,6 +187,15 @@ export default {
 
       // Controls
       this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+  this.controls.enableDamping = true;
+  this.controls.dampingFactor = 0.08;
+  this.controls.enablePan = true;
+  this.controls.enableZoom = false; // we'll handle custom zoom for consistent vertical scaling
+  this.controls.target.set(0,0,0);
+
+  // Wheel zoom listener
+  this._wheelHandler = this.onMouseWheel.bind(this);
+  this.renderer.domElement.addEventListener('wheel', this._wheelHandler, { passive: false });
 
       window.addEventListener('resize', () =>
       {
@@ -232,27 +246,44 @@ export default {
     },
     buildTerrain(offsetX, offsetY) {
       const {array} = this.terrain.meshes[offsetX][offsetY].geometry.attributes.position;
+      const colors = this.terrain.meshes[offsetX][offsetY].geometry.attributes.color?.array;
       for (let i = 0; i < array.length; i=i+3) {
         const x = i / 3 % this.config.segments;
         const y = Math.floor((i / 3) / this.config.segments);
-        array[i+2] = this.getNoise(x + (offsetX * this.config.segments), y + (offsetY * this.config.segments))
+        const height = this.getNoise(x + (offsetX * this.config.segments), y + (offsetY * this.config.segments));
+        array[i+2] = height;
+        if (colors) {
+          const { r, g, b } = this.getColorFromHeight(height);
+            colors[i] = r;
+            colors[i+1] = g;
+            colors[i+2] = b;
+        }
+      }
+      if (colors) {
+        this.terrain.meshes[offsetX][offsetY].geometry.attributes.color.needsUpdate = true;
       }
     },
     createChunk(offsetX = 0, offsetY = 0) {
       const material = new Three.MeshStandardMaterial({
         wireframe: false,
-        color: 0x666666,
-        vertexColors: false,
-        flatShading: Three.FlatShading,
+        color: 0xffffff,
+        vertexColors: true,
+        flatShading: false,
       })
       const size = new Three.Vector3(
         this.config.segments * this.config.scale, this.config.segments * this.config.scale, 0);
       const geometry = new Three.PlaneGeometry(size.x, size.y, this.config.segments-1, this.config.segments-1)
+      // Add color attribute for vertex coloring based on elevation
+      const vertexCount = geometry.attributes.position.count;
+      const colors = new Float32Array(vertexCount * 3);
+      geometry.setAttribute('color', new Three.BufferAttribute(colors, 3));
       this.buildTerrain(offsetX, offsetY);
       this.terrain.meshes[offsetX][offsetY].mesh = new Three.Mesh(geometry, material)
       this.terrain.meshes[offsetX][offsetY].mesh.translateX(this.config.segments * this.config.scale * offsetX)
       this.terrain.meshes[offsetX][offsetY].mesh.translateY(this.config.segments * this.config.scale * offsetY)
       //this.terrain.mesh.rotateX(-1.5708)
+  // Orient plane horizontally so height (Z) acts as elevation when camera is above
+  this.terrain.meshes[offsetX][offsetY].mesh.rotation.x = -Math.PI / 2;
       this.scene.add(this.terrain.meshes[offsetX][offsetY].mesh)
     },
     createChunks() {
@@ -277,32 +308,80 @@ export default {
       this.createMenus();
       this.createChunks();
       //this.createChunk();
-      //this.createChunk(-1, 1);
-      //this.createChunk(0, -1);
-      //this.createChunk(1, 1);
-      //this.createChunk(0, 1);
 
-      let light = new Three.DirectionalLight(0x808080, 1, 100);
-      light.position.set(-this.config.segments * this.config.scale, this.config.segments * this.config.scale, this.config.segments * this.config.scale);
-      light.target.position.set(this.config.segments * this.config.scale, -(this.config.segments * this.config.scale), this.config.segments * this.config.scale);
-      light.castShadow = false;
-      //this.scene.add(light);
+      // Key directional light (sun)
+      let dirLight1 = new Three.DirectionalLight(0xffffff, 1.25);
+      dirLight1.position.set(
+        -this.config.segments * this.config.scale,
+        this.config.segments * this.config.scale * 1.2,
+        this.config.segments * this.config.scale
+      );
+      this.scene.add(dirLight1);
 
-      light = new Three.DirectionalLight(0x404040, 1.5, 100);
-      light.position.set(-(this.config.segments * this.config.scale), -(this.config.segments * this.config.scale), this.config.segments * this.config.scale);
-      light.target.position.set(0, 0, 0);
-      light.castShadow = false;
-      //this.scene.add(light);'
+      // Fill light
+      let dirLight2 = new Three.DirectionalLight(0x88aaff, 0.35);
+      dirLight2.position.set(
+        this.config.segments * this.config.scale,
+        -this.config.segments * this.config.scale,
+        this.config.segments * this.config.scale * 0.5
+      );
+      this.scene.add(dirLight2);
 
-      light = new Three.AmbientLight(0x404040, 1.5);
-      this.scene.add(light);
+      // Soft ambient/hemisphere to lift shadows
+      const hemi = new Three.HemisphereLight(0x88ccee, 0x334422, 0.55);
+      this.scene.add(hemi);
+
+      const ambient = new Three.AmbientLight(0xffffff, 0.25);
+      this.scene.add(ambient);
+
+      // Optional: visualize first light
+      // this.scene.add(new Three.DirectionalLightHelper(dirLight1, 500));
+      const extraAmbient = new Three.AmbientLight(0x404040, 0.4);
+      this.scene.add(extraAmbient);
 
       //this.createLights()
-
+    },
+    getColorFromHeight(h) {
+      // Normalize height relative to configured max theoretical height
+      const maxH = this.config.height * this.config.scale;
+      const t = Math.min(1, Math.max(0, h / maxH));
+      if (t < 0.2) { // deep water
+        return { r: 0.0, g: 0.1 + t * 0.2, b: 0.5 + t * 0.4 };
+      } if (t < 0.28) { // shore
+        const k = (t - 0.2) / 0.08;
+        return { r: 0.6 + 0.2 * k, g: 0.5 + 0.3 * k, b: 0.2 * (1 - k) };
+      } if (t < 0.55) { // grass
+        const k = (t - 0.28) / 0.27;
+        return { r: 0.1 * (1 - k), g: 0.6 + 0.3 * k, b: 0.1 };
+      } if (t < 0.8) { // rock
+        const k = (t - 0.55) / 0.25;
+        return { r: 0.3 + 0.2 * k, g: 0.45 - 0.2 * k, b: 0.3 + 0.2 * k };
+      }
+      const k = (t - 0.8) / 0.2; // snow
+      return { r: 0.75 + 0.25 * k, g: 0.75 + 0.25 * k, b: 0.8 + 0.2 * k };
     },
     animate() {
       requestAnimationFrame( this.animate );
+      if (this.controls) this.controls.update();
       this.renderer.render( this.scene, this.camera );
+    },
+    onMouseWheel(event) {
+      event.preventDefault();
+      const delta = event.deltaY;
+      // Direction vector from target to camera
+      const dir = new Three.Vector3();
+      dir.subVectors(this.camera.position, this.controls.target);
+      const distance = dir.length();
+      const zoomSpeed = 0.15; // adjust for sensitivity
+      const factor = 1 + (delta > 0 ? zoomSpeed : -zoomSpeed);
+      let newDistance = distance * factor;
+      // Clamp distance
+      const minDist = 500; // tweak as needed
+      const maxDist = 200000; // large world scale
+      newDistance = Math.min(Math.max(newDistance, minDist), maxDist);
+      dir.setLength(newDistance);
+      this.camera.position.copy(this.controls.target).add(dir);
+      this.camera.updateProjectionMatrix();
     },
   }
 }
