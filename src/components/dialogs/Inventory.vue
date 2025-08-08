@@ -30,8 +30,8 @@
         </v-toolbar-items>
       </v-toolbar>
       <v-data-iterator
-        :items.sync="$store.state.user.inventory"
-        :items-per-page.sync="numberOfPages"
+        :items="($store.state.user && $store.state.user.inventory) ? $store.state.user.inventory : []"
+        :items-per-page.sync="itemsPerPage"
         :page.sync="page"
         :search="search"
         :sort-by="sortBy.toLowerCase()"
@@ -97,7 +97,7 @@
             class="pa-2"
           >
             <v-col
-              v-for="(item, n) in $store.state.user.inventory"
+              v-for="(item, n) in (($store.state.user && $store.state.user.inventory) ? $store.state.user.inventory : [])"
               :key="n"
               cols="6"
               sm="4"
@@ -163,10 +163,25 @@ export default {
   }),
   computed: {
     numberOfPages() {
-      return Math.ceil(this.$store.state.user.inventory.length / this.itemsPerPage);
+      const inv = (this.$store.state.user && this.$store.state.user.inventory) ? this.$store.state.user.inventory : [];
+      return Math.max(1, Math.ceil(inv.length / this.itemsPerPage));
     },
     filteredKeys() {
       return this.keys.filter((key) => key !== 'Name');
+    },
+  },
+  watch: {
+    // Clamp page when inventory or itemsPerPage changes
+    '$store.state.user.inventory': {
+      handler() {
+        const pages = this.numberOfPages;
+        if (this.page > pages) this.page = pages;
+      },
+      deep: true,
+    },
+    itemsPerPage() {
+      const pages = this.numberOfPages;
+      if (this.page > pages) this.page = pages;
     },
   },
   methods: {

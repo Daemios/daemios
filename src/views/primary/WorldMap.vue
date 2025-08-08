@@ -1,32 +1,108 @@
 <template>
-  <div ref="sceneContainer" class="world-map"></div>
+  <div
+    ref="sceneContainer"
+    class="world-map"
+    style="width: 100%; height: 100vh;"
+  />
 </template>
 
 <script>
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
+import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '@/terrain/biomes';
 
 export default {
   name: 'WorldMap',
   data() {
     return {
+      // core three
       scene: null,
       camera: null,
       renderer: null,
       composer: null,
-      hexes: [],
+
+      // instancing & picking
+      topIM: null,
+      sideIM: null,
+      pickMeshes: [],
+      indexToQR: [],
+  topGeom: null,
+  sideGeom: null,
+  hoverIdx: null,
+  hoverPrevColor: null,
+  hoverMesh: null,
+  tmpMatrix: new THREE.Matrix4(),
+  hoverTmpPos: new THREE.Vector3(),
+  hoverTmpQuat: new THREE.Quaternion(),
+  hoverTmpScale: new THREE.Vector3(),
+
+      // noise
       heightNoise: new SimplexNoise('height'),
-      moistureNoise: new SimplexNoise('moisture'),
+      foliageNoise: new SimplexNoise('foliage'),
       temperatureNoise: new SimplexNoise('temperature'),
+      mountainNoise: new SimplexNoise('mountain'),
+  waterMaskNoise: null,
+
+      // interaction
       raycaster: new THREE.Raycaster(),
       mouse: new THREE.Vector2(),
-      hoveredHex: null,
+      rotating: false,
+      dragStart: { x: 0, y: 0 },
+
+      // model/meta
       hexModel: null,
+      fxaaPass: null,
+      modelScaleFactor: 1,
+      modelCenter: new THREE.Vector3(0, 0, 0),
+      orientation: 'flat',
+      orbit: {
+        target: new THREE.Vector3(0, 0, 0),
+        radius: 30,
+        theta: Math.PI / 4,
+        phi: Math.PI / 4,
+        minRadius: 5,
+        maxRadius: 150,
+        minPhi: 0.15,
+        maxPhi: Math.PI / 2 - 0.05,
+      },
+
+      // layout
+      layoutRadius: 0.5,
+      gridSize: 20,
+  spacingFactor: 1.0, // exact geometric spacing for hex lattice
+  contactScale: 1.015, // initialized; auto-computed after load
+  contactBias: 1.0, // additional multiplier (keep at 1.0 when using gapFraction)
+  gapFraction: 0.03, // desired gap size as a fraction of layoutRadius (e.g., 3%)
+
+      // elevation shaping
+      elevation: {
+        base: 0.08,
+        max: 1.2,
+        curve: 1.35,
+        minLand: 0.32,
+        shorelineBlend: 0.08,
+      },
+      terrainShape: {
+        baseFreq: 0.07,
+        mountainFreq: 0.16,
+        mountainThreshold: 0.78,
+        mountainStrength: 0.6,
+        plainsExponent: 1.6,
+        mountainExponent: 1.25,
+        finalExponent: 1.25,
+      },
+
+      // fps
+      fpsFrames: 0,
+      fpsTime: 0,
+      fps: 0,
+      fpsEl: null,
     };
   },
   mounted() {
@@ -34,37 +110,110 @@ export default {
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
     this.$refs.sceneContainer.addEventListener('pointermove', this.onPointerMove);
+    this.$refs.sceneContainer.addEventListener('pointerup', this.onPointerUp);
+    this.$refs.sceneContainer.addEventListener('pointerleave', this.onPointerUp);
+    this.$refs.sceneContainer.addEventListener('contextmenu', this.blockContext);
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.onResize);
     this.$refs.sceneContainer.removeEventListener('pointerdown', this.onPointerDown);
     this.$refs.sceneContainer.removeEventListener('pointermove', this.onPointerMove);
+    this.$refs.sceneContainer.removeEventListener('pointerup', this.onPointerUp);
+    this.$refs.sceneContainer.removeEventListener('pointerleave', this.onPointerUp);
+    this.$refs.sceneContainer.removeEventListener('wheel', this.onWheel);
+    this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
   },
   methods: {
+    computeContactScaleFromGeom() {
+      if (!this.topGeom || !this.topGeom.attributes || !this.topGeom.attributes.position) return 1.0;
+      const pos = this.topGeom.attributes.position;
+      const R = this.layoutRadius;
+      const deltas = [
+        new THREE.Vector2(1.5 * R, Math.sqrt(3) * 0.5 * R),
+        new THREE.Vector2(1.5 * R, -Math.sqrt(3) * 0.5 * R),
+        new THREE.Vector2(0, Math.sqrt(3) * R),
+        new THREE.Vector2(-1.5 * R, -Math.sqrt(3) * 0.5 * R),
+        new THREE.Vector2(-1.5 * R, Math.sqrt(3) * 0.5 * R),
+        new THREE.Vector2(0, -Math.sqrt(3) * R),
+      ];
+  const sx = this.modelScaleFactor || 1.0;
+      let needed = Infinity;
+      for (let k = 0; k < deltas.length; k += 1) {
+        const delta = deltas[k];
+        const centerDist = delta.length();
+        if (centerDist === 0) continue;
+        const d = delta.clone().normalize();
+        let minDot = Infinity;
+        let maxDot = -Infinity;
+        for (let i = 0; i < pos.count; i += 1) {
+          const x = pos.getX(i);
+          const z = pos.getZ(i);
+          const dot = x * d.x + z * d.y;
+          if (dot < minDot) minDot = dot;
+          if (dot > maxDot) maxDot = dot;
+        }
+        const footprint = (maxDot - minDot);
+        if (footprint > 0) {
+          const desiredGap = Math.max(0, (this.gapFraction || 0) * this.layoutRadius);
+          const centerMinusGap = Math.max(0.001, centerDist - desiredGap);
+          const required = centerMinusGap / (sx * footprint);
+          if (required < needed) needed = required;
+        }
+      }
+      if (!isFinite(needed)) return 1.0;
+      // Return the scale that yields at least the desired gap along all directions
+      return Math.max(0.5, Math.min(1.5, needed));
+    },
     init() {
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
 
       this.scene = new THREE.Scene();
-
       this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
       this.camera.position.set(0, 20, 20);
       this.camera.lookAt(0, 0, 0);
 
-      this.renderer = new THREE.WebGLRenderer({ antialias: true });
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const camVec = this.camera.position.clone().sub(this.orbit.target);
+      this.orbit.radius = camVec.length();
+      this.orbit.theta = Math.atan2(camVec.x, camVec.z);
+      this.orbit.phi = Math.acos(camVec.y / this.orbit.radius);
+
+  this.renderer = new THREE.WebGLRenderer({ antialias: false });
+  // Slightly upscale to reduce aliasing while keeping perf in check
+  const pr = Math.min(1.5, (window.devicePixelRatio || 1));
+  this.renderer.setPixelRatio(pr);
       this.renderer.setSize(width, height);
+      if (this.renderer.outputEncoding !== undefined) this.renderer.outputEncoding = THREE.sRGBEncoding;
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.0;
+      this.renderer.physicallyCorrectLights = false;
       this.$refs.sceneContainer.appendChild(this.renderer.domElement);
+
+      // FPS overlay
+      this.fpsEl = document.createElement('div');
+      Object.assign(this.fpsEl.style, {
+        position: 'absolute', top: '4px', right: '6px', padding: '2px 6px',
+        background: 'rgba(0,0,0,0.4)', color: '#fff', font: '11px monospace',
+        borderRadius: '4px', pointerEvents: 'none', zIndex: 1,
+      });
+      this.fpsEl.textContent = 'FPS: --';
+      this.$refs.sceneContainer.appendChild(this.fpsEl);
 
       this.composer = new EffectComposer(this.renderer);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.3, 0.2, 0.85);
-      this.composer.addPass(bloomPass);
+      this.fxaaPass = new ShaderPass(FXAAShader);
+      const pixelRatio = this.renderer.getPixelRatio();
+      this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+      this.composer.addPass(this.fxaaPass);
 
-      const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(10, 20, 10);
-      this.scene.add(ambient, dirLight);
+      const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      keyLight.position.set(22, 40, 28);
+      this.scene.add(ambient, keyLight);
+
+      // Wheel zoom
+      this.onWheel = this.onWheel.bind(this);
+      this.$refs.sceneContainer.addEventListener('wheel', this.onWheel, { passive: false });
 
       this.loadModel();
       this.animate = this.animate.bind(this);
@@ -72,73 +221,236 @@ export default {
     },
     loadModel() {
       const loader = new GLTFLoader();
-      loader.load('/models/hex-can.glb', (gltf) => {
+  loader.load('/models/hex-can.glb', (gltf) => {
         this.hexModel = gltf.scene;
+        if (this.orientation === 'flat') {
+          this.hexModel.rotation.y = Math.PI / 6;
+        }
+  const orientedBox = new THREE.Box3().setFromObject(this.hexModel);
+        const sizeVec = new THREE.Vector3();
+        orientedBox.getSize(sizeVec);
+        orientedBox.getCenter(this.modelCenter);
+  const targetFlatWidth = 2 * this.layoutRadius;
+  const refWidth = Math.max(sizeVec.x, sizeVec.z);
+  this.modelScaleFactor = targetFlatWidth / refWidth;
+  // Do NOT scale the source model; we'll scale per instance and use unscaled center*scale for offsets
+
+  // Ensure matrices are up to date so matrixWorld contains parent rotation
+  this.hexModel.updateWorldMatrix(true, true);
+
+        // Fix normals if inverted
+        this.hexModel.traverse((child) => {
+          if (child.isMesh && child.geometry) {
+            const geom = child.geometry;
+            if (!geom.attributes.normal) geom.computeVertexNormals();
+            geom.computeBoundingSphere();
+            const center = geom.boundingSphere ? geom.boundingSphere.center : new THREE.Vector3();
+            const pos = geom.attributes.position;
+            const normal = geom.attributes.normal;
+            let inward = 0; let total = 0;
+            const tmpV = new THREE.Vector3();
+            const tmpN = new THREE.Vector3();
+            const step = Math.max(1, Math.floor(pos.count / 60));
+            for (let i = 0; i < pos.count; i += step) {
+              tmpV.fromBufferAttribute(pos, i).sub(center);
+              tmpN.fromBufferAttribute(normal, i);
+              if (tmpV.dot(tmpN) < 0) inward++;
+              total++;
+            }
+            if (total > 0 && inward > total / 2) {
+              geom.scale(-1, 1, 1);
+              geom.computeVertexNormals();
+            }
+          }
+        });
+
+        // Extract base geometries for instancing
+    this.topGeom = null;
+    this.sideGeom = null;
+        this.hexModel.traverse((child) => {
+          if (child.isMesh) {
+            const name = (child.name || '').toLowerCase();
+            const g = child.geometry.clone();
+            g.applyMatrix4(child.matrixWorld.clone());
+            if (name.includes('top')) this.topGeom = g; else this.sideGeom = g;
+          }
+        });
+        // Fallback if naming doesn't match expectations
+        if (!this.topGeom && this.sideGeom) {
+          console.warn('[WorldMap] top geometry not found; using side geometry as top');
+          this.topGeom = this.sideGeom.clone();
+        }
+        if (!this.sideGeom && this.topGeom) {
+          console.warn('[WorldMap] side geometry not found; using top geometry as side');
+          this.sideGeom = this.topGeom.clone();
+        }
+        // Normalize both geometries so their bottom sits at y=0 and x/z are centered at origin
+        const recenter = (geom) => {
+          if (!geom) return;
+          geom.computeBoundingBox();
+          if (!geom.boundingBox) return;
+          const box = geom.boundingBox;
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          const minY = box.min.y;
+          const m = new THREE.Matrix4().makeTranslation(-center.x, -minY, -center.z);
+          geom.applyMatrix4(m);
+          geom.computeBoundingSphere();
+        };
+        recenter(this.topGeom);
+        recenter(this.sideGeom);
+        // After normalization, compute modelScaleFactor from corner radius (max distance to corner in XZ)
+        if (this.topGeom && this.topGeom.attributes && this.topGeom.attributes.position) {
+          const pos = this.topGeom.attributes.position;
+          let maxR = 0;
+          for (let i = 0; i < pos.count; i += 1) {
+            const x = pos.getX(i);
+            const z = pos.getZ(i);
+            const r = Math.hypot(x, z);
+            if (r > maxR) maxR = r;
+          }
+          if (maxR > 0) {
+            this.modelScaleFactor = this.layoutRadius / maxR;
+          }
+          const suggested = this.computeContactScaleFromGeom();
+          const applied = Math.max(0.5, Math.min(1.5, suggested * (this.contactBias || 1.0)));
+          this.contactScale = applied;
+          console.info('[WorldMap] gapFraction =', (this.gapFraction || 0).toFixed(4), 'suggested contactScale =', suggested.toFixed(4), 'applied =', applied.toFixed(4));
+        }
         this.createHexGrid();
+      }, undefined, (err) => {
+        console.error('[WorldMap] Failed to load /models/hex-can.glb', err);
       });
     },
     createHexGrid() {
-      if (!this.hexModel) return;
-      const layoutRadius = 1;
-      const baseScale = layoutRadius * 0.95;
-      const size = 10;
-      const hexWidth = layoutRadius * 1.5;
-      const hexHeight = Math.sqrt(3) * layoutRadius;
-      const maxHeight = 5;
-      const tan = new THREE.Color('#d2b48c');
-      const green = new THREE.Color('#22c55e');
-      const shallow = new THREE.Color('#93c5fd');
-      const deep = new THREE.Color('#2563eb');
+    if (!this.topGeom || !this.sideGeom) return;
+      const layoutRadius = this.layoutRadius;
+  const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+  const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+      const size = this.gridSize;
+      const maxHeight = this.elevation.max;
+  const sx = this.modelScaleFactor;
+  const xzScale = sx * this.contactScale; // widen footprint slightly to avoid cracks
+      const tmpColor = new THREE.Color();
+      const tmpSide = new THREE.Color();
 
+      const count = (2 * size + 1) * (2 * size + 1);
+  const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  this.topIM = new THREE.InstancedMesh(this.topGeom, topMat, count);
+  this.sideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, count);
+      this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+      const dummy = new THREE.Object3D();
+      this.indexToQR = new Array(count);
+      let i = 0;
       for (let q = -size; q <= size; q += 1) {
         for (let r = -size; r <= size; r += 1) {
-          const h = (this.heightNoise.noise2D(q * 0.1, r * 0.1) + 1) / 2;
-          const m = (this.moistureNoise.noise2D(q * 0.1 + 100, r * 0.1 + 100) + 1) / 2;
-          const t = (this.temperatureNoise.noise2D(q * 0.1 - 100, r * 0.1 - 100) + 1) / 2;
+          const h = this.getHeight(q, r);
+          const f = (this.foliageNoise.noise2D(q * 0.075 + 100, r * 0.075 + 100) + 1) / 2;
+          const t = (this.temperatureNoise.noise2D(q * 0.075 - 100, r * 0.075 - 100) + 1) / 2;
+          let color = biomeColor(h, f, t, tmpColor);
+          let biome = classifyBiome(h);
 
-          let color = new THREE.Color();
-          if (m < 0.7) {
-            color = tan.clone().lerp(green, m / 0.7);
-          } else {
-            color = shallow.clone().lerp(deep, (m - 0.7) / 0.3);
-          }
+          const curved = Math.pow(h, this.elevation.curve);
+          let baseScaleY = this.elevation.base + curved * maxHeight;
+          if (!this.waterMaskNoise) this.waterMaskNoise = new SimplexNoise('waterMask');
+          const waterMask = (this.waterMaskNoise.noise2D((q + 250) * 0.035, (r - 120) * 0.035) + 1) / 2;
+          const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
+          baseScaleY = baseScaleY * (1 - 0.35 * waterCut);
 
-          const hsl = { h: 0, s: 0, l: 0 };
-          color.getHSL(hsl);
-          if (t < 0.5) {
-            hsl.s = THREE.MathUtils.lerp(0, hsl.s, t / 0.5);
-          } else {
-            hsl.s = THREE.MathUtils.lerp(hsl.s, 1, (t - 0.5) / 0.5);
-          }
-          color.setHSL(hsl.h, hsl.s, hsl.l);
-
-          const hex = this.hexModel.clone(true);
-          hex.traverse((node) => {
-            if (node.isMesh) {
-              node.material = node.material.clone();
-              if (node.name && node.name.toLowerCase().includes('top')) {
-                node.material.color.copy(color);
-                node.material.emissive = new THREE.Color(0x000000);
-                hex.userData.top = node;
-              } else {
-                node.material.color.set('#888888');
-              }
+          let yScale = baseScaleY;
+          const shoreTop = BIOME_THRESHOLDS.shallowWater;
+          const blendRange = this.elevation.shorelineBlend;
+          if (biome !== 'deepWater' && biome !== 'shallowWater') {
+            if (h <= shoreTop + blendRange) {
+              const tt = (h - shoreTop) / blendRange;
+              const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : (tt * tt * (3 - 2 * tt));
+              const raised = Math.max(baseScaleY, this.elevation.minLand);
+              yScale = THREE.MathUtils.lerp(baseScaleY, raised, smoothT);
+            } else if (baseScaleY < this.elevation.minLand) {
+              const deficit = (this.elevation.minLand - baseScaleY);
+              yScale = baseScaleY + deficit * 0.85;
             }
-          });
+          }
+
+          const hVisual = Math.max(0, Math.min(1, (yScale - this.elevation.base) / maxHeight));
+          biome = classifyBiome(hVisual);
+          color = biomeColor(hVisual, f, t, tmpColor);
+          tmpSide.copy(color);
+          const hslTmp = { h: 0, s: 0, l: 0 };
+          tmpSide.getHSL(hslTmp);
+          hslTmp.l = Math.min(1, hslTmp.l * 0.55 + 0.25);
+          tmpSide.setHSL(hslTmp.h, hslTmp.s * 0.5, hslTmp.l);
+
           const x = hexWidth * q;
           const z = hexHeight * (r + q / 2);
-          hex.position.set(x, 0, z);
-          hex.scale.set(baseScale, h * maxHeight + 0.1, baseScale);
-          hex.userData.q = q;
-          hex.userData.r = r;
-          this.scene.add(hex);
-          this.hexes.push(hex);
+          const px = x;
+          const py = 0;
+          const pz = z;
+
+          dummy.position.set(px, py, pz);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(xzScale, sx * yScale, xzScale);
+          dummy.updateMatrix();
+          this.topIM.setMatrixAt(i, dummy.matrix);
+          this.sideIM.setMatrixAt(i, dummy.matrix);
+          this.topIM.setColorAt(i, color);
+          this.sideIM.setColorAt(i, tmpSide);
+          this.indexToQR[i] = { q, r };
+          i++;
         }
       }
+      this.topIM.instanceMatrix.needsUpdate = true;
+      this.sideIM.instanceMatrix.needsUpdate = true;
+      if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+      if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+  this.scene.add(this.sideIM);
+  this.scene.add(this.topIM);
+      // Create a single hover overlay mesh (slightly larger) to avoid relying on instance colors
+      if (!this.hoverMesh) {
+        const hoverMat = new THREE.MeshBasicMaterial({
+          color: 0xffff66,
+          transparent: true,
+          opacity: 0.4,
+          depthTest: false,
+          depthWrite: false,
+        });
+        this.hoverMesh = new THREE.Mesh(this.topGeom, hoverMat);
+        this.hoverMesh.visible = false;
+        this.hoverMesh.matrixAutoUpdate = false;
+        this.hoverMesh.renderOrder = 9999;
+        this.scene.add(this.hoverMesh);
+      }
+      this.pickMeshes = [this.topIM, this.sideIM];
+    },
+    getHeight(q, r) {
+      const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
+      const plains = Math.pow(base, this.terrainShape.plainsExponent);
+      const mRaw = (this.mountainNoise.noise2D(q * this.terrainShape.mountainFreq + 250, r * this.terrainShape.mountainFreq + 250) + 1) / 2;
+      let mountain = 0;
+      if (mRaw > this.terrainShape.mountainThreshold) {
+        const norm = (mRaw - this.terrainShape.mountainThreshold) / (1 - this.terrainShape.mountainThreshold);
+        mountain = Math.pow(norm, this.terrainShape.mountainExponent) * this.terrainShape.mountainStrength;
+      }
+      let h = plains + mountain;
+      h = Math.min(1, Math.max(0, h));
+      h = Math.pow(h, this.terrainShape.finalExponent);
+      return h;
     },
     animate() {
       requestAnimationFrame(this.animate);
       this.composer.render();
+      const now = performance.now();
+      if (!this.fpsTime) { this.fpsTime = now; this.fpsFrames = 0; }
+      this.fpsFrames += 1;
+      const elapsed = now - this.fpsTime;
+      if (elapsed >= 500) {
+        this.fps = Math.round((this.fpsFrames * 1000) / elapsed);
+        if (this.fpsEl) this.fpsEl.textContent = `FPS: ${this.fps}`;
+        this.fpsTime = now; this.fpsFrames = 0;
+      }
     },
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
@@ -147,50 +459,90 @@ export default {
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
       this.composer.setSize(width, height);
+      if (this.fxaaPass) {
+        const pixelRatio = this.renderer.getPixelRatio();
+        this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+      }
     },
     onPointerDown(event) {
+      if (event.button === 2) {
+        this.rotating = true;
+        this.dragStart.x = event.clientX;
+        this.dragStart.y = event.clientY;
+        return;
+      }
+      if (event.button !== 0) return;
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.hexes, true);
+      const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
       if (intersects.length > 0) {
-        let hex = intersects[0].object;
-        while (hex && hex.parent && hex.userData.q === undefined) {
-          hex = hex.parent;
-        }
-        if (hex && hex.userData.q !== undefined) {
-          api.post('world/move', { q: hex.userData.q, r: hex.userData.r });
+        const hit = intersects[0];
+        const idx = hit.instanceId;
+        if (idx != null && this.indexToQR[idx]) {
+          const { q, r } = this.indexToQR[idx];
+          api.post('world/move', { q, r });
         }
       }
     },
     onPointerMove(event) {
+      if (this.rotating) {
+        const dx = event.movementX || (event.clientX - this.dragStart.x);
+        const dy = event.movementY || (event.clientY - this.dragStart.y);
+        const baseSpeed = 0.0015;
+        const adapt = Math.sqrt(this.orbit.radius) / Math.sqrt(30);
+        const rotateSpeed = baseSpeed * adapt;
+        this.orbit.theta -= dx * rotateSpeed;
+        this.orbit.phi -= dy * rotateSpeed;
+        this.orbit.phi = Math.min(this.orbit.maxPhi, Math.max(this.orbit.minPhi, this.orbit.phi));
+        this.updateCameraFromOrbit();
+        this.dragStart.x = event.clientX;
+        this.dragStart.y = event.clientY;
+        return;
+      }
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.hexes, true);
+      const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
       if (intersects.length > 0) {
-        let hex = intersects[0].object;
-        while (hex && hex.parent && hex.userData.q === undefined) {
-          hex = hex.parent;
+        const hit = intersects[0];
+        const idx = hit.instanceId;
+        if (idx != null) {
+          this.topIM.getMatrixAt(idx, this.tmpMatrix);
+          this.hoverMesh.matrix.copy(this.tmpMatrix);
+          // Slight scale up to make outline visible
+          this.hoverMesh.matrix.decompose(this.hoverTmpPos, this.hoverTmpQuat, this.hoverTmpScale);
+          this.hoverTmpScale.multiplyScalar(1.02);
+          this.hoverMesh.matrix.compose(this.hoverTmpPos, this.hoverTmpQuat, this.hoverTmpScale);
+          this.hoverMesh.visible = true;
+          this.hoverIdx = idx;
         }
-        if (hex && this.hoveredHex !== hex) {
-          if (this.hoveredHex && this.hoveredHex.userData.top) {
-            this.hoveredHex.userData.top.material.emissive.setHex(0x000000);
-          }
-          if (hex.userData.top) {
-            hex.userData.top.material.emissive.setHex(0x333333);
-          }
-          this.hoveredHex = hex;
-        }
-      } else if (this.hoveredHex) {
-        if (this.hoveredHex.userData.top) {
-          this.hoveredHex.userData.top.material.emissive.setHex(0x000000);
-        }
-        this.hoveredHex = null;
+      } else {
+        this.hoverIdx = null;
+        if (this.hoverMesh) this.hoverMesh.visible = false;
       }
     },
+    onPointerUp(event) {
+      if (event.button === 2) this.rotating = false;
+    },
+    updateCameraFromOrbit() {
+      const { radius, theta, phi, target } = this.orbit;
+      const x = radius * Math.sin(phi) * Math.sin(theta);
+      const z = radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.cos(phi);
+      this.camera.position.set(target.x + x, target.y + y, target.z + z);
+      this.camera.lookAt(target);
+    },
+    onWheel(e) {
+      e.preventDefault();
+      const zoomFactor = 1 + (e.deltaY > 0 ? 0.12 : -0.12);
+      this.orbit.radius *= zoomFactor;
+      this.orbit.radius = Math.min(this.orbit.maxRadius, Math.max(this.orbit.minRadius, this.orbit.radius));
+      this.updateCameraFromOrbit();
+    },
+    blockContext(e) { e.preventDefault(); },
   },
 };
 </script>
