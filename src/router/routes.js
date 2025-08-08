@@ -62,7 +62,7 @@ export default [
     },
   },
   {
-    path: '*',
+    path: '/:pathMatch(.*)*',
     name: 'Page Not Found',
     component: () => import('@/views/hidden/NotFound'),
     meta: {

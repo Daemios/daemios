@@ -1,14 +1,13 @@
-import Vue from 'vue';
-import Vuetify from 'vuetify/lib/framework';
+import 'vuetify/styles';
+import { createVuetify } from 'vuetify';
+import { aliases, mdi } from 'vuetify/iconsets/mdi-svg';
 import themes from '@/vuetify/themes';
 
-Vue.use(Vuetify);
-
-const vuetify = new Vuetify({
+export default createVuetify({
   theme: themes,
   icons: {
-    iconfont: 'mdiSvg',
+    defaultSet: 'mdi',
+    aliases,
+    sets: { mdi },
   },
 });
-
-export default vuetify;

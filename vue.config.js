@@ -8,4 +8,11 @@ module.exports = {
   transpileDependencies: [
     'vuetify',
   ],
+  configureWebpack: {
+    resolve: {
+      alias: {
+        'vue$': '@vue/compat',
+      },
+    },
+  },
 };
