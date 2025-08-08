@@ -29,6 +29,7 @@ export default class ClutterManager {
     this.worldSeed = 1337;
     this.maxPerType = 15000; // hard cap safety
   this._shadowsEnabled = false;
+  this._fade = { enabled: false, center: new THREE.Vector2(0, 0), radius: 0.0, corner: 0.5, cullWholeHex: true };
   }
 
   addTo(scene) { this.scene = scene; this._ensurePools(); this._attachPools(); }
@@ -89,7 +90,48 @@ export default class ClutterManager {
           geom.scale(s, s, s);
           geom.computeBoundingSphere();
         }
-        this.assets.set(t.id, { geom, material: mat });
+        // Attach radial fade discard to clutter materials; uniforms updated from WorldMap
+  const self = this;
+  /* eslint-disable no-param-reassign */
+        mat.onBeforeCompile = (shader) => {
+          shader.uniforms.uFadeCenter = { value: self._fade.center.clone() };
+          shader.uniforms.uFadeRadius = { value: self._fade.radius };
+          shader.uniforms.uFadeEnabled = { value: self._fade.enabled ? 1 : 0 };
+          shader.uniforms.uHexCornerRadius = { value: self._fade.corner };
+          shader.uniforms.uCullWholeHex = { value: self._fade.cullWholeHex ? 1 : 0 };
+          const vDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+          shader.vertexShader = vDecl + shader.vertexShader
+            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;`)
+            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+          const fDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+          const inject = `\n            // CLUTTER_FADE\n            if (uFadeEnabled == 1) {\n              if (uCullWholeHex == 1) {\n                float cDist = length(vInstCenter.xz - uFadeCenter);\n                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }\n              } else {\n                float d = length(vWorldPos.xz - uFadeCenter);\n                if (d >= uFadeRadius) { discard; }\n              }\n            }\n          `;
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>' + fDecl)
+            .replace('#include <dithering_fragment>', inject + '\n#include <dithering_fragment>');
+          // Stash uniforms for live updates
+          mat.userData._fadeUniforms = shader.uniforms;
+  };
+        // Create depth material mirroring the same discard so shadows match
+        const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+        depth.onBeforeCompile = (shader) => {
+          shader.uniforms.uFadeCenter = { value: self._fade.center.clone() };
+          shader.uniforms.uFadeRadius = { value: self._fade.radius };
+          shader.uniforms.uFadeEnabled = { value: self._fade.enabled ? 1 : 0 };
+          shader.uniforms.uHexCornerRadius = { value: self._fade.corner };
+          shader.uniforms.uCullWholeHex = { value: self._fade.cullWholeHex ? 1 : 0 };
+          const vDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+          shader.vertexShader = vDecl + shader.vertexShader
+            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;`)
+            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+          const fDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+          const inject = `\n            // CLUTTER_FADE_DEPTH\n            if (uFadeEnabled == 1) {\n              if (uCullWholeHex == 1) {\n                float cDist = length(vInstCenter.xz - uFadeCenter);\n                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }\n              } else {\n                float d = length(vWorldPos.xz - uFadeCenter);\n                if (d >= uFadeRadius) { discard; }\n              }\n            }\n          `;
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>' + fDecl)
+            .replace('#include <dithering_fragment>', inject + '\n#include <dithering_fragment>');
+          depth.userData._fadeUniforms = shader.uniforms;
+  };
+  /* eslint-enable no-param-reassign */
+        this.assets.set(t.id, { geom, material: mat, depthMaterial: depth });
         resolve();
       }, undefined, (err) => {
         console.error('[Clutter] Failed to load', t.model, err);
@@ -109,8 +151,14 @@ export default class ClutterManager {
       im.count = 0; // no instances until commit
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.visible = this.enabled;
+  im.frustumCulled = false;
   im.castShadow = this._shadowsEnabled;
   im.receiveShadow = this._shadowsEnabled;
+      // Ensure depth/distance share the same fade discard
+      if (asset.depthMaterial) {
+        im.customDepthMaterial = asset.depthMaterial;
+        im.customDistanceMaterial = asset.depthMaterial;
+      }
       this.pools.set(t.id, im);
     }
   }
@@ -129,7 +177,7 @@ export default class ClutterManager {
   }
 
   // Build instances based on world data and spawn rules.
-  commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY }) {
+  commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY, filter, offsetRect, axialRect }) {
     if (!this.scene || !this.world) return;
     const rngBase = makeRng(this.worldSeed);
     const tileInner = layoutRadius * contactScale * this.avoidEdges;
@@ -138,10 +186,34 @@ export default class ClutterManager {
     const placements = new Map();
     for (const t of this.types) placements.set(t.id, []);
 
-    const bounds = this.world.bounds();
-    for (let q = bounds.minQ; q <= bounds.maxQ; q += 1) {
-      for (let r = bounds.minR; r <= bounds.maxR; r += 1) {
-        const cell = this.world.getCell(q, r);
+    const forEachTile = (cb) => {
+      if (offsetRect && typeof offsetRect === 'object') {
+        const { colMin, colMax, rowMin, rowMax } = offsetRect;
+        const offsetToAxial = (col, row) => ({ q: col, r: row - Math.floor(col / 2) });
+        for (let col = colMin; col <= colMax; col += 1) {
+          for (let row = rowMin; row <= rowMax; row += 1) {
+            const { q, r } = offsetToAxial(col, row);
+            cb(q, r);
+          }
+        }
+        return;
+      }
+      if (axialRect && typeof axialRect === 'object') {
+        const { qMin, qMax, rMin, rMax } = axialRect;
+        for (let q = qMin; q <= qMax; q += 1) {
+          for (let r = rMin; r <= rMax; r += 1) cb(q, r);
+        }
+        return;
+      }
+      const bounds = this.world.bounds();
+      for (let q = bounds.minQ; q <= bounds.maxQ; q += 1) {
+        for (let r = bounds.minR; r <= bounds.maxR; r += 1) cb(q, r);
+      }
+    };
+
+    forEachTile((q, r) => {
+      if (typeof filter === 'function' && !filter(q, r)) return;
+      const cell = this.world.getCell(q, r);
         const biomeRules = (type) => type.biomes[cell.biome];
         const foliage = cell.f; // 0..1
         const temp = cell.t; // 0..1
@@ -152,7 +224,7 @@ export default class ClutterManager {
         // Shared per-tile flora placements for collision across tree types
         const floraPlaced = [];
 
-        for (const typeDef of this.types) {
+  for (const typeDef of this.types) {
           const rule = biomeRules(typeDef);
           if (!rule) continue;
           // Temperature gating for tree types
@@ -210,9 +282,8 @@ export default class ClutterManager {
             if (typeDef.category === 'flora') floraPlaced.push({ x: offx, z: offz, minDist });
             placed += 1;
           }
-        }
-      }
     }
+  });
 
     // Ensure pools exist with sufficient capacity, then write instances
     const dummy = new THREE.Object3D();
@@ -234,6 +305,10 @@ export default class ClutterManager {
         im.frustumCulled = false; // avoid incorrect culling across wide map
   im.castShadow = this._shadowsEnabled;
   im.receiveShadow = this._shadowsEnabled;
+        if (asset.depthMaterial) {
+          im.customDepthMaterial = asset.depthMaterial;
+          im.customDistanceMaterial = asset.depthMaterial;
+        }
         if (this.scene) this.scene.add(im);
         this.pools.set(t.id, im);
       } else if (needed > im.instanceMatrix.count) {
@@ -245,6 +320,10 @@ export default class ClutterManager {
         newIM.frustumCulled = false;
   newIM.castShadow = this._shadowsEnabled;
   newIM.receiveShadow = this._shadowsEnabled;
+        if (asset.depthMaterial) {
+          newIM.customDepthMaterial = asset.depthMaterial;
+          newIM.customDistanceMaterial = asset.depthMaterial;
+        }
         if (im.parent) im.parent.add(newIM); else if (this.scene) this.scene.add(newIM);
         if (im.parent) im.parent.remove(im);
         this.pools.set(t.id, newIM);
@@ -282,6 +361,41 @@ export default class ClutterManager {
       if (!im) continue;
       im.castShadow = this._shadowsEnabled;
       im.receiveShadow = this._shadowsEnabled;
+    }
+  }
+
+  // External API: toggle overall clutter visibility/enabled flag
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+    for (const [, im] of this.pools) {
+      if (!im) continue;
+      im.visible = this.enabled && (im.count > 0);
+    }
+  }
+
+  // External API: drive fade uniforms from world each frame
+  setRadialFadeState({ enabled, center, radius, corner, cullWholeHex = true }) {
+    this._fade.enabled = !!enabled;
+    if (center) this._fade.center.set(center.x || center[0] || 0, center.y || center[1] || 0);
+    if (radius != null) this._fade.radius = radius;
+    if (corner != null) this._fade.corner = corner;
+    this._fade.cullWholeHex = !!cullWholeHex;
+    // Push to all known materials
+  /* eslint-disable no-param-reassign */
+  const updateUniforms = (u) => {
+      if (!u) return;
+      if (u.uFadeEnabled) u.uFadeEnabled.value = this._fade.enabled ? 1 : 0;
+      if (u.uFadeCenter && u.uFadeCenter.value) u.uFadeCenter.value.copy(this._fade.center);
+      if (u.uFadeRadius) u.uFadeRadius.value = this._fade.radius;
+      if (u.uHexCornerRadius) u.uHexCornerRadius.value = this._fade.corner;
+      if (u.uCullWholeHex) u.uCullWholeHex.value = this._fade.cullWholeHex ? 1 : 0;
+    };
+  /* eslint-enable no-param-reassign */
+    for (const [, asset] of this.assets) {
+      const um = asset.material && asset.material.userData && asset.material.userData._fadeUniforms;
+      updateUniforms(um);
+      const ud = asset.depthMaterial && asset.depthMaterial.userData && asset.depthMaterial.userData._fadeUniforms;
+      updateUniforms(ud);
     }
   }
 }

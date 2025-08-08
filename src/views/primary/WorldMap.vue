@@ -27,6 +27,14 @@
         <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input
+              v-model="features.clutter"
+              type="checkbox"
+              @change="onToggleClutter"
+            >
+            Ground clutter
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input
               v-model="features.shadows"
               type="checkbox"
               @change="onToggleShadows"
@@ -171,6 +179,7 @@ export default {
   hoverTmpPos: new THREE.Vector3(),
   hoverTmpQuat: new THREE.Quaternion(),
   hoverTmpScale: new THREE.Vector3(),
+  clutterCommitTimer: null,
 
   // world data / systems
   world: null, // WorldGrid instance
@@ -206,6 +215,7 @@ export default {
   spacingFactor: 1.0, // exact geometric spacing for hex lattice
   contactScale: 1.0, // auto-computed after model load to make tiles touch
   gapFraction: 0.0, // desired gap size as a fraction of layoutRadius (0 = touching)
+  sideInset: 0.996, // shrink side XZ a hair to avoid coplanar overlap between neighbors
 
   // Chunking (rectangular chunks over hex grid using even-q offset)
   chunkCols: 28,
@@ -246,7 +256,7 @@ export default {
   
   // Debug / Features (defaults; will be overridden from settings if present)
   debug: { show: true },
-  features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true },
+  features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
   
   // Rendering toggles
@@ -277,6 +287,11 @@ export default {
       this.$store.commit('settings/mergeAtPath', { path: 'worldMap', value: val });
     }, { deep: true, immediate: true });
 
+    // Recompute clutter when radial fade parameters change so props respect the boundary live
+    this.$watch(() => this.radialFade, () => {
+      this.scheduleClutterCommit(120);
+    }, { deep: true });
+
     this.init();
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
@@ -295,7 +310,42 @@ export default {
     this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
   },
   methods: {
-    setupRadialFade(mat, bucketKey) {
+    // Helper: commit clutter for current 3x3 chunk neighborhood and current fade
+    commitClutterForNeighborhood() {
+      if (!this.clutter || !this.world) return;
+      const layoutRadius = this.layoutRadius;
+      const contactScale = this.contactScale;
+      const hexMaxY = this.hexMaxY;
+      const modelScaleY = (q, r) => {
+        const c = this.world.getCell(q, r);
+        return this.modelScaleFactor * (c ? c.yScale : 1);
+      };
+      // Compute offset rect of the 3x3 chunks
+      const colMin = (this.centerChunk.x - 1) * this.chunkCols;
+      const rowMin = (this.centerChunk.y - 1) * this.chunkRows;
+      const colMax = (this.centerChunk.x + 1) * this.chunkCols + (this.chunkCols - 1);
+      const rowMax = (this.centerChunk.y + 1) * this.chunkRows + (this.chunkRows - 1);
+  // No pre-cull by fade; generate for full 3x3 area and let clutter shader fade discard handle visibility
+  const filter = undefined;
+      this.clutter.commitInstances({
+        layoutRadius,
+        contactScale,
+        hexMaxY,
+        modelScaleY,
+  filter,
+        offsetRect: { colMin, colMax, rowMin, rowMax },
+      });
+      this.clutter.setEnabled(!!this.features.clutter);
+    },
+    // Debounced clutter commit to avoid spamming during slider drags
+    scheduleClutterCommit(delayMs = 120) {
+      if (this.clutterCommitTimer) { clearTimeout(this.clutterCommitTimer); this.clutterCommitTimer = null; }
+      this.clutterCommitTimer = setTimeout(() => {
+        this.clutterCommitTimer = null;
+        this.commitClutterForNeighborhood();
+      }, Math.max(0, delayMs | 0));
+    },
+  setupRadialFade(mat, bucketKey) {
       const self = this;
   /* eslint-disable no-param-reassign */
       mat.onBeforeCompile = (shader) => {
@@ -322,7 +372,12 @@ export default {
             float distXZ_v = length(wpos_pre.xz - vec2(uFadeCenter.x, uFadeCenter.y));
             float inner_v = max(0.0, uFadeRadius - uFadeWidth);
             float f_v = float(uFadeEnabled) * smoothstep(inner_v, uFadeRadius, distXZ_v);
-            transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
+            // Only compress height for SIDE bucket to keep top face glued to clutter
+            #ifdef TOP_BUCKET
+            // no height change for top; preserve contact with clutter
+            #else
+              transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
+            #endif
           `)
           .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
         // Fragment stage: either discard entire instances (whole-hex) or slice fragments (legacy)
@@ -361,10 +416,59 @@ export default {
           `);
         }
         if (!self._fadeUniforms) self._fadeUniforms = {};
-        self._fadeUniforms[bucketKey] = shader.uniforms;
+  self._fadeUniforms[bucketKey] = shader.uniforms;
       };
   mat.needsUpdate = true;
   /* eslint-enable no-param-reassign */
+    },
+    setupRadialFadeDepth(mat, bucketKey) {
+      const self = this;
+      /* eslint-disable no-param-reassign */
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uFadeCenter = { value: new THREE.Vector2(0, 0) };
+        shader.uniforms.uFadeRadius = { value: self.radialFade.radius };
+        shader.uniforms.uFadeWidth = { value: self.radialFade.width };
+        shader.uniforms.uFadeEnabled = { value: self.radialFade.enabled ? 1 : 0 };
+        shader.uniforms.uMinHeightScale = { value: self.radialFade.minHeightScale != null ? self.radialFade.minHeightScale : 0.05 };
+        shader.uniforms.uCullWholeHex = { value: 1 };
+        shader.uniforms.uHexCornerRadius = { value: self.layoutRadius * self.contactScale };
+        const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+        shader.vertexShader = vertDecl + shader.vertexShader
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+            mat4 imat = mat4(1.0);
+            #ifdef USE_INSTANCING
+              imat = instanceMatrix;
+            #endif
+            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);
+            vInstCenter = wcenter.xyz;
+            vec4 wpos_pre = modelMatrix * imat * vec4(transformed, 1.0);
+            float distXZ_v = length(wpos_pre.xz - vec2(uFadeCenter.x, uFadeCenter.y));
+            float inner_v = max(0.0, uFadeRadius - uFadeWidth);
+            float f_v = float(uFadeEnabled) * smoothstep(inner_v, uFadeRadius, distXZ_v);
+            transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
+          `)
+          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+        const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+        const injectFrag = `
+            // RADIAL_FADE_APPLIED
+            float distXZ = length(vWorldPos.xz - uFadeCenter);
+            if (uFadeEnabled == 1) {
+              if (uCullWholeHex == 1) {
+                float cDist = length(vInstCenter.xz - uFadeCenter);
+                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }
+              } else {
+                if (distXZ >= uFadeRadius) { discard; }
+              }
+            }
+        `;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>' + fadeDecl)
+          .replace('#include <dithering_fragment>', `${injectFrag}\n#include <dithering_fragment>`);
+        if (!self._fadeUniformsDepth) self._fadeUniformsDepth = {};
+        self._fadeUniformsDepth[bucketKey] = shader.uniforms;
+      };
+      mat.needsUpdate = true;
+      /* eslint-enable no-param-reassign */
     },
     snapshotTrailAndArmClear(delayMs = 3000) {
       if (!this.topIM || !this.sideIM || !this.trailTopIM || !this.trailSideIM) return;
@@ -399,6 +503,18 @@ export default {
     onToggleChunkColors() {
       this.applyChunkColors(!!this.features.chunkColors);
     },
+    onToggleClutter() {
+      if (this.clutter) {
+        this.clutter.setEnabled(!!this.features.clutter);
+        // If enabling and no instances yet, prepare/commit
+        if (this.features.clutter && this.world) {
+          this.clutter.addTo(this.scene);
+          this.clutter.prepareFromGrid(this.world);
+          // Use neighborhood-aware commit so clutter appears across current 3x3 and respects fade
+          this.commitClutterForNeighborhood();
+        }
+      }
+    },
     onToggleRadialFade() {
       // Force materials to recompile if toggled on after init
       if (this.topIM && this.sideIM && this.topIM.material && this.sideIM.material) {
@@ -413,6 +529,8 @@ export default {
         topMat.needsUpdate = true;
         sideMat.needsUpdate = true;
       }
+      // Ensure clutter respects the new fade state immediately
+      this.scheduleClutterCommit(0);
     },
   // Ensure slider changes also trigger any runtime effects where needed
   // WorldMap rendering reacts to values each frame via uniforms; here we only persist
@@ -480,8 +598,9 @@ export default {
       const layoutRadius = this.layoutRadius;
       const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
       const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-      const sx = this.modelScaleFactor;
-      const xzScale = sx * this.contactScale;
+  const sx = this.modelScaleFactor;
+  const xzScale = sx * this.contactScale;
+  const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
       const baseCol = wx * this.chunkCols;
       const baseRow = wy * this.chunkRows;
       const startIdx = slotIndex * this.countPerChunk;
@@ -489,7 +608,8 @@ export default {
       const useChunkColors = !!this.features.chunkColors;
       const cTop = this.pastelColorForChunk(wx, wy);
       const cSide = cTop.clone().multiplyScalar(0.8);
-      const dummy = new THREE.Object3D();
+      const dummyTop = new THREE.Object3D();
+      const dummySide = new THREE.Object3D();
       for (let row = 0; row < this.chunkRows; row += 1) {
         for (let col = 0; col < this.chunkCols; col += 1) {
           const gCol = baseCol + col;
@@ -498,13 +618,21 @@ export default {
           const x = hexWidth * q;
           const z = hexHeight * (r + q / 2);
           const cell = this.world ? this.world.getCell(q, r) : null;
-          dummy.position.set(x, 0, z);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-          dummy.updateMatrix();
+          const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+          // TOP matrix
+          dummyTop.position.set(x, 0, z);
+          dummyTop.rotation.set(0, 0, 0);
+          dummyTop.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+          dummyTop.updateMatrix();
+          // SIDE matrix: shrink height for water to avoid dark walls
+          dummySide.position.set(x, 0, z);
+          dummySide.rotation.set(0, 0, 0);
+          const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
+          dummySide.scale.set(sideXZ, sideY, sideXZ);
+          dummySide.updateMatrix();
           const instIdx = startIdx + local;
-          this.topIM.setMatrixAt(instIdx, dummy.matrix);
-          this.sideIM.setMatrixAt(instIdx, dummy.matrix);
+          this.topIM.setMatrixAt(instIdx, dummyTop.matrix);
+          this.sideIM.setMatrixAt(instIdx, dummySide.matrix);
           if (useChunkColors) {
             this.topIM.setColorAt(instIdx, cTop);
             this.sideIM.setColorAt(instIdx, cSide);
@@ -537,6 +665,8 @@ export default {
   // Refresh materials to pick up instanced color defines
   if (this.topIM.material) this.topIM.material.needsUpdate = true;
   if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+  // Rebuild clutter for current 3x3 neighborhood so new chunks have props
+  this.commitClutterForNeighborhood();
     },
     // Build instanced meshes for 3x3 rectangular chunks (even-q offset); then set center
     createChunkGrid() {
@@ -554,8 +684,17 @@ export default {
   // Inject radial fade into terrain materials (gated by uniform uFadeEnabled)
   this.setupRadialFade(topMat, 'top');
   this.setupRadialFade(sideMat, 'side');
+  // Mark top material so its height isn’t compressed by the fade
+  topMat.defines = Object.assign({}, topMat.defines, { TOP_BUCKET: 1 });
+  // Ensure shadow depth/distance materials get the same fade logic
+  const topDepth = topMat.clone(); topDepth.depthWrite = true; topDepth.colorWrite = false; this.setupRadialFadeDepth(topDepth, 'top');
+  const sideDepth = sideMat.clone(); sideDepth.depthWrite = true; sideDepth.colorWrite = false; this.setupRadialFadeDepth(sideDepth, 'side');
   this.topIM = new THREE.InstancedMesh(this.topGeom, topMat, total);
   this.sideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, total);
+  this.topIM.customDepthMaterial = topDepth;
+  this.topIM.customDistanceMaterial = topDepth;
+  this.sideIM.customDepthMaterial = sideDepth;
+  this.sideIM.customDistanceMaterial = sideDepth;
       this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   // Pre-create instanceColor attributes to avoid white/black flashes and ensure flags
@@ -581,13 +720,38 @@ export default {
   this.trailSideIM.renderOrder = (this.sideIM.renderOrder || 0) - 1;
   this.scene.add(this.trailSideIM);
   this.scene.add(this.trailTopIM);
-      // Picking targets
-      this.pickMeshes = [this.topIM, this.sideIM];
-      // Defer water for chunks for now (mask mapping needs redesign)
-      // Initialize center and fill chunks
-      this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+      // Create a single hover overlay mesh to avoid relying on instance colors
+      if (this.topIM && this.topGeom) {
+        const hoverMat = new THREE.MeshBasicMaterial({
+          color: 0xffff66,
+          transparent: true,
+          opacity: 0.35,
+          depthTest: true,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        });
+        this.hoverMesh = new THREE.Mesh(this.topGeom, hoverMat);
+        this.hoverMesh.visible = false;
+        this.hoverMesh.matrixAutoUpdate = false;
+        this.scene.add(this.hoverMesh);
+      }
+  // Picking targets
+  this.pickMeshes = [this.topIM, this.sideIM];
+  // Defer water for chunks for now (mask mapping needs redesign)
+  // Initialize center and fill chunks
+  this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
   // Ensure colors are applied based on current toggle at startup
   this.applyChunkColors(!!this.features.chunkColors);
+
+      // Prepare clutter for the current grid
+      if (this.clutter) {
+        this.clutter.addTo(this.scene);
+        this.clutter.prepareFromGrid(this.world);
+        // If assets already loaded, commit immediately; else load then commit
+        this.clutter.loadAssets().then(() => this.commitClutterForNeighborhood());
+      }
 
       // Compute a sensible default radius for radial fade based on current 3x3 chunk extents
       // Create a tan underlay plane to show through where hexes are discarded by the radial fade
@@ -832,6 +996,200 @@ export default {
         };
         recenter(this.topGeom);
         recenter(this.sideGeom);
+        // Remove any up-facing triangles (top caps) from side geometry to avoid coplanar overlap
+        const stripUpFacingCaps = (geom, dotThresh = 0.8) => {
+          if (!geom) return geom;
+          const posAttr = geom.getAttribute('position');
+          if (!posAttr) return geom;
+          const up = new THREE.Vector3(0,1,0);
+          const a = new THREE.Vector3();
+          const b = new THREE.Vector3();
+          const c = new THREE.Vector3();
+          const e1 = new THREE.Vector3();
+          const e2 = new THREE.Vector3();
+          const n = new THREE.Vector3();
+          if (geom.index) {
+            const idx = geom.index.array;
+            const newIdx = [];
+            for (let i = 0; i < idx.length; i += 3) {
+              const i0 = idx[i], i1 = idx[i+1], i2 = idx[i+2];
+              a.fromBufferAttribute(posAttr, i0);
+              b.fromBufferAttribute(posAttr, i1);
+              c.fromBufferAttribute(posAttr, i2);
+              e1.subVectors(b, a);
+              e2.subVectors(c, a);
+              n.crossVectors(e1, e2).normalize();
+              const d = n.dot(up);
+              if (d <= dotThresh) { newIdx.push(i0, i1, i2); }
+            }
+            const newGeom = geom.clone();
+            newGeom.setIndex(newIdx);
+            newGeom.computeVertexNormals();
+            newGeom.computeBoundingBox();
+            newGeom.computeBoundingSphere();
+            return newGeom;
+          }
+          // Non-indexed: rebuild filtered attribute arrays
+          const count = posAttr.count; // vertices
+          const pos = posAttr.array;
+          const hasNormal = !!geom.getAttribute('normal');
+          const hasUV = !!geom.getAttribute('uv');
+          const hasColor = !!geom.getAttribute('color');
+          const outPos = [];
+          const outUV = hasUV ? [] : null;
+          const outColor = hasColor ? [] : null;
+          for (let i = 0; i < count; i += 3) {
+            a.fromArray(pos, (i+0)*3);
+            b.fromArray(pos, (i+1)*3);
+            c.fromArray(pos, (i+2)*3);
+            e1.subVectors(b, a);
+            e2.subVectors(c, a);
+            n.crossVectors(e1, e2).normalize();
+            const d = n.dot(up);
+            if (d <= dotThresh) {
+              outPos.push(a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z);
+              if (outUV) {
+                const uv = geom.getAttribute('uv');
+                outUV.push(
+                  uv.getX(i+0), uv.getY(i+0),
+                  uv.getX(i+1), uv.getY(i+1),
+                  uv.getX(i+2), uv.getY(i+2)
+                );
+              }
+              if (outColor) {
+                const col = geom.getAttribute('color');
+                outColor.push(
+                  col.getX(i+0), col.getY(i+0), col.getZ(i+0),
+                  col.getX(i+1), col.getY(i+1), col.getZ(i+1),
+                  col.getX(i+2), col.getY(i+2), col.getZ(i+2)
+                );
+              }
+            }
+          }
+          const newGeom = new THREE.BufferGeometry();
+          newGeom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+          if (outUV) newGeom.setAttribute('uv', new THREE.Float32BufferAttribute(outUV, 2));
+          if (outColor) newGeom.setAttribute('color', new THREE.Float32BufferAttribute(outColor, 3));
+          newGeom.computeVertexNormals();
+          newGeom.computeBoundingBox();
+          newGeom.computeBoundingSphere();
+          return newGeom;
+        };
+        if (this.sideGeom) this.sideGeom = stripUpFacingCaps(this.sideGeom, 0.8);
+        // Remove inner ring of vertical walls (keep only outer shell)
+        const stripInwardFacingWalls = (geom) => {
+          if (!geom) return geom;
+          const posAttr = geom.getAttribute('position');
+          if (!posAttr) return geom;
+          const a = new THREE.Vector3();
+          const b = new THREE.Vector3();
+          const c = new THREE.Vector3();
+          const e1 = new THREE.Vector3();
+          const e2 = new THREE.Vector3();
+          const n = new THREE.Vector3();
+          const centroid = new THREE.Vector3();
+          const isVertical = (normal) => Math.abs(normal.y) < 0.2;
+          const radius = (v) => Math.hypot(v.x, v.z);
+
+          // First pass: find radius range for vertical walls
+          let rMin = Infinity, rMax = -Infinity;
+          const scanTri = (va, vb, vc) => {
+            e1.subVectors(vb, va);
+            e2.subVectors(vc, va);
+            n.crossVectors(e1, e2).normalize();
+            if (!isVertical(n)) return;
+            centroid.copy(va).add(vb).add(vc).multiplyScalar(1/3);
+            const rc = radius(centroid);
+            if (rc < rMin) rMin = rc;
+            if (rc > rMax) rMax = rc;
+          };
+          if (geom.index) {
+            const idx = geom.index.array;
+            for (let i = 0; i < idx.length; i += 3) {
+              a.fromBufferAttribute(posAttr, idx[i]);
+              b.fromBufferAttribute(posAttr, idx[i+1]);
+              c.fromBufferAttribute(posAttr, idx[i+2]);
+              scanTri(a,b,c);
+            }
+          } else {
+            const count = posAttr.count; const pos = posAttr.array;
+            for (let i = 0; i < count; i += 3) {
+              a.fromArray(pos, (i+0)*3);
+              b.fromArray(pos, (i+1)*3);
+              c.fromArray(pos, (i+2)*3);
+              scanTri(a,b,c);
+            }
+          }
+          if (!isFinite(rMin) || !isFinite(rMax) || rMax <= rMin) return geom; // nothing to do
+          const rThresh = (rMin + rMax) * 0.5; // split between inner and outer ring
+
+          const keepTri = (va, vb, vc) => {
+            e1.subVectors(vb, va);
+            e2.subVectors(vc, va);
+            n.crossVectors(e1, e2).normalize();
+            if (!isVertical(n)) return true; // keep non-vertical (bevel) triangles
+            centroid.copy(va).add(vb).add(vc).multiplyScalar(1/3);
+            return radius(centroid) >= rThresh - 1e-6;
+          };
+
+          if (geom.index) {
+            const idx = geom.index.array;
+            const newIdx = [];
+            for (let i = 0; i < idx.length; i += 3) {
+              const i0 = idx[i], i1 = idx[i+1], i2 = idx[i+2];
+              a.fromBufferAttribute(posAttr, i0);
+              b.fromBufferAttribute(posAttr, i1);
+              c.fromBufferAttribute(posAttr, i2);
+              if (keepTri(a,b,c)) newIdx.push(i0, i1, i2);
+            }
+            const newGeom = geom.clone();
+            newGeom.setIndex(newIdx);
+            newGeom.computeVertexNormals();
+            newGeom.computeBoundingBox();
+            newGeom.computeBoundingSphere();
+            return newGeom;
+          }
+          // Non-indexed path rebuild
+          const count = posAttr.count; const pos = posAttr.array;
+          const hasUV = !!geom.getAttribute('uv');
+          const hasColor = !!geom.getAttribute('color');
+          const outPos = [];
+          const outUV = hasUV ? [] : null;
+          const outColor = hasColor ? [] : null;
+          for (let i = 0; i < count; i += 3) {
+            a.fromArray(pos, (i+0)*3);
+            b.fromArray(pos, (i+1)*3);
+            c.fromArray(pos, (i+2)*3);
+            if (keepTri(a,b,c)) {
+              outPos.push(a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z);
+              if (outUV) {
+                const uv = geom.getAttribute('uv');
+                outUV.push(
+                  uv.getX(i+0), uv.getY(i+0),
+                  uv.getX(i+1), uv.getY(i+1),
+                  uv.getX(i+2), uv.getY(i+2)
+                );
+              }
+              if (outColor) {
+                const col = geom.getAttribute('color');
+                outColor.push(
+                  col.getX(i+0), col.getY(i+0), col.getZ(i+0),
+                  col.getX(i+1), col.getY(i+1), col.getZ(i+1),
+                  col.getX(i+2), col.getY(i+2), col.getZ(i+2)
+                );
+              }
+            }
+          }
+          const newGeom = new THREE.BufferGeometry();
+          newGeom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+          if (outUV) newGeom.setAttribute('uv', new THREE.Float32BufferAttribute(outUV, 2));
+          if (outColor) newGeom.setAttribute('color', new THREE.Float32BufferAttribute(outColor, 3));
+          newGeom.computeVertexNormals();
+          newGeom.computeBoundingBox();
+          newGeom.computeBoundingSphere();
+          return newGeom;
+        };
+        if (this.sideGeom) this.sideGeom = stripInwardFacingWalls(this.sideGeom);
         // After normalization, compute modelScaleFactor from corner radius (max distance to corner in XZ)
         if (this.topGeom && this.topGeom.attributes && this.topGeom.attributes.position) {
           // Cache max Y extent of combined tile geoms
@@ -1184,6 +1542,40 @@ export default {
           if (uSide.uHexCornerRadius) uSide.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
         }
       }
+      if (this._fadeUniformsDepth) {
+        const cx = this.orbit.target.x;
+        const cz = this.orbit.target.z;
+        const uTop = this._fadeUniformsDepth.top;
+        const uSide = this._fadeUniformsDepth.side;
+        if (uTop) {
+          if (uTop.uFadeCenter && uTop.uFadeCenter.value) uTop.uFadeCenter.value.set(cx, cz);
+          if (uTop.uFadeRadius) uTop.uFadeRadius.value = this.radialFade.radius;
+          if (uTop.uFadeWidth) uTop.uFadeWidth.value = this.radialFade.width;
+          if (uTop.uFadeEnabled) uTop.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
+          if (uTop.uMinHeightScale) uTop.uMinHeightScale.value = this.radialFade.minHeightScale;
+          if (uTop.uCullWholeHex) uTop.uCullWholeHex.value = 1;
+          if (uTop.uHexCornerRadius) uTop.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
+        }
+        if (uSide) {
+          if (uSide.uFadeCenter && uSide.uFadeCenter.value) uSide.uFadeCenter.value.set(cx, cz);
+          if (uSide.uFadeRadius) uSide.uFadeRadius.value = this.radialFade.radius;
+          if (uSide.uFadeWidth) uSide.uFadeWidth.value = this.radialFade.width;
+          if (uSide.uFadeEnabled) uSide.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
+          if (uSide.uMinHeightScale) uSide.uMinHeightScale.value = this.radialFade.minHeightScale;
+          if (uSide.uCullWholeHex) uSide.uCullWholeHex.value = 1;
+          if (uSide.uHexCornerRadius) uSide.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
+        }
+      }
+      // Keep clutter fade in sync so instances outside radius are discarded
+    if (this.clutter && this.clutter.setRadialFadeState) {
+        this.clutter.setRadialFadeState({
+          enabled: !!this.radialFade.enabled,
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+      radius: this.radialFade.radius,
+      corner: this.layoutRadius * this.contactScale,
+      cullWholeHex: true,
+        });
+      }
       // Stick large planes to the camera target to avoid visible seams
       if (this.waterMesh) { this.waterMesh.position.x = this.orbit.target.x; this.waterMesh.position.z = this.orbit.target.z; }
       if (this.sandMesh) { this.sandMesh.position.x = this.orbit.target.x; this.sandMesh.position.z = this.orbit.target.z; }
@@ -1288,14 +1680,16 @@ export default {
       if (intersects.length > 0) {
         const hit = intersects[0];
         const idx = hit.instanceId;
-        if (idx != null) {
-          this.topIM.getMatrixAt(idx, this.tmpMatrix);
-          this.hoverMesh.matrix.copy(this.tmpMatrix);
-          // Keep scale identical; rely on polygonOffset to avoid z-fighting
-          this.hoverMesh.visible = true;
+        if (idx != null && this.topIM) {
+          if (this.hoverMesh) {
+            this.topIM.getMatrixAt(idx, this.tmpMatrix);
+            this.hoverMesh.matrix.copy(this.tmpMatrix);
+            // Keep scale identical; rely on polygonOffset to avoid z-fighting
+            this.hoverMesh.visible = true;
+          }
           this.hoverIdx = idx;
           // Update player marker preview to current hover (prepping for movement UX)
-          if (this.playerMarker) this.playerMarker.setPosition(idx, this.topIM);
+          if (this.playerMarker && this.topIM) this.playerMarker.setPosition(idx, this.topIM);
         }
       } else {
         this.hoverIdx = null;
