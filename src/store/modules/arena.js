@@ -1,6 +1,5 @@
-import Vue from 'vue';
-import api from "@/functions/api";
-const cartesian = require('../../mixins/cartesian')
+import api from '@/functions/api';
+import { cartesian } from '@/mixins/cartesian';
 
 export default {
   namespaced: true,
@@ -153,18 +152,16 @@ export default {
           const index = context.state.entityRegistry.findIndex((entry) => (
             entry.x === context.state.activeRegister.x && entry.y === context.state.activeRegister.y
           ));
-          Vue.set(context.state.entityRegistry, index, { x, y }); // preserves reactivity
+          context.state.entityRegistry[index] = { x, y };
 
           // Copy the active entity to a new position
-          Vue.set(context.state.entities[x], y,
-            context.state.entities[context.state.activeRegister.x][context.state.activeRegister.y]);
+          context.state.entities[x][y] =
+            context.state.entities[context.state.activeRegister.x][context.state.activeRegister.y];
 
-          Vue.set(
-            context.state.entities[context.state.activeRegister.x],
-            context.state.activeRegister.y,
-            null,
-          );
-          Vue.set(context.state, 'activeRegister', { x, y });
+          context.state.entities[context.state.activeRegister.x][
+            context.state.activeRegister.y
+          ] = null;
+          context.state.activeRegister = { x, y };
 
           // Clean up the state and overlays
           context.state.confirmedPath.splice(0, 1);
@@ -179,7 +176,7 @@ export default {
         }, 500);
       } else {
         // Movement is done, so we can reactivate pathing and do any cleanup required
-        Vue.set(context.state, 'moving', false);
+        context.state.moving = false;
       }
     },
     movement(context) {
