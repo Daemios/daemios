@@ -240,14 +240,36 @@ function makeNoises(seed) {
 export function createHexGenerator(seed) {
   const noises = makeNoises(seed);
   const seedInt = hash2i(0x9e37, 0x85eb, 0xc2b2 ^ (hash2i(13, 17, String(seed).length)));
-  // Global parameters (tuned to hex axial-space units with R=1)
-  const cellSize = 140; // plate/cell size in hex units (typical 100–300 diameter)
-  const warpFreq = 0.004, warpAmp = 80; // stronger domain warp for bold coasts
-  const baseFreq = 0.0065, baseShape = 1.35; // more exaggerated continental interiors
-  const ridgeFreq = 0.016; // slightly longer chains
-  const detailFreq = 0.045, detailAmp = 0.18; // more breakup
-  const latPeriod = 900; // climate belt half-period in axial-plane units
+  // Global parameters (tuned to hex axial-space units with R=1); converted to mutable w/ tuning
+  let cellSize = 140; // plate/cell size in hex units (typical 100–300 diameter)
+  let warpFreq = 0.004, warpAmp = 80; // domain warp for bold coasts
+  let baseFreq = 0.0065, baseShape = 1.5; // continental interiors contrast
+  let ridgeFreq = 0.016; // mountain chains
+  let detailFreq = 0.045, detailAmp = 0.18; // breakup
+  let latPeriod = 900; // climate belt half-period in axial-plane units
   const lapseRate = 0.75; // colder highlands, snowier mountains
+
+  // Optional runtime tuning (all multipliers default 1.0)
+  let tuning = {
+    continentScale: 1.0, // multiplies baseFreq
+    warpScale: 1.0,      // multiplies warpFreq
+    warpStrength: 1.0,   // multiplies warpAmp
+    plateSize: 1.0,      // multiplies cellSize
+    ridgeScale: 1.0,     // multiplies ridgeFreq
+    detailScale: 1.0,    // multiplies detailFreq
+    climateScale: 1.0,   // multiplies latPeriod
+  };
+  function applyTuning() {
+  const nz = (v, d=1)=> (v==null || !isFinite(v) || v===0 ? d : v);
+  baseFreq = 0.0065 * nz(tuning.continentScale, 1);
+  warpFreq = 0.004 * nz(tuning.warpScale, 1);
+  warpAmp = 80 * nz(tuning.warpStrength, 1);
+  cellSize = Math.max(10, 140 * nz(tuning.plateSize, 1)); // keep above tiny to avoid artifacts
+  ridgeFreq = 0.016 * nz(tuning.ridgeScale, 1);
+  detailFreq = 0.045 * nz(tuning.detailScale, 1);
+  latPeriod = Math.max(50, 900 * nz(tuning.climateScale, 1));
+  }
+  applyTuning();
 
   // Seed-rotated latitude axis
   const rng = makeRng('latAxis:' + seed);
@@ -309,28 +331,39 @@ export function createHexGenerator(seed) {
   }
 
   function climateAt(x, y, elevMacro) {
-    // Latitude position (repeating belts)
-    const latCoord = (x * latAxis.x + y * latAxis.y);
-    const latBand = Math.abs(((latCoord / latPeriod) % 1 + 1) % 1 - 0.5) * 2; // 0 at equator stripe, 1 at poles
+  // Latitude position (repeating belts) with gentle warp to avoid straight seams
+  const latCoord0 = (x * latAxis.x + y * latAxis.y);
+  const latWarp = simplex2(noises.detail, x, y, baseFreq * 0.35) * (latPeriod * 0.06);
+  const latCoord = latCoord0 + latWarp;
+  const latBand = Math.abs(((latCoord / latPeriod) % 1 + 1) % 1 - 0.5) * 2; // 0 at equator stripe, 1 at poles
     let temp = 1 - latBand; // 1 tropics .. 0 poles
     temp = clamp01(temp - elevMacro * lapseRate);
 
-    // Winds: trades (|lat|<0.3) east->west, mid westerlies, polar easterlies
-    const absLat = latBand; // 0..1
-    let windDir = { x: lonAxis.x, y: lonAxis.y }; // default west->east (westerlies)
-    if (absLat < 0.3) windDir = { x: -lonAxis.x, y: -lonAxis.y }; // trades E->W
-    else if (absLat > 0.75) windDir = { x: -lonAxis.x, y: -lonAxis.y }; // polar E->W
+  // Winds: smoothly blend between trades (<~0.3), westerlies (~mid), polar (>~0.75)
+  const absLat = latBand; // 0..1
+  const trades = { x: -lonAxis.x, y: -lonAxis.y }; // E->W
+  const west = { x: lonAxis.x, y: lonAxis.y };     // W->E
+  const polar = { x: -lonAxis.x, y: -lonAxis.y };  // E->W
+  const a = 0.08; // half-width of blend zones
+  const w1 = smoothstep(0.3 - a, 0.3 + a, absLat);     // trades -> west
+  const w2 = smoothstep(0.75 - a, 0.75 + a, absLat);   // west -> polar
+  let windDir = { x: trades.x * (1 - w1) + west.x * w1, y: trades.y * (1 - w1) + west.y * w1 };
+  windDir = { x: windDir.x * (1 - w2) + polar.x * w2, y: windDir.y * (1 - w2) + polar.y * w2 };
+  // normalize to keep step distance consistent
+  const mag = Math.hypot(windDir.x, windDir.y) || 1;
+  windDir.x /= mag; windDir.y /= mag;
 
     // Moisture proxy: maritime vs interior from continental base value
-  let moisture = clamp01(1 - elevMacro); // coast=wet, interior=dry
+  // Moisture proxy: accentuate continental interior dryness
+  let moisture = clamp01(1 - Math.pow(elevMacro, 1.25)); // coast=wet, interior=dry (stronger)
 
     // Rain shadow using upslope/downslope along wind (reuse continental macro only)
-    const step = 18; // sample distance in axial units
+  const step = 18; // sample distance in axial units
     const up = n01(noises.base, x + windDir.x * step, y + windDir.y * step, baseFreq);
     const down = n01(noises.base, x - windDir.x * step, y - windDir.y * step, baseFreq);
   const grad = (up - down) * 0.5; // signed slope along wind
-  if (grad > 0) moisture = clamp01(moisture + grad * 0.7); // wetter windward
-  else moisture = clamp01(moisture + grad * 1.1); // drier leeward
+  if (grad > 0) moisture = clamp01(moisture + grad * 0.8); // wetter windward (slightly stronger)
+  else moisture = clamp01(moisture + grad * 1.25); // drier leeward (stronger rain shadow)
 
   return { temp, moisture, windDir, lat01: 1 - latBand };
   }
@@ -340,10 +373,12 @@ export function createHexGenerator(seed) {
     let bathymetryStep = 0;
     if (elevBand === ElevationBand.Shelf) bathymetryStep = shelfDepth01 < 0.25 ? 1 : shelfDepth01 < 0.5 ? 2 : shelfDepth01 < 0.75 ? 3 : 4;
     else if (elevBand === ElevationBand.DeepOcean) bathymetryStep = h < ElevationThresholds.deep * 0.4 ? 6 : h < ElevationThresholds.deep * 0.7 ? 5 : 4;
-    const aridityTint = clamp01((1 - moisture) * 1.15);
-    const snowBase = h >= (ElevationThresholds.high * 0.95) ? 1 : 0.7; // lower snow line
-    const rockExposure = clamp01((slope * 0.75) + (h > ElevationThresholds.high ? 0.25 : 0));
-    const snowMask = clamp01((1 - temp) * snowBase);
+  const aridityTint = clamp01((1 - moisture) * 1.2);
+  const snowBase = h >= (ElevationThresholds.high * 0.95) ? 1 : 0.7; // lower snow line
+  const rockExposure = clamp01((slope * 0.75) + (h > ElevationThresholds.high ? 0.25 : 0));
+  // Moisture-aware snow: cold + available moisture; always allow peaks to stay snowy
+  const moistureFactor = 0.2 + moisture * 0.8; // arid cold = sparse snow, humid cold = heavy snow
+  const snowMask = clamp01((1 - temp) * snowBase * moistureFactor);
     return { bathymetryStep, aridityTint, rockExposure, snowMask };
   }
 
@@ -452,7 +487,12 @@ export function createHexGenerator(seed) {
     };
   }
 
-  return { get };
+  function setTuning(newTuning = {}) {
+    tuning = { ...tuning, ...newTuning };
+    applyTuning();
+  }
+
+  return { get, setTuning };
 }
 
 export function computeHex(seed, q, r) {

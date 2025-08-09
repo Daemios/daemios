@@ -8,7 +8,7 @@
 ## 1. Overview
 
 This design creates a world that is **highly varied and visually striking**, prioritizing dramatic elevation and biome contrasts over strict geographic realism.  
-Maps will feature **bold continental outlines, deep oceans, tall mountain chains, rift valleys, volcanic provinces, and colorful biomes** that make exploration enticing.
+Maps will feature **bold continental outlines, deeper oceans, taller mountain chains, rift valleys, volcanic provinces, and colorful biomes** that make exploration enticing. Continental interiors trend drier (stronger deserts), coasts trend wetter, and rain‑shadow contrasts are pronounced.
 
 ---
 
@@ -71,7 +71,9 @@ Classify into `elevationBand`:
 
 - **Temperature:** Latitude + exaggerated altitude lapse for more snow caps and hot lowlands.
 - **Wind Bands:** Standard by latitude.
-- **Moisture:** Maritime vs. continental + **stronger rain-shadow effect** so you get extreme wet/dry boundaries.
+- **Wind Bands:** Standard by latitude with smooth transitions between trades, westerlies, and polar easterlies (no hard seams).
+- **Moisture:** Maritime vs. continental with accentuated interior dryness + **stronger rain-shadow effect** for extreme wet/dry boundaries.
+   A gentle latitude warp avoids visible straight belt edges.
 - **Special Bias Zones:** Every few macro cells, inject “odd” climates (oasis belts, inverted climates) for surprise regions.
 
 Classify:
@@ -163,7 +165,7 @@ Choose variant per major biome using slope, relief, and archetype:
 - Bathymetry gradients for ocean depth.
 - Bright volcanic colors for lava/ash.
 - Strong color contrasts between arid and humid regions.
-- Snow line lowered for dramatic alpine regions.
+- Snow line lowered for dramatic alpine regions, with a moisture-aware snow mask (arid cold = sparse snow; humid cold = heavy snow; peaks remain snowy).
 
 ---
 
@@ -186,3 +188,19 @@ Choose variant per major biome using slope, relief, and archetype:
 - No rivers for now.
 - Large, varied, and memorable landforms.
 - Special features occur more frequently than in realism mode.
+
+---
+
+## 6. Debug Tuning Controls (runtime)
+
+For iteration and validation, the generation debug panel exposes scale multipliers that adjust sampling scales at runtime without changing determinism for a given seed and inputs:
+
+- Continent: multiplies the continental base frequency (bigger number → smaller continents; smaller → larger continents/oceans)
+- Warp: multiplies the domain-warp frequency (bigger → more wiggly coasts)
+- Warp strength: multiplies the warp amplitude (bigger → stronger coastline distortion)
+- Plate size: multiplies tectonic cell size (bigger → larger regions/mountain arcs)
+- Ridge: multiplies ridge noise frequency (bigger → more, tighter mountain chains)
+- Detail: multiplies mid‑frequency detail (bigger → more breakup of flats)
+- Climate belt: multiplies latitude period (bigger → wider climate bands)
+
+ All default to 1.0. Values are uncapped; extreme values may produce stylized outputs. Changes are applied live to the visible chunk neighborhood.

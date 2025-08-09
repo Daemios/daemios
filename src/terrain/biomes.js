@@ -45,11 +45,30 @@ export const BIOME_THRESHOLDS = {
 };
 
 // biomeColor(h, foliage, t): elevation drives base biome; foliage selects land vegetation band.
-export function biomeColor(h, foliage, t, outColor = new THREE.Color()) {
+// biomeColor(h, foliage, t, outColor?, opts?)
+// - h: 0..1 visual elevation
+// - foliage: legacy vegetation proxy (we map generator moisture here)
+// - t: 0..1 temperature
+// - outColor: optional THREE.Color to write into
+// - opts: optional advanced inputs from generator: {
+//     moisture, temp, aridityTint, snowMask, rockExposure, bathymetryStep,
+//     flags: { wetland, mangrove, volcanic, saltFlats, ... },
+//     bands: { elevation, temp, moisture }, biomeMajor
+//   }
+export function biomeColor(h, foliage, t, outColor = new THREE.Color(), opts = null) {
   // Determine base color via elevation bands (updated thresholds) with intra-band gradients
   if (h < 0.05) {
     const f = h / 0.05; // 0-0.05
     outColor.copy(palette.deepWater).lerp(palette.shallowWater, Math.pow(f, 0.6));
+    // Bathymetry accent: deepen color for higher bathymetry steps
+    const step = opts && opts.bathymetryStep != null ? opts.bathymetryStep : 0;
+    if (step > 0) {
+      const deepen = Math.min(0.25, step * 0.04);
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      hsl.l = Math.max(0, hsl.l - deepen);
+      outColor.setHSL(hsl.h, hsl.s, hsl.l);
+    }
   } else if (h < 0.12) {
     const f = (h - 0.05) / 0.07; // 0.05-0.12
     outColor.copy(palette.shallowWater).lerp(palette.beach, f);
@@ -84,16 +103,64 @@ export function biomeColor(h, foliage, t, outColor = new THREE.Color()) {
     else strength = band === 'plains' ? 0.22 : 0.45; // mountain foothills: moderate
 
     outColor.lerp(target, strength);
+
+    // Moisture/aridity adjustments (continuous)
+    const moisture = opts && opts.moisture != null ? opts.moisture : foliage;
+    if (moisture != null) {
+      // More humid → richer greens (increase saturation, lower light slightly)
+      // More arid → shift slightly toward tan and brighten
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      const humid = Math.max(0, Math.min(1, moisture));
+      const arid = 1 - humid;
+      // Saturation bump up to +20% in humid; lightness down to -6%
+      hsl.s = Math.min(1, hsl.s * (1 + 0.2 * humid));
+      hsl.l = Math.max(0, hsl.l * (1 - 0.06 * humid));
+      outColor.setHSL(hsl.h, hsl.s, hsl.l);
+      // Aridity tint toward desertTan up to 20%
+      if (arid > 0) outColor.lerp(palette.desertTan, 0.20 * arid);
+    }
+    // Explicit aridity tint from generator render hints (stronger than moisture proxy)
+    if (opts && opts.aridityTint != null) {
+      outColor.lerp(palette.desertTan, 0.25 * Math.max(0, Math.min(1, opts.aridityTint)));
+    }
+
+    // Rock exposure dulls color slightly
+    if (opts && opts.rockExposure != null) {
+      const r = Math.max(0, Math.min(1, opts.rockExposure));
+      const gray = palette.mountain.clone();
+      outColor.lerp(gray, 0.20 * r);
+    }
+
+    // Wetlands/mangroves: add teal/blue-green tint
+    const wet = opts && opts.flags && (opts.flags.wetland || opts.flags.mangrove);
+    if (wet) {
+      const teal = new THREE.Color('#2aa198');
+      outColor.lerp(teal, 0.15);
+    }
+    // Volcanic provinces: darker, warmer
+    if (opts && opts.flags && opts.flags.volcanic) {
+      const warm = new THREE.Color('#6b3a2a');
+      outColor.lerp(warm, 0.12);
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      hsl.l = Math.max(0, hsl.l - 0.06);
+      outColor.setHSL(hsl.h, hsl.s, hsl.l);
+    }
   }
 
-  // Temperature only pales in the coldest 0.0–0.1; otherwise ignored
-  if (t <= 0.15) {
+  // Temperature cold desaturation (legacy) and snow overlay
+  if (t != null && t <= 0.15) {
     const factor = 1 - (t / 0.1); // 1 at 0.0, 0 at 0.1
     const hsl = { h: 0, s: 0, l: 0 };
     outColor.getHSL(hsl);
     hsl.s = hsl.s * (1 - 0.5 * factor);
     hsl.l = Math.min(1, hsl.l + 0.10 * factor);
     outColor.setHSL(hsl.h, hsl.s, hsl.l);
+  }
+  if (opts && opts.snowMask != null && h >= 0.20) {
+    const s = Math.max(0, Math.min(1, Math.pow(opts.snowMask, 1.1)));
+    if (s > 0) outColor.lerp(palette.snow, s);
   }
 
   return outColor;

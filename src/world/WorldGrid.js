@@ -39,6 +39,11 @@ export default class WorldGrid {
     this._tmpColor = new THREE.Color();
   }
 
+  // Update generator tuning parameters at runtime
+  setGeneratorTuning(tuning) {
+    if (this.hexGen && this.hexGen.setTuning) this.hexGen.setTuning(tuning || {});
+  }
+
   bounds() {
     const s = this.gridSize;
     return { minQ: -s, maxQ: s, minR: -s, maxR: s };
@@ -124,7 +129,24 @@ export default class WorldGrid {
 
     const hVisual = Math.max(0, Math.min(1, (yScale - this.elevation.base) / maxHeight));
     biome = classifyBiome(hVisual);
-    const colorTop = biomeColor(hVisual, f, t, this._tmpColor.clone());
+    const renderHints = gen.render || {};
+    const colorTop = biomeColor(
+      hVisual,
+      f,
+      t,
+      this._tmpColor.clone(),
+      {
+        moisture: gen.fields?.moisture,
+        temp: gen.fields?.temp,
+        aridityTint: renderHints.aridityTint,
+        snowMask: renderHints.snowMask,
+        rockExposure: renderHints.rockExposure,
+        bathymetryStep: renderHints.bathymetryStep,
+        flags: gen.flags,
+        bands: { elevation: gen.elevationBand, temp: gen.temperatureBand, moisture: gen.moistureBand },
+        biomeMajor: gen.biomeMajor,
+      }
+    );
 
     // darker side color
     const side = colorTop.clone();

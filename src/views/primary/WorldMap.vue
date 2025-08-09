@@ -54,11 +54,22 @@
         style="margin: 0 0 6px 0;"
       >
         <summary
-          style="cursor: pointer; user-select: none; outline: none; text-align: right;"
+          style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;"
         >
-          Rendering
+          <button
+            @click.stop.prevent="runBenchmark"
+            :disabled="benchmark.running"
+            style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: pointer;"
+          >
+            {{ benchmark.running ? 'Running…' : 'Run benchmark' }}
+          </button>
+          <span>Rendering</span>
         </summary>
         <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
+          <div v-if="benchmark.running" style="opacity: 0.8; align-self: flex-end; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;">Benchmark running… averaging FPS over 10s</div>
+          <div v-else-if="benchmark.result" style="opacity: 0.9; align-self: flex-end; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;">
+            10s avg: {{ fmt(benchmark.result.avg, 1) }} FPS (min {{ fmt(benchmark.result.min, 1) }}, max {{ fmt(benchmark.result.max, 1) }}, frames {{ benchmark.result.frames }})
+          </div>
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input
               v-model="features.clutter"
@@ -148,21 +159,47 @@
         </div>
       </details>
       <details open style="margin: 8px 0 0 0;">
-        <summary style="cursor: pointer; user-select: none; outline: none; text-align: right;">Generation</summary>
+        <summary style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+          <span></span>
+          <span>Generation</span>
+        </summary>
         <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
           <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; width: 100%;">
             <span style="opacity: 0.8;">Scale</span>
             <input
               v-model.number="generation.scale"
               type="number"
-              min="0.25"
-              max="1.00"
               step="0.01"
               @input="onGenerationScaleChange"
               style="flex: 1;"
             >
           </div>
+          <div style="display: grid; grid-template-columns: auto 100px; gap: 6px 8px; width: 100%; margin-top: 6px;">
+            <span style="opacity: 0.8; grid-column: 1 / -1; text-align: right;">Noise scales (debug)</span>
+            <label style="opacity:0.8; text-align:right;">Continent</label>
+            <input v-model.number="generation.tuning.continentScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Warp</label>
+            <input v-model.number="generation.tuning.warpScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Warp strength</label>
+            <input v-model.number="generation.tuning.warpStrength" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Plate size</label>
+            <input v-model.number="generation.tuning.plateSize" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Ridge</label>
+            <input v-model.number="generation.tuning.ridgeScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Detail</label>
+            <input v-model.number="generation.tuning.detailScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+            <label style="opacity:0.8; text-align:right;">Climate belt</label>
+            <input v-model.number="generation.tuning.climateScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
+          </div>
           <div style="opacity: 0.8;">{{ generation.scale.toFixed(2) }}×</div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; justify-content: flex-end;">
+            <input
+              v-model="generation.expandNeighborhood"
+              type="checkbox"
+              @change="onToggleExpandNeighborhood"
+            >
+            10× neighborhood (debug)
+          </label>
         </div>
       </details>
     </div>
@@ -232,6 +269,8 @@ export default {
   hoverTmpPos: markRaw(new THREE.Vector3()),
   hoverTmpQuat: markRaw(new THREE.Quaternion()),
   hoverTmpScale: markRaw(new THREE.Vector3()),
+  _tmpColorTop: markRaw(new THREE.Color()),
+  _tmpColorSide: markRaw(new THREE.Color()),
   clutterCommitTimer: null,
 
   // world data / systems
@@ -304,6 +343,17 @@ export default {
       fpsTime: 0,
       fps: 0,
       fpsEl: null,
+      // benchmark
+      benchmark: {
+        running: false,
+        startedAt: 0,
+        durationMs: 10000,
+        frames: 0,
+        sum: 0,
+        min: Infinity,
+        max: -Infinity,
+        result: null,
+      },
 
   // Post FX
   
@@ -311,7 +361,7 @@ export default {
   debug: { show: true },
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { scale: 1.0 },
+  generation: { scale: 1.0, expandNeighborhood: false, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 1.0, plateSize: 1.0, ridgeScale: 1.0, detailScale: 1.0, climateScale: 1.0 } },
   worldSeed: 1337,
   
   // Rendering toggles
@@ -408,7 +458,7 @@ export default {
       }
       return null;
     },
-    // Helper: commit clutter for current 3x3 chunk neighborhood and current fade
+  // Helper: commit clutter for current visible chunk neighborhood and current fade
     commitClutterForNeighborhood() {
       if (!this.clutter || !this.world) return;
       const layoutRadius = this.layoutRadius;
@@ -418,11 +468,12 @@ export default {
         const c = this.world.getCell(q, r);
         return this.modelScaleFactor * (c ? c.yScale : 1);
       };
-      // Compute offset rect of the 3x3 chunks
-      const colMin = (this.centerChunk.x - 1) * this.chunkCols;
-      const rowMin = (this.centerChunk.y - 1) * this.chunkRows;
-      const colMax = (this.centerChunk.x + 1) * this.chunkCols + (this.chunkCols - 1);
-      const rowMax = (this.centerChunk.y + 1) * this.chunkRows + (this.chunkRows - 1);
+  // Compute offset rect of the active neighborhood (radius derived from neighborOffsets)
+  const radius = this._neighborRadius != null ? this._neighborRadius : 1;
+  const colMin = (this.centerChunk.x - radius) * this.chunkCols;
+  const rowMin = (this.centerChunk.y - radius) * this.chunkRows;
+  const colMax = (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
+  const rowMax = (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
   // No pre-cull by fade; generate for full 3x3 area and let clutter shader fade discard handle visibility
   const filter = undefined;
       this.clutter.commitInstances({
@@ -636,8 +687,8 @@ export default {
     applyChunkColors(enabled) {
       if (!this.topIM || !this.sideIM || !this.indexToQR) return;
       const count = this.indexToQR.length;
-  const tmpColor = markRaw(new THREE.Color());
-  const tmpSide = markRaw(new THREE.Color());
+  const tmpColor = this._tmpColorTop;
+  const tmpSide = this._tmpColorSide;
       for (let i = 0; i < count; i += 1) {
         const info = this.indexToQR[i];
         if (!info) continue;
@@ -706,8 +757,7 @@ export default {
       const useChunkColors = !!this.features.chunkColors;
       const cTop = this.pastelColorForChunk(wx, wy);
       const cSide = cTop.clone().multiplyScalar(0.8);
-  const dummyTop = markRaw(new THREE.Object3D());
-  const dummySide = markRaw(new THREE.Object3D());
+      const dummy = this._transformDummy || (this._transformDummy = markRaw(new THREE.Object3D()));
       for (let row = 0; row < this.chunkRows; row += 1) {
         for (let col = 0; col < this.chunkCols; col += 1) {
           const gCol = baseCol + col;
@@ -717,20 +767,20 @@ export default {
           const z = hexHeight * (r + q / 2);
           const cell = this.world ? this.world.getCell(q, r) : null;
           const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-          // TOP matrix
-          dummyTop.position.set(x, 0, z);
-          dummyTop.rotation.set(0, 0, 0);
-          dummyTop.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-          dummyTop.updateMatrix();
-          // SIDE matrix: shrink height for water to avoid dark walls
-          dummySide.position.set(x, 0, z);
-          dummySide.rotation.set(0, 0, 0);
+          // Build matrix once and reuse for top/side with differing Y scale
+          dummy.position.set(x, 0, z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+          dummy.updateMatrix();
+          const topMatrix = dummy.matrix.clone();
+          // Side scale adjustment
           const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-          dummySide.scale.set(sideXZ, sideY, sideXZ);
-          dummySide.updateMatrix();
+          dummy.scale.set(sideXZ, sideY, sideXZ);
+          dummy.updateMatrix();
+          const sideMatrix = dummy.matrix.clone();
           const instIdx = startIdx + local;
-          this.topIM.setMatrixAt(instIdx, dummyTop.matrix);
-          this.sideIM.setMatrixAt(instIdx, dummySide.matrix);
+          this.topIM.setMatrixAt(instIdx, topMatrix);
+          this.sideIM.setMatrixAt(instIdx, sideMatrix);
           if (useChunkColors) {
             this.topIM.setColorAt(instIdx, cTop);
             this.sideIM.setColorAt(instIdx, cSide);
@@ -751,8 +801,8 @@ export default {
   this.snapshotTrailAndArmClear(3000);
   this.centerChunk.x = wx; this.centerChunk.y = wy;
       if (!this.topIM || !this.sideIM) return;
-      // Fill each of 9 slots in fixed order
-      for (let s = 0; s < this.neighborOffsets.length; s += 1) {
+  // Fill each of slots in computed order
+  for (let s = 0; s < this.neighborOffsets.length; s += 1) {
         const off = this.neighborOffsets[s];
         this.fillChunk(s, wx + off.dx, wy + off.dy);
       }
@@ -766,7 +816,7 @@ export default {
   // Rebuild clutter for current 3x3 neighborhood so new chunks have props
   this.commitClutterForNeighborhood();
     },
-    // Build instanced meshes for 3x3 rectangular chunks (even-q offset); then set center
+    // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
       if (!this.topGeom || !this.sideGeom) return;
       const layoutRadius = this.layoutRadius;
@@ -776,7 +826,11 @@ export default {
       const xzScale = sx * this.contactScale;
       // Prepare instancing
       this.countPerChunk = this.chunkCols * this.chunkRows;
-      const total = 9 * this.countPerChunk;
+      // Determine neighborhood radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
+      const radius = this.generation?.expandNeighborhood ? 5 : 1;
+      this._neighborRadius = radius; // cache for bounds
+      this.neighborOffsets = this.computeNeighborOffsets(radius);
+      const total = this.neighborOffsets.length * this.countPerChunk;
       const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
       const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   // Inject radial fade into terrain materials (gated by uniform uFadeEnabled)
@@ -910,6 +964,42 @@ export default {
   this.setCurrentTile(startQ, startR);
       }
     },
+    computeNeighborOffsets(radius) {
+      const out = [];
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          out.push({ dx, dy });
+        }
+      }
+      // Sort by distance from center so nearby chunks fill first
+      out.sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+      return out;
+    },
+    onToggleExpandNeighborhood() {
+      // Rebuild chunk instancers to match new neighborhood size
+      this.rebuildChunkGrid();
+      // Persist settings (watcher also covers this, but explicit is fine)
+      if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
+    },
+    rebuildChunkGrid() {
+      // Remove and dispose old instancers and trails
+      const disposeIM = (im) => {
+        if (!im) return;
+        try { this.scene.remove(im); } catch (e) {}
+        try { if (im.material && im.material.dispose) im.material.dispose(); } catch (e) {}
+        try { if (im.customDepthMaterial && im.customDepthMaterial.dispose) im.customDepthMaterial.dispose(); } catch (e) {}
+        try { if (im.customDistanceMaterial && im.customDistanceMaterial.dispose) im.customDistanceMaterial.dispose(); } catch (e) {}
+      };
+      disposeIM(this.topIM); disposeIM(this.sideIM); disposeIM(this.trailTopIM); disposeIM(this.trailSideIM);
+      this.topIM = null; this.sideIM = null; this.trailTopIM = null; this.trailSideIM = null;
+      this.pickMeshes = [];
+      this.indexToQR = [];
+      // Recreate with new neighborhood sizing
+      this.createChunkGrid();
+      if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+      // Recommit clutter for the new bounds
+      this.commitClutterForNeighborhood();
+    },
     computeContactScaleFromGeom() {
       if (!this.topGeom || !this.topGeom.attributes || !this.topGeom.attributes.position) return 1.0;
       const pos = this.topGeom.attributes.position;
@@ -1015,6 +1105,10 @@ export default {
     seed: this.worldSeed,
     generationScale: this.generation.scale,
     }));
+  // Apply any saved generator tuning immediately
+  if (this.world && this.world.setGeneratorTuning && this.generation && this.generation.tuning) {
+    this.world.setGeneratorTuning(this.generation.tuning);
+  }
   this.clutter = markRaw(new ClutterManager());
   // Tie clutter RNG to the same seed for deterministic placement
   if (this.clutter) this.clutter.worldSeed = this.worldSeed;
@@ -1649,6 +1743,24 @@ export default {
         if (this.fpsEl) this.fpsEl.textContent = `FPS: ${this.fps}`;
         this.fpsTime = now; this.fpsFrames = 0;
       }
+      // Benchmark sampling: accumulate instantaneous FPS each frame for duration
+      if (this.benchmark && this.benchmark.running) {
+        const b = this.benchmark;
+        // Use instantaneous fps estimate from frame time delta if available
+        if (this._lastFrameTs == null) this._lastFrameTs = now;
+        const dt = now - this._lastFrameTs;
+        this._lastFrameTs = now;
+        const instFps = dt > 0 ? 1000 / dt : 0;
+        b.frames += 1;
+        b.sum += instFps;
+        if (instFps < b.min) b.min = instFps;
+        if (instFps > b.max) b.max = instFps;
+        if ((now - b.startedAt) >= b.durationMs) {
+          const avg = b.frames > 0 ? (b.sum / b.frames) : 0;
+          b.result = { avg, min: b.min, max: b.max, frames: b.frames };
+          b.running = false;
+        }
+      }
     },
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
@@ -1936,9 +2048,23 @@ export default {
     onToggleSand() {
       if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && !!this.features.water;
     },
+    runBenchmark() {
+      if (this.benchmark.running) return;
+      // Reset and start
+      const b = this.benchmark;
+      b.running = true;
+      b.startedAt = performance.now();
+      b.frames = 0;
+      b.sum = 0;
+      b.min = Infinity;
+      b.max = -Infinity;
+      b.result = null;
+  this._lastFrameTs = null;
+      // Also momentarily disable FXAA to measure raw render if desired in future; keep current behavior unchanged
+    },
     onGenerationScaleChange() {
       // Clamp defensively
-      if (this.generation.scale == null || !isFinite(this.generation.scale) || this.generation.scale <= 0) this.generation.scale = 1.0;
+  if (this.generation.scale == null || !isFinite(this.generation.scale) || this.generation.scale <= 0) this.generation.scale = 1.0;
       // Apply to world and refresh visible content
       if (this.world) {
         this.world.generationScale = this.generation.scale;
@@ -1949,6 +2075,24 @@ export default {
         // Recommit clutter so placements match the new biomes
         this.scheduleClutterCommit(0);
       }
+    },
+    onGeneratorTuningChange() {
+      // Clamp defensively and apply tuning to the generator
+      if (!this.generation.tuning) this.generation.tuning = {};
+      const t = this.generation.tuning;
+  const sanitize = (v, def = 1.0) => (v == null || !isFinite(v) || v === 0) ? def : v;
+  t.continentScale = sanitize(t.continentScale);
+  t.warpScale = sanitize(t.warpScale);
+  t.warpStrength = sanitize(t.warpStrength);
+  t.plateSize = sanitize(t.plateSize);
+  t.ridgeScale = sanitize(t.ridgeScale);
+  t.detailScale = sanitize(t.detailScale);
+  t.climateScale = sanitize(t.climateScale);
+      if (this.world && this.world.setGeneratorTuning) this.world.setGeneratorTuning(t);
+      // Refresh visible neighborhood so changes take effect immediately
+      if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+      this.scheduleClutterCommit(0);
+      if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
     },
     applyShadows(enabled) {
       if (!this.renderer || !this.scene) return;
@@ -1964,9 +2108,9 @@ export default {
         cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range;
         this.keyLight.shadow.near = 1;
         this.keyLight.shadow.far = 250;
-        this.keyLight.shadow.mapSize.set(2048, 2048);
-  this.keyLight.shadow.bias = -0.00006;
-  this.keyLight.shadow.normalBias = 0.12;
+  this.keyLight.shadow.mapSize.set(1024, 1024);
+  this.keyLight.shadow.bias = -0.0001;
+  this.keyLight.shadow.normalBias = 0.2;
         cam.updateProjectionMatrix();
       }
       // Hex meshes
