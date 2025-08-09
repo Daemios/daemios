@@ -1,11 +1,16 @@
 <template>
-  <v-container class="fill-height d-flex align-center justify-center">
-    <h1>Arena</h1>
+  <v-container fluid class="pa-0 ma-0 fill-height">
+    <Arena class="w-100 h-100" />
   </v-container>
 </template>
 
 <script>
+import Arena from '@/components/arena/Arena.vue';
+
 export default {
-  name: 'Arena',
+  name: 'ArenaView',
+  components: {
+    Arena,
+  },
 };
 </script>
