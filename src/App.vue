@@ -1,7 +1,5 @@
 <template>
-  <v-app
-    id="app"
-  >
+  <v-app id="app">
     <!-- Background -->
     <Background />
 
@@ -19,50 +17,53 @@
     <!-- Micro menu -->
     <div
       v-if="$route.meta['overlay']"
-      class="dialog-buttons d-flex justify-center"
+      class="d-flex justify-center position-absolute bottom-0 w-100"
     >
-      <div class="dialog-button-center grey pa-1 rounded mb-1">
+      <div
+        class="grey pa-1 rounded mb-1 d-flex gap-1"
+        style="z-index: 999999"
+      >
         <v-btn
-          depressed
-          x-small
+          variant="flat"
+          size="x-small"
           height="30"
           width="30"
           @click="dialogs.toggleEquipment()"
         >
-          <v-icon small>
+          <v-icon size="small">
             {{ mdiHumanMale }}
           </v-icon>
         </v-btn>
         <v-btn
-          depressed
-          x-small
+          variant="flat"
+          size="x-small"
           height="30"
           width="30"
           @click="dialogs.toggleInventory()"
         >
-          <v-icon small>
+          <v-icon size="small">
             {{ mdiTreasureChest }}
           </v-icon>
         </v-btn>
         <v-btn
-          depressed
-          x-small
+          variant="flat"
+          size="x-small"
           height="30"
           width="30"
           @click="dialogs.toggleAbilities()"
         >
-          <v-icon small>
+          <v-icon size="small">
             {{ mdiSword }}
           </v-icon>
         </v-btn>
         <v-btn
-          depressed
-          x-small
+          variant="flat"
+          size="x-small"
           height="30"
           width="30"
           @click="dialogs.toggleOptions()"
         >
-          <v-icon small>
+          <v-icon size="small">
             {{ mdiCog }}
           </v-icon>
         </v-btn>
@@ -71,7 +72,7 @@
 
     <!-- Websocket lock -->
     <v-dialog
-  :value="!socket.connection"
+      :model-value="!socket.connection"
       persistent
       max-width="400"
     >
@@ -102,11 +103,11 @@ import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-  Background: defineAsyncComponent(() => import('@/components/background/Background.vue')),
-  Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
-  Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
-  Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),
-  Options: defineAsyncComponent(() => import('@/components/dialogs/Options.vue')),
+    Background: defineAsyncComponent(() => import('@/components/background/Background.vue')),
+    Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
+    Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
+    Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),
+    Options: defineAsyncComponent(() => import('@/components/dialogs/Options.vue')),
   },
   mixins: [
     mixin_keybinds,
@@ -165,7 +166,4 @@ html, body, .v-application, .v-application--wrap { min-height: 100%; margin: 0; 
   -moz-osx-font-smoothing: grayscale;
 }
 
-.dialog-buttons { position: absolute; bottom: 0; width: 100%; }
-
-.dialog-button-center { display: flex; gap: 4px; z-index: 999999; }
 </style>

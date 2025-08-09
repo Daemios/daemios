@@ -3,11 +3,9 @@
     src="/img/branding/logo.svg"
     class="pulse-spin-animation"
   />
-</template>2
+</template>
 
-<script>
-</script>
-<style>
+<style scoped>
 @keyframes pulse-spin {
   0%, 10% { transform: scale(1); }
   5%, 15% { transform: scale(1.2); }
