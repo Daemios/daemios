@@ -4,7 +4,6 @@
       <v-btn
         fab
         small
-        class=""
         @click="prev"
       >
         <v-icon>
@@ -18,21 +17,18 @@
     >
       <v-layout
         class="content"
-        :style="`margin-left: -${(index) * 416}px`"
+        :style="`margin-left: -${index * 416}px`"
       >
         <slot />
       </v-layout>
-      <div
-        class="d-flex justify-center align-center pa-2"
-      >
-        <!-- icons to show location in list -->
+      <div class="d-flex justify-center align-center pa-2">
         <v-icon
-          v-for="n in $slots.default.length"
+          v-for="n in slotCount"
           :key="n"
           :color="n === index + 1 ? 'white' : 'grey'"
           x-small
           class="mx-1"
-          @click="index = n-1"
+          @click="index = n - 1"
         >
           {{ mdiCircle }}
         </v-icon>
@@ -45,7 +41,6 @@
       <v-btn
         fab
         small
-        class=""
         @click="next"
       >
         <v-icon>
@@ -56,27 +51,25 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed } from 'vue';
 import { mdiCircle, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
 
-export default {
-  data: () => ({
-      mdiCircle,
-      mdiChevronRight,
-      mdiChevronLeft,
-      index: 0,
-  }),
-  methods: {
-    next() {
-      if (this.index < this.$slots.default.length - 1) {
-        this.index += 1;
-      }
-    },
-    prev() {
-      if (this.index > 0) {
-        this.index -= 1;
-      }
-    },
-  },
-};
+const index = ref(0);
+const slots = defineSlots();
+
+const slotCount = computed(() => (slots.default ? slots.default().length : 0));
+
+function next() {
+  if (index.value < slotCount.value - 1) {
+    index.value += 1;
+  }
+}
+
+function prev() {
+  if (index.value > 0) {
+    index.value -= 1;
+  }
+}
 </script>
+
