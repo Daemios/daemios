@@ -20,8 +20,8 @@
 </template>
 
 <script>
-import AbilityMockup from '@/components/ability/AbilityMockup';
-import VesselMini from '@/components/ability/VesselMini';
+import AbilityMockup from '@/components/ability/AbilityMockup.vue';
+import VesselMini from '@/components/ability/VesselMini.vue';
 
 export default {
   components: {

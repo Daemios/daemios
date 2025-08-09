@@ -109,8 +109,7 @@
             </v-btn>
           </v-col>
         </v-row>
-      </div>
-      </v-img>
+  </div>
     </v-layout>
 
     <!-- Sound Control -->
@@ -119,7 +118,7 @@
     >
       <v-icon
         class="mr-1"
-        @click="$store.commit('audio/toggleMute')"
+        @click="toggleMute"
       >
         {{ mdiVolumeSource }}
       </v-icon>
@@ -136,6 +135,7 @@
 <script>
 import mixin_audio from '@/mixins/audio';
 import api from "@/functions/api";
+import { useAudioStore } from '@/stores/audioStore';
 
 export default {
   mixins: [mixin_audio],
@@ -151,6 +151,9 @@ export default {
     },
   }),
   methods: {
+    toggleMute() {
+      useAudioStore().toggleMute();
+    },
     login() {
       api.post('open/login', {
         email: this.form.email,
@@ -187,41 +190,12 @@ export default {
 };
 </script>
 
-<style lang="sass">
-@keyframes zoomEffect
-  0%, 100%
-    //transform: scale(1)
-
-  50%
-    //transform: scale(1.05)
-
-
-
-.header
-  z-index: 100
-  font-size: 10rem
-  text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black
-  user-select: none
-
-.login
-  height: 100vh
-  overflow: hidden
-
-.pane
-  border-radius: 4px
-  background: rgba(0,0,0,.5) !important
-
-.login-pane
-  width: 400px
-
-.audio-pane
-  width: 200px
-
-.hover-animate
-  animation: zoomEffect 5s ease-in-out infinite
-
-
-
-
-
+<style>
+@keyframes zoomEffect { 0%, 100% {} 50% {} }
+.header { z-index: 100; font-size: 10rem; text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black; user-select: none; }
+.login { height: 100vh; overflow: hidden; }
+.pane { border-radius: 4px; background: rgba(0,0,0,.5) !important; }
+.login-pane { width: 400px; }
+.audio-pane { width: 200px; }
+.hover-animate { animation: zoomEffect 5s ease-in-out infinite; }
 </style>

@@ -26,7 +26,7 @@
       class="overlay hover-overlay"
     />
     <div
-      v-if="$store.state.arena.debug"
+      v-if="debug"
       class="overlay d-flex align-center justify-center"
     >
       {{ x }}|{{ y }}
@@ -48,9 +48,9 @@
   </div>
 </template>
 <script>
-import { mapState } from 'vuex';
-import ArenaEntity from '@/components/arena/ArenaEntity';
-const cell_colors = require('../../mixins/cell_colors')
+import { useArenaStore } from '@/stores/arenaStore';
+import ArenaEntity from '@/components/arena/ArenaEntity.vue';
+import cell_colors from '@/mixins/cell_colors';
 
 export default {
   components: {
@@ -74,10 +74,9 @@ export default {
     hovered: false,
   }),
   computed: {
-    ...mapState({
-      entities: (state) => state.arena.entities,
-      overlays: (state) => state.arena.overlays,
-    }),
+    entities() { return useArenaStore().entities; },
+  overlays() { return useArenaStore().overlays; },
+  debug() { return useArenaStore().debug; },
     cellClasses() {
 
       const classes = {
@@ -121,45 +120,33 @@ export default {
 };
 </script>
 
-<style lang="sass">
-$cell-index: 1
-
-.cell
-  box-sizing: border-box
-  height: 50px
-  width: 50px
-  position: relative
-  margin: -1px 0 0 -1px
-  cursor: pointer
-
-  &:not(.impassable)
-    border: 1px solid black
-
-  .overlay
-    transition: all .5s
-    position: absolute
-    height: 100%
-    width: 100%
-
-    &.destination-overlay
-      background: rgba(82, 189, 34, 1)
-
-    &.confirmed-path-overlay
-      background: rgba(100, 100, 255, 1)
-
-    &.targeting-overlay
-      background: orangered
-
-    &.hover-overlay
-      background: rgba(255,255,255,.1)
-
-  .entities
-    height: 100%
-    width: 100%
-    display: flex
-    justify-content: center
-    align-items: center
-    position: relative
-    z-index: $cell-index
-
+<style>
+.cell {
+  box-sizing: border-box;
+  height: 50px;
+  width: 50px;
+  position: relative;
+  margin: -1px 0 0 -1px;
+  cursor: pointer;
+}
+.cell:not(.impassable) { border: 1px solid black; }
+.cell .overlay {
+  transition: all .5s;
+  position: absolute;
+  height: 100%;
+  width: 100%;
+}
+.cell .overlay.destination-overlay { background: rgba(82, 189, 34, 1); }
+.cell .overlay.confirmed-path-overlay { background: rgba(100, 100, 255, 1); }
+.cell .overlay.targeting-overlay { background: orangered; }
+.cell .overlay.hover-overlay { background: rgba(255,255,255,.1); }
+.cell .entities {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
 </style>

@@ -8,46 +8,46 @@
       <div class="trinkets d-flex">
         <!-- Additional Items -->
         <DollSlot
-          :item="$store.state.user.character.equipped.trinket1"
+          :item="equipped.trinket1"
           left
-          @click="selected = $store.state.user.character.equipped.trinket1"
+          @click="selected = equipped.trinket1"
         />
         <DollSlot
-          :item="$store.state.user.character.equipped.trinket2"
+          :item="equipped.trinket2"
           left
-          @click="selected = $store.state.user.character.equipped.trinket2"
+          @click="selected = equipped.trinket2"
         />
         <DollSlot
-          :item="$store.state.user.character.equipped.trinket3"
+          :item="equipped.trinket3"
           left
-          @click="selected = $store.state.user.character.equipped.trinket3"
+          @click="selected = equipped.trinket3"
         />
       </div>
 
       <!-- Left Column -->
       <DollSlot
         label="Head"
-        :item="$store.state.user.character.equipped.head"
+        :item="equipped.head"
         left
-        @click="selected = $store.state.user.character.equipped.head"
+        @click="selected = equipped.head"
       />
       <DollSlot
         label="Shoulders"
-        :item="$store.state.user.character.equipped.shoulders"
+        :item="equipped.shoulders"
         left
-        @click="selected = $store.state.user.character.equipped.shoulders"
+        @click="selected = equipped.shoulders"
       />
       <DollSlot
         label="Back"
-        :item="$store.state.user.character.equipped.back"
+        :item="equipped.back"
         left
-        @click="selected = $store.state.user.character.equipped.back"
+        @click="selected = equipped.back"
       />
       <DollSlot
         label="Chest"
-        :item="$store.state.user.character.equipped.chest"
+        :item="equipped.chest"
         left
-        @click="selected = $store.state.user.character.equipped.chest"
+        @click="selected = equipped.chest"
       />
 
       <!-- Avatar -->
@@ -60,40 +60,40 @@
       <!-- Right Column -->
       <DollSlot
         label="Hands"
-        :item="$store.state.user.character.equipped.hands"
+        :item="equipped.hands"
         right
-        @click="selected = $store.state.user.character.equipped.hands"
+        @click="selected = equipped.hands"
       />
       <DollSlot
         label="Waist"
-        :item="$store.state.user.character.equipped.waist"
+        :item="equipped.waist"
         right
-        @click="selected = $store.state.user.character.equipped.waist"
+        @click="selected = equipped.waist"
       />
       <DollSlot
         label="Legs"
-        :item="$store.state.user.character.equipped.legs"
+        :item="equipped.legs"
         right
-        @click="selected = $store.state.user.character.equipped.legs"
+        @click="selected = equipped.legs"
       />
       <DollSlot
         label="Feet"
-        :item="$store.state.user.character.equipped.feet"
+        :item="equipped.feet"
         right
       />
 
       <!-- Weapons -->
       <DollSlot
         label="mainhand"
-        :item="$store.state.user.character.equipped.mainhand"
+        :item="equipped.mainhand"
         class="weapon-mainhand"
-        @click="selected = {...$store.state.user.character.equipped.mainhand}"
+        @click="selected = {...equipped.mainhand}"
       />
       <DollSlot
         label="offhand"
-        :item="$store.state.user.character.equipped.offhand"
+        :item="equipped.offhand"
         class="weapon-offhand"
-        @click="selected = {...$store.state.user.character.equipped.offhand}"
+        @click="selected = {...equipped.offhand}"
       />
     </div>
 
@@ -108,8 +108,9 @@
 
 <script>
 import { mdiClose } from '@mdi/js';
-import DollSlot from '@/components/character/DollSlot';
-import ItemDialog from '@/components/inventory/ItemDialog';
+import DollSlot from '@/components/character/DollSlot.vue';
+import ItemDialog from '@/components/inventory/ItemDialog.vue';
+import { useUserStore } from '@/stores/userStore';
 
 export default {
   components: {
@@ -119,39 +120,27 @@ export default {
   data: () => ({
       mdiClose,
       selected: null,
-  })
+  }),
+  computed: {
+    character() { return useUserStore().character || { equipped: {} }; },
+    equipped() { return this.character.equipped || {}; },
+  }
 };
 </script>
 
-<style lang="sass">
-$column-width: 100px
-
-.doll-grid
-  display: grid
-  grid-template-columns: $column-width auto auto $column-width
-  grid-auto-rows: $column-width
-  grid-gap: .5rem
-  grid-auto-flow: dense
-  min-width: 650px
-  max-width: 650px
-
-  .trinkets
-    grid-column: span 4
-
-  .weapon-mainhand, .weapon-offhand
-    grid-column: span 2
-    height: $column-width
-
-  .avatar
-    grid-column: 2/4
-    grid-row: span 4
-
-    span
-      width: 100% !important
-      height: 100% !important
-
-    .v-icon__svg
-      width: 100% !important
-      height: 100% !important
-
+<style>
+.doll-grid {
+  display: grid;
+  grid-template-columns: 100px auto auto 100px;
+  grid-auto-rows: 100px;
+  grid-gap: .5rem;
+  grid-auto-flow: dense;
+  min-width: 650px;
+  max-width: 650px;
+}
+.doll-grid .trinkets { grid-column: span 4; }
+.doll-grid .weapon-mainhand, .doll-grid .weapon-offhand { grid-column: span 2; height: 100px; }
+.doll-grid .avatar { grid-column: 2/4; grid-row: span 4; }
+.doll-grid .avatar span { width: 100% !important; height: 100% !important; }
+.doll-grid .avatar .v-icon__svg { width: 100% !important; height: 100% !important; }
 </style>

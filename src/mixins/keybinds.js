@@ -8,34 +8,29 @@ export default {
     },
   }),
   methods: {
-    handleKeypress(event) {
+  async handleKeypress(event) {
       if (!this.keybinds_enabled) {
         return;
       }
+  const { useDialogsStore } = await import('@/stores/dialogsStore');
+  const dialogsStore = useDialogsStore();
       switch (event.code) {
         case 'Escape':
-          if (
-            this.$store.state.dialogs.isEquipmentOpen ||
-            this.$store.state.dialogs.isInventoryOpen ||
-            this.$store.state.dialogs.isAbilitiesOpen ||
-            this.$store.state.dialogs.isOptionsOpen
-          ) {
-            this.$store.commit('dialogs/closeEquipment');
-            this.$store.commit('dialogs/closeInventory');
-            this.$store.commit('dialogs/closeAbilities');
-            this.$store.commit('dialogs/closeOptions');
-          } else {
-            this.$store.commit('dialogs/toggleOptions');
-          }
+          if (dialogsStore.isEquipmentOpen || dialogsStore.isInventoryOpen || dialogsStore.isAbilitiesOpen || dialogsStore.isOptionsOpen) {
+            dialogsStore.closeEquipment();
+            dialogsStore.closeInventory();
+            dialogsStore.closeAbilities();
+            dialogsStore.closeOptions();
+          } else dialogsStore.toggleOptions();
           break;
         case 'KeyC':
-          this.$store.commit('dialogs/toggleEquipment');
+          dialogsStore.toggleEquipment();
           break;
         case 'KeyA':
-          this.$store.commit('dialogs/toggleAbilities');
+          dialogsStore.toggleAbilities();
           break;
         case 'KeyI':
-          this.$store.commit('dialogs/toggleInventory');
+          dialogsStore.toggleInventory();
           break;
         default: break;
       }
@@ -55,7 +50,7 @@ export default {
     document.addEventListener('focusin', this.keybindDisable);
     document.addEventListener('focusout', this.keybindEnable);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     document.removeEventListener('keyup', this.handleKeypress);
     document.removeEventListener('focusin', this.keybindDisable);
     document.removeEventListener('focusout', this.keybindEnable);

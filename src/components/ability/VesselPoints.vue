@@ -100,30 +100,10 @@ export default {
   },
 };
 </script>
-<style lang="sass">
-.block-counter
-  display: grid
-  grid-template-columns: 1fr auto
-
-  .operations
-    display: flex
-    flex-direction: column
-    justify-content: space-between
-    padding: .25rem 0 .25rem .25rem
-
-  .blocks
-    padding: .5rem
-    display: grid
-    grid-template-columns: 15px 15px 15px
-    grid-template-rows: 15px 15px 15px
-    grid-gap: 3px
-
-    .block
-
-      &.temporary
-        background: rgba(255,255,255,.4)
-
-      &.active
-        background: rgba(255,255,255,.8)
-
+<style>
+.block-counter { display: grid; grid-template-columns: 1fr auto; }
+.block-counter .operations { display: flex; flex-direction: column; justify-content: space-between; padding: .25rem 0 .25rem .25rem; }
+.block-counter .blocks { padding: .5rem; display: grid; grid-template-columns: 15px 15px 15px; grid-template-rows: 15px 15px 15px; grid-gap: 3px; }
+.block-counter .blocks .block.temporary { background: rgba(255,255,255,.4); }
+.block-counter .blocks .block.active { background: rgba(255,255,255,.8); }
 </style>

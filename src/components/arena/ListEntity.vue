@@ -3,13 +3,13 @@
     width="900"
     content-class="overflow-hidden"
   >
-    <template #activator="{ attrs, on }">
+    <template #activator="{ props }">
       <div
         class="list-entity rounded"
         :class="entityClasses"
         @mouseover="entityMouseOver"
         @mouseleave="entityMouseOut"
-        v-on="on"
+        v-bind="props"
       >
         <div class="background-container overflow-hidden rounded">
           <v-img
@@ -86,7 +86,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { useArenaStore } from '@/stores/arenaStore';
 
 export default {
   props: {
@@ -118,69 +118,35 @@ export default {
         'turn-active': this.entities[this.x][this.y].active,
       };
     },
-    ...mapState({
-      entities: (state) => state.arena.entities,
-    }),
+  entities() { return useArenaStore().entities; },
   },
   methods: {
-    entityMouseOver() {
-      this.$store.commit('arena/entityMouseOver', { x: this.x, y: this.y });
-    },
-    entityMouseOut() {
-      this.$store.commit('arena/entityMouseOut', { x: this.x, y: this.y });
-    },
+    entityMouseOver() { useArenaStore().entityMouseOver({ x: this.x, y: this.y }); },
+    entityMouseOut() { useArenaStore().entityMouseOut({ x: this.x, y: this.y }); },
   },
 };
 </script>
 
-<style lang="sass">
-$width: 60px
-$height: 100px
-
-.list-entity-dialog-card
-  position: relative
-
-  .panel-blend
-    width: 10%
-    margin-left: -8%
-    background: green
-    background: linear-gradient(90deg, rgba(9,9,121,0) 0%, rgba(255,255,255,1) 90%)
-    z-index: 2
-
-.list-entity
-  width: $width
-  height: $height
-  transition: all .2s
-  position: relative
-  cursor: pointer
-
-  &.active
-    transform: translateY(-10px)
-    box-shadow: 0 0 10px 1px #FFD700
-
-  &.hover:not(.active)
-    transform: translateY(-5px)
-    box-shadow: 0 0 10px 1px #FFF
-
-  .background-container
-    width: 100%
-    height: 100%
-
-  .control-indicator
-    border-radius: 50%
-    width: calc(#{$height} * .2) // intentionally uses height to build an even circle
-    height: calc(#{$height} * .2)
-    position: absolute
-    border: 2px solid black
-    right: calc((#{$height} * 0.04))
-    top: calc(#{$height} - ((#{$height} * .2)) - (#{$height} * 0.04))
-
-  .turn-active-indicator
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)
-    width: 10px
-    height: 10px
-    left: calc(50% - 5px)
-    top: -8px
-    position: absolute
-
+<style>
+.list-entity-dialog-card { position: relative; }
+.list-entity-dialog-card .panel-blend {
+  width: 10%;
+  margin-left: -8%;
+  background: linear-gradient(90deg, rgba(9,9,121,0) 0%, rgba(255,255,255,1) 90%);
+  z-index: 2;
+}
+.list-entity { width: 60px; height: 100px; transition: all .2s; position: relative; cursor: pointer; }
+.list-entity.active { transform: translateY(-10px); box-shadow: 0 0 10px 1px #FFD700; }
+.list-entity.hover:not(.active) { transform: translateY(-5px); box-shadow: 0 0 10px 1px #FFF; }
+.list-entity .background-container { width: 100%; height: 100%; }
+.list-entity .control-indicator {
+  border-radius: 50%;
+  width: calc(100px * .2);
+  height: calc(100px * .2);
+  position: absolute;
+  border: 2px solid black;
+  right: calc(100px * 0.04);
+  top: calc(100px - (100px * .2) - (100px * 0.04));
+}
+.list-entity .turn-active-indicator { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); width: 10px; height: 10px; left: calc(50% - 5px); top: -8px; position: absolute; }
 </style>

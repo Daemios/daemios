@@ -75,32 +75,26 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.item
-  position: relative
-  width: 100%
-  height: 100%
-
-  .item-label
-    position: absolute
-    padding: 2px 2px 12px 2px
-    width: calc(100% - 8px)
-    top: 4px
-    left: 4px
-    right: 4px
-    font-size: 10px
-    text-transform: uppercase
-    border-radius: 0
-    pointer-events: none
-    white-space: nowrap
-    text-overflow: ellipsis
-    overflow: hidden
-
-    &.has-img
-      color: white
-      background: linear-gradient(rgba(black, .4), rgba(black, .4), rgba(black, .4), rgba(0,0,0,0))
-
-  button
-    height: 100% !important
-    width: 100% !important
+<style>
+.item { position: relative; width: 100%; height: 100%; }
+.item .item-label {
+  position: absolute;
+  padding: 2px 2px 12px 2px;
+  width: calc(100% - 8px);
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  border-radius: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.item .item-label.has-img {
+  color: white;
+  background: linear-gradient(rgba(0,0,0,.4), rgba(0,0,0,.4), rgba(0,0,0,.4), rgba(0,0,0,0));
+}
+.item button { height: 100% !important; width: 100% !important; }
 </style>

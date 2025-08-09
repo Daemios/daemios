@@ -3,11 +3,11 @@
     <div class="left-drawer">
       <!-- Player Character -->
       <CharacterSlide
-        v-if="character"
-        :name="$store.state.user.character.name"
-        :color="character.race.color"
-        :title="character.race.name"
-        :avatar_url="character.image"
+        v-if="character && character.race"
+        :name="character?.name || ''"
+        :color="character?.race?.color || '#888'"
+        :title="character?.race?.name || ''"
+        :avatar_url="character?.image || ''"
         class="mt-8 ml-8"
       />
     </div>
@@ -19,26 +19,23 @@
 </template>
 
 <script>
-import Arena from '@/components/arena/Arena';
+import Arena from '@/components/arena/Arena.vue';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
-import { mapState } from 'vuex';
+import { useUserStore } from '@/stores/userStore';
 
 export default {
   components: {
     CharacterSlide,
     Arena,
   },
-  // import the character state from vuex
   computed: {
-    ...mapState({
-      character: (state) => state.user.character,
-    }),
+    character() {
+      return useUserStore().character;
+    },
   },
 };
 </script>
 
-<style lang="sass">
-.world
-  width: 100%
-  max-width: 100%
+<style>
+.world { width: 100%; max-width: 100%; }
 </style>

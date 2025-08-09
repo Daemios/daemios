@@ -32,38 +32,34 @@ export default {
 };
 </script>
 
-<style lang="scss">
-.cores-graphic {
-  .core {
-    height: 150px;
-    width: 150px;
-    //border-radius: 50%
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-  }
-
-  .core-effects {
-    position: absolute;
-    height: 103%;
-    width: 100%;
-    background: radial-gradient(
-        circle at 75px 65px,
-        rgba(0,0,0,0),
-        rgba(0,0,0,0),
-        rgba(0,0,0,0),
-        rgba(0,0,0,0),
-        rgba(0,0,0,0),
-        rgba(0,0,0,1),
-        rgba(0,0,0,1),
-        rgba(0,0,0,1),
-        rgba(0,0,0,1),
-        rgba(0,0,0,1)
-    );
-
-  }
+<style>
+.cores-graphic .core {
+  height: 150px;
+  width: 150px;
+  /* border-radius: 50% */
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
 }
 
+.cores-graphic .core-effects {
+  position: absolute;
+  height: 103%;
+  width: 100%;
+  background: radial-gradient(
+    circle at 75px 65px,
+    rgba(0,0,0,0),
+    rgba(0,0,0,0),
+    rgba(0,0,0,0),
+    rgba(0,0,0,0),
+    rgba(0,0,0,0),
+    rgba(0,0,0,1),
+    rgba(0,0,0,1),
+    rgba(0,0,0,1),
+    rgba(0,0,0,1),
+    rgba(0,0,0,1)
+  );
+}
 </style>

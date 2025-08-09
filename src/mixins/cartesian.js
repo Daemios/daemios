@@ -1,4 +1,4 @@
-const cartesian = {
+export const cartesian = {
   build(length) {
     const zeros = Array
       .apply(null, Array(length))
@@ -15,6 +15,5 @@ const cartesian = {
       });
     });
   },
-}
-
-module.exports = cartesian;
+};
+export default cartesian;

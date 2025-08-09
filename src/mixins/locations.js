@@ -1,4 +1,3 @@
-import { mapState } from 'vuex';
 import { mdiSkull, mdiShield } from '@mdi/js';
 
 export default {
@@ -6,10 +5,7 @@ export default {
     mdiSkull,
     mdiShield,
   }),
-  computed: {
-    ...mapState({
-    }),
-  },
+  computed: {},
   methods: {
     isDangerousIcon(loc) {
       return loc.dangerous ? mdiSkull : mdiShield;

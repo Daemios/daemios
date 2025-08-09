@@ -119,6 +119,7 @@
 </template>
 
 <script>
+import { markRaw } from 'vue';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -132,6 +133,7 @@ import WorldGrid from '@/world/WorldGrid';
 import PlayerMarker from '@/renderer/PlayerMarker';
 import ClutterManager from '@/world/ClutterManager';
 import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMaterial';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 export default {
   name: 'WorldMap',
@@ -175,10 +177,10 @@ export default {
     tilt: { h: null, v: null },
     pixelRatio: null,
   },
-  tmpMatrix: new THREE.Matrix4(),
-  hoverTmpPos: new THREE.Vector3(),
-  hoverTmpQuat: new THREE.Quaternion(),
-  hoverTmpScale: new THREE.Vector3(),
+  tmpMatrix: markRaw(new THREE.Matrix4()),
+  hoverTmpPos: markRaw(new THREE.Vector3()),
+  hoverTmpQuat: markRaw(new THREE.Quaternion()),
+  hoverTmpScale: markRaw(new THREE.Vector3()),
   clutterCommitTimer: null,
 
   // world data / systems
@@ -186,8 +188,8 @@ export default {
   clutter: null, // ClutterManager instance
 
       // interaction
-      raycaster: new THREE.Raycaster(),
-      mouse: new THREE.Vector2(),
+  raycaster: markRaw(new THREE.Raycaster()),
+  mouse: markRaw(new THREE.Vector2()),
       rotating: false,
       dragStart: { x: 0, y: 0 },
 
@@ -196,10 +198,10 @@ export default {
       fxaaPass: null,
       
       modelScaleFactor: 1,
-      modelCenter: new THREE.Vector3(0, 0, 0),
+  modelCenter: markRaw(new THREE.Vector3(0, 0, 0)),
       orientation: 'flat',
       orbit: {
-        target: new THREE.Vector3(0, 0, 0),
+  target: markRaw(new THREE.Vector3(0, 0, 0)),
         radius: 30,
         theta: Math.PI / 4,
         phi: Math.PI / 4,
@@ -266,12 +268,16 @@ export default {
   // Lights
   ambientLight: null,
   keyLight: null,
+  // stores
+  settings: null,
     };
   },
   mounted() {
+    // pinia stores
+    this.settings = useSettingsStore();
     // Load persisted settings for this view (header: settings.worldMap)
     try {
-      const saved = this.$store.getters['settings/get']('worldMap', null);
+      const saved = this.settings.get('worldMap', null);
       if (saved && typeof saved === 'object') {
         if (saved.debug && typeof saved.debug === 'object') Object.assign(this.debug, saved.debug);
         if (saved.features && typeof saved.features === 'object') Object.assign(this.features, saved.features);
@@ -284,7 +290,9 @@ export default {
       features: this.features,
       radialFade: this.radialFade,
     }), (val) => {
-      this.$store.commit('settings/mergeAtPath', { path: 'worldMap', value: val });
+      if (this.settings && this.settings.mergeAtPath) {
+        this.settings.mergeAtPath({ path: 'worldMap', value: val });
+      }
     }, { deep: true, immediate: true });
 
     // Recompute clutter when radial fade parameters change so props respect the boundary live
@@ -300,7 +308,7 @@ export default {
     this.$refs.sceneContainer.addEventListener('pointerleave', this.onPointerUp);
     this.$refs.sceneContainer.addEventListener('contextmenu', this.blockContext);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     window.removeEventListener('resize', this.onResize);
     this.$refs.sceneContainer.removeEventListener('pointerdown', this.onPointerDown);
     this.$refs.sceneContainer.removeEventListener('pointermove', this.onPointerMove);
@@ -538,8 +546,8 @@ export default {
     applyChunkColors(enabled) {
       if (!this.topIM || !this.sideIM || !this.indexToQR) return;
       const count = this.indexToQR.length;
-      const tmpColor = new THREE.Color();
-      const tmpSide = new THREE.Color();
+  const tmpColor = markRaw(new THREE.Color());
+  const tmpSide = markRaw(new THREE.Color());
       for (let i = 0; i < count; i += 1) {
         const info = this.indexToQR[i];
         if (!info) continue;
@@ -608,8 +616,8 @@ export default {
       const useChunkColors = !!this.features.chunkColors;
       const cTop = this.pastelColorForChunk(wx, wy);
       const cSide = cTop.clone().multiplyScalar(0.8);
-      const dummyTop = new THREE.Object3D();
-      const dummySide = new THREE.Object3D();
+  const dummyTop = markRaw(new THREE.Object3D());
+  const dummySide = markRaw(new THREE.Object3D());
       for (let row = 0; row < this.chunkRows; row += 1) {
         for (let col = 0; col < this.chunkCols; col += 1) {
           const gCol = baseCol + col;
@@ -689,8 +697,8 @@ export default {
   // Ensure shadow depth/distance materials get the same fade logic
   const topDepth = topMat.clone(); topDepth.depthWrite = true; topDepth.colorWrite = false; this.setupRadialFadeDepth(topDepth, 'top');
   const sideDepth = sideMat.clone(); sideDepth.depthWrite = true; sideDepth.colorWrite = false; this.setupRadialFadeDepth(sideDepth, 'side');
-  this.topIM = new THREE.InstancedMesh(this.topGeom, topMat, total);
-  this.sideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, total);
+  this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
+  this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
   this.topIM.customDepthMaterial = topDepth;
   this.topIM.customDistanceMaterial = topDepth;
   this.sideIM.customDepthMaterial = sideDepth;
@@ -706,8 +714,8 @@ export default {
   this.scene.add(this.sideIM);
   this.scene.add(this.topIM);
   // Trail instancers (reuse same materials so fade applies consistently)
-  this.trailTopIM = new THREE.InstancedMesh(this.topGeom, topMat, total);
-  this.trailSideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, total);
+  this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
+  this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
   this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const tColorsTop = new Float32Array(total * 3);
@@ -732,13 +740,13 @@ export default {
           polygonOffsetFactor: -1,
           polygonOffsetUnits: -1,
         });
-        this.hoverMesh = new THREE.Mesh(this.topGeom, hoverMat);
+        this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
         this.hoverMesh.visible = false;
         this.hoverMesh.matrixAutoUpdate = false;
         this.scene.add(this.hoverMesh);
       }
   // Picking targets
-  this.pickMeshes = [this.topIM, this.sideIM];
+  this.pickMeshes = markRaw([this.topIM, this.sideIM]);
   // Defer water for chunks for now (mask mapping needs redesign)
   // Initialize center and fill chunks
   this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
@@ -760,7 +768,7 @@ export default {
         const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
         geom.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({ color: 0xF3EED9, transparent: true, opacity: 1.0, depthWrite: false });
-        const plane = new THREE.Mesh(geom, mat);
+  const plane = markRaw(new THREE.Mesh(geom, mat));
         // Place slightly below the minimum terrain height
         const y = Math.max(0.02 * this.hexMaxY * this.modelScaleFactor, 0.05);
         plane.position.y = y;
@@ -850,8 +858,8 @@ export default {
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
 
-      this.scene = new THREE.Scene();
-      this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+  this.scene = markRaw(new THREE.Scene());
+  this.camera = markRaw(new THREE.PerspectiveCamera(60, width / height, 0.1, 1000));
       this.camera.position.set(0, 20, 20);
       this.camera.lookAt(0, 0, 0);
 
@@ -860,7 +868,7 @@ export default {
       this.orbit.theta = Math.atan2(camVec.x, camVec.z);
       this.orbit.phi = Math.acos(camVec.y / this.orbit.radius);
 
-  this.renderer = new THREE.WebGLRenderer({ antialias: false });
+  this.renderer = markRaw(new THREE.WebGLRenderer({ antialias: false }));
   // Slightly upscale to reduce aliasing while keeping perf in check
   const devicePR = Math.min(1.5, (window.devicePixelRatio || 1));
   this.renderer.setPixelRatio(devicePR);
@@ -881,19 +889,18 @@ export default {
       this.fpsEl.textContent = 'FPS: --';
       this.$refs.sceneContainer.appendChild(this.fpsEl);
 
-  this.composer = new EffectComposer(this.renderer);
+  this.composer = markRaw(new EffectComposer(this.renderer));
   const renderPass = new RenderPass(this.scene, this.camera);
   this.composer.addPass(renderPass);
 
   const pr = this.renderer.getPixelRatio();
 
-  this.fxaaPass = new ShaderPass(FXAAShader);
+  this.fxaaPass = markRaw(new ShaderPass(FXAAShader));
   this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   this.composer.addPass(this.fxaaPass);
   
-
-  this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-      this.keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
+      this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
       this.keyLight.position.set(22, 40, 28);
       this.scene.add(this.ambientLight, this.keyLight);
       // Apply initial feature toggles
@@ -904,13 +911,13 @@ export default {
       this.$refs.sceneContainer.addEventListener('wheel', this.onWheel, { passive: false });
 
       // Init world data and auxiliary systems
-      this.world = new WorldGrid({
+    this.world = markRaw(new WorldGrid({
         layoutRadius: this.layoutRadius,
         gridSize: this.gridSize,
         elevation: this.elevation,
         terrainShape: this.terrainShape,
-      });
-  this.clutter = new ClutterManager();
+    }));
+  this.clutter = markRaw(new ClutterManager());
 
       this.loadModel();
       this.animate = this.animate.bind(this);
@@ -919,7 +926,7 @@ export default {
     loadModel() {
       const loader = new GLTFLoader();
   loader.load('/models/hex-can.glb', (gltf) => {
-        this.hexModel = gltf.scene;
+        this.hexModel = markRaw(gltf.scene);
         if (this.orientation === 'flat') {
           this.hexModel.rotation.y = Math.PI / 6;
         }
@@ -962,14 +969,14 @@ export default {
         });
 
         // Extract base geometries for instancing
-    this.topGeom = null;
-    this.sideGeom = null;
+  this.topGeom = null;
+  this.sideGeom = null;
         this.hexModel.traverse((child) => {
           if (child.isMesh) {
             const name = (child.name || '').toLowerCase();
-            const g = child.geometry.clone();
+      const g = child.geometry.clone();
             g.applyMatrix4(child.matrixWorld.clone());
-            if (name.includes('top')) this.topGeom = g; else this.sideGeom = g;
+      if (name.includes('top')) this.topGeom = markRaw(g); else this.sideGeom = markRaw(g);
           }
         });
         // Fallback if naming doesn't match expectations
@@ -1235,8 +1242,8 @@ export default {
       const count = (2 * size + 1) * (2 * size + 1);
   const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  this.topIM = new THREE.InstancedMesh(this.topGeom, topMat, count);
-  this.sideIM = new THREE.InstancedMesh(this.sideGeom, sideMat, count);
+  this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, count));
+  this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, count));
       this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
@@ -1318,14 +1325,14 @@ export default {
           polygonOffsetFactor: -1,
           polygonOffsetUnits: -1,
         });
-        this.hoverMesh = new THREE.Mesh(this.topGeom, hoverMat);
+  this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
         this.hoverMesh.visible = false;
         this.hoverMesh.matrixAutoUpdate = false;
         // No forced renderOrder; rely on depth for proper occlusion
         this.scene.add(this.hoverMesh);
       }
       if (!this.playerMarker) {
-        this.playerMarker = new PlayerMarker();
+  this.playerMarker = markRaw(new PlayerMarker());
         this.playerMarker.addTo(this.scene);
   // Ensure current shadow setting applied to new meshes
   this.applyShadows(this.features.shadows);
@@ -1352,13 +1359,13 @@ export default {
           i += 4;
         }
       }
-      const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  const tex = markRaw(new THREE.DataTexture(data, N, N, THREE.RGBAFormat));
       tex.needsUpdate = true;
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
-      this.waterMaskTex = tex;
+  this.waterMaskTex = tex;
 
       // 2) Cull water tile TOPS and compress SIDE height to a tiny sliver; remove any blue tint
       if (this.topIM) {
@@ -1428,7 +1435,7 @@ export default {
       // Simple sand underlay to avoid black background
       const sandGeom = geom.clone();
       const sandMat = new THREE.MeshBasicMaterial({ color: 0xD7C49E, transparent: true, opacity: 1.0, depthWrite: false });
-      const sand = new THREE.Mesh(sandGeom, sandMat);
+  const sand = markRaw(new THREE.Mesh(sandGeom, sandMat));
       const sandY = Math.max(0.01 * this.hexMaxY * this.modelScaleFactor, 0.10 * minTop);
       sand.position.y = sandY;
       sand.renderOrder = 0;
@@ -1436,12 +1443,12 @@ export default {
       sand.castShadow = false;
       sand.receiveShadow = false;
       this.scene.add(sand);
-      this.sandMesh = sand;
+  this.sandMesh = sand;
 
       // Water plane
-      const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
-      const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
-      const mat = createStylizedWaterMaterial({
+  const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+  const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+  const mat = markRaw(createStylizedWaterMaterial({
         opacity: 0.96,
         maskTexture: this.waterMaskTex,
         hexW,
@@ -1449,9 +1456,9 @@ export default {
         gridN: (2 * this.gridSize + 1),
         gridOffset: this.gridSize,
         shoreWidth: 0.12,
-      });
-      this.waterMaterial = mat;
-      const mesh = new THREE.Mesh(geom, mat);
+  }));
+  this.waterMaterial = markRaw(mat);
+  const mesh = markRaw(new THREE.Mesh(geom, mat));
       const waterY = Math.max(0.05 * this.hexMaxY * this.modelScaleFactor, 0.50 * minTop);
       mesh.position.y = waterY;
       mesh.renderOrder = 1;
@@ -1459,7 +1466,7 @@ export default {
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       this.scene.add(mesh);
-      this.waterMesh = mesh;
+  this.waterMesh = mesh;
 
       const visible = !!this.features.water;
       if (this.waterMesh) this.waterMesh.visible = visible;
@@ -1796,7 +1803,7 @@ export default {
     ensureLocationMarkerLoaded(cb) {
       if (this.locationMarker) { cb && cb(); return; }
       const loader = new GLTFLoader();
-      loader.load('/models/location-marker.glb', (gltf) => {
+  loader.load('/models/location-marker.glb', (gltf) => {
         const marker = gltf.scene;
         // Normalize: center XZ and sit base on y=0
         marker.updateWorldMatrix(true, true);
@@ -1838,7 +1845,7 @@ export default {
             mesh.renderOrder = 4; // draw after water (water is 1)
           }
         });
-        this.locationMarker = marker;
+  this.locationMarker = markRaw(marker);
         this.scene.add(marker);
         cb && cb();
       }, undefined, (err) => {

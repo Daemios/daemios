@@ -19,34 +19,35 @@
       />
     </div>
     <ListEntityList />
-    <TurnIndicator v-if="$store.state.arena.showTurn" />
-    <DebugPane v-if="$store.state.arena.debug" />
+  <TurnIndicator v-if="showTurn" />
+  <DebugPane v-if="debug" />
   </div>
 </template>
 
 <script>
 import { mdiFire, mdiHospital } from '@mdi/js';
-import { mapState } from 'vuex';
-import ArenaCell from '@/components/arena/ArenaCell';
-import ListEntityList from '@/components/arena/ListEntityList';
-import TurnIndicator from '@/components/arena/TurnIndicator';
-import DebugPane from '@/components/arena/DebugPane';
+import { useArenaStore } from '@/stores/arenaStore';
+import ArenaCell from '@/components/arena/ArenaCell.vue';
+import ListEntityList from '@/components/arena/ListEntityList.vue';
+import TurnIndicator from '@/components/arena/TurnIndicator.vue';
+import DebugPane from '@/components/arena/DebugPane.vue';
 
 export default {
   components: {
     ArenaCell, ListEntityList, TurnIndicator, DebugPane,
   },
   computed: {
-    ...mapState({
-      terrain: (state) => state.arena.terrain,
-      entities: (state) => state.arena.entities,
-      entityRegistry: (state) => state.arena.entityRegistry,
-      active: (state) => state.arena.activeRegister,
-      plannedPath: (state) => state.arena.plannedPath,
-      shapeOnMouse: (state) => state.arena.shapeOnMouse,
-      playerActive: (state) => state.arena.playerActive,
-      moving: (state) => state.arena.moving,
-    }),
+    store() { return useArenaStore(); },
+    terrain() { return this.store.terrain; },
+    entities() { return this.store.entities; },
+    entityRegistry() { return this.store.entityRegistry; },
+    active() { return this.store.activeRegister; },
+    plannedPath() { return this.store.plannedPath; },
+    shapeOnMouse() { return this.store.shapeOnMouse; },
+    playerActive() { return this.store.playerActive; },
+    moving() { return this.store.moving; },
+    showTurn() { return this.store.showTurn; },
+    debug() { return this.store.debug; },
   },
   watch: {
     active() {
@@ -154,7 +155,7 @@ export default {
       };
     },
     generateEntities() {
-      this.$store.commit('arena/clearEntityRegistry');
+      this.store.clearEntityRegistry();
 
       const playerEntity = {
         id: 0,
@@ -178,7 +179,7 @@ export default {
         },
       };
       // This is up here because it will force the active to be 0 index aka round start
-      this.$store.commit('arena/registerEntity', { x: 7, y: 7, index: 0 });
+  this.store.registerEntity({ x: 7, y: 7, index: 0 });
       const entities = [];
 
       // Row
@@ -189,17 +190,17 @@ export default {
         // Assign the cell data
         if (Math.random() > 0.97) {
           entities[x][y] = this.randomEntity();
-          this.$store.commit('arena/registerEntity', { x, y });
+          this.store.registerEntity({ x, y });
         }
       });
 
       entities[7][7] = playerEntity;
-      this.$store.commit('arena/setEntities', entities);
+  this.store.setEntities(entities);
     },
 
     // --------- Controls ---------
     cellClick() {
-      this.$store.dispatch('arena/movement')
+      this.store.movement();
     },
     cellMouseOver(mouseX, mouseY) {
       const x = Number(mouseX);
@@ -242,7 +243,7 @@ export default {
         return false;
       }
 
-      this.$store.commit('arena/clearOverlay', 'validDestination');
+  this.store.clearOverlay('validDestination');
 
       const distance = this.checkDistance(this.active.x, this.active.y, toX, toY);
 
@@ -275,10 +276,10 @@ export default {
       // uses method #2 as only method atm
       if (false && ((squaresAwayFromToPos < 2 && squaresAwayFromToPos > 0) || distance)) {
         // Append new position to plannedPath
-        this.$store.commit('arena/appendPlannedPath', [toX, toY]);
+  this.store.appendPlannedPath([toX, toY]);
       } else {
         // Clear planned path (not overlays, done above) in prep for new path
-        this.$store.commit('arena/clearPlannedPath');
+  this.store.clearPlannedPath();
 
         // Second path method
         if (entity.mp.current >= this.checkDistance(toX, toY, this.active.x, this.active.y)) {
@@ -346,8 +347,8 @@ export default {
               && this.entities[coords.x] // required because y isnt built unless entity exists
               && !this.entities[coords.x][coords.y]
             ) {
-              this.$store.commit('arena/appendPlannedPath', coords);
-              this.$store.commit('arena/setOverlay', {
+              this.store.appendPlannedPath(coords);
+              this.store.setOverlay({
                 ...coords,
                 overlay: 'validDestination',
                 boolean: true,
@@ -375,8 +376,8 @@ export default {
               && this.entities[coords.x] // required because y isnt built unless entity exists
               && !this.entities[coords.x][coords.y]
             ) {
-              this.$store.commit('arena/appendPlannedPath', coords);
-              this.$store.commit('arena/setOverlay', {
+              this.store.appendPlannedPath(coords);
+              this.store.setOverlay({
                 ...coords,
                 overlay: 'validDestination',
                 boolean: true,
@@ -402,7 +403,7 @@ export default {
      * @param overlay
      */
     highlightShape(centerX, centerY, radius, overlay = 'targeting', shape = 'diamond') {
-      this.$store.commit('arena/clearOverlay', overlay);
+      this.store.clearOverlay(overlay);
 
       const x = Number(centerX);
       const y = Number(centerY);
@@ -412,7 +413,7 @@ export default {
           const distX = Math.abs(x - iterX);
           const distY = Math.abs(y - iterY);
           if (distX + distY <= radius) {
-            this.$store.commit('arena/setOverlay', {
+            this.store.setOverlay({
               x: iterX,
               y: iterY,
               overlay,
@@ -422,7 +423,7 @@ export default {
         });
       } else if (shape === 'square') {
         this.iterateCells((iterX, iterY) => {
-          this.$store.commit('arena/setOverlay', {
+          this.store.setOverlay({
             x: iterX,
             y: iterY,
             overlay,
@@ -432,7 +433,7 @@ export default {
       } else if (shape === 'cross') {
         this.iterateCells((iterX, iterY) => {
           if (iterX === x || iterY === y) {
-            this.$store.commit('arena/setOverlay', {
+            this.store.setOverlay({
               x: iterX,
               y: iterY,
               overlay,
@@ -464,13 +465,7 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.arena
-  width: 100%
-  height: 100%
-  position: relative
-
-  .column
-    display: flex
-    flex-direction: column
+<style>
+.arena { width: 100%; height: 100%; position: relative; }
+.arena .column { display: flex; flex-direction: column; }
 </style>

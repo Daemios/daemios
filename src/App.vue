@@ -27,7 +27,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleEquipment')"
+          @click="dialogs.toggleEquipment()"
         >
           <v-icon small>
             {{ mdiHumanMale }}
@@ -38,7 +38,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleInventory')"
+          @click="dialogs.toggleInventory()"
         >
           <v-icon small>
             {{ mdiTreasureChest }}
@@ -49,7 +49,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleAbilities')"
+          @click="dialogs.toggleAbilities()"
         >
           <v-icon small>
             {{ mdiSword }}
@@ -60,7 +60,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleOptions')"
+          @click="dialogs.toggleOptions()"
         >
           <v-icon small>
             {{ mdiCog }}
@@ -71,7 +71,7 @@
 
     <!-- Websocket lock -->
     <v-dialog
-      :value="!$store.state.socket.connection"
+  :value="!socket.connection"
       persistent
       max-width="400"
     >
@@ -91,20 +91,22 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from '@mdi/js';
-
-import Background from '@/components/background/Background.vue';
+import { useDialogsStore } from '@/stores/dialogsStore';
+import { useSocketStore } from '@/stores/socketStore';
+import { useUserStore } from '@/stores/userStore';
 
 import mixin_keybinds from '@/mixins/keybinds';
 import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-    Background: () => import('@/components/background/Background'),
-    Equipment: () => import('@/components/dialogs/Equipment'),
-    Inventory: () => import('@/components/dialogs/Inventory'),
-    Abilities: () => import('@/components/dialogs/Abilities'),
-    Options: () => import('@/components/dialogs/Options'),
+  Background: defineAsyncComponent(() => import('@/components/background/Background.vue')),
+  Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
+  Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
+  Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),
+  Options: defineAsyncComponent(() => import('@/components/dialogs/Options.vue')),
   },
   mixins: [
     mixin_keybinds,
@@ -115,7 +117,15 @@ export default {
     mdiTreasureChest,
     mdiSword,
     mdiCog,
+    dialogs: null,
+    socket: null,
+    user: null,
   }),
+  created() {
+    this.dialogs = useDialogsStore();
+    this.socket = useSocketStore();
+    this.user = useUserStore();
+  },
   mounted() {
     const uri = this.$route.path;
     if (
@@ -124,56 +134,38 @@ export default {
       uri !== '/characters' &&
       uri !== '/builder'
     ) {
-      this.$store.dispatch('user/getUser');
+      this.user.getUser();
     }
   },
 };
 </script>
 
-<style lang="sass">
-
-@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap')
-@import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap')
-
-@font-face
-  font-family: 'Colors Of Autumn'
-  //src: url('/fonts/coa.ttf')
-  // project cant grab this for some reason?
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap');
 
 /* Fonts */
-.v-application
-  .permanent-marker
-    font-family: 'Permanent Marker', cursive !important
-  .square-peg
-    font-family: 'Square Peg', sans-serif, cursive !important
-  .colors-of-autumn
-    font-family: 'Colors Of Autumn', sans-serif !important
+.v-application .permanent-marker { font-family: 'Permanent Marker', cursive !important; }
+.v-application .square-peg { font-family: 'Square Peg', sans-serif, cursive !important; }
+.v-application .colors-of-autumn { font-family: 'Colors Of Autumn', sans-serif !important; }
 
 /* Opacity workaround since vuetify doesn't support this */
-.glass
-  background: rgba(0,0,0,.5) !important
+.glass { background: rgba(0,0,0,.5) !important; }
 
 /* Overflow overrides to hide scrollbar */
-html
-  overflow-y: auto !important
+html { overflow-y: auto !important; }
 
 /* iOS Fix height */
-html, body, .v-application, .v-application--wrap
+html, body, .v-application, .v-application--wrap { min-height: 100%; margin: 0; }
 
 /* General global styling */
-#app
-  font-family: Avenir, Helvetica, Arial, sans-serif
-  -webkit-font-smoothing: antialiased
-  -moz-osx-font-smoothing: grayscale
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-.dialog-buttons
-  position: absolute
-  bottom: 0
-  width: 100%
+.dialog-buttons { position: absolute; bottom: 0; width: 100%; }
 
-.dialog-button-center
-  display: flex
-  gap: 4px
-  z-index: 999999
-
+.dialog-button-center { display: flex; gap: 4px; z-index: 999999; }
 </style>

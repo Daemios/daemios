@@ -363,8 +363,8 @@ export default class ClutterManager {
       im.receiveShadow = this._shadowsEnabled;
     }
   }
-
-  // External API: toggle overall clutter visibility/enabled flag
+  
+  // External API: enable/disable clutter visibility globally
   setEnabled(enabled) {
     this.enabled = !!enabled;
     for (const [, im] of this.pools) {

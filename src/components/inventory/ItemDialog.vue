@@ -109,44 +109,26 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.item-dialog
-  position: relative
-
-  .v-response__content
-    background: white
-
-  .item-info, .name, .rarity
-    position: absolute
-
-  .item-info
-    right: 0
-    top: 0
-    bottom: 0
-    background: rgba(0,0,0,.4)
-    width: 250px
-    display: flex
-    flex-direction: column
-    overflow-y: scroll
-    scrollbar-width: none
-
-    &::-webkit-scrollbar
-      display: none
-
-    .stats
-      gap: .5rem
-
-  .name
-    top: 6px
-    left: 12px
-    width: calc(100% - 12px)
-
-  .rarity
-    bottom: 6px
-    left: 12px
-    width: calc(100% - 12px)
-
-    .v-chip
-      width: 90px
-
+<style>
+.item-dialog { position: relative; }
+.item-dialog .v-response__content { background: white; }
+.item-dialog .item-info,
+.item-dialog .name,
+.item-dialog .rarity { position: absolute; }
+.item-dialog .item-info {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0,0,0,.4);
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: scroll;
+  scrollbar-width: none;
+}
+.item-dialog .item-info::-webkit-scrollbar { display: none; }
+.item-dialog .item-info .stats { gap: .5rem; }
+.item-dialog .name { top: 6px; left: 12px; width: calc(100% - 12px); }
+.item-dialog .rarity { bottom: 6px; left: 12px; width: calc(100% - 12px); }
+.item-dialog .rarity .v-chip { width: 90px; }
 </style>

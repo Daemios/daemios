@@ -1,47 +1,14 @@
 <template>
-  <!--
-  <v-dialog
-    v-model="$store.state.dialogs.isMapOpen"
-    width="unset"
-    fullscreen
-  >
-    <v-card>
-      <v-card-text
-        class="overflow-hidden"
-      >
-
-        <v-row>
-          <v-col>
-            <v-text-field
-              v-model="plane.size"
-              label="Width"
-            />
-          </v-col>
-          <v-col>
-            <v-text-field
-              label="Width"
-            />
-          </v-col>
-          <v-col>
-            <v-text-field
-              label="Height"
-            />
-          </v-col>
-        </v-row>
-      </v-card-text>
-    </v-card>
-  </v-dialog>
-  -->
   <div ref="worldMap" />
 </template>
 
 
 
 <script>
-const SimplexNoise = require('simplex-noise');
+import SimplexNoise from 'simplex-noise';
 import * as Three from 'three';
 import * as dat from 'dat.gui';
-import {mapState} from "vuex";
+import { useWorldStore } from '@/stores/worldStore';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {Rectangle, QuadTree} from "@/classes/QuadTree";
 
@@ -88,9 +55,7 @@ export default {
     },
   }),
   computed: {
-    ...mapState({
-      world: (state) => state.world.terrain,
-    })
+    world() { return useWorldStore().terrain || {}; },
   },
   watch: {
     world() {
@@ -103,6 +68,8 @@ export default {
     }
   },
   mounted() {
+    const worldStore = useWorldStore();
+    if (!worldStore.terrain) worldStore.getTerrain();
   },
   methods: {
     /**

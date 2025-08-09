@@ -13,46 +13,34 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { useArenaStore } from '@/stores/arenaStore';
 
 export default {
   computed: {
-    ...mapState({
-      terrain: (state) => state.arena.terrain,
-      entities: (state) => state.arena.entities,
-      entityRegistry: (state) => state.arena.entityRegistry,
-      active: (state) => state.arena.activeRegister,
-      plannedPath: (state) => state.arena.plannedPath,
-      shapeOnMouse: (state) => state.arena.shapeOnMouse,
-      playerActive: (state) => state.arena.playerActive,
-    }),
+    terrain() { return useArenaStore().terrain; },
+    entities() { return useArenaStore().entities; },
+    entityRegistry() { return useArenaStore().entityRegistry; },
+    active() { return useArenaStore().activeRegister; },
+    plannedPath() { return useArenaStore().plannedPath; },
+    shapeOnMouse() { return useArenaStore().shapeOnMouse; },
+    playerActive() { return useArenaStore().playerActive; },
   },
   methods: {
     cycleActive() {
+      const store = useArenaStore();
       let newActive = {};
-      const index = this.active.index + 1;
-      if (index < this.entityRegistry.length) {
-        newActive = {
-          x: this.entityRegistry[index].x,
-          y: this.entityRegistry[index].y,
-          index,
-        };
+      const index = store.activeRegister.index + 1;
+      if (index < store.entityRegistry.length) {
+        newActive = { x: store.entityRegistry[index].x, y: store.entityRegistry[index].y, index };
       } else {
-        newActive = {
-          x: this.entityRegistry[0].x,
-          y: this.entityRegistry[0].y,
-          index: 0,
-        };
+        newActive = { x: store.entityRegistry[0].x, y: store.entityRegistry[0].y, index: 0 };
       }
-      this.$store.commit('arena/setActive', newActive);
+      store.setActive(newActive);
     },
   },
 };
 </script>
 
-<style lang="sass">
-.debug-pane
-  position: absolute
-  left: 0
-  z-index: 99
+<style>
+.debug-pane { position: absolute; left: 0; z-index: 99; }
 </style>

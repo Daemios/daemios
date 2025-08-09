@@ -10,8 +10,8 @@
 
 <script>
 import { mdiClose } from '@mdi/js';
-import { mapState } from 'vuex';
 import BasicDialog from '@/components/dialogs/BasicDialog.vue';
+import { useDialogsStore } from '@/stores/dialogsStore';
 
 export default {
   components: {
@@ -21,9 +21,10 @@ export default {
       mdiClose,
   }),
   computed: {
-    ...mapState({
-      isOptionsOpen: state => state.dialogs.isOptionsOpen,
-    }),
-  }
+    isOptionsOpen: {
+      get() { return useDialogsStore().isOptionsOpen; },
+      set(v) { useDialogsStore().isOptionsOpen = v; },
+    },
+  },
 };
 </script>

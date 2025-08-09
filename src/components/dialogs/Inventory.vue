@@ -1,6 +1,6 @@
 <template>
   <v-dialog
-    v-model="$store.state.dialogs.isInventoryOpen"
+    v-model="isInventoryOpen"
     app
     fullscreen
     persistent
@@ -13,7 +13,7 @@
         <v-btn
           icon
           dark
-          @click="$store.commit('dialogs/toggleInventory')"
+          @click="toggleInventory()"
         >
           <v-icon>{{ mdiClose }}</v-icon>
         </v-btn>
@@ -30,9 +30,9 @@
         </v-toolbar-items>
       </v-toolbar>
       <v-data-iterator
-        :items="($store.state.user && $store.state.user.inventory) ? $store.state.user.inventory : []"
-        :items-per-page.sync="itemsPerPage"
-        :page.sync="page"
+        :items="inventory"
+  v-model:items-per-page="itemsPerPage"
+  v-model:page="page"
         :search="search"
         :sort-by="sortBy.toLowerCase()"
         :sort-desc="sortDesc"
@@ -53,7 +53,7 @@
               :prepend-inner-icon="mdiMagnify"
               label="Search"
             />
-            <template v-if="$vuetify.breakpoint.mdAndUp">
+            <template v-if="mdAndUp">
               <v-spacer />
               <v-select
                 v-model="sortBy"
@@ -97,7 +97,7 @@
             class="pa-2"
           >
             <v-col
-              v-for="(item, n) in (($store.state.user && $store.state.user.inventory) ? $store.state.user.inventory : [])"
+              v-for="(item, n) in inventory"
               :key="n"
               cols="6"
               sm="4"
@@ -127,13 +127,20 @@
 import {
   mdiClose, mdiChevronLeft, mdiChevronRight, mdiMagnify, mdiArrowUp, mdiArrowDown,
 } from '@mdi/js';
-import Item from '@/components/inventory/Item';
-import ItemDialog from '@/components/inventory/ItemDialog';
+import Item from '@/components/inventory/Item.vue';
+import ItemDialog from '@/components/inventory/ItemDialog.vue';
+import { useDialogsStore } from '@/stores/dialogsStore';
+import { useUserStore } from '@/stores/userStore';
+import { useDisplay } from 'vuetify';
 
 export default {
   components: {
     Item,
     ItemDialog,
+  },
+  setup() {
+    const { mdAndUp } = useDisplay();
+    return { mdAndUp };
   },
   data: () => ({
       // Icons
@@ -162,17 +169,16 @@ export default {
       ],
   }),
   computed: {
-    numberOfPages() {
-      const inv = (this.$store.state.user && this.$store.state.user.inventory) ? this.$store.state.user.inventory : [];
-      return Math.max(1, Math.ceil(inv.length / this.itemsPerPage));
+    numberOfPages() { return Math.max(1, Math.ceil(this.inventory.length / this.itemsPerPage)); },
+    filteredKeys() { return this.keys.filter((key) => key !== 'Name'); },
+    isInventoryOpen: {
+      get() { return useDialogsStore().isInventoryOpen; },
+      set(v) { useDialogsStore().isInventoryOpen = v; },
     },
-    filteredKeys() {
-      return this.keys.filter((key) => key !== 'Name');
-    },
+    inventory() { return useUserStore().inventory || []; },
   },
   watch: {
-    // Clamp page when inventory or itemsPerPage changes
-    '$store.state.user.inventory': {
+    inventory: {
       handler() {
         const pages = this.numberOfPages;
         if (this.page > pages) this.page = pages;
@@ -185,6 +191,7 @@ export default {
     },
   },
   methods: {
+  toggleInventory() { useDialogsStore().toggleInventory(); },
     nextPage() {
       if (this.page + 1 <= this.numberOfPages) this.page += 1;
     },
@@ -195,8 +202,9 @@ export default {
       this.itemsPerPage = number;
     },
   },
+  
 };
 </script>
 
-<style lang="sass">
+<style>
 </style>

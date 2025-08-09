@@ -40,92 +40,29 @@ export default {
 };
 </script>
 
-<style lang="sass">
+<style>
+@keyframes animated-background-x-1 { 0% { margin-left: 0; } 50% { margin-left: 600px; } 100% { margin-left: 0; } }
+@keyframes animated-background-x-2 { 0% { margin-left: -600px; } 50% { margin-left: 0; } 100% { margin-left: -600px; } }
+@keyframes animated-background-y-1 { 0% { margin-top: -50%; } 25% { margin-top: -80%; } 50% { margin-top: -50%; } 25% { margin-top: -20%; } 100% { margin-top: -50%; } }
+@keyframes animated-background-y-2 { 0% { margin-top: -50%; } 25% { margin-top: -80%; } 50% { margin-top: -50%; } 25% { margin-top: -20%; } 100% { margin-top: -50%; } }
 
-@keyframes animated-background-x-1
-  0%
-    margin-left: 0
-
-  50%
-    margin-left: 600px
-
-  100%
-    margin-left: 0
-
-@keyframes animated-background-x-2
-  0%
-    margin-left: -600px
-
-  50%
-    margin-left: 0
-
-  100%
-    margin-left: -600px
-
-@keyframes animated-background-y-1
-  0%
-    margin-top: -50%
-
-  25%
-    margin-top: -80%
-
-  50%
-    margin-top: -50%
-
-  25%
-    margin-top: -20%
-
-  100%
-    margin-top: -50%
-
-@keyframes animated-background-y-2
-  0%
-    margin-top: -50%
-
-  25%
-    margin-top: -80%
-
-  50%
-    margin-top: -50%
-
-  25%
-    margin-top: -20%
-
-  100%
-    margin-top: -50%
-
-.test
-
-  .card
-    border: 2px solid black
-    position: relative
-    width: 344px
-    height: 600px
-    overflow: hidden
-    border-radius: 4rem
-
-    .hero
-      z-index: 2
-      position: absolute
-      top: 0
-      left: 0
-      height: 600px
-      width: auto
-
-    .background-1, .background-2
-      width: 600px
-      height: auto
-      position: absolute
-      margin-top: -50%
-
-    .background-1
-      animation: animated-background-x-1 60s infinite //, animated-background-y-1 80s infinite
-      animation-timing-function: linear
-
-    .background-2
-      animation: animated-background-x-2 60s infinite //, animated-background-y-2 80s infinite
-      animation-timing-function: linear
-      margin-left: -600px
-      transform: scaleX(-1)
-
+.test .card {
+  border: 2px solid black;
+  position: relative;
+  width: 344px;
+  height: 600px;
+  overflow: hidden;
+  border-radius: 4rem;
+}
+.test .card .hero {
+  z-index: 2;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 600px;
+  width: auto;
+}
+.test .card .background-1, .test .card .background-2 { width: 600px; height: auto; position: absolute; margin-top: -50%; }
+.test .card .background-1 { animation: animated-background-x-1 60s infinite; animation-timing-function: linear; }
+.test .card .background-2 { animation: animated-background-x-2 60s infinite; animation-timing-function: linear; margin-left: -600px; transform: scaleX(-1); }
 </style>

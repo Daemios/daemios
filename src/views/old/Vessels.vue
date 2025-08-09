@@ -8,7 +8,7 @@
       class="align-center justify-center flex-grow-0"
     >
       <v-col
-        v-for="core in $store.state.user.character.cores"
+  v-for="core in character.cores"
         :key="core.id"
         class="d-flex flex-column align-center flex-grow-0 core"
       >

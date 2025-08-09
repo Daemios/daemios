@@ -17,7 +17,7 @@
         <v-spacer />
         <v-btn
           color="green darken-1"
-          text
+          variant="text"
           @click="closeDialog"
         >
           Close
@@ -30,7 +30,7 @@
 <script>
 export default {
   props: {
-    value: { // This prop is used to handle v-model binding
+    modelValue: { // Vue 3 v-model
       type: Boolean,
       required: true
     },
@@ -43,21 +43,22 @@ export default {
       default: 'Not Set'
     }
   },
+  emits: ['update:modelValue'],
   computed: {
     // We use a Vuex state variable as a model for the dialog's visibility
     dialogState: {
       get() {
-        return this.value;
+        return this.modelValue;
       },
       set(value) {
         // This event updates the parent component's state variable
-        this.$emit('input', value);
+        this.$emit('update:modelValue', value);
       }
     }
   },
   methods: {
     closeDialog() {
-      this.$emit('input', false); // Close dialog by emitting false
+      this.$emit('update:modelValue', false); // Close dialog by emitting false
     }
   }
 };

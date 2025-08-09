@@ -10,9 +10,9 @@
 
 <script>
 import { mdiClose } from '@mdi/js';
-import PaperDoll from '@/components/character/PaperDoll';
+import PaperDoll from '@/components/character/PaperDoll.vue';
 import BasicDialog from '@/components/dialogs/BasicDialog.vue';
-import { mapState } from 'vuex';
+import { useDialogsStore } from '@/stores/dialogsStore';
 
 export default {
   components: {
@@ -23,9 +23,10 @@ export default {
       mdiClose,
   }),
   computed: {
-    ...mapState({
-      isEquipmentOpen: state => state.dialogs.isEquipmentOpen,
-    }),
-  }
+    isEquipmentOpen: {
+      get() { return useDialogsStore().isEquipmentOpen; },
+      set(val) { useDialogsStore().isEquipmentOpen = val; },
+    },
+  },
 };
 </script>

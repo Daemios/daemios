@@ -42,15 +42,8 @@ export default {
 }
 </script>
 
-<style lang="sass">
-.ability-grid
-  display: grid
-  grid-gap: 0
-
-  .block
-    background-color: #fff
-    border: 1px solid #ccc
-    cursor: pointer
-    &:hover
-      background-color: #ccc
+<style>
+.ability-grid { display: grid; grid-gap: 0; }
+.ability-grid .block { background-color: #fff; border: 1px solid #ccc; cursor: pointer; }
+.ability-grid .block:hover { background-color: #ccc; }
 </style>
