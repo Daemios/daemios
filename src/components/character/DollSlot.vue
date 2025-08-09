@@ -37,10 +37,7 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.doll-left
-  grid-column: 1
-
-.doll-right
-  grid-column: 4
+<style>
+.doll-left { grid-column: 1; }
+.doll-right { grid-column: 4; }
 </style>

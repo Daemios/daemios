@@ -14,4 +14,4 @@ const cell_colors = {
 }
 
 
-module.exports = cell_colors;
+export default cell_colors;

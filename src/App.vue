@@ -91,23 +91,22 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from '@mdi/js';
 import { useDialogsStore } from '@/stores/dialogsStore';
 import { useSocketStore } from '@/stores/socketStore';
 import { useUserStore } from '@/stores/userStore';
-
-import Background from '@/components/background/Background.vue';
 
 import mixin_keybinds from '@/mixins/keybinds';
 import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-  Background: () => import('@/components/background/Background.vue'),
-  Equipment: () => import('@/components/dialogs/Equipment.vue'),
-  Inventory: () => import('@/components/dialogs/Inventory.vue'),
-  Abilities: () => import('@/components/dialogs/Abilities.vue'),
-  Options: () => import('@/components/dialogs/Options.vue'),
+  Background: defineAsyncComponent(() => import('@/components/background/Background.vue')),
+  Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
+  Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
+  Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),
+  Options: defineAsyncComponent(() => import('@/components/dialogs/Options.vue')),
   },
   mixins: [
     mixin_keybinds,
@@ -141,51 +140,32 @@ export default {
 };
 </script>
 
-<style lang="sass">
-
-@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap')
-@import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap')
-
-@font-face
-  font-family: 'Colors Of Autumn'
-  //src: url('/fonts/coa.ttf')
-  // project cant grab this for some reason?
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Square+Peg&display=swap');
 
 /* Fonts */
-.v-application
-  .permanent-marker
-    font-family: 'Permanent Marker', cursive !important
-  .square-peg
-    font-family: 'Square Peg', sans-serif, cursive !important
-  .colors-of-autumn
-    font-family: 'Colors Of Autumn', sans-serif !important
+.v-application .permanent-marker { font-family: 'Permanent Marker', cursive !important; }
+.v-application .square-peg { font-family: 'Square Peg', sans-serif, cursive !important; }
+.v-application .colors-of-autumn { font-family: 'Colors Of Autumn', sans-serif !important; }
 
 /* Opacity workaround since vuetify doesn't support this */
-.glass
-  background: rgba(0,0,0,.5) !important
+.glass { background: rgba(0,0,0,.5) !important; }
 
 /* Overflow overrides to hide scrollbar */
-html
-  overflow-y: auto !important
+html { overflow-y: auto !important; }
 
 /* iOS Fix height */
-html, body, .v-application, .v-application--wrap
-  min-height: 100%
-  margin: 0
+html, body, .v-application, .v-application--wrap { min-height: 100%; margin: 0; }
+
 /* General global styling */
-#app
-  font-family: Avenir, Helvetica, Arial, sans-serif
-  -webkit-font-smoothing: antialiased
-  -moz-osx-font-smoothing: grayscale
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-.dialog-buttons
-  position: absolute
-  bottom: 0
-  width: 100%
+.dialog-buttons { position: absolute; bottom: 0; width: 100%; }
 
-.dialog-button-center
-  display: flex
-  gap: 4px
-  z-index: 999999
-
+.dialog-button-center { display: flex; gap: 4px; z-index: 999999; }
 </style>

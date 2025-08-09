@@ -17,6 +17,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: env.VITE_DEV_HOST || 'localhost',
+      proxy: {
+        '/api': {
+          target: env.VITE_API_ENDPOINT || 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (p) => p.replace(/^\/api\/?/, '/'),
+        },
+      },
     },
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),

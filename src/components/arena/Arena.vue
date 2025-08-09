@@ -465,13 +465,7 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.arena
-  width: 100%
-  height: 100%
-  position: relative
-
-  .column
-    display: flex
-    flex-direction: column
+<style>
+.arena { width: 100%; height: 100%; position: relative; }
+.arena .column { display: flex; flex-direction: column; }
 </style>

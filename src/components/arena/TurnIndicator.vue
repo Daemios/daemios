@@ -48,48 +48,27 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.turn-indicator
-  position: absolute
-  width: 100%
-  height: 100%
-  background-color: rgba(0,0,0,.1)
-  z-index: 2
-  color: white
-
-.turn-indicator-content
-  position: relative
-  width: 30vw
-
-  .name
-    position: absolute
-    width: 100%
-
-  .current, .next, .next-2
-    position: absolute
-    top: 10px
-    right: 0
-    width: 120px
-    height: 200px
-    overflow: hidden
-    margin-left: 0
-    margin-top: -100px // height of image
-    border: 2px solid white
-
-    .v-image
-      height: 100%
-
-  .current
-    transform: rotate(2deg)
-
-  .next
-    right: -60px
-    transform: rotate(15deg)
-    top: 20px
-
-  .next-2
-    right: -7vw
-    transform: rotate(35deg)
-    top: 36px
-
+<style>
+.turn-indicator { position: absolute; width: 100%; height: 100%; background-color: rgba(0,0,0,.1); z-index: 2; color: white; }
+.turn-indicator-content { position: relative; width: 30vw; }
+.turn-indicator-content .name { position: absolute; width: 100%; }
+.turn-indicator-content .current,
+.turn-indicator-content .next,
+.turn-indicator-content .next-2 {
+  position: absolute;
+  top: 10px;
+  right: 0;
+  width: 120px;
+  height: 200px;
+  overflow: hidden;
+  margin-left: 0;
+  margin-top: -100px; /* height of image */
+  border: 2px solid white;
+}
+.turn-indicator-content .current .v-image,
+.turn-indicator-content .next .v-image,
+.turn-indicator-content .next-2 .v-image { height: 100%; }
+.turn-indicator-content .current { transform: rotate(2deg); }
+.turn-indicator-content .next { right: -60px; transform: rotate(15deg); top: 20px; }
+.turn-indicator-content .next-2 { right: -7vw; transform: rotate(35deg); top: 36px; }
 </style>

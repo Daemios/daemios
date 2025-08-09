@@ -91,13 +91,8 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.lock-anchor
-  position: relative
-.combat-lock
-  position: absolute !important
-  right: -.5rem
-  svg
-    height: 1rem
-    width: 1rem
+<style>
+.lock-anchor { position: relative; }
+.combat-lock { position: absolute !important; right: -.5rem; }
+.combat-lock svg { height: 1rem; width: 1rem; }
 </style>

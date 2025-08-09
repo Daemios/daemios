@@ -1,9 +1,25 @@
-import store from '@/store';
 import router from '@/router';
+
+// Resolve API base endpoint without depending on a global store
+function resolveApiBase() {
+  try {
+    // Prefer Vite env variable if provided, else default localhost
+    const fromEnv = (import.meta && import.meta.env && import.meta.env.VITE_API_ENDPOINT)
+      ? import.meta.env.VITE_API_ENDPOINT
+      : null;
+    return fromEnv || 'http://localhost:3000';
+  } catch (e) {
+    return 'http://localhost:3000';
+  }
+}
+const API_BASE = resolveApiBase();
+const IS_DEV = typeof window !== 'undefined' && window.location && window.location.port;
 
 const api = {
   call: (method, url, input) => {
-    let path = `${store.state.api.endpoint}/${url}`;
+  const suffix = String(url || '').replace(/^\//, '');
+  // In dev, prefer the Vite proxy under /api to avoid CORS
+  const path = IS_DEV ? `/api/${suffix}` : `${API_BASE.replace(/\/$/, '')}/${suffix}`;
     return fetch(path, {
       method,
 
@@ -11,8 +27,7 @@ const api = {
       mode: 'cors',
       credentials: 'include',
 
-      headers: {
-        'Access-Control-Allow-Origin': 'http://localhost:8080',
+  headers: {
         'X-Organization-Alias': 'web-client',
         'Cache-Control': 'no-cache',
         'Accept': 'application/json',
@@ -38,7 +53,7 @@ const api = {
         }
         return response;
       })
-      .then((response) => response.json())
+  .then((response) => response.json())
   },
   get: (url, input) => api.call('GET', url, input),
   post: (url, input) => api.call('POST', url, input),

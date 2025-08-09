@@ -126,8 +126,8 @@
 <script>
 import mixin_audio from '@/mixins/audio';
 import mixin_locations from '@/mixins/locations';
-import VesselMini from '@/components/ability/VesselMini';
-import AnimatedBackground from '@/components/general/AnimatedBackground';
+import VesselMini from '@/components/ability/VesselMini.vue';
+import AnimatedBackground from '@/components/general/AnimatedBackground.vue';
 import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout } from '@mdi/js';
 import { useUserStore } from '@/stores/userStore';
 

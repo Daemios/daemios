@@ -37,18 +37,7 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.cores-graphic
-  .fragment
-    background: white
-    height: 100px
-    width: 100px
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)
-    border-radius: 50%
-    overflow: hidden
-
-    .core-rounding
-      height: 100%
-      width: 100%
-
+<style>
+.cores-graphic .fragment { background: white; height: 100px; width: 100px; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 50%; overflow: hidden; }
+.cores-graphic .fragment .core-rounding { height: 100%; width: 100%; }
 </style>

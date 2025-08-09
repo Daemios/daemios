@@ -41,9 +41,6 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.debug-pane
-  position: absolute
-  left: 0
-  z-index: 99
+<style>
+.debug-pane { position: absolute; left: 0; z-index: 99; }
 </style>

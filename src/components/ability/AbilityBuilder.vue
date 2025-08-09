@@ -154,9 +154,6 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.ability-builder
-  &>*
-    width: 100%
-
+<style>
+.ability-builder > * { width: 100%; }
 </style>

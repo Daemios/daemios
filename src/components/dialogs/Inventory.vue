@@ -31,8 +31,8 @@
       </v-toolbar>
       <v-data-iterator
         :items="inventory"
-        :items-per-page.sync="itemsPerPage"
-        :page.sync="page"
+  v-model:items-per-page="itemsPerPage"
+  v-model:page="page"
         :search="search"
         :sort-by="sortBy.toLowerCase()"
         :sort-desc="sortDesc"
@@ -53,7 +53,7 @@
               :prepend-inner-icon="mdiMagnify"
               label="Search"
             />
-            <template v-if="$vuetify.breakpoint.mdAndUp">
+            <template v-if="mdAndUp">
               <v-spacer />
               <v-select
                 v-model="sortBy"
@@ -131,11 +131,16 @@ import Item from '@/components/inventory/Item.vue';
 import ItemDialog from '@/components/inventory/ItemDialog.vue';
 import { useDialogsStore } from '@/stores/dialogsStore';
 import { useUserStore } from '@/stores/userStore';
+import { useDisplay } from 'vuetify';
 
 export default {
   components: {
     Item,
     ItemDialog,
+  },
+  setup() {
+    const { mdAndUp } = useDisplay();
+    return { mdAndUp };
   },
   data: () => ({
       // Icons
@@ -167,10 +172,10 @@ export default {
     numberOfPages() { return Math.max(1, Math.ceil(this.inventory.length / this.itemsPerPage)); },
     filteredKeys() { return this.keys.filter((key) => key !== 'Name'); },
     isInventoryOpen: {
-      get() { return this.dialogs.isInventoryOpen; },
-      set(v) { this.dialogs.isInventoryOpen = v; },
+      get() { return useDialogsStore().isInventoryOpen; },
+      set(v) { useDialogsStore().isInventoryOpen = v; },
     },
-    inventory() { return this.user.inventory || []; },
+    inventory() { return useUserStore().inventory || []; },
   },
   watch: {
     inventory: {
@@ -186,7 +191,7 @@ export default {
     },
   },
   methods: {
-    toggleInventory() { this.dialogs.toggleInventory(); },
+  toggleInventory() { useDialogsStore().toggleInventory(); },
     nextPage() {
       if (this.page + 1 <= this.numberOfPages) this.page += 1;
     },
@@ -197,12 +202,9 @@ export default {
       this.itemsPerPage = number;
     },
   },
-  created() {
-    this.dialogs = useDialogsStore();
-    this.user = useUserStore();
-  }
+  
 };
 </script>
 
-<style lang="sass">
+<style>
 </style>

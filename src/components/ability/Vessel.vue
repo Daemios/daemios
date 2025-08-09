@@ -30,7 +30,6 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.core
-  white-space: nowrap
+<style>
+.core { white-space: nowrap; }
 </style>

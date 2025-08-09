@@ -284,4 +284,15 @@ export default class ClutterManager {
       im.receiveShadow = this._shadowsEnabled;
     }
   }
+
+  // External API: enable/disable clutter visibility globally
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+    for (const [, im] of this.pools) {
+      if (!im) continue;
+      // Only show when enabled and there is content to render
+      const hasContent = (typeof im.count === 'number') ? im.count > 0 : true;
+      im.visible = this.enabled && hasContent;
+    }
+  }
 }

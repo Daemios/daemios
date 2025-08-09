@@ -8,13 +8,13 @@
             <v-spacer />
             <v-dialog
               max-width="800"
-              :value="create.show"
+              v-model="create.show"
             >
-              <template #activator="{ on }">
+              <template #activator="{ props }">
                 <v-btn
                   small
                   color="primary"
-                  v-on="on"
+                  v-bind="props"
                   @click="create.show = true"
                 >
                   <v-icon>
@@ -101,11 +101,11 @@
                   v-model="delete_dialog"
                   max-width="400"
                 >
-                  <template #activator="{ on }">
+                  <template #activator="{ props }">
                     <v-btn
                       x-small
                       color="failure"
-                      :on="on"
+                      v-bind="props"
                       @click="delete_dialog = true"
                     >
                       <v-icon small>

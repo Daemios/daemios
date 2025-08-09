@@ -128,35 +128,19 @@ export default {
 };
 </script>
 
-<style lang="sass">
-$column-width: 100px
-
-.doll-grid
-  display: grid
-  grid-template-columns: $column-width auto auto $column-width
-  grid-auto-rows: $column-width
-  grid-gap: .5rem
-  grid-auto-flow: dense
-  min-width: 650px
-  max-width: 650px
-
-  .trinkets
-    grid-column: span 4
-
-  .weapon-mainhand, .weapon-offhand
-    grid-column: span 2
-    height: $column-width
-
-  .avatar
-    grid-column: 2/4
-    grid-row: span 4
-
-    span
-      width: 100% !important
-      height: 100% !important
-
-    .v-icon__svg
-      width: 100% !important
-      height: 100% !important
-
+<style>
+.doll-grid {
+  display: grid;
+  grid-template-columns: 100px auto auto 100px;
+  grid-auto-rows: 100px;
+  grid-gap: .5rem;
+  grid-auto-flow: dense;
+  min-width: 650px;
+  max-width: 650px;
+}
+.doll-grid .trinkets { grid-column: span 4; }
+.doll-grid .weapon-mainhand, .doll-grid .weapon-offhand { grid-column: span 2; height: 100px; }
+.doll-grid .avatar { grid-column: 2/4; grid-row: span 4; }
+.doll-grid .avatar span { width: 100% !important; height: 100% !important; }
+.doll-grid .avatar .v-icon__svg { width: 100% !important; height: 100% !important; }
 </style>

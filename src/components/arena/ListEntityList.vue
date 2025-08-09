@@ -23,12 +23,6 @@ export default {
 };
 </script>
 
-<style lang="sass">
-.entity-list
-  position: absolute
-  bottom: 2rem
-  right: 0
-  padding: 4px
-  z-index: 3
-  gap: 8px
+<style>
+.entity-list { position: absolute; bottom: 2rem; right: 0; padding: 4px; z-index: 3; gap: 8px; }
 </style>
