@@ -19,6 +19,7 @@ export const useArenaStore = defineStore('arena', {
       validDestination: [],
       targeting: [],
       confirmedPath: [],
+      hover: [],
     },
     shapeOnMouse: {
       show: false,
