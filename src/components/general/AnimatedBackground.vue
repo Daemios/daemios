@@ -1,7 +1,7 @@
 <template>
   <div
     class="animated-background glass"
-    :class="backgroundClasses"
+    :class="{ zoom }"
   >
     <video
       :src="src"
@@ -12,27 +12,17 @@
   </div>
 </template>
 
-<script>
-
-export default {
-  props: {
-    src: {
-      type: String,
-      required: true,
-    },
-    zoom: {
-      type: Boolean,
-      default: false,
-    },
+<script setup>
+const { src, zoom } = defineProps({
+  src: {
+    type: String,
+    required: true,
   },
-  computed: {
-    backgroundClasses() {
-      return {
-        zoom: this.zoom,
-      };
-    },
+  zoom: {
+    type: Boolean,
+    default: false,
   },
-};
+});
 </script>
 
 <style>

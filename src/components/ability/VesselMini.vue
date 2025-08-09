@@ -1,27 +1,17 @@
 <template>
   <div
     class="vessel-mini"
-    :style="`background: ${color};`"
+    :style="{ background: color }"
   />
 </template>
 
-<script>
-export default {
-  props: {
-    color: {
-      type: String,
-      required: true,
-    },
-    large: {
-      type: Boolean,
-      default: false,
-    },
-    small: {
-      type: Boolean,
-      default: true,
-    },
+<script setup>
+defineProps({
+  color: {
+    type: String,
+    required: true,
   },
-};
+});
 </script>
 
 <style>
