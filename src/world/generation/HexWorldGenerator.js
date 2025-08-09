@@ -97,7 +97,14 @@ export const TemperatureBand = { Polar: 'Polar', Cold: 'Cold', Temperate: 'Tempe
 export const MoistureBand = { Arid: 'Arid', SemiArid: 'SemiArid', Humid: 'Humid', Saturated: 'Saturated' };
 
 const ElevationThresholds = {
-  deep: 0.06, shelf: 0.09, coast: 0.20, low: 0.50, high: 0.75, mount: 0.90,
+  // Sharper contrast per design doc v1.1
+  // Deep ocean expanded, open seas wider, more interior highlands/mountains
+  deep: 0.05,
+  shelf: 0.12,
+  coast: 0.20,
+  low: 0.45,
+  high: 0.70,
+  mount: 0.88,
 };
 
 function classifyElevationBand(h) {
@@ -235,12 +242,12 @@ export function createHexGenerator(seed) {
   const seedInt = hash2i(0x9e37, 0x85eb, 0xc2b2 ^ (hash2i(13, 17, String(seed).length)));
   // Global parameters (tuned to hex axial-space units with R=1)
   const cellSize = 140; // plate/cell size in hex units (typical 100–300 diameter)
-  const warpFreq = 0.004, warpAmp = 45; // very low frequency domain warp
-  const baseFreq = 0.0065, baseShape = 1.25; // continental base
-  const ridgeFreq = 0.018; // long chains
-  const detailFreq = 0.045, detailAmp = 0.12; // edge breakup
+  const warpFreq = 0.004, warpAmp = 80; // stronger domain warp for bold coasts
+  const baseFreq = 0.0065, baseShape = 1.35; // more exaggerated continental interiors
+  const ridgeFreq = 0.016; // slightly longer chains
+  const detailFreq = 0.045, detailAmp = 0.18; // more breakup
   const latPeriod = 900; // climate belt half-period in axial-plane units
-  const lapseRate = 0.55; // temperature drop with elevation
+  const lapseRate = 0.75; // colder highlands, snowier mountains
 
   // Seed-rotated latitude axis
   const rng = makeRng('latAxis:' + seed);
@@ -260,7 +267,7 @@ export function createHexGenerator(seed) {
     // Continental base + gentle detail (2 calls)
     let cont = n01(noises.base, xw, yw, baseFreq);
     const coastRough = n01(noises.detail, xw, yw, baseFreq * 2.3);
-    cont = Math.pow(clamp01(cont * 0.85 + coastRough * 0.15), baseShape);
+  cont = Math.pow(clamp01(cont * 0.80 + coastRough * 0.20), baseShape);
 
     // Cellular plates and ridge gating (no extra noise calls aside from ridge)
     const w = worley2F12(xw, yw, cellSize, seedInt);
@@ -268,16 +275,37 @@ export function createHexGenerator(seed) {
     const edgeInv = 1 - smoothstep(0.0, 0.33, edge); // 1 near plate edges
 
     // Ridged term shaped & gated to edges (1 call)
-    const ridgeN = ridged(simplex2(noises.ridge, xw, yw, ridgeFreq));
-    const ridgeTerm = ridgeN * edgeInv;
+  const ridgeN = ridged(simplex2(noises.ridge, xw, yw, ridgeFreq));
+  let ridgeTerm = ridgeN * edgeInv;
 
     // Small detail (1 call)
     const small = n01(noises.detail, x, y, detailFreq) * detailAmp;
 
     // Combine and normalize
-    let h = cont * 0.78 + ridgeTerm * 0.32 + small;
+    // Continental relief bias: push interiors up, basins down
+    const macroBias = (cont - 0.5) * 0.25;
+    // Exaggerate ridge contribution for taller chains
+    let h = cont * 0.75 + ridgeTerm * 0.45 + small * 1.15 + macroBias;
     h = clamp01(h);
-    return { h, cont, edge, ridge: ridgeN, cell: w };
+
+    // Rift valleys: on a subset of plate boundaries, carve deep linear depressions
+    const riftEligible = ((hash2i(elevCellIdSeed(xw, yw, seedInt), seedInt, 0x5bd1e995) >>> 0) % 7) === 0;
+    if (riftEligible) {
+      // Strongest near edges (edgeInv ~1), taper inward
+      const valley = smoothstep(0.5, 1.0, edgeInv);
+      h = clamp01(h - valley * 0.12);
+      ridgeTerm *= 1.6; // flanking ridges taller
+    }
+    h = clamp01(h);
+    return { h, cont, edge, ridge: ridgeN, cell: w, riftEligible };
+  }
+
+  // Helper to generate a stable id for rift selection based on warped coordinates
+  function elevCellIdSeed(xw, yw, seedIntLocal) {
+    // Map to coarse grid to align with plate boundaries
+    const kx = Math.floor(xw / cellSize);
+    const ky = Math.floor(yw / cellSize);
+    return hash2i(kx, ky, seedIntLocal);
   }
 
   function climateAt(x, y, elevMacro) {
@@ -294,24 +322,28 @@ export function createHexGenerator(seed) {
     else if (absLat > 0.75) windDir = { x: -lonAxis.x, y: -lonAxis.y }; // polar E->W
 
     // Moisture proxy: maritime vs interior from continental base value
-    let moisture = clamp01(1 - elevMacro); // coast=wet, interior=dry
+  let moisture = clamp01(1 - elevMacro); // coast=wet, interior=dry
 
     // Rain shadow using upslope/downslope along wind (reuse continental macro only)
     const step = 18; // sample distance in axial units
     const up = n01(noises.base, x + windDir.x * step, y + windDir.y * step, baseFreq);
     const down = n01(noises.base, x - windDir.x * step, y - windDir.y * step, baseFreq);
-    const grad = (up - down) * 0.5; // signed slope along wind
-    if (grad > 0) moisture = clamp01(moisture + grad * 0.5);
-    else moisture = clamp01(moisture + grad * 0.8); // dry leeward
+  const grad = (up - down) * 0.5; // signed slope along wind
+  if (grad > 0) moisture = clamp01(moisture + grad * 0.7); // wetter windward
+  else moisture = clamp01(moisture + grad * 1.1); // drier leeward
 
-    return { temp, moisture, windDir, lat01: 1 - latBand };
+  return { temp, moisture, windDir, lat01: 1 - latBand };
   }
 
   function renderHints({ elevBand, h, moisture, temp, slope, shelfDepth01 }) {
-    const bathymetryStep = elevBand === ElevationBand.Shelf ? (shelfDepth01 < 0.33 ? 1 : shelfDepth01 < 0.66 ? 2 : 3) : 0;
-    const aridityTint = 1 - moisture; // higher = warmer tint
-    const rockExposure = clamp01((slope * 0.7) + (h > ElevationThresholds.high ? 0.2 : 0));
-    const snowMask = clamp01((1 - temp) * (h >= ElevationThresholds.high ? 1 : 0.5));
+    // More bathymetry steps and stronger aridity contrast; lower snow line
+    let bathymetryStep = 0;
+    if (elevBand === ElevationBand.Shelf) bathymetryStep = shelfDepth01 < 0.25 ? 1 : shelfDepth01 < 0.5 ? 2 : shelfDepth01 < 0.75 ? 3 : 4;
+    else if (elevBand === ElevationBand.DeepOcean) bathymetryStep = h < ElevationThresholds.deep * 0.4 ? 6 : h < ElevationThresholds.deep * 0.7 ? 5 : 4;
+    const aridityTint = clamp01((1 - moisture) * 1.15);
+    const snowBase = h >= (ElevationThresholds.high * 0.95) ? 1 : 0.7; // lower snow line
+    const rockExposure = clamp01((slope * 0.75) + (h > ElevationThresholds.high ? 0.25 : 0));
+    const snowMask = clamp01((1 - temp) * snowBase);
     return { bathymetryStep, aridityTint, rockExposure, snowMask };
   }
 
@@ -329,8 +361,25 @@ export function createHexGenerator(seed) {
 
     const elevBand = classifyElevationBand(elev.h);
     const shelfDepth01 = elevBand === ElevationBand.Shelf ? clamp01((elev.h - ElevationThresholds.deep) / (ElevationThresholds.shelf - ElevationThresholds.deep)) : 0;
+    // Base climate
+    let clim = climateAt(x, y, elev.cont);
+    // Region archetype from plate cell id + latitude
+    const archetype = chooseArchetype(elev.cell.id, clim.lat01);
+    // Archetype extremes: push temp/moisture before banding
+    switch (archetype) {
+      case Archetype.EquatorialWet: clim = { ...clim, temp: clamp01(clim.temp + 0.07), moisture: clamp01(clim.moisture + 0.18) }; break;
+      case Archetype.SubtropicalDryWest: clim = { ...clim, moisture: clamp01(clim.moisture - 0.18) }; break;
+      case Archetype.SubtropicalMonsoonEast: clim = { ...clim, moisture: clamp01(clim.moisture + 0.12) }; break;
+      case Archetype.TemperateMaritime: clim = { ...clim, moisture: clamp01(clim.moisture + 0.10) }; break;
+      case Archetype.TemperateContinental: clim = { ...clim, moisture: clamp01(clim.moisture - 0.15) }; break;
+      case Archetype.BorealPolar: clim = { ...clim, temp: clamp01(clim.temp - 0.10) }; break;
+      default: break;
+    }
+    // Odd climate pockets by macro cell
+    const oddRoll = (elev.cell.id >>> 0) % 17;
+    if (oddRoll === 0) clim = { ...clim, temp: clamp01(clim.temp + 0.12), moisture: clamp01(clim.moisture + 0.12) }; // warm oasis
+    else if (oddRoll === 7) clim = { ...clim, temp: clamp01(clim.temp - 0.12), moisture: clamp01(clim.moisture - 0.10) }; // cold pocket
 
-    const clim = climateAt(x, y, elev.cont);
     const tBand = classifyTemperatureBand(clim.temp);
     const mBand = classifyMoistureBand(clim.moisture);
 
@@ -340,24 +389,26 @@ export function createHexGenerator(seed) {
       ? (tBand === TemperatureBand.Tropical ? 'CoralSea' : (tBand === TemperatureBand.Polar ? 'IceMarginalSea' : 'KelpShelf'))
       : null;
 
-    // Region archetype from plate cell id + latitude
-    const archetype = chooseArchetype(elev.cell.id, clim.lat01);
-
     const major = pickBiomeMajor({ elevBand, tBand, mBand, slope, isCoast, shelfKind, coldness, archetype });
 
     // Special overrides (sparse): volcanic & salt flats via hashed rarity
-    const hashLocal = hash2i(Math.floor(x), Math.floor(y), seedInt) >>> 0;
-    const volcanic = (hashLocal % 9973) === 0 || (elev.ridge > 0.92 && (hashLocal % 23) === 0);
-    const basinness = (slope < 0.22) && (elev.h < Math.max(0.18, elev.cont - 0.04));
-    const lake = basinness && (mBand !== MoistureBand.Arid) && ((hashLocal >>> 8) % 97 === 0);
+  const hashLocal = hash2i(Math.floor(x), Math.floor(y), seedInt) >>> 0;
+  const volcanic = (hashLocal % 1993) === 0 || (elev.ridge > 0.9 && (hashLocal % 11) === 0);
+  const basinness = (slope < 0.22) && (elev.h < Math.max(0.18, elev.cont - 0.02));
+  const inlandSea = basinness && elev.h < 0.14 && ((hashLocal >>> 6) % 73 === 0);
+  const lake = (!inlandSea) && basinness && (mBand !== MoistureBand.Arid) && ((hashLocal >>> 8) % 53 === 0);
     const karst = (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated) && slope > 0.25 && slope < 0.6;
-    const badlands = (mBand === MoistureBand.SemiArid || mBand === MoistureBand.Arid) && slope > 0.6 && major.indexOf('Desert') >= 0;
-    const fjord = (elevBand === ElevationBand.Coast) && (coldness > 0.6) && slope > 0.65;
-    const mangrove = (elevBand === ElevationBand.Coast) && (tBand === TemperatureBand.Tropical) && (mBand !== MoistureBand.Arid) && slope < 0.35;
+  const badlands = (mBand === MoistureBand.SemiArid || mBand === MoistureBand.Arid) && slope > 0.55 && major.indexOf('Desert') >= 0;
+  const saltFlats = basinness && (mBand === MoistureBand.Arid || mBand === MoistureBand.SemiArid) && slope < 0.2;
+  const fjord = (elevBand === ElevationBand.Coast) && (coldness > 0.55) && slope > 0.55;
+  const mangrove = (elevBand === ElevationBand.Coast) && (tBand === TemperatureBand.Tropical) && (mBand !== MoistureBand.Arid) && slope < 0.40;
     const wetland = (mBand === MoistureBand.Saturated) && (slope < 0.3) && (elevBand === ElevationBand.Lowland || lake);
+  const rift = !!elev.riftEligible && elev.edge > 0.6;
+  const plateau = (elevBand === ElevationBand.Highland || elevBand === ElevationBand.Mountain) && slope < 0.22 && (elev.h > ElevationThresholds.high);
+  const marshRing = lake && (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated);
 
     // Relief proxy from ridge & detail (no extra calls)
-    const relief = clamp01(elev.ridge * 0.6 + slope * 0.4);
+  const relief = clamp01(elev.ridge * 0.65 + slope * 0.35);
     const sub = pickBiomeSub({ major, slope, relief, archetype, tBand });
 
     const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
@@ -372,12 +423,17 @@ export function createHexGenerator(seed) {
       regionArchetype: archetype,
       flags: {
         lake: !!lake,
+        inlandSea: !!inlandSea,
         wetland: !!wetland,
         volcanic: !!volcanic,
         karst: !!karst,
         badlands: !!badlands,
+        saltFlats: !!saltFlats,
         fjord: !!fjord,
         mangrove: !!mangrove,
+        plateau: !!plateau,
+        rift: !!rift,
+        marshRing: !!marshRing,
       },
       render: hints,
       // Extra raw fields for debugging/tuning

@@ -312,6 +312,7 @@ export default {
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
   generation: { scale: 1.0 },
+  worldSeed: 1337,
   
   // Rendering toggles
   // Default chunkColors: true (use per-chunk pastel overrides)
@@ -347,7 +348,8 @@ export default {
         if (saved.debug && typeof saved.debug === 'object') Object.assign(this.debug, saved.debug);
         if (saved.features && typeof saved.features === 'object') Object.assign(this.features, saved.features);
         if (saved.radialFade && typeof saved.radialFade === 'object') Object.assign(this.radialFade, saved.radialFade);
-  if (saved.generation && typeof saved.generation === 'object') Object.assign(this.generation, saved.generation);
+        if (saved.generation && typeof saved.generation === 'object') Object.assign(this.generation, saved.generation);
+        if (typeof saved.worldSeed === 'number') this.worldSeed = saved.worldSeed;
       }
     } catch (e) { /* noop */ }
     // Persist any changes back to settings
@@ -355,7 +357,8 @@ export default {
       debug: this.debug,
       features: this.features,
       radialFade: this.radialFade,
-  generation: this.generation,
+      generation: this.generation,
+      worldSeed: this.worldSeed,
     }), (val) => {
       if (this.settings && this.settings.mergeAtPath) {
         this.settings.mergeAtPath({ path: 'worldMap', value: val });
@@ -875,7 +878,12 @@ export default {
         // Start fade well inside edges (~60% of min half-extent) so it's clearly visible
         const inner = 0.60 * Math.min(halfW, halfH);
         const minRadius = Math.max(2.0 * this.layoutRadius, hexHeight * 1.5);
-        this.radialFade.radius = Math.max(minRadius, inner);
+        // Only set a default radius if one hasn't been provided via settings; otherwise, clamp to a safe minimum
+        if (this.radialFade.radius == null || this.radialFade.radius <= 0) {
+          this.radialFade.radius = Math.max(minRadius, inner);
+        } else {
+          this.radialFade.radius = Math.max(minRadius, this.radialFade.radius);
+        }
         // Keep width reasonable in world units
         const minWidth = Math.max(hexHeight * 1.5, this.layoutRadius * 1.0);
         this.radialFade.width = Math.max(minWidth, this.radialFade.width || 0.0);
@@ -1004,9 +1012,12 @@ export default {
         gridSize: this.gridSize,
         elevation: this.elevation,
         terrainShape: this.terrainShape,
+    seed: this.worldSeed,
     generationScale: this.generation.scale,
     }));
   this.clutter = markRaw(new ClutterManager());
+  // Tie clutter RNG to the same seed for deterministic placement
+  if (this.clutter) this.clutter.worldSeed = this.worldSeed;
 
       this.loadModel();
       this.animate = this.animate.bind(this);

@@ -23,13 +23,14 @@ export default class WorldGrid {
     };
   this.seed = opts.seed ?? 1337;
   this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
-    // Noise
-    // Legacy noises (still used for minor shaping like shoreline mask); primary "height/biome" now comes from HexWorldGenerator
-    this.heightNoise = new SimplexNoise('height');
-    this.foliageNoise = new SimplexNoise('foliage');
-    this.temperatureNoise = new SimplexNoise('temperature');
-    this.mountainNoise = new SimplexNoise('mountain');
-    this.waterMaskNoise = new SimplexNoise('waterMask');
+  // Noise (seeded deterministically by world seed)
+  // Legacy noises remain for minor shaping (e.g., shoreline), but are now tied to the same seed
+  const seedStr = String(this.seed);
+  this.heightNoise = new SimplexNoise('height:' + seedStr);
+  this.foliageNoise = new SimplexNoise('foliage:' + seedStr);
+  this.temperatureNoise = new SimplexNoise('temperature:' + seedStr);
+  this.mountainNoise = new SimplexNoise('mountain:' + seedStr);
+  this.waterMaskNoise = new SimplexNoise('waterMask:' + seedStr);
 
     // New stateless world generator (pure per-hex); we keep one instance to reuse internal noise objects
     this.hexGen = createHexGenerator(this.seed);
