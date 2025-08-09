@@ -15,11 +15,19 @@ export default class WorldGrid {
     this.layoutRadius = opts.layoutRadius ?? 0.5;
     this.gridSize = opts.gridSize ?? 20;
     this.elevation = opts.elevation ?? {
-      base: 0.08, max: 1.2, curve: 1.35, minLand: 0.32, shorelineBlend: 0.08,
+      base: 0.08, max: 1.35, curve: 1.35, minLand: 0.30, shorelineBlend: 0.08,
     };
     this.terrainShape = opts.terrainShape ?? {
       baseFreq: 0.07, mountainFreq: 0.16, mountainThreshold: 0.78,
       mountainStrength: 0.6, plainsExponent: 1.6, mountainExponent: 1.25, finalExponent: 1.25,
+    };
+    // Configurable vertical exaggeration to make mountains pop
+    this.verticalExaggeration = opts.verticalExaggeration ?? {
+      highland: 1.25,
+      mountain: 1.75,
+      peak: 2.0,
+      coast: 0.98,
+      ridgeBonus: 0.25, // additional up to this factor scaled by ridge (0..1)
     };
   this.seed = opts.seed ?? 1337;
   this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
@@ -35,13 +43,41 @@ export default class WorldGrid {
     // New stateless world generator (pure per-hex); we keep one instance to reuse internal noise objects
     this.hexGen = createHexGenerator(this.seed);
 
-    // scratch
-    this._tmpColor = new THREE.Color();
+  // scratch
+  this._tmpColor = new THREE.Color();
+
+  // Memoization cache for per-hex results to avoid recomputation across frames
+  this._cacheVersion = 0;
+  // Single-level cache keyed by packed key to avoid nested maps
+  // Prefer bigint packing when available; otherwise fall back to string keys
+  this._cellCache = new Map(); // Map<bigint|string, cell>
+  const hasBigInt = typeof BigInt === 'function';
+  this._packKey = hasBigInt
+    ? ((q, r) => ((BigInt(q) << 32n) ^ (BigInt(r) & 0xffffffffn)))
+    : ((q, r) => `${q},${r}`);
+  this._cacheSize = 0;
+  this._cacheLimit = (2 * this.gridSize + 1) * (2 * this.gridSize + 1); // at least one full grid
   }
 
   // Update generator tuning parameters at runtime
   setGeneratorTuning(tuning) {
     if (this.hexGen && this.hexGen.setTuning) this.hexGen.setTuning(tuning || {});
+    this.invalidateCache();
+  }
+
+  // Optional setter for generation scale with cache invalidation
+  setGenerationScale(scale) {
+    if (scale != null && isFinite(scale) && scale > 0) {
+      this.generationScale = Number(scale);
+      this.invalidateCache();
+    }
+  }
+
+  // Bump cache version and clear backing map
+  invalidateCache() {
+    this._cacheVersion = (this._cacheVersion + 1) >>> 0;
+  this._cellCache.clear();
+  this._cacheSize = 0;
   }
 
   bounds() {
@@ -92,6 +128,11 @@ export default class WorldGrid {
   }
 
   getCell(q, r) {
+  // Fast path: serve from cache when available
+  const k = this._packKey(q, r);
+  const cached = this._cellCache.get(k);
+  if (cached) return cached;
+
     const maxHeight = this.elevation.max;
 
     // Use new generator for macro terrain & climate
@@ -113,19 +154,37 @@ export default class WorldGrid {
 
     const shoreTop = BIOME_THRESHOLDS.shallowWater;
     const blendRange = this.elevation.shorelineBlend;
-    let yScale = baseScaleY;
+  let yScale = baseScaleY;
     let biome = classifyBiome(hRaw);
     if (biome !== 'deepWater' && biome !== 'shallowWater') {
       if (hRaw <= shoreTop + blendRange) {
         const tt = (hRaw - shoreTop) / blendRange;
         const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : (tt * tt * (3 - 2 * tt));
-        const raised = Math.max(baseScaleY, this.elevation.minLand);
-        yScale = THREE.MathUtils.lerp(baseScaleY, raised, smoothT);
+  const raised = Math.max(baseScaleY, this.elevation.minLand);
+  yScale = THREE.MathUtils.lerp(baseScaleY, raised, Math.pow(smoothT, 0.9));
       } else if (baseScaleY < this.elevation.minLand) {
         const deficit = (this.elevation.minLand - baseScaleY);
         yScale = baseScaleY + deficit * 0.85;
       }
     }
+
+    // Vertical exaggeration: make mountains pop without over-inflating coasts/water
+    // Use generator elevation band and ridge strength to scale heights
+    const elevBand = gen.elevationBand;
+    const ridge = gen.fields?.ridge ?? 0;
+    let exaggeration = 1.0;
+    const exConf = this.verticalExaggeration || {};
+    if (elevBand === 'Highland') {
+      exaggeration = (exConf.highland ?? 1.2) + (exConf.ridgeBonus ?? 0.15) * (ridge * 0.4);
+    } else if (elevBand === 'Mountain') {
+      exaggeration = (exConf.mountain ?? 1.6) + (exConf.ridgeBonus ?? 0.15) * (ridge * 0.8);
+    } else if (elevBand === 'Peak') {
+      exaggeration = (exConf.peak ?? 1.8) + (exConf.ridgeBonus ?? 0.2) * ridge;
+    } else if (elevBand === 'Coast') {
+      exaggeration = (exConf.coast ?? 1.0);
+    }
+    // Apply exaggeration post shoreline adjustments
+    yScale *= exaggeration;
 
     const hVisual = Math.max(0, Math.min(1, (yScale - this.elevation.base) / maxHeight));
     biome = classifyBiome(hVisual);
@@ -156,7 +215,7 @@ export default class WorldGrid {
     side.setHSL(hslTmp.h, hslTmp.s * 0.5, hslTmp.l);
 
     // Attach generator outputs for UI/debug/logic without breaking existing consumers
-    return {
+    const cell = {
       q, r,
       hRaw, h: hVisual,
       f, t,
@@ -166,5 +225,15 @@ export default class WorldGrid {
       yScale,
       gen, // full generator record (biomeMajor, biomeSub, bands, flags, render hints, fields)
     };
+
+  // Store in cache with simple size control
+  if (!this._cellCache.has(k)) this._cacheSize += 1;
+  this._cellCache.set(k, cell);
+    // If the cache exploded (likely grid size or center moved a lot), reset fully
+    if (this._cacheSize > this._cacheLimit * 2) {
+      this._cellCache.clear();
+      this._cacheSize = 0;
+    }
+    return cell;
   }
 }

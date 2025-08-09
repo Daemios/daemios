@@ -2,18 +2,34 @@
 // See docs/biome_rules.md for specification.
 import * as THREE from 'three';
 
-// Base biome colors
+// Base biome colors (punchier, higher contrast)
 const palette = {
-  deepWater: new THREE.Color('#143d59'),
-  shallowWater: new THREE.Color('#2f6fa5'),
-  beach: new THREE.Color('#d8c9a6'),
-  lowland: new THREE.Color('#5fae4d'),
-  highland: new THREE.Color('#6e8f5e'),
-  mountain: new THREE.Color('#b7b7b7'),
-  snow: new THREE.Color('#f5f5f5'),
-  desertTan: new THREE.Color('#c2b280'),
-  forestGreen: new THREE.Color('#2f7f4f'),
-  plainsGreen: new THREE.Color('#5fae4d'),
+  // Water
+  abyss: new THREE.Color('#052234'),   // darker blue
+  deepWater: new THREE.Color('#0f3a59'),
+  shallowWater: new THREE.Color('#1e6ea3'),
+  shelfCyan: new THREE.Color('#11a6b8'),
+  lagoon: new THREE.Color('#2fd6c7'),
+  // Shore / land bands
+  beach: new THREE.Color('#e4cfa3'),
+  dune: new THREE.Color('#e2c58a'),
+  lowland: new THREE.Color('#49b34f'), // brighter lush green
+  highland: new THREE.Color('#6aa35a'),
+  mountain: new THREE.Color('#bfc3c7'),
+  alpineRock: new THREE.Color('#8b97a4'),
+  snow: new THREE.Color('#ffffff'),
+  // Vegetation accents
+  desertTan: new THREE.Color('#d1b37a'),  // warmer sands
+  desertOrange: new THREE.Color('#d48f3b'),
+  forestGreen: new THREE.Color('#2a7e44'),
+  plainsGreen: new THREE.Color('#66c36c'),
+  jungleGreen: new THREE.Color('#129b52'),
+  tundra: new THREE.Color('#cbd7bf'),
+  // Specials
+  saltFlat: new THREE.Color('#f2efe7'),
+  basalt: new THREE.Color('#2f2a2a'),
+  wetTeal: new THREE.Color('#19a18f'),
+  volcanicWarm: new THREE.Color('#7a3f2a'),
 };
 
 // Foliage classification: desert < plains < forest
@@ -56,31 +72,59 @@ export const BIOME_THRESHOLDS = {
 //     bands: { elevation, temp, moisture }, biomeMajor
 //   }
 export function biomeColor(h, foliage, t, outColor = new THREE.Color(), opts = null) {
+  const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+  const get = (obj, key, fallback) => (obj && obj[key] != null ? obj[key] : fallback);
+  const flags = (opts && opts.flags) || {};
+  const bands = (opts && opts.bands) || {};
+  const tempN = clamp01(get(opts, 'temp', t != null ? t : 0.5));
+  const moistureN = clamp01(get(opts, 'moisture', foliage != null ? foliage : 0.5));
+  const rockExpo = clamp01(get(opts, 'rockExposure', 0));
+  const aridityHint = clamp01(get(opts, 'aridityTint', 0));
+  const bathy = clamp01(get(opts, 'bathymetryStep', 0));
+  const biomeMajor = (opts && opts.biomeMajor) || null;
+  const archetypeWeight = clamp01(get(opts, 'archetypeWeight', 1));
+
   // Determine base color via elevation bands (updated thresholds) with intra-band gradients
   if (h < 0.05) {
-    const f = h / 0.05; // 0-0.05
-    outColor.copy(palette.deepWater).lerp(palette.shallowWater, Math.pow(f, 0.6));
-    // Bathymetry accent: deepen color for higher bathymetry steps
-    const step = opts && opts.bathymetryStep != null ? opts.bathymetryStep : 0;
-    if (step > 0) {
-      const deepen = Math.min(0.25, step * 0.04);
-      const hsl = { h: 0, s: 0, l: 0 };
-      outColor.getHSL(hsl);
-      hsl.l = Math.max(0, hsl.l - deepen);
-      outColor.setHSL(hsl.h, hsl.s, hsl.l);
-    }
+    // Deep water: sandy seabed (slightly darker/desaturated with depth)
+    const f = h / 0.05; // 0-0.05 from deep to less deep
+    const baseSand = palette.desertTan.clone().lerp(palette.dune, 0.5);
+    const deepSand = baseSand.clone();
+    const hsl = { h: 0, s: 0, l: 0 };
+    deepSand.getHSL(hsl);
+    // Make deeper areas darker and less saturated
+    const depth = 1 - f + (bathy * 0.1);
+    hsl.s = Math.max(0, hsl.s * (1 - 0.25 * depth));
+    hsl.l = Math.max(0, hsl.l * (1 - 0.30 * depth));
+    deepSand.setHSL(hsl.h, hsl.s, hsl.l);
+    outColor.copy(deepSand);
   } else if (h < 0.12) {
+    // Shallow water: lighter sandy seabed approaching beach
     const f = (h - 0.05) / 0.07; // 0.05-0.12
-    outColor.copy(palette.shallowWater).lerp(palette.beach, f);
+    const nearSea = palette.desertTan.clone().lerp(palette.dune, 0.6);
+    const nearBeach = palette.beach.clone().lerp(palette.dune, 0.35);
+    outColor.copy(nearSea).lerp(nearBeach, Math.pow(f, 0.85));
   } else if (h < 0.20) {
     const f = (h - 0.12) / 0.08; // 0.12-0.20
-    outColor.copy(palette.beach).lerp(palette.lowland, f);
+    // Dune accent stronger in hot/arid coasts; greener in humid tropics
+    const duneBias = clamp01((tempN * 0.6 + (1 - moistureN) * 0.8));
+    const beachTo = palette.beach.clone().lerp(palette.dune, 0.45 * duneBias);
+    const greenLift = palette.lowland.clone().lerp(palette.jungleGreen, 0.25 * clamp01(moistureN * tempN));
+    outColor.copy(beachTo).lerp(greenLift, f);
   } else if (h < 0.45) {
     const f = (h - 0.20) / 0.25; // 0.20-0.45
-    outColor.copy(palette.lowland).lerp(palette.highland, Math.pow(f, 1.1));
+    // Distinguish continents: wetter -> jungle greens; drier -> tan/olive
+    const humid = clamp01(moistureN);
+    const arid = 1 - humid;
+    const lush = palette.lowland.clone().lerp(palette.jungleGreen, 0.40 * clamp01(tempN * humid));
+    const dry = palette.lowland.clone().lerp(palette.desertTan, 0.45 * clamp01(arid));
+    const mid = lush.clone().lerp(dry, arid);
+    outColor.copy(mid).lerp(palette.highland, Math.pow(f, 1.05));
   } else if (h < 0.70) {
     const f = (h - 0.45) / 0.25; // 0.45-0.70
-    outColor.copy(palette.highland).lerp(palette.mountain, Math.pow(f, 0.9));
+    // Slightly cooler tint toward alpine rock as we near mountains
+    const mid = palette.highland.clone().lerp(palette.alpineRock, 0.28);
+    outColor.copy(mid).lerp(palette.mountain, Math.pow(f, 0.9));
   } else if (h < 0.88) {
     const f = (h - 0.70) / 0.18; // 0.70-0.88
     outColor.copy(palette.mountain).lerp(palette.snow, f);
@@ -94,18 +138,18 @@ export function biomeColor(h, foliage, t, outColor = new THREE.Color(), opts = n
     let target;
     if (band === 'desert') target = palette.desertTan;
     else if (band === 'plains') target = palette.plainsGreen;
-    else target = palette.forestGreen;
+    else target = (tempN > 0.6 && moistureN > 0.6) ? palette.jungleGreen : palette.forestGreen;
 
     let strength = 0.0;
-    if (h < 0.20) strength = band === 'desert' ? 0.20 : 0.12; // beach: slightly stronger desert accent
-    else if (h < 0.45) strength = band === 'plains' ? 0.30 : 0.60; // lowland: stronger contrasts
-    else if (h < 0.70) strength = band === 'plains' ? 0.25 : 0.50; // highland: moderate-strong
-    else strength = band === 'plains' ? 0.22 : 0.45; // mountain foothills: moderate
+  if (h < 0.20) strength = band === 'desert' ? 0.25 : 0.10; // beach: favor sand hues
+  else if (h < 0.45) strength = band === 'plains' ? 0.35 : 0.65; // lowland: vivid
+  else if (h < 0.70) strength = band === 'plains' ? 0.28 : 0.50; // highland
+  else strength = band === 'plains' ? 0.22 : 0.40; // foothills
 
     outColor.lerp(target, strength);
 
     // Moisture/aridity adjustments (continuous)
-    const moisture = opts && opts.moisture != null ? opts.moisture : foliage;
+    const moisture = moistureN;
     if (moisture != null) {
       // More humid → richer greens (increase saturation, lower light slightly)
       // More arid → shift slightly toward tan and brighten
@@ -113,49 +157,82 @@ export function biomeColor(h, foliage, t, outColor = new THREE.Color(), opts = n
       outColor.getHSL(hsl);
       const humid = Math.max(0, Math.min(1, moisture));
       const arid = 1 - humid;
-      // Saturation bump up to +20% in humid; lightness down to -6%
-      hsl.s = Math.min(1, hsl.s * (1 + 0.2 * humid));
-      hsl.l = Math.max(0, hsl.l * (1 - 0.06 * humid));
+      // Saturation bump up to +28% in humid; lightness down to -8%
+      hsl.s = Math.min(1, hsl.s * (1 + 0.28 * humid));
+      hsl.l = Math.max(0, hsl.l * (1 - 0.08 * humid));
       outColor.setHSL(hsl.h, hsl.s, hsl.l);
-      // Aridity tint toward desertTan up to 20%
-      if (arid > 0) outColor.lerp(palette.desertTan, 0.20 * arid);
+      // Aridity tint toward desertTan/orange up to 28%
+      if (arid > 0) {
+        const warm = palette.desertTan.clone().lerp(palette.desertOrange, 0.45);
+        outColor.lerp(warm, 0.28 * arid * (0.65 + 0.35 * archetypeWeight));
+      }
     }
     // Explicit aridity tint from generator render hints (stronger than moisture proxy)
     if (opts && opts.aridityTint != null) {
-      outColor.lerp(palette.desertTan, 0.25 * Math.max(0, Math.min(1, opts.aridityTint)));
+  const warm = palette.desertTan.clone().lerp(palette.desertOrange, 0.35);
+  outColor.lerp(warm, 0.30 * aridityHint * (0.65 + 0.35 * archetypeWeight));
     }
 
     // Rock exposure dulls color slightly
     if (opts && opts.rockExposure != null) {
-      const r = Math.max(0, Math.min(1, opts.rockExposure));
-      const gray = palette.mountain.clone();
-      outColor.lerp(gray, 0.20 * r);
+      const r = rockExpo;
+      // Blend toward alpineRock/gray; stronger near volcanic provinces to suggest basalt
+      const rockTarget = flags.volcanic ? palette.basalt : palette.alpineRock;
+      outColor.lerp(rockTarget, 0.20 * r);
     }
 
-    // Wetlands/mangroves: add teal/blue-green tint
-    const wet = opts && opts.flags && (opts.flags.wetland || opts.flags.mangrove);
+    // Wetlands/mangroves: add teal/blue-green tint (slightly stronger)
+    const wet = flags.wetland || flags.mangrove;
     if (wet) {
-      const teal = new THREE.Color('#2aa198');
-      outColor.lerp(teal, 0.15);
+      outColor.lerp(palette.wetTeal, 0.18);
     }
     // Volcanic provinces: darker, warmer
-    if (opts && opts.flags && opts.flags.volcanic) {
-      const warm = new THREE.Color('#6b3a2a');
-      outColor.lerp(warm, 0.12);
+    if (flags.volcanic) {
+      outColor.lerp(palette.volcanicWarm, 0.12);
       const hsl = { h: 0, s: 0, l: 0 };
       outColor.getHSL(hsl);
       hsl.l = Math.max(0, hsl.l - 0.06);
       outColor.setHSL(hsl.h, hsl.s, hsl.l);
     }
+
+    // Salt flats: override toward bright salt color regardless of band
+    if (flags.saltFlats) {
+      outColor.lerp(palette.saltFlat, 0.65);
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      hsl.s = Math.max(0, hsl.s * 0.5);
+      hsl.l = Math.min(1, Math.max(hsl.l, 0.8));
+      outColor.setHSL(hsl.h, hsl.s, hsl.l);
+    }
+
+    // Temperature-driven hue shift on land: cold → bluish greens, hot → yellow/olive, slightly stronger
+    {
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      // shift up to +/- 0.08 (~29 degrees) around mid temp 0.5
+      const delta = (tempN - 0.5) * 0.16; // still moderate
+      let hh = hsl.h + delta;
+      if (hh < 0) hh += 1; else if (hh > 1) hh -= 1;
+      outColor.setHSL(hh, hsl.s, hsl.l);
+    }
+
+    // Tundra desaturation in cold, semi-arid zones
+    if (tempN < 0.26 && moistureN < 0.55 && h >= 0.20 && h < 0.70) {
+      outColor.lerp(palette.tundra, 0.35);
+      const hsl = { h: 0, s: 0, l: 0 };
+      outColor.getHSL(hsl);
+      hsl.s = hsl.s * 0.82;
+      outColor.setHSL(hsl.h, hsl.s, hsl.l);
+    }
   }
 
   // Temperature cold desaturation (legacy) and snow overlay
-  if (t != null && t <= 0.15) {
+  if (t != null && t <= 0.12) {
     const factor = 1 - (t / 0.1); // 1 at 0.0, 0 at 0.1
     const hsl = { h: 0, s: 0, l: 0 };
     outColor.getHSL(hsl);
-    hsl.s = hsl.s * (1 - 0.5 * factor);
-    hsl.l = Math.min(1, hsl.l + 0.10 * factor);
+    hsl.s = hsl.s * (1 - 0.45 * factor);
+    hsl.l = Math.min(1, hsl.l + 0.08 * factor);
     outColor.setHSL(hsl.h, hsl.s, hsl.l);
   }
   if (opts && opts.snowMask != null && h >= 0.20) {

@@ -146,6 +146,10 @@
           <input :value="genLocal.tuning.detailScale" type="number" step="0.01" @input="onSetTuning('detailScale', $event)" style="width:100%;">
           <label style="opacity:0.8; text-align:right;">Climate belt</label>
           <input :value="genLocal.tuning.climateScale" type="number" step="0.01" @input="onSetTuning('climateScale', $event)" style="width:100%;">
+          <span style="opacity:0.8; text-align:right;">Ocean encaps.</span>
+          <input :value="genLocal.tuning.oceanEncapsulation" type="number" step="0.01" min="0" max="1" @input="onSetTuning('oceanEncapsulation', $event)" style="width:100%;">
+          <span style="opacity:0.8; text-align:right;">Sea bias</span>
+          <input :value="genLocal.tuning.seaBias" type="number" step="0.01" @input="onSetTuning('seaBias', $event)" style="width:100%;">
         </div>
         <div style="opacity: 0.8;">{{ Number(genLocal.scale).toFixed(2) }}×</div>
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; justify-content: flex-end;">

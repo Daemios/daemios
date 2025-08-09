@@ -10,10 +10,10 @@ export const CLUTTER_TYPES = [
     scale: { min: 0.7, max: 1.2 },
     rotation: { yawRandom: true },
     biomes: {
-  snow: { density: 0.12, maxPerTile: 6 },
-  mountain: { density: 0.08, maxPerTile: 2 },
-  highland: { density: 0.18, maxPerTile: 8 },
-  lowland: { density: 0.12, maxPerTile: 6 },
+      snow: { density: 0.10, maxPerTile: 6 },
+      mountain: { density: 0.08, maxPerTile: 3 },
+      highland: { density: 0.18, maxPerTile: 8 },
+      lowland: { density: 0.10, maxPerTile: 5 },
     },
   },
   {
@@ -26,9 +26,9 @@ export const CLUTTER_TYPES = [
     scale: { min: 0.8, max: 1.4 },
     rotation: { yawRandom: true },
     biomes: {
-  lowland: { density: 0.22, maxPerTile: 8 },
-  highland: { density: 0.10, maxPerTile: 6 },
-  beach: { density: 0.04, maxPerTile: 2 },
+      lowland: { density: 0.26, maxPerTile: 10 },
+      highland: { density: 0.12, maxPerTile: 7 },
+      beach: { density: 0.03, maxPerTile: 2 },
     },
   },
   {
@@ -41,10 +41,10 @@ export const CLUTTER_TYPES = [
     scale: { min: 0.8, max: 1.1 },
     rotation: { yawRandom: true },
     biomes: {
-  lowland: { density: 0.006, maxPerTile: 1 },
-  highland: { density: 0.012, maxPerTile: 1 },
-  mountain: { density: 0.015, maxPerTile: 1 },
-  beach: { density: 0.004, maxPerTile: 1 },
+      lowland: { density: 0.006, maxPerTile: 1 },
+      highland: { density: 0.014, maxPerTile: 1 },
+      mountain: { density: 0.020, maxPerTile: 1 },
+      beach: { density: 0.006, maxPerTile: 1 },
     },
   },
 ];

@@ -78,6 +78,7 @@ import WorldGrid from '@/world/WorldGrid';
 import PlayerMarker from '@/renderer/PlayerMarker';
 import ClutterManager from '@/world/ClutterManager';
 import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMaterial';
+import createRealisticWaterMaterial from '@/renderer/materials/RealisticWaterMaterial';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { updateRadialFadeUniforms } from '@/renderer/radialFade';
 import ChunkNeighborhood from '@/renderer/ChunkNeighborhood';
@@ -111,11 +112,15 @@ export default {
   trailTopIM: null,
   trailSideIM: null,
   trailTimer: null,
+  // Keep previous neighborhood bounds for clutter persistence during trail visibility
+  _prevNeighborhoodRect: null,
   neighborhood: null,
   // Water
   waterMesh: null,
   sandMesh: null,
   waterMaterial: null,
+  waterStyle: 'realistic', // 'realistic' | 'stylized'
+  waterSeabedTex: null,
   waterMaskTex: null,
   // Location marker (GLB)
   locationMarker: null,
@@ -223,7 +228,7 @@ export default {
   debug: { show: true },
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { scale: 1.0, expandNeighborhood: false, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 1.0, plateSize: 1.0, ridgeScale: 1.0, detailScale: 1.0, climateScale: 1.0 } },
+  generation: { scale: 1.0, expandNeighborhood: false, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
   worldSeed: 1337,
   
   // Rendering toggles
@@ -332,11 +337,22 @@ export default {
       };
   // Compute offset rect of the active neighborhood (radius derived from neighborOffsets)
   const radius = this._neighborRadius != null ? this._neighborRadius : 1;
-  const colMin = (this.centerChunk.x - radius) * this.chunkCols;
-  const rowMin = (this.centerChunk.y - radius) * this.chunkRows;
-  const colMax = (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
-  const rowMax = (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
-  // No pre-cull by fade; generate for full 3x3 area and let clutter shader fade discard handle visibility
+  const curr = {
+        colMin: (this.centerChunk.x - radius) * this.chunkCols,
+        rowMin: (this.centerChunk.y - radius) * this.chunkRows,
+        colMax: (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1),
+        rowMax: (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1),
+      };
+  // If a previous neighborhood exists and trail is visible, union the rect so clutter persists under trail
+  const rect = (this.trailTopIM && this.trailTopIM.visible && this._prevNeighborhoodRect)
+        ? {
+            colMin: Math.min(curr.colMin, this._prevNeighborhoodRect.colMin),
+            rowMin: Math.min(curr.rowMin, this._prevNeighborhoodRect.rowMin),
+            colMax: Math.max(curr.colMax, this._prevNeighborhoodRect.colMax),
+            rowMax: Math.max(curr.rowMax, this._prevNeighborhoodRect.rowMax),
+          }
+        : curr;
+  // No pre-cull by fade; generate for the union area and let clutter shader handle visibility
   const filter = undefined;
       this.clutter.commitInstances({
         layoutRadius,
@@ -344,7 +360,7 @@ export default {
         hexMaxY,
         modelScaleY,
         filter,
-        offsetRect: { colMin, colMax, rowMin, rowMax },
+  offsetRect: rect,
       });
       this.clutter.setEnabled(!!this.features.clutter);
     },
@@ -483,6 +499,16 @@ export default {
     },
     snapshotTrailAndArmClear(delayMs = 3000) {
       if (!this.topIM || !this.sideIM || !this.trailTopIM || !this.trailSideIM) return;
+      // Capture current neighborhood rect so clutter can persist under the trail
+      if (this._neighborRadius != null && this.centerChunk) {
+        const r = this._neighborRadius;
+        this._prevNeighborhoodRect = {
+          colMin: (this.centerChunk.x - r) * this.chunkCols,
+          rowMin: (this.centerChunk.y - r) * this.chunkRows,
+          colMax: (this.centerChunk.x + r) * this.chunkCols + (this.chunkCols - 1),
+          rowMax: (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1),
+        };
+      }
       const count = this.topIM.count;
       // Copy matrices
       this.trailTopIM.instanceMatrix.copy(this.topIM.instanceMatrix);
@@ -508,6 +534,8 @@ export default {
         this.trailTimer = null;
         this.trailTopIM.visible = false;
         this.trailSideIM.visible = false;
+  // Clear previous rect so future clutter commits don't include it
+  this._prevNeighborhoodRect = null;
       }, Math.max(0, delayMs | 0));
     },
     
@@ -707,6 +735,8 @@ export default {
       this.countPerChunk = built.countPerChunk;
       this._fadeUniforms = built.fadeUniforms;
       this._fadeUniformsDepth = built.fadeUniformsDepth;
+  this._fadeUniformsTrail = built.fadeUniformsTrail;
+  this._fadeUniformsDepthTrail = built.fadeUniformsDepthTrail;
       // Create a single hover overlay mesh to avoid relying on instance colors
       if (this.topIM && this.topGeom) {
         const hoverMat = new THREE.MeshBasicMaterial({
@@ -760,6 +790,10 @@ export default {
       }
 
       if (this.radialFade) {
+        // Define hex dimensions for this scope
+        const layoutRadius = this.layoutRadius;
+        const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+        const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
         const totalCols = this.chunkCols * 3;
         const totalRows = this.chunkRows * 3;
         const halfW = 0.5 * hexWidth * Math.max(1, (totalCols - 1));
@@ -1311,9 +1345,10 @@ export default {
       // Remove old
       if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
       if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
-      // 1) Create land mask texture (N x N), R channel 1.0=land, 0.0=water
+    // 1) Create land mask texture (N x N), R channel 1.0=land, 0.0=water
       const N = (2 * this.gridSize + 1);
-      const data = new Uint8Array(N * N * 4);
+    const data = new Uint8Array(N * N * 4);
+    const seabed = new Uint8Array(N * N * 4);
       let i = 0;
       for (let r = -this.gridSize; r <= this.gridSize; r += 1) {
         for (let q = -this.gridSize; q <= this.gridSize; q += 1) {
@@ -1324,6 +1359,12 @@ export default {
           data[i + 1] = 0;
           data[i + 2] = 0;
           data[i + 3] = 255;
+      // Seabed: store normalized yScale (top height factor) in R channel
+      const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
+      seabed[i] = Math.floor(ys * 255);
+      seabed[i + 1] = 0;
+      seabed[i + 2] = 0;
+      seabed[i + 3] = 255;
           i += 4;
         }
       }
@@ -1335,46 +1376,17 @@ export default {
       tex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterMaskTex = tex;
 
-      // 2) Cull water tile TOPS and compress SIDE height to a tiny sliver; remove any blue tint
-      if (this.topIM) {
-        const tmpColor = new THREE.Color(0, 0, 0);
-        const pos = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
-        const scl = new THREE.Vector3();
-        let culled = 0;
-        for (let idx = 0; idx < this.indexToQR.length; idx += 1) {
-          const coord = this.indexToQR[idx];
-          if (!coord) continue;
-          const cell = this.world.getCell(coord.q, coord.r);
-          const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
-          if (isWater) {
-            // Zero color (in case material uses per-instance colors)
-            if (this.topIM.instanceColor) this.topIM.setColorAt(idx, tmpColor);
-            // Cull TOP: set scale to zero
-            this.topIM.getMatrixAt(idx, this.tmpMatrix);
-            this.tmpMatrix.decompose(pos, quat, scl);
-            const zero = new THREE.Vector3(0, 0, 0);
-            this.tmpMatrix.compose(pos, quat, zero);
-            this.topIM.setMatrixAt(idx, this.tmpMatrix);
-            // Keep SIDES as a very short skirt to avoid corner highlights without forming visible walls
-            if (this.sideIM) {
-              // Use original X/Z scale, compress Y to a tiny epsilon
-              const sideScale = new THREE.Vector3(scl.x, Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)), scl.z);
-              this.tmpMatrix.compose(pos, quat, sideScale);
-              this.sideIM.setMatrixAt(idx, this.tmpMatrix);
-              if (this.sideIM.instanceColor) this.sideIM.setColorAt(idx, tmpColor);
-            }
-            culled += 1;
-          }
-        }
-        this.topIM.instanceMatrix.needsUpdate = true;
-        if (this.sideIM) this.sideIM.instanceMatrix.needsUpdate = true;
-        if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
-        if (this.sideIM && this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-        console.info('[WorldMap] buildWater: culled water tiles =', culled);
-      }
+    const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
+    seabedTex.needsUpdate = true;
+    seabedTex.magFilter = THREE.LinearFilter;
+    seabedTex.minFilter = THREE.LinearFilter;
+    seabedTex.wrapS = THREE.ClampToEdgeWrapping;
+    seabedTex.wrapT = THREE.ClampToEdgeWrapping;
+    this.waterSeabedTex = seabedTex;
 
-      // Compute minima
+  // 2) Keep seabed hex tops: no culling. Sides for water tiles are already kept short during instancing.
+
+  // Compute minima (for sand underlay placement only)
       let minTop = Infinity;
       let minTopWater = Infinity;
       let waterCount = 0;
@@ -1392,8 +1404,8 @@ export default {
           waterCount += 1;
         }
       });
-      if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
-      if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
+  if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
+  if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
 
       // 3) Single large planes spanning the map
       const planeSize = (this.gridSize * this.layoutRadius * this.spacingFactor * 4);
@@ -1404,7 +1416,7 @@ export default {
       const sandGeom = geom.clone();
       const sandMat = new THREE.MeshBasicMaterial({ color: 0xD7C49E, transparent: true, opacity: 1.0, depthWrite: false });
   const sand = markRaw(new THREE.Mesh(sandGeom, sandMat));
-      const sandY = Math.max(0.01 * this.hexMaxY * this.modelScaleFactor, 0.10 * minTop);
+  const sandY = Math.max(0.01 * this.hexMaxY * this.modelScaleFactor, 0.10 * minTop);
       sand.position.y = sandY;
       sand.renderOrder = 0;
       sand.frustumCulled = false;
@@ -1413,21 +1425,37 @@ export default {
       this.scene.add(sand);
   this.sandMesh = sand;
 
-      // Water plane
+  // Water plane at global sea level (just above shallowWater threshold)
   const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
   const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
-  const mat = markRaw(createStylizedWaterMaterial({
+      const factory = (this.waterStyle === 'stylized') ? createStylizedWaterMaterial : createRealisticWaterMaterial;
+      // Compute sea level world Y and hex world vertical scale factor
+      const seaH = BIOME_THRESHOLDS.shallowWater;
+      const base = (this.elevation && this.elevation.base != null) ? this.elevation.base : 0.08;
+      const maxH = (this.elevation && this.elevation.max != null) ? this.elevation.max : 1.2;
+      const seaLevelYScale = base + seaH * maxH;
+      const hexMaxYScaled = this.hexMaxY * this.modelScaleFactor;
+      const seaLevelY = hexMaxYScaled * seaLevelYScale;
+
+      const mat = markRaw(factory({
         opacity: 0.96,
         maskTexture: this.waterMaskTex,
+        seabedTexture: this.waterSeabedTex,
         hexW,
         hexH,
         gridN: (2 * this.gridSize + 1),
         gridOffset: this.gridSize,
         shoreWidth: 0.12,
+        hexMaxYScaled,
+        seaLevelY,
+        depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
+        nearAlpha: 0.08,
+        farAlpha: 0.9,
   }));
   this.waterMaterial = markRaw(mat);
   const mesh = markRaw(new THREE.Mesh(geom, mat));
-      const waterY = Math.max(0.05 * this.hexMaxY * this.modelScaleFactor, 0.50 * minTop);
+  // Position water at previously computed world sea level (plus tiny epsilon to avoid z-fight)
+  const waterY = seaLevelY + 0.001;
       mesh.position.y = waterY;
       mesh.renderOrder = 1;
       mesh.frustumCulled = false;
@@ -1502,6 +1530,26 @@ export default {
       }
       if (this._fadeUniformsDepth) {
         updateRadialFadeUniforms(this._fadeUniformsDepth, {
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: !!this.radialFade.enabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
+      }
+      if (this._fadeUniformsTrail) {
+        updateRadialFadeUniforms(this._fadeUniformsTrail, {
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: !!this.radialFade.enabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
+      }
+      if (this._fadeUniformsDepthTrail) {
+        updateRadialFadeUniforms(this._fadeUniformsDepthTrail, {
           center: { x: this.orbit.target.x, y: this.orbit.target.z },
           radius: this.radialFade.radius,
           width: this.radialFade.width,

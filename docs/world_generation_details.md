@@ -73,7 +73,7 @@ Classify into `elevationBand`:
 - **Wind Bands:** Standard by latitude.
 - **Wind Bands:** Standard by latitude with smooth transitions between trades, westerlies, and polar easterlies (no hard seams).
 - **Moisture:** Maritime vs. continental with accentuated interior dryness + **stronger rain-shadow effect** for extreme wet/dry boundaries.
-   A gentle latitude warp avoids visible straight belt edges.
+  A gentle latitude warp avoids visible straight belt edges.
 - **Special Bias Zones:** Every few macro cells, inject “odd” climates (oasis belts, inverted climates) for surprise regions.
 
 Classify:
@@ -202,5 +202,7 @@ For iteration and validation, the generation debug panel exposes scale multiplie
 - Ridge: multiplies ridge noise frequency (bigger → more, tighter mountain chains)
 - Detail: multiplies mid‑frequency detail (bigger → more breakup of flats)
 - Climate belt: multiplies latitude period (bigger → wider climate bands)
+- Ocean encapsulation: 0..1 strength; pushes oceans down and land up using the continental mask for true surrounding oceans (default ~0.75)
+- Sea bias: shifts sea level globally; positive increases ocean coverage (target ~0.0; try 0.08–0.18 for ~50% ocean if your seed yields land-heavy worlds)
 
- All default to 1.0. Values are uncapped; extreme values may produce stylized outputs. Changes are applied live to the visible chunk neighborhood.
+All default to 1.0. Values are uncapped; extreme values may produce stylized outputs. Changes are applied live to the visible chunk neighborhood.

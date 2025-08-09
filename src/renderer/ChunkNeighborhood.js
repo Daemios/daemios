@@ -44,8 +44,8 @@ export default class ChunkNeighborhood {
 
   build() {
     const total = this.neighborOffsets.length * this.countPerChunk;
-    const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
     // attach radial fades
     const topRef = attachRadialFade(topMat, { bucketKey: 'top', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
     const sideRef = attachRadialFade(sideMat, { bucketKey: 'side', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
@@ -73,9 +73,22 @@ export default class ChunkNeighborhood {
     this.scene.add(this.sideIM);
     this.scene.add(this.topIM);
 
-    // trails
-    this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
-    this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
+    // trails: use cloned materials so later changes on live materials don't affect trail appearance
+    const topMatTrail = topMat.clone();
+    const sideMatTrail = sideMat.clone();
+    // Re-attach radial fades for trail materials and mirror TOP_BUCKET define
+    const topTrailRef = attachRadialFade(topMatTrail, { bucketKey: 'top', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
+    const sideTrailRef = attachRadialFade(sideMatTrail, { bucketKey: 'side', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
+    topMatTrail.defines = Object.assign({}, topMatTrail.defines, { TOP_BUCKET: 1 });
+    const topDepthTrail = topDepth.clone();
+    const sideDepthTrail = sideDepth.clone();
+    const topDepthTrailRef = attachRadialFadeDepth(topDepthTrail, { bucketKey: 'top', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
+    const sideDepthTrailRef = attachRadialFadeDepth(sideDepthTrail, { bucketKey: 'side', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
+    this._fadeUniformsTrail = { top: topTrailRef.top, side: sideTrailRef.side };
+    this._fadeUniformsDepthTrail = { top: topDepthTrailRef.top, side: sideDepthTrailRef.side };
+
+    this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMatTrail, total));
+    this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMatTrail, total));
     this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
@@ -84,6 +97,10 @@ export default class ChunkNeighborhood {
     this.trailSideIM.visible = false;
     this.trailTopIM.renderOrder = (this.topIM.renderOrder || 0) - 1;
     this.trailSideIM.renderOrder = (this.sideIM.renderOrder || 0) - 1;
+    this.trailTopIM.customDepthMaterial = topDepthTrail;
+    this.trailTopIM.customDistanceMaterial = topDepthTrail;
+    this.trailSideIM.customDepthMaterial = sideDepthTrail;
+    this.trailSideIM.customDistanceMaterial = sideDepthTrail;
     this.scene.add(this.trailSideIM);
     this.scene.add(this.trailTopIM);
 
@@ -97,6 +114,8 @@ export default class ChunkNeighborhood {
       countPerChunk: this.countPerChunk,
       fadeUniforms: this._fadeUniforms,
       fadeUniformsDepth: this._fadeUniformsDepth,
+      fadeUniformsTrail: this._fadeUniformsTrail,
+      fadeUniformsDepthTrail: this._fadeUniformsDepthTrail,
     };
   }
 

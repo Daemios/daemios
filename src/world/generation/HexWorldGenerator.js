@@ -118,9 +118,10 @@ function classifyElevationBand(h) {
 }
 function classifyTemperatureBand(t) {
   // t in [0,1]: 0 polar .. 1 tropical
-  if (t < 0.2) return TemperatureBand.Polar;
-  if (t < 0.4) return TemperatureBand.Cold;
-  if (t < 0.7) return TemperatureBand.Temperate;
+  // Warmer world: shrink Polar/Cold ranges and expand Temperate/Tropical
+  if (t < 0.12) return TemperatureBand.Polar;
+  if (t < 0.32) return TemperatureBand.Cold;
+  if (t < 0.78) return TemperatureBand.Temperate;
   return TemperatureBand.Tropical;
 }
 function classifyMoistureBand(m) {
@@ -247,7 +248,10 @@ export function createHexGenerator(seed) {
   let ridgeFreq = 0.016; // mountain chains
   let detailFreq = 0.045, detailAmp = 0.18; // breakup
   let latPeriod = 900; // climate belt half-period in axial-plane units
-  const lapseRate = 0.75; // colder highlands, snowier mountains
+  const lapseRate = 0.55; // slightly warmer highlands; reduce over-cold bias
+  // Sea coverage controls (pure arithmetic, no extra noise)
+  let oceanEncapsulation = 0.75; // 0..1 strength: push oceans down, land up using continental mask
+  let seaBias = 0.0; // positive shifts sea level up (more water); negative less water
 
   // Optional runtime tuning (all multipliers default 1.0)
   let tuning = {
@@ -258,6 +262,9 @@ export function createHexGenerator(seed) {
     ridgeScale: 1.0,     // multiplies ridgeFreq
     detailScale: 1.0,    // multiplies detailFreq
     climateScale: 1.0,   // multiplies latPeriod
+    // New: sea/ocean controls
+    oceanEncapsulation: undefined, // optional override of oceanEncapsulation 0..1
+    seaBias: undefined,            // optional shift in [~ -0.3 .. 0.3], positive => more water
   };
   function applyTuning() {
   const nz = (v, d=1)=> (v==null || !isFinite(v) || v===0 ? d : v);
@@ -268,6 +275,13 @@ export function createHexGenerator(seed) {
   ridgeFreq = 0.016 * nz(tuning.ridgeScale, 1);
   detailFreq = 0.045 * nz(tuning.detailScale, 1);
   latPeriod = Math.max(50, 900 * nz(tuning.climateScale, 1));
+  if (tuning.oceanEncapsulation != null && isFinite(tuning.oceanEncapsulation)) {
+    oceanEncapsulation = Math.max(0, Math.min(1, tuning.oceanEncapsulation));
+  }
+  if (tuning.seaBias != null && isFinite(tuning.seaBias)) {
+    // Clamp conservatively; applied as a direct shift on h
+    seaBias = Math.max(-0.35, Math.min(0.35, tuning.seaBias));
+  }
   }
   applyTuning();
 
@@ -286,10 +300,10 @@ export function createHexGenerator(seed) {
     const wy = simplex2(noises.warpY, x, y, warpFreq) * warpAmp;
     const xw = x + wx; const yw = y + wy;
 
-    // Continental base + gentle detail (2 calls)
-    let cont = n01(noises.base, xw, yw, baseFreq);
-    const coastRough = n01(noises.detail, xw, yw, baseFreq * 2.3);
-  cont = Math.pow(clamp01(cont * 0.80 + coastRough * 0.20), baseShape);
+    // Continental base: low-frequency simplex blend for blob-like continents (2 calls total)
+  const cont1 = n01(noises.base, xw, yw, baseFreq);
+  const cont2 = n01(noises.base, xw, yw, baseFreq * 0.45);
+  let cont = Math.pow(clamp01(cont1 * 0.70 + cont2 * 0.30), baseShape * 0.95);
 
     // Cellular plates and ridge gating (no extra noise calls aside from ridge)
     const w = worley2F12(xw, yw, cellSize, seedInt);
@@ -301,13 +315,38 @@ export function createHexGenerator(seed) {
   let ridgeTerm = ridgeN * edgeInv;
 
     // Small detail (1 call)
-    const small = n01(noises.detail, x, y, detailFreq) * detailAmp;
+  let small = n01(noises.detail, x, y, detailFreq) * detailAmp;
 
     // Combine and normalize
     // Continental relief bias: push interiors up, basins down
     const macroBias = (cont - 0.5) * 0.25;
-    // Exaggerate ridge contribution for taller chains
-    let h = cont * 0.75 + ridgeTerm * 0.45 + small * 1.15 + macroBias;
+  // Land potential: continental field plus plate interior distance
+  const plateInterior = smoothstep(0.18, 0.86, edge); // 0 near edges, 1 deep within
+  const landPotential = clamp01(cont * 0.70 + plateInterior * 0.30);
+  // Chunky land from land potential (wider mid-band)
+  const landMaskCore = smoothstep(0.46, 0.58, landPotential);
+  // Snaking seas: carve meandering corridors along plate boundaries (edgeInv ~1 near edges)
+    // Snaking seas: carve wide corridors along plate boundaries (edgeInv ~1 near edges)
+  const seaCorridor = smoothstep(0.45, 0.90, edgeInv);
+  // Oceans are primarily corridors through land with reduced base-ocean weight
+  let oceanMask = clamp01((1 - landMaskCore) * 0.38 + seaCorridor * landMaskCore * 1.20);
+  const landMask = 1 - oceanMask;
+  // Sharply reduce ridge/detail prominence under oceans to avoid island chains; keep ridges inland
+  ridgeTerm *= (0.18 + 0.82 * landMask);
+  small *= (0.60 + 0.40 * landMask);
+  // Interior lift to puff up continental cores
+  const interiorLift = landMask * edge * 0.10;
+  // Compose separate ocean and land baselines then blend by mask
+  const corridorDepth = seaCorridor * landMaskCore; // deepen where corridors cut land
+  const hOcean = cont * 0.55 + small * 0.65 - oceanMask * 0.05 - corridorDepth * 0.12; // deeper along corridors
+  const hLand = cont * 0.86 + ridgeTerm * 0.52 + small * 1.08 + macroBias + interiorLift;
+  let h = hOcean * oceanMask + hLand * landMask;
+    // Push oceans down and land up mildly to create true surrounding oceans
+    if (oceanEncapsulation > 0) {
+      const pushDown = oceanEncapsulation * 0.16;
+      const liftLand = oceanEncapsulation * 0.10;
+      h = h - oceanMask * pushDown + landMask * liftLand;
+    }
     h = clamp01(h);
 
     // Rift valleys: on a subset of plate boundaries, carve deep linear depressions
@@ -318,8 +357,10 @@ export function createHexGenerator(seed) {
       h = clamp01(h - valley * 0.12);
       ridgeTerm *= 1.6; // flanking ridges taller
     }
-    h = clamp01(h);
-    return { h, cont, edge, ridge: ridgeN, cell: w, riftEligible };
+  // Global sea-level bias (positive => more ocean coverage)
+  if (seaBias !== 0) h = clamp01(h - seaBias);
+  h = clamp01(h);
+  return { h, cont, edge, ridge: ridgeN, cell: w, riftEligible };
   }
 
   // Helper to generate a stable id for rift selection based on warped coordinates
@@ -336,8 +377,10 @@ export function createHexGenerator(seed) {
   const latWarp = simplex2(noises.detail, x, y, baseFreq * 0.35) * (latPeriod * 0.06);
   const latCoord = latCoord0 + latWarp;
   const latBand = Math.abs(((latCoord / latPeriod) % 1 + 1) % 1 - 0.5) * 2; // 0 at equator stripe, 1 at poles
-    let temp = 1 - latBand; // 1 tropics .. 0 poles
-    temp = clamp01(temp - elevMacro * lapseRate);
+  let temp = 1 - latBand; // 1 tropics .. 0 poles
+  temp = clamp01(temp - elevMacro * lapseRate);
+  // Global warmth bias to reduce overall cold coverage
+  temp = clamp01(temp * 0.92 + 0.08);
 
   // Winds: smoothly blend between trades (<~0.3), westerlies (~mid), polar (>~0.75)
   const absLat = latBand; // 0..1
@@ -374,7 +417,7 @@ export function createHexGenerator(seed) {
     if (elevBand === ElevationBand.Shelf) bathymetryStep = shelfDepth01 < 0.25 ? 1 : shelfDepth01 < 0.5 ? 2 : shelfDepth01 < 0.75 ? 3 : 4;
     else if (elevBand === ElevationBand.DeepOcean) bathymetryStep = h < ElevationThresholds.deep * 0.4 ? 6 : h < ElevationThresholds.deep * 0.7 ? 5 : 4;
   const aridityTint = clamp01((1 - moisture) * 1.2);
-  const snowBase = h >= (ElevationThresholds.high * 0.95) ? 1 : 0.7; // lower snow line
+  const snowBase = h >= (ElevationThresholds.high * 0.95) ? 1 : 0.55; // less persistent low-elevation snow
   const rockExposure = clamp01((slope * 0.75) + (h > ElevationThresholds.high ? 0.25 : 0));
   // Moisture-aware snow: cold + available moisture; always allow peaks to stay snowy
   const moistureFactor = 0.2 + moisture * 0.8; // arid cold = sparse snow, humid cold = heavy snow
@@ -400,20 +443,26 @@ export function createHexGenerator(seed) {
     let clim = climateAt(x, y, elev.cont);
     // Region archetype from plate cell id + latitude
     const archetype = chooseArchetype(elev.cell.id, clim.lat01);
-    // Archetype extremes: push temp/moisture before banding
+    // Fade archetype influence near plate boundaries to avoid hard seams between adjacent cells
+    const archetypeWeight = smoothstep(0.18, 0.82, elev.edge); // 0 near edge, 1 deep inside plate cell
+    const applyDelta = (c, dT, dM, w) => ({
+      ...c,
+      temp: clamp01(c.temp + dT * w),
+      moisture: clamp01(c.moisture + dM * w),
+    });
     switch (archetype) {
-      case Archetype.EquatorialWet: clim = { ...clim, temp: clamp01(clim.temp + 0.07), moisture: clamp01(clim.moisture + 0.18) }; break;
-      case Archetype.SubtropicalDryWest: clim = { ...clim, moisture: clamp01(clim.moisture - 0.18) }; break;
-      case Archetype.SubtropicalMonsoonEast: clim = { ...clim, moisture: clamp01(clim.moisture + 0.12) }; break;
-      case Archetype.TemperateMaritime: clim = { ...clim, moisture: clamp01(clim.moisture + 0.10) }; break;
-      case Archetype.TemperateContinental: clim = { ...clim, moisture: clamp01(clim.moisture - 0.15) }; break;
-      case Archetype.BorealPolar: clim = { ...clim, temp: clamp01(clim.temp - 0.10) }; break;
+      case Archetype.EquatorialWet: clim = applyDelta(clim, +0.07, +0.18, archetypeWeight); break;
+      case Archetype.SubtropicalDryWest: clim = applyDelta(clim, 0.0, -0.18, archetypeWeight); break;
+      case Archetype.SubtropicalMonsoonEast: clim = applyDelta(clim, 0.0, +0.12, archetypeWeight); break;
+      case Archetype.TemperateMaritime: clim = applyDelta(clim, 0.0, +0.10, archetypeWeight); break;
+      case Archetype.TemperateContinental: clim = applyDelta(clim, 0.0, -0.15, archetypeWeight); break;
+      case Archetype.BorealPolar: clim = applyDelta(clim, -0.10, 0.0, archetypeWeight); break;
       default: break;
     }
-    // Odd climate pockets by macro cell
+    // Odd climate pockets by macro cell (also fade at edges so pockets don't create seams)
     const oddRoll = (elev.cell.id >>> 0) % 17;
-    if (oddRoll === 0) clim = { ...clim, temp: clamp01(clim.temp + 0.12), moisture: clamp01(clim.moisture + 0.12) }; // warm oasis
-    else if (oddRoll === 7) clim = { ...clim, temp: clamp01(clim.temp - 0.12), moisture: clamp01(clim.moisture - 0.10) }; // cold pocket
+    if (oddRoll === 0) clim = applyDelta(clim, +0.12, +0.12, archetypeWeight * 0.9); // warm oasis
+    else if (oddRoll === 7) clim = applyDelta(clim, -0.12, -0.10, archetypeWeight * 0.9); // cold pocket
 
     const tBand = classifyTemperatureBand(clim.temp);
     const mBand = classifyMoistureBand(clim.moisture);
@@ -446,7 +495,9 @@ export function createHexGenerator(seed) {
   const relief = clamp01(elev.ridge * 0.65 + slope * 0.35);
     const sub = pickBiomeSub({ major, slope, relief, archetype, tBand });
 
-    const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
+  const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
+  // Provide archetypeWeight to rendering for smoothing color transitions near cell edges
+  const render = { ...hints, archetypeWeight };
 
     return {
       q, r,
@@ -470,7 +521,7 @@ export function createHexGenerator(seed) {
         rift: !!rift,
         marshRing: !!marshRing,
       },
-      render: hints,
+  render,
       // Extra raw fields for debugging/tuning
       fields: {
         h: elev.h,
