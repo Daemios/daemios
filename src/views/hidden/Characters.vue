@@ -142,8 +142,12 @@ export default {
       mdiChevronDown,
       mdiLogout,
   }),
+  setup() {
+    const userStore = useUserStore();
+    return { userStore };
+  },
   computed: {
-    characters() { return useUserStore().characters || []; },
+    characters() { return this.userStore.characters || []; },
     disableUp() {
       return this.characters.length < 1 || this.character_index === 0;
     },
@@ -152,7 +156,7 @@ export default {
     },
   },
   mounted() {
-    useUserStore().getCharacters();
+    this.userStore.getCharacters();
   },
   methods: {
     characterUp() {
@@ -165,14 +169,14 @@ export default {
         this.character_index += 5;
       }
     },
-  characterSelect(id) { this.zoom = true; useUserStore().selectCharacter(id); },
+    characterSelect(id) { this.zoom = true; this.userStore.selectCharacter(id); },
     characterCreate() {
       this.zoom = true;
       setTimeout(() => {
         window.location.href = '/builder';
       }, 1500);
     },
-  logout() { useUserStore().logout(); },
+    logout() { this.userStore.logout(); },
   },
 }
 </script>
