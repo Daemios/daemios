@@ -22,6 +22,10 @@
           <div v-if="currentTileInfo.wx != null"><span style="opacity: 0.8;">Chunk</span>: ({{ currentTileInfo.wx }}, {{ currentTileInfo.wy }})</div>
           <div><span style="opacity: 0.8;">World</span>: x={{ fmt(currentTileInfo.world.x) }}, z={{ fmt(currentTileInfo.world.z) }}</div>
           <div><span style="opacity: 0.8;">Biome</span>: {{ currentTileInfo.cell.biome }}</div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Gen</span>: {{ currentTileInfo.cell.gen.biomeMajor }} / {{ currentTileInfo.cell.gen.biomeSub }}</div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Bands</span>: E={{ currentTileInfo.cell.gen.elevationBand }}, T={{ currentTileInfo.cell.gen.temperatureBand }}, M={{ currentTileInfo.cell.gen.moistureBand }}</div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Archetype</span>: {{ currentTileInfo.cell.gen.regionArchetype }}</div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen && currentTileInfo.cell.gen.flags"><span style="opacity: 0.8;">Flags</span>: {{ flagsList(currentTileInfo.cell.gen.flags) }}</div>
           <div><span style="opacity: 0.8;">hRaw</span>: {{ fmt(currentTileInfo.cell.hRaw) }} | <span style="opacity: 0.8;">h</span>: {{ fmt(currentTileInfo.cell.h) }}</div>
           <div><span style="opacity: 0.8;">yScale</span>: {{ fmt(currentTileInfo.cell.yScale) }}</div>
           <div><span style="opacity: 0.8;">foliage</span>: {{ fmt(currentTileInfo.cell.f) }} | <span style="opacity: 0.8;">temp</span>: {{ fmt(currentTileInfo.cell.t) }}</div>
@@ -108,7 +112,7 @@
               <span style="opacity: 0.8;">Fade radius</span>
               <input
                 v-model.number="radialFade.radius"
-                type="range"
+                type="number"
                 min="1"
                 :max="layoutRadius * chunkCols"
                 step="0.5"
@@ -120,7 +124,7 @@
               <span style="opacity: 0.8;">Fade width</span>
               <input
                 v-model.number="radialFade.width"
-                type="range"
+                type="number"
                 min="0.25"
                 :max="layoutRadius * 8"
                 step="0.25"
@@ -132,7 +136,7 @@
               <span style="opacity: 0.8;">Min height scale</span>
               <input
                 v-model.number="radialFade.minHeightScale"
-                type="range"
+                type="number"
                 min="0"
                 max="0.5"
                 step="0.01"
@@ -143,7 +147,24 @@
           </div>
         </div>
       </details>
-      <!-- Future sections go here -->
+      <details open style="margin: 8px 0 0 0;">
+        <summary style="cursor: pointer; user-select: none; outline: none; text-align: right;">Generation</summary>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
+          <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; width: 100%;">
+            <span style="opacity: 0.8;">Scale</span>
+            <input
+              v-model.number="generation.scale"
+              type="number"
+              min="0.25"
+              max="1.00"
+              step="0.01"
+              @input="onGenerationScaleChange"
+              style="flex: 1;"
+            >
+          </div>
+          <div style="opacity: 0.8;">{{ generation.scale.toFixed(2) }}×</div>
+        </div>
+      </details>
     </div>
   </div>
 </template>
@@ -290,6 +311,7 @@ export default {
   debug: { show: true },
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
+  generation: { scale: 1.0 },
   
   // Rendering toggles
   // Default chunkColors: true (use per-chunk pastel overrides)
@@ -325,6 +347,7 @@ export default {
         if (saved.debug && typeof saved.debug === 'object') Object.assign(this.debug, saved.debug);
         if (saved.features && typeof saved.features === 'object') Object.assign(this.features, saved.features);
         if (saved.radialFade && typeof saved.radialFade === 'object') Object.assign(this.radialFade, saved.radialFade);
+  if (saved.generation && typeof saved.generation === 'object') Object.assign(this.generation, saved.generation);
       }
     } catch (e) { /* noop */ }
     // Persist any changes back to settings
@@ -332,6 +355,7 @@ export default {
       debug: this.debug,
       features: this.features,
       radialFade: this.radialFade,
+  generation: this.generation,
     }), (val) => {
       if (this.settings && this.settings.mergeAtPath) {
         this.settings.mergeAtPath({ path: 'worldMap', value: val });
@@ -363,6 +387,11 @@ export default {
   methods: {
     // Small number formatter for panel
     fmt(v, n = 3) { if (v == null || Number.isNaN(v)) return '—'; const x = Number(v); return Math.abs(x) < 1e-6 ? '0' : x.toFixed(n); },
+    flagsList(flags) {
+      if (!flags || typeof flags !== 'object') return '—';
+      const on = Object.keys(flags).filter((k) => !!flags[k]);
+      return on.length ? on.join(',') : 'none';
+    },
     setCurrentTile(q, r) {
       if (q == null || r == null) { this.selectedQR.q = null; this.selectedQR.r = null; return; }
       this.selectedQR.q = q; this.selectedQR.r = r;
@@ -398,7 +427,7 @@ export default {
         contactScale,
         hexMaxY,
         modelScaleY,
-  filter,
+        filter,
         offsetRect: { colMin, colMax, rowMin, rowMax },
       });
       this.clutter.setEnabled(!!this.features.clutter);
@@ -970,11 +999,12 @@ export default {
       this.$refs.sceneContainer.addEventListener('wheel', this.onWheel, { passive: false });
 
       // Init world data and auxiliary systems
-    this.world = markRaw(new WorldGrid({
+  this.world = markRaw(new WorldGrid({
         layoutRadius: this.layoutRadius,
         gridSize: this.gridSize,
         elevation: this.elevation,
         terrainShape: this.terrainShape,
+    generationScale: this.generation.scale,
     }));
   this.clutter = markRaw(new ClutterManager());
 
@@ -1331,72 +1361,6 @@ export default {
       this.sideIM.instanceMatrix.needsUpdate = true;
       if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
       if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-    this.scene.add(this.sideIM);
-  this.scene.add(this.topIM);
-  // Water after terrain
-  this.buildWater();
-  // Respect initial water toggle
-  if (this.waterMesh) this.waterMesh.visible = this.features.water;
-      // Prepare clutter for the current grid
-      if (this.clutter) {
-        this.clutter.addTo(this.scene);
-        this.clutter.prepareFromGrid(this.world);
-        const commit = () => {
-          const layoutRadius = this.layoutRadius;
-          const contactScale = this.contactScale;
-          const hexMaxY = this.hexMaxY;
-          const modelScaleY = (q, r) => {
-            const c = this.world.getCell(q, r);
-            return this.modelScaleFactor * (c ? c.yScale : 1);
-          };
-          this.clutter.commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY });
-        };
-        this.clutter.loadAssets().then(commit);
-      }
-      // Initial spawn: center of the center chunk (1,1) in world chunk coords
-      // Compute midpoint even-q offset within a chunk and convert to axial
-      const midCol = this.chunkCols * 1 + Math.floor(this.chunkCols / 2);
-      const midRow = this.chunkRows * 1 + Math.floor(this.chunkRows / 2);
-      const centerAxial = this.offsetToAxial(midCol, midRow);
-      const { q: startQ, r: startR } = centerAxial;
-      // Find a matching instance index (search indexToQR for first match)
-      let startIdx = null;
-      for (let iSearch = 0; iSearch < this.indexToQR.length; iSearch += 1) {
-        const info = this.indexToQR[iSearch];
-        if (info && info.q === startQ && info.r === startR) { startIdx = iSearch; break; }
-      }
-      if (startIdx != null) {
-        this.addLocationMarkerAtIndex(startIdx);
-        this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
-        // Ensure chunk center alignment
-        const { wx, wy } = this.chunkForAxial(startQ, startR);
-        if (wx !== this.centerChunk.x || wy !== this.centerChunk.y) this.setCenterChunk(wx, wy);
-      }
-      // Create a single hover overlay mesh to avoid relying on instance colors
-  if (this.topIM) {
-        const hoverMat = new THREE.MeshBasicMaterial({
-          color: 0xffff66,
-          transparent: true,
-          opacity: 0.35,
-          depthTest: true,
-          depthWrite: false,
-          polygonOffset: true,
-          polygonOffsetFactor: -1,
-          polygonOffsetUnits: -1,
-        });
-  this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
-        this.hoverMesh.visible = false;
-        this.hoverMesh.matrixAutoUpdate = false;
-        // No forced renderOrder; rely on depth for proper occlusion
-        this.scene.add(this.hoverMesh);
-      }
-      if (!this.playerMarker) {
-  this.playerMarker = markRaw(new PlayerMarker());
-        this.playerMarker.addTo(this.scene);
-  // Ensure current shadow setting applied to new meshes
-  this.applyShadows(this.features.shadows);
-      }
-      this.pickMeshes = [this.topIM, this.sideIM];
     },
     buildWater() {
       // Remove old
@@ -1960,6 +1924,20 @@ export default {
     },
     onToggleSand() {
       if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && !!this.features.water;
+    },
+    onGenerationScaleChange() {
+      // Clamp defensively
+      if (this.generation.scale == null || !isFinite(this.generation.scale) || this.generation.scale <= 0) this.generation.scale = 1.0;
+      // Apply to world and refresh visible content
+      if (this.world) {
+        this.world.generationScale = this.generation.scale;
+        // Refill the current 3x3 neighborhood
+        if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+        // Rebuild water and sand underlay only in non-chunk grid mode
+        if (!this.countPerChunk) this.buildWater();
+        // Recommit clutter so placements match the new biomes
+        this.scheduleClutterCommit(0);
+      }
     },
     applyShadows(enabled) {
       if (!this.renderer || !this.scene) return;

@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import SimplexNoise from 'simplex-noise';
 import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '@/terrain/biomes';
+import { createHexGenerator } from '@/world/generation/HexWorldGenerator';
 
 export default class WorldGrid {
   constructor(opts = {}) {
@@ -20,12 +21,18 @@ export default class WorldGrid {
       baseFreq: 0.07, mountainFreq: 0.16, mountainThreshold: 0.78,
       mountainStrength: 0.6, plainsExponent: 1.6, mountainExponent: 1.25, finalExponent: 1.25,
     };
+  this.seed = opts.seed ?? 1337;
+  this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
     // Noise
+    // Legacy noises (still used for minor shaping like shoreline mask); primary "height/biome" now comes from HexWorldGenerator
     this.heightNoise = new SimplexNoise('height');
     this.foliageNoise = new SimplexNoise('foliage');
     this.temperatureNoise = new SimplexNoise('temperature');
     this.mountainNoise = new SimplexNoise('mountain');
     this.waterMaskNoise = new SimplexNoise('waterMask');
+
+    // New stateless world generator (pure per-hex); we keep one instance to reuse internal noise objects
+    this.hexGen = createHexGenerator(this.seed);
 
     // scratch
     this._tmpColor = new THREE.Color();
@@ -80,11 +87,17 @@ export default class WorldGrid {
 
   getCell(q, r) {
     const maxHeight = this.elevation.max;
-    const hRaw = this.getHeight(q, r);
-    const f = (this.foliageNoise.noise2D(q * 0.075 + 100, r * 0.075 + 100) + 1) / 2;
-    const t = (this.temperatureNoise.noise2D(q * 0.075 - 100, r * 0.075 - 100) + 1) / 2;
 
-    // Shoreline floor and lake mask
+    // Use new generator for macro terrain & climate
+  const s = (this.generationScale && isFinite(this.generationScale) && this.generationScale > 0) ? this.generationScale : 1.0;
+  const qg = q / s; const rg = r / s;
+  const gen = this.hexGen.get(qg, rg);
+    const hRaw = gen.fields?.h ?? 0; // 0..1 elevation composite
+    // Map generator climate to our existing foliage/temp channels used by biomeColor
+    const f = gen.fields?.moisture ?? 0.5; // treat moisture as foliage proxy
+    const t = gen.fields?.temp ?? 0.5; // climate temperature 0..1
+
+    // Shoreline floor and lake mask (retain subtle shaping so beaches get a lift)
     const waterMask = (this.waterMaskNoise.noise2D((q + 250) * 0.035, (r - 120) * 0.035) + 1) / 2;
     const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
 
@@ -119,6 +132,16 @@ export default class WorldGrid {
     hslTmp.l = Math.min(1, hslTmp.l * 0.55 + 0.25);
     side.setHSL(hslTmp.h, hslTmp.s * 0.5, hslTmp.l);
 
-    return { q, r, hRaw, h: hVisual, f, t, biome, colorTop, colorSide: side, yScale };
+    // Attach generator outputs for UI/debug/logic without breaking existing consumers
+    return {
+      q, r,
+      hRaw, h: hVisual,
+      f, t,
+      biome,
+      colorTop,
+      colorSide: side,
+      yScale,
+      gen, // full generator record (biomeMajor, biomeSub, bands, flags, render hints, fields)
+    };
   }
 }

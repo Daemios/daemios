@@ -122,10 +122,16 @@
       >
         {{ mdiVolumeSource }}
       </v-icon>
-      <v-slider
-        dense
+      <v-text-field
+        type="number"
+        density="compact"
         hide-details
-        :value="volume"
+        style="max-width: 90px;"
+        :model-value="volume"
+        min="0"
+        max="100"
+        step="1"
+        @update:model-value="onVolumeChange"
       />
     </div>
 
@@ -153,6 +159,10 @@ export default {
   methods: {
     toggleMute() {
       useAudioStore().toggleMute();
+    },
+    onVolumeChange(v) {
+      const n = Math.max(0, Math.min(100, Number(v)));
+      useAudioStore().volume = n;
     },
     login() {
       api.post('open/login', {

@@ -1,96 +1,198 @@
-# Biome & Color Rules
-
-This document specifies how hex tiles are currently classified into biomes and colored in the world map renderer.
-
+Hex World Generation – Mobile-Friendly Realistic Terrain
 Version: 1.0
-Last Updated: (auto)
+Purpose: Define the high-level design for generating continent-scale, realistic terrain and biomes on a hex grid, optimized for mobile devices.
 
-## Inputs
+1. Overview
+   This document describes a deterministic, stateless, and mobile-friendly approach to generating an infinite, realistic-feeling world map for a fantasy game.
+   The generator produces large-scale continental geography with climate-driven biomes while keeping compute cost low enough for phones (~8–10 noise lookups per hex).
+   This system prioritizes realism over randomness and coherent macro features over “interesting but chaotic” noise patterns.
 
-For each axial hex coordinate (q,r):
+2. Constraints
+   Stateless: Every hex is a pure function of (seed, q, r); no saved map data.
 
-- Shaped elevation `h` in [0,1] (post noise shaping & exponents)
-- Moisture `m` in [0,1]
-- Temperature `t` in [0,1]
+Performance: O(1) per hex, ~8–10 noise lookups total.
 
-## Elevation Bands (Primary Biome)
+Platform: Must run on phones without stalling.
 
-Elevation determines the base biome first; moisture only controls greenness (NOT water level). Water bands squashed to increase land.
+Scope: No rivers (yet). Optional lakes allowed but rare.
 
-| Band | Range (h)       | Biome         | Notes                              |
-| ---- | --------------- | ------------- | ---------------------------------- |
-| 1    | h < 0.06        | Deep Water    | Very small deepest basins          |
-| 2    | 0.06 ≤ h < 0.09 | Shallow Water | Thin coastal fringe                |
-| 3    | 0.09 ≤ h < 0.20 | Beach         | Sand → early vegetation transition |
-| 4    | 0.20 ≤ h < 0.66 | Lowland       | Expanded plains band               |
-| 5    | 0.66 ≤ h < 0.86 | Highland      | Elevated vegetated terrain         |
-| 6    | 0.86 ≤ h < 0.95 | Mountain      | Rock heading to snow               |
-| 7    | h ≥ 0.95        | Snow Cap      | Permanent snow                     |
+Scale: One hex ≈ one city footprint — regions must feel continent-sized.
 
-## Base Palette
+Look & Feel: Realistic coasts, mountain chains, climate zones, deserts, and forests.
 
-- Deep Water: #143d59
-- Shallow Water: #2f6fa5
-- Beach: #d8c9a6
-- Lowland: #5fae4d
-- Highland: #6e8f5e
-- Mountain: #b7b7b7
-- Snow: #f5f5f5
+3. Generator Pipeline
+   The generation process runs in this strict order for every hex:
 
-Gradient transitions occur via `Color.lerp()` between adjacent band colors using normalized local fraction within the band; some transitions (e.g., lowland→highland, highland→mountain) apply easing (`Math.pow(f, power)`).
+Step 1 – Macro Scaffold
+Three low-frequency fields define the world’s large-scale structure:
 
-## Foliage Bands (replaces Moisture)
+Continental Mask: Very low frequency, domain-warped by an even lower-frequency field. Defines land vs. ocean and broad coastlines.
 
-Foliage `f` represents vegetation density distribution: desert (<0.33), plains (0.33–0.66), forest (>0.66). It controls greenness only (not sea level). Applied on land with band-based strengths.
-Result: Dry areas trend tan/desert; mid values plains-green; lush areas deeper green.
+Plate/Cell Field: Low-frequency cellular/Voronoi noise representing tectonic plates.
 
-## Temperature Modulation (Simplified)
+Distance to cell edges: Drives mountain belts.
 
-Temperature only affects the coldest 10% (t ∈ [0,0.1]):
+Cell ID: Stable label for regional archetypes and large biome continuity.
 
-- At t=0: desaturate 40%, lighten +0.08
-- At t=0.1: no change
-  For t > 0.1 there is currently no temperature-based color adjustment.
+Ridge Term: Ridged (absolute value) noise, scaled up near plate edges, to form long mountain ranges.
 
-## Design Rationale
+Add low-amplitude detail noise (1–2 octaves) to roughen features and break uniformity.
 
-1. Elevation-first ensures water only occupies genuine basins.
-2. Narrow shallow-water & beach bands create coastal definition.
-3. Plains (0.30–0.60) wide to encourage settlements/gameplay.
-4. Moisture & temperature remain secondary so extreme climates do not override geography.
-5. Snow cap reserved for extreme elevations to maintain visual hierarchy.
-6. Moisture clearly communicates biome dryness (desert ↔ forest) without implying sea level.
+Step 2 – Elevation & Bands
+Combine:
+Elevation = continental base + ridge term + small detail
 
-## Minimum Land Height Clamp
+Classify into elevationBand:
 
-Soft floor system (replaces hard clamp):
+DeepOcean: E < 0.06
 
-1. Deep & shallow water: never raised; preserve basin depth.
-2. Shore transition (shallowWater_threshold .. + shorelineBlend): smoothstep blend from raw pillar height toward the nominal minimum land height (minLand) so beaches slope gently instead of forming walls.
-3. Interior land (above blend zone) that still falls below minLand is eased upward 85% of the deficit (retains subtle micro-variation instead of a perfectly flat plane).
-4. Raw (unfloored) elevation stored per tile for future simulation / hydrology.
+Shelf: 0.06–0.09
 
-Parameters:
+Coast: 0.09–0.20
 
-- minLand = 0.32 (visual pillar y-scale lower bound target for land)
-- shorelineBlend = 0.08 (elevation span after shallow water upper bound over which we blend)
-  Algorithm uses smoothstep(t)=t^2(3-2t) for shoreline easing.
+Lowland: 0.20–0.50
 
-## Secondary Water Mask Pass
+Highland: 0.50–0.75
 
-After base elevation and foliage assignment, an independent low-frequency noise mask reduces elevations locally to form inland water (lakes/rivers). Visual biome/color is re-evaluated from the post-mask elevation so masked basins appear as water without altering global sea level bands.
+Mountain: 0.75–0.90
 
-## Grid Resolution
+Peak: ≥ 0.90
 
-World map grid size doubled while individual hex radius halved, yielding higher spatial resolution without expanding footprint.
+Include bathymetry steps within the Shelf for coastal realism.
 
-## Future Extensions (Planned)
+Step 3 – Climate Fields
+Calculate climate analytically:
 
-- Add desert biome for hot + dry lowlands (conditional override)
-- Add swamp biome for low elevation + high moisture
-- Seasonal hue shifts (temperature/season input)
-- Explicit water surface mesh generation referencing rawHeight for lakes.
+Temperature: Based on seed-rotated latitude minus altitude lapse.
 
-## Implementation Location
+Wind Bands: Simple lookup by latitude (trade/westerly/polar).
 
-Logic is implemented in `src/terrain/biomes.js` (to be created) and consumed by `WorldMap.vue`.
+Moisture Proxy: Maritime vs. continental distance from the continental mask.
+
+Rain Shadow: Increase moisture on windward slopes; decrease on leeward slopes, using wind direction vs. slope sign.
+
+Classify:
+
+temperatureBand ∈ {Polar, Cold, Temperate, Tropical}
+
+moistureBand ∈ {Arid, SemiArid, Humid, Saturated}
+
+Step 4 – Regional Archetype
+Assign each plate/cell ID one of six archetypes, which bias biome thresholds:
+
+EquatorialWet (+moisture, +temp)
+
+SubtropicalDryWest (–moisture, strong rain shadow)
+
+SubtropicalMonsoonEast (seasonal +moisture east coasts)
+
+TemperateMaritime (mild temps, wet coasts, bogs)
+
+TemperateContinental (drier interiors, strong seasons)
+
+BorealPolar (cold, taiga/tundra/ice)
+
+Step 5 – Biome Selection
+Biome choice is based on:
+
+Elevation Band (primary gate)
+
+Temperature × Moisture (climate grid)
+
+Modified by:
+
+Regional archetype bias
+
+Rain shadow
+
+Slope/relief (alpine/badlands)
+
+Examples:
+
+Tropical Lowland: Rainforest (humid+), Seasonal Forest (mid), Savanna (semi-arid), Desert Fringe (arid/leeward).
+
+Temperate Lowland: Broadleaf/Mixed Forest (humid), Grassland/Prairie (mid), Steppe/Shrubland (semi-arid), Cold Desert (arid/continental).
+
+Cold Lowland: Taiga (mid+), Boreal Wetland/Bog (humid, low slope), Cold Steppe/Polar Desert (dry).
+
+Mountains/Peaks: Alpine Meadow (gentle slope, moist), Bare Rock/Scree (steep), Snow/Glacier (cold).
+
+Step 6 – Special Overrides (Sparse, high-impact)
+Certain hexes override biome choice when flagged:
+
+Volcanic Province: Lava Fields, Ash Plains, Obsidian Desert, Geothermal Basins.
+
+Salt Flats: Arid basins in warm interiors.
+
+Badlands: Dry, high relief + slope in temperate/continental zones.
+
+Karst: Humid, moderate slope/relief.
+
+Fjord: Cold coasts with steep relief.
+
+Mangrove: Tropical, humid, low-slope coasts.
+
+Step 7 – Sub-Biome Variants
+Variants add variety within each major biome:
+
+Desert: Erg Dunes, Gravel Plains, Rocky Mesa, Volcanic Desert.
+
+Forest: Deciduous, Mixed, Conifer, Cloud Forest.
+
+Grassland: Savanna, Prairie, Steppe, Páramo.
+
+Wetlands: Marsh, Bog/Peat, Tundra Wet Flats.
+
+Alpine: Montane Forest → Subalpine → Alpine Meadow → Bare Rock → Snow/Glacier.
+
+Coasts: Sandy, Rocky, Fjord, Mangrove.
+
+Step 8 – Region Coherence
+No speckle: Use plate/cell ID to keep biomes contiguous; snap ties to region’s favored biome family.
+
+Soft transitions: 2–5 hex ecotones for gradual blending.
+
+Target scale: Major biomes ≥ 100–300 hex diameter.
+
+Step 9 – Lakes
+Appear only where a basinness proxy is true (low slope, below broad-scale elevation).
+
+Surround humid lakes with marsh/bog; arid basins with salt pans.
+
+Rare and region-scale.
+
+Step 10 – Visual Hints for Renderer
+Bathymetry steps in Shelf zones.
+
+Aridity-based hue shift.
+
+Altitude desaturation and slope-based rock tint for mountains.
+
+Snow line from temperature/elevation.
+
+4. Noise & Math Budget
+   Target per hex:
+
+Continental base: 2–3 lookups
+
+Domain warp: 1
+
+Cellular plates: 1
+
+Ridge term: 1–2
+
+Detail noise: 1–2
+
+Climate & rain shadow: arithmetic or reused samples
+Total: ≈ 8–10 noise reads.
+
+5. Invariants
+   Deterministic from (seed, q, r).
+
+No neighbor loops or global passes.
+
+No rivers (yet); lakes optional.
+
+Large, coherent regions with natural transitions.
+
+Special features sparse and memorable.

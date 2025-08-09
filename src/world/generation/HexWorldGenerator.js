@@ -1,0 +1,405 @@
+// Mobile-friendly, stateless hex world generator
+// Deterministic: each hex result is a pure function of (seed, q, r)
+// Noise budget: ~8–10 samples per hex; no neighbor loops
+// Exports:
+// - createHexGenerator(seed): returns { get(q, r) } that computes a record per spec
+// - computeHex(seed, q, r): convenience wrapper (instantiates generator once per call; heavier)
+
+import SimplexNoise from 'simplex-noise';
+
+// --- Helpers: hashing & PRNG (deterministic in JS number space) ---
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i += 1) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+function sfc32(a, b, c, d) {
+  return () => {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    const t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    const r = (t + d) | 0;
+    return (r >>> 0) / 4294967296;
+  };
+}
+function makeRng(seed) {
+  const seedStr = String(seed ?? 'world');
+  const h = xmur3(seedStr);
+  return sfc32(h(), h(), h(), h());
+}
+// Hash to int
+function hash2i(x, y, seed) {
+  // 2D integer hash (Thomas Wang-like)
+  let a = (x | 0) * 374761393 + (seed | 0) * 668265263; a |= 0;
+  let b = (y | 0) * 1274126177 + 974711; b |= 0;
+  a ^= a << 13; a ^= a >>> 17; a ^= a << 5;
+  b ^= b << 13; b ^= b >>> 17; b ^= b << 5;
+  const c = (a + b) | 0;
+  return c ^ (c >>> 16);
+}
+function hashFloat01(x, y, seed) {
+  const h = hash2i(x, y, seed);
+  return ((h >>> 0) / 4294967296);
+}
+
+// Axial (q,r) -> 2D plane (x,y) in flat-top layout with R=1
+const SQRT3 = Math.sqrt(3);
+function axialToPlane(q, r) {
+  const x = 1.5 * q;
+  const y = SQRT3 * (r + q / 2);
+  return { x, y };
+}
+
+// Worley (cellular) distance to closest and 2nd closest feature points in 3x3 neighborhood
+function worley2F12(x, y, cellSize, seed) {
+  const cx = Math.floor(x / cellSize);
+  const cy = Math.floor(y / cellSize);
+  let f1 = Infinity; let f2 = Infinity;
+  let id1 = 0;
+  for (let j = -1; j <= 1; j += 1) {
+    for (let i = -1; i <= 1; i += 1) {
+      const gx = cx + i; const gy = cy + j;
+      // Random feature point in this grid cell
+      const rx = hashFloat01(gx, gy, seed);
+      const ry = hashFloat01(gx ^ 0x9e3779b9, gy ^ 0x85ebca6b, seed ^ 0xc2b2ae35);
+      const px = (gx + rx) * cellSize;
+      const py = (gy + ry) * cellSize;
+      const dx = px - x; const dy = py - y;
+      const d = Math.hypot(dx, dy);
+      if (d < f1) { f2 = f1; f1 = d; id1 = hash2i(gx, gy, seed); }
+      else if (d < f2) { f2 = d; }
+    }
+  }
+  return { f1, f2, id: id1, cell: { x: cx, y: cy } };
+}
+
+// Ridge transform from value noise in [-1,1]
+function ridged(n) { return 1 - Math.abs(n); }
+function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+// Bands and enums
+export const ElevationBand = {
+  DeepOcean: 'DeepOcean', Shelf: 'Shelf', Coast: 'Coast', Lowland: 'Lowland', Highland: 'Highland', Mountain: 'Mountain', Peak: 'Peak',
+};
+export const TemperatureBand = { Polar: 'Polar', Cold: 'Cold', Temperate: 'Temperate', Tropical: 'Tropical' };
+export const MoistureBand = { Arid: 'Arid', SemiArid: 'SemiArid', Humid: 'Humid', Saturated: 'Saturated' };
+
+const ElevationThresholds = {
+  deep: 0.06, shelf: 0.09, coast: 0.20, low: 0.50, high: 0.75, mount: 0.90,
+};
+
+function classifyElevationBand(h) {
+  if (h < ElevationThresholds.deep) return ElevationBand.DeepOcean;
+  if (h < ElevationThresholds.shelf) return ElevationBand.Shelf;
+  if (h < ElevationThresholds.coast) return ElevationBand.Coast;
+  if (h < ElevationThresholds.low) return ElevationBand.Lowland;
+  if (h < ElevationThresholds.high) return ElevationBand.Highland;
+  if (h < ElevationThresholds.mount) return ElevationBand.Mountain;
+  return ElevationBand.Peak;
+}
+function classifyTemperatureBand(t) {
+  // t in [0,1]: 0 polar .. 1 tropical
+  if (t < 0.2) return TemperatureBand.Polar;
+  if (t < 0.4) return TemperatureBand.Cold;
+  if (t < 0.7) return TemperatureBand.Temperate;
+  return TemperatureBand.Tropical;
+}
+function classifyMoistureBand(m) {
+  if (m < 0.22) return MoistureBand.Arid;
+  if (m < 0.45) return MoistureBand.SemiArid;
+  if (m < 0.72) return MoistureBand.Humid;
+  return MoistureBand.Saturated;
+}
+
+// Archetypes
+export const Archetype = {
+  EquatorialWet: 'EquatorialWet', SubtropicalDryWest: 'SubtropicalDryWest', SubtropicalMonsoonEast: 'SubtropicalMonsoonEast',
+  TemperateMaritime: 'TemperateMaritime', TemperateContinental: 'TemperateContinental', BorealPolar: 'BorealPolar',
+};
+
+function chooseArchetype(cellId, lat01) {
+  // Bias by latitude
+  if (lat01 < 0.18) return Archetype.BorealPolar;
+  if (lat01 > 0.82) return Archetype.EquatorialWet;
+  const roll = (cellId >>> 0) % 6;
+  switch (roll) {
+    case 0: return Archetype.SubtropicalDryWest;
+    case 1: return Archetype.SubtropicalMonsoonEast;
+    case 2: return Archetype.TemperateMaritime;
+    case 3: return Archetype.TemperateContinental;
+    case 4: return lat01 > 0.6 ? Archetype.EquatorialWet : Archetype.TemperateMaritime;
+    default: return lat01 < 0.35 ? Archetype.BorealPolar : Archetype.TemperateContinental;
+  }
+}
+
+// Biome chooser (major) matrix with elevation gating
+function pickBiomeMajor({ elevBand, tBand, mBand, slope, isCoast, shelfKind, coldness, archetype }) {
+  // Oceans & coasts
+  if (elevBand === ElevationBand.DeepOcean) return 'DeepOcean';
+  if (elevBand === ElevationBand.Shelf) return shelfKind; // CoralSea / KelpShelf / IceMarginalSea
+  if (elevBand === ElevationBand.Coast) {
+    if (coldness > 0.65 && slope > 0.65) return 'FjordCoast';
+    if (tBand === TemperatureBand.Tropical && (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated) && slope < 0.35) return 'MangroveCoast';
+    return slope > 0.55 ? 'RockyCoast' : 'SandyCoast';
+  }
+
+  // Elevation gating for mountains
+  if (elevBand === ElevationBand.Mountain || elevBand === ElevationBand.Peak) {
+    if (coldness > 0.8 || elevBand === ElevationBand.Peak) return 'SnowIce';
+    if (slope > 0.65) return 'BareRockScree';
+    return 'AlpineMeadow';
+  }
+
+  // Bias modifiers by archetype
+  const dryBias = (archetype === Archetype.SubtropicalDryWest || archetype === Archetype.TemperateContinental) ? 1 : 0;
+  const wetBias = (archetype === Archetype.EquatorialWet || archetype === Archetype.TemperateMaritime || archetype === Archetype.SubtropicalMonsoonEast) ? 1 : 0;
+
+  // Temperate/Tropical/Cold bands
+  if (tBand === TemperatureBand.Tropical) {
+    if (mBand === MoistureBand.Saturated || (mBand === MoistureBand.Humid && wetBias)) return 'Rainforest';
+    if (mBand === MoistureBand.Humid) return 'SeasonalForest';
+    if (mBand === MoistureBand.SemiArid) return 'Savanna';
+    return 'DesertFringe';
+  }
+  if (tBand === TemperatureBand.Temperate) {
+    if (mBand === MoistureBand.Saturated || (mBand === MoistureBand.Humid && wetBias)) return 'TemperateForest';
+    if (mBand === MoistureBand.Humid) return 'Prairie';
+    if (mBand === MoistureBand.SemiArid || dryBias) return 'SteppeShrubland';
+    return 'ColdDesertSteppe';
+  }
+  if (tBand === TemperatureBand.Cold) {
+    if (mBand === MoistureBand.Saturated && slope < 0.35) return 'BorealWetlandBog';
+    if (mBand === MoistureBand.Humid) return 'Taiga';
+    if (mBand === MoistureBand.SemiArid) return 'ColdSteppe';
+    return 'PolarDesert';
+  }
+  // Polar (tBand === Polar)
+  return mBand === MoistureBand.Arid ? 'PolarDesert' : 'Tundra';
+}
+
+function pickBiomeSub({ major, slope, relief, archetype, tBand }) {
+  switch (major) {
+    case 'Rainforest': return relief > 0.6 && tBand === TemperatureBand.Tropical ? 'CloudForest' : 'LowlandRainforest';
+    case 'TemperateForest': return relief > 0.55 ? 'MixedForest' : 'BroadleafForest';
+    case 'Savanna': return relief > 0.5 ? 'DrySavanna' : 'MoistSavanna';
+    case 'SteppeShrubland': return slope > 0.55 ? 'RockySteppe' : 'PrairieSteppe';
+    case 'DesertFringe': return slope < 0.35 ? 'ErgDunes' : (relief > 0.55 ? 'RockyMesa' : 'RegGravel');
+    case 'ColdDesertSteppe': return relief > 0.6 ? 'BadlandsScree' : 'ColdSteppe';
+    case 'Taiga': return relief > 0.55 ? 'MountainTaiga' : 'LowlandTaiga';
+    case 'BorealWetlandBog': return 'PeatBog';
+    case 'AlpineMeadow': return relief > 0.65 ? 'Subalpine' : 'Montane';
+    case 'BareRockScree': return 'Scree';
+    case 'SnowIce': return 'Glacier';
+    case 'SandyCoast': return 'BarrierLagoon';
+    case 'RockyCoast': return 'CliffCoast';
+    case 'FjordCoast': return 'DeepFjord';
+    case 'MangroveCoast': return 'TidalMangrove';
+    case 'DeepOcean': return 'Abyssal';
+    case 'CoralSea': return 'BarrierReef';
+    case 'KelpShelf': return 'BankedKelp';
+    case 'IceMarginalSea': return 'PackIce';
+    default: return 'Generic';
+  }
+}
+
+function makeNoises(seed) {
+  // Create core noise instances with stable sub-seeds
+  const rng = makeRng(seed);
+  const s1 = Math.floor(rng() * 1e9).toString();
+  const s2 = Math.floor(rng() * 1e9).toString();
+  const s3 = Math.floor(rng() * 1e9).toString();
+  const s4 = Math.floor(rng() * 1e9).toString();
+  return {
+    warpX: new SimplexNoise('warpX:' + s1),
+    warpY: new SimplexNoise('warpY:' + s2),
+    base: new SimplexNoise('base:' + s3),
+    ridge: new SimplexNoise('ridge:' + s4),
+    detail: new SimplexNoise('detail:' + s2 + ':' + s1),
+  };
+}
+
+export function createHexGenerator(seed) {
+  const noises = makeNoises(seed);
+  const seedInt = hash2i(0x9e37, 0x85eb, 0xc2b2 ^ (hash2i(13, 17, String(seed).length)));
+  // Global parameters (tuned to hex axial-space units with R=1)
+  const cellSize = 140; // plate/cell size in hex units (typical 100–300 diameter)
+  const warpFreq = 0.004, warpAmp = 45; // very low frequency domain warp
+  const baseFreq = 0.0065, baseShape = 1.25; // continental base
+  const ridgeFreq = 0.018; // long chains
+  const detailFreq = 0.045, detailAmp = 0.12; // edge breakup
+  const latPeriod = 900; // climate belt half-period in axial-plane units
+  const lapseRate = 0.55; // temperature drop with elevation
+
+  // Seed-rotated latitude axis
+  const rng = makeRng('latAxis:' + seed);
+  const ang = rng() * Math.PI * 2;
+  const latAxis = { x: Math.cos(ang), y: Math.sin(ang) };
+  const lonAxis = { x: -latAxis.y, y: latAxis.x };
+
+  function simplex2(noise, x, y, f) { return noise.noise2D(x * f, y * f); }
+  function n01(noise, x, y, f) { return 0.5 * (simplex2(noise, x, y, f) + 1); }
+
+  function elevationAt(x, y) {
+    // Domain warp
+    const wx = simplex2(noises.warpX, x, y, warpFreq) * warpAmp;
+    const wy = simplex2(noises.warpY, x, y, warpFreq) * warpAmp;
+    const xw = x + wx; const yw = y + wy;
+
+    // Continental base + gentle detail (2 calls)
+    let cont = n01(noises.base, xw, yw, baseFreq);
+    const coastRough = n01(noises.detail, xw, yw, baseFreq * 2.3);
+    cont = Math.pow(clamp01(cont * 0.85 + coastRough * 0.15), baseShape);
+
+    // Cellular plates and ridge gating (no extra noise calls aside from ridge)
+    const w = worley2F12(xw, yw, cellSize, seedInt);
+    const edge = clamp01((w.f2 - w.f1) / (cellSize * 0.8)); // 0 near edge, 1 deep in cell
+    const edgeInv = 1 - smoothstep(0.0, 0.33, edge); // 1 near plate edges
+
+    // Ridged term shaped & gated to edges (1 call)
+    const ridgeN = ridged(simplex2(noises.ridge, xw, yw, ridgeFreq));
+    const ridgeTerm = ridgeN * edgeInv;
+
+    // Small detail (1 call)
+    const small = n01(noises.detail, x, y, detailFreq) * detailAmp;
+
+    // Combine and normalize
+    let h = cont * 0.78 + ridgeTerm * 0.32 + small;
+    h = clamp01(h);
+    return { h, cont, edge, ridge: ridgeN, cell: w };
+  }
+
+  function climateAt(x, y, elevMacro) {
+    // Latitude position (repeating belts)
+    const latCoord = (x * latAxis.x + y * latAxis.y);
+    const latBand = Math.abs(((latCoord / latPeriod) % 1 + 1) % 1 - 0.5) * 2; // 0 at equator stripe, 1 at poles
+    let temp = 1 - latBand; // 1 tropics .. 0 poles
+    temp = clamp01(temp - elevMacro * lapseRate);
+
+    // Winds: trades (|lat|<0.3) east->west, mid westerlies, polar easterlies
+    const absLat = latBand; // 0..1
+    let windDir = { x: lonAxis.x, y: lonAxis.y }; // default west->east (westerlies)
+    if (absLat < 0.3) windDir = { x: -lonAxis.x, y: -lonAxis.y }; // trades E->W
+    else if (absLat > 0.75) windDir = { x: -lonAxis.x, y: -lonAxis.y }; // polar E->W
+
+    // Moisture proxy: maritime vs interior from continental base value
+    let moisture = clamp01(1 - elevMacro); // coast=wet, interior=dry
+
+    // Rain shadow using upslope/downslope along wind (reuse continental macro only)
+    const step = 18; // sample distance in axial units
+    const up = n01(noises.base, x + windDir.x * step, y + windDir.y * step, baseFreq);
+    const down = n01(noises.base, x - windDir.x * step, y - windDir.y * step, baseFreq);
+    const grad = (up - down) * 0.5; // signed slope along wind
+    if (grad > 0) moisture = clamp01(moisture + grad * 0.5);
+    else moisture = clamp01(moisture + grad * 0.8); // dry leeward
+
+    return { temp, moisture, windDir, lat01: 1 - latBand };
+  }
+
+  function renderHints({ elevBand, h, moisture, temp, slope, shelfDepth01 }) {
+    const bathymetryStep = elevBand === ElevationBand.Shelf ? (shelfDepth01 < 0.33 ? 1 : shelfDepth01 < 0.66 ? 2 : 3) : 0;
+    const aridityTint = 1 - moisture; // higher = warmer tint
+    const rockExposure = clamp01((slope * 0.7) + (h > ElevationThresholds.high ? 0.2 : 0));
+    const snowMask = clamp01((1 - temp) * (h >= ElevationThresholds.high ? 1 : 0.5));
+    return { bathymetryStep, aridityTint, rockExposure, snowMask };
+  }
+
+  function get(q, r) {
+    const { x, y } = axialToPlane(q, r);
+    const elev = elevationAt(x, y);
+
+  // Shelf depth and slope estimate (use continental base only to keep call budget)
+  const eps = 8;
+  const c1 = n01(noises.base, x + eps, y, baseFreq);
+  const c2 = n01(noises.base, x, y + eps, baseFreq);
+  const dx = c1 - elev.cont;
+  const dy = c2 - elev.cont;
+  const slope = clamp01(Math.hypot(dx, dy) * 3.2);
+
+    const elevBand = classifyElevationBand(elev.h);
+    const shelfDepth01 = elevBand === ElevationBand.Shelf ? clamp01((elev.h - ElevationThresholds.deep) / (ElevationThresholds.shelf - ElevationThresholds.deep)) : 0;
+
+    const clim = climateAt(x, y, elev.cont);
+    const tBand = classifyTemperatureBand(clim.temp);
+    const mBand = classifyMoistureBand(clim.moisture);
+
+    const isCoast = (elevBand === ElevationBand.Coast);
+    const coldness = 1 - clim.temp;
+    const shelfKind = elevBand === ElevationBand.Shelf
+      ? (tBand === TemperatureBand.Tropical ? 'CoralSea' : (tBand === TemperatureBand.Polar ? 'IceMarginalSea' : 'KelpShelf'))
+      : null;
+
+    // Region archetype from plate cell id + latitude
+    const archetype = chooseArchetype(elev.cell.id, clim.lat01);
+
+    const major = pickBiomeMajor({ elevBand, tBand, mBand, slope, isCoast, shelfKind, coldness, archetype });
+
+    // Special overrides (sparse): volcanic & salt flats via hashed rarity
+    const hashLocal = hash2i(Math.floor(x), Math.floor(y), seedInt) >>> 0;
+    const volcanic = (hashLocal % 9973) === 0 || (elev.ridge > 0.92 && (hashLocal % 23) === 0);
+    const basinness = (slope < 0.22) && (elev.h < Math.max(0.18, elev.cont - 0.04));
+    const lake = basinness && (mBand !== MoistureBand.Arid) && ((hashLocal >>> 8) % 97 === 0);
+    const karst = (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated) && slope > 0.25 && slope < 0.6;
+    const badlands = (mBand === MoistureBand.SemiArid || mBand === MoistureBand.Arid) && slope > 0.6 && major.indexOf('Desert') >= 0;
+    const fjord = (elevBand === ElevationBand.Coast) && (coldness > 0.6) && slope > 0.65;
+    const mangrove = (elevBand === ElevationBand.Coast) && (tBand === TemperatureBand.Tropical) && (mBand !== MoistureBand.Arid) && slope < 0.35;
+    const wetland = (mBand === MoistureBand.Saturated) && (slope < 0.3) && (elevBand === ElevationBand.Lowland || lake);
+
+    // Relief proxy from ridge & detail (no extra calls)
+    const relief = clamp01(elev.ridge * 0.6 + slope * 0.4);
+    const sub = pickBiomeSub({ major, slope, relief, archetype, tBand });
+
+    const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
+
+    return {
+      q, r,
+      elevationBand: elevBand,
+      temperatureBand: tBand,
+      moistureBand: mBand,
+      biomeMajor: major,
+      biomeSub: sub,
+      regionArchetype: archetype,
+      flags: {
+        lake: !!lake,
+        wetland: !!wetland,
+        volcanic: !!volcanic,
+        karst: !!karst,
+        badlands: !!badlands,
+        fjord: !!fjord,
+        mangrove: !!mangrove,
+      },
+      render: hints,
+      // Extra raw fields for debugging/tuning
+      fields: {
+        h: elev.h,
+        cont: elev.cont,
+        plateEdge: elev.edge,
+        ridge: elev.ridge,
+        slope,
+        lat01: clim.lat01,
+        temp: clim.temp,
+        moisture: clim.moisture,
+        shelfDepth01,
+        cellId: elev.cell.id >>> 0,
+      },
+    };
+  }
+
+  return { get };
+}
+
+export function computeHex(seed, q, r) {
+  const gen = createHexGenerator(seed);
+  return gen.get(q, r);
+}
