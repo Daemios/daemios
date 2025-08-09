@@ -9,7 +9,6 @@
         <span class="headline">{{ title }} ({{ keybind }})</span>
       </v-card-title>
       <v-card-text>
-        <!-- This is the slot for parent content -->
         <slot />
       </v-card-text>
       <v-card-actions>
@@ -27,39 +26,32 @@
   </v-dialog>
 </template>
 
-<script>
-export default {
-  props: {
-    modelValue: { // Vue 3 v-model
-      type: Boolean,
-      required: true
-    },
-    title: {
-      type: String,
-      default: '-'
-    },
-    keybind: {
-      type: String,
-      default: 'Not Set'
-    }
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    required: true,
   },
-  emits: ['update:modelValue'],
-  computed: {
-    // We use a Vuex state variable as a model for the dialog's visibility
-    dialogState: {
-      get() {
-        return this.modelValue;
-      },
-      set(value) {
-        // This event updates the parent component's state variable
-        this.$emit('update:modelValue', value);
-      }
-    }
+  title: {
+    type: String,
+    default: '-',
   },
-  methods: {
-    closeDialog() {
-      this.$emit('update:modelValue', false); // Close dialog by emitting false
-    }
-  }
-};
+  keybind: {
+    type: String,
+    default: 'Not Set',
+  },
+});
+const emit = defineEmits(['update:modelValue']);
+
+const dialogState = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value),
+});
+
+function closeDialog() {
+  dialogState.value = false;
+}
 </script>
+
