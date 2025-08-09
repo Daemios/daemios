@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { cartesian } from '@/mixins/cartesian';
+import WorldGrid from '@/world/WorldGrid';
 
 export const useArenaStore = defineStore('arena', {
   state: () => ({
@@ -103,16 +104,20 @@ export const useArenaStore = defineStore('arena', {
       if (index !== -1) this.overlayRegistry[args.overlay].splice(index, 1);
     },
     generateDummyArena(size = 15) {
+      const world = new WorldGrid({ gridSize: size, seed: 1337 });
+      const half = Math.floor(size / 2);
       const terrain = [];
       for (let x = 0; x < size; x += 1) {
         terrain[x] = [];
         for (let y = 0; y < size; y += 1) {
-          const passable = Math.random() > 0.1;
+          const cell = world.getCell(x - half, y - half);
           terrain[x][y] = {
             terrain: {
-              passable,
-              moisture: Math.random(),
-              flora: passable ? Math.random() : 0,
+              passable: cell.biome !== 'deepWater' && cell.biome !== 'shallowWater',
+              moisture: cell.f,
+              flora: cell.f,
+              color: `#${cell.colorTop.getHexString()}`,
+              height: cell.h,
             },
           };
         }
