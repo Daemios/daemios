@@ -740,7 +740,7 @@ export default {
           polygonOffsetFactor: -1,
           polygonOffsetUnits: -1,
         });
-  this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
+        this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
         this.hoverMesh.visible = false;
         this.hoverMesh.matrixAutoUpdate = false;
         this.scene.add(this.hoverMesh);
@@ -1001,8 +1001,8 @@ export default {
           geom.applyMatrix4(m);
           geom.computeBoundingSphere();
         };
-  recenter(this.topGeom);
-  recenter(this.sideGeom);
+        recenter(this.topGeom);
+        recenter(this.sideGeom);
         // Remove any up-facing triangles (top caps) from side geometry to avoid coplanar overlap
         const stripUpFacingCaps = (geom, dotThresh = 0.8) => {
           if (!geom) return geom;
