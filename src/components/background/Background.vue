@@ -1,8 +1,5 @@
 <template>
-  <div
-    ref="threeContainer"
-    class="game-background"
-  />
+
 </template>
 
 <script>

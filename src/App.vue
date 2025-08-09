@@ -1,7 +1,5 @@
 <template>
   <v-app id="app">
-    <!-- Background -->
-    <Background />
 
     <!-- Game Dialogs -->
     <Equipment />

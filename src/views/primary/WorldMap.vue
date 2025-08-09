@@ -39,170 +39,27 @@
       </details>
     </div>
     <!-- Debug overlay -->
-    <div
+    <WorldDebugPanel
       v-if="debug.show"
-      style="position: absolute; right: 6px; top: 28px; z-index: 2; background: rgba(0,0,0,0.55); color: #fff; padding: 8px 10px; border-radius: 6px; min-width: 220px;"
-      @pointerdown.stop
-      @pointermove.stop
-      @pointerup.stop
-      @click.stop
-      @wheel.stop.prevent
-      @contextmenu.stop.prevent
-    >
-      <details
-        open
-        style="margin: 0 0 6px 0;"
-      >
-        <summary
-          style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;"
-        >
-          <button
-            @click.stop.prevent="runBenchmark"
-            :disabled="benchmark.running"
-            style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: pointer;"
-          >
-            {{ benchmark.running ? 'Running…' : 'Run benchmark' }}
-          </button>
-          <span>Rendering</span>
-        </summary>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
-          <div v-if="benchmark.running" style="opacity: 0.8; align-self: flex-end; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;">Benchmark running… averaging FPS over 10s</div>
-          <div v-else-if="benchmark.result" style="opacity: 0.9; align-self: flex-end; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;">
-            10s avg: {{ fmt(benchmark.result.avg, 1) }} FPS (min {{ fmt(benchmark.result.min, 1) }}, max {{ fmt(benchmark.result.max, 1) }}, frames {{ benchmark.result.frames }})
-          </div>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="features.clutter"
-              type="checkbox"
-              @change="onToggleClutter"
-            >
-            Ground clutter
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="features.shadows"
-              type="checkbox"
-              @change="onToggleShadows"
-            >
-            Shadows
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="features.water"
-              type="checkbox"
-              @change="onToggleWater"
-            >
-            Water
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="features.sandUnderlay"
-              type="checkbox"
-              @change="onToggleSand"
-            >
-            Sand underlay
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="features.chunkColors"
-              type="checkbox"
-              @change="onToggleChunkColors"
-            >
-            Chunk colors
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input
-              v-model="radialFade.enabled"
-              type="checkbox"
-              @change="onToggleRadialFade"
-            >
-            Radial fade
-          </label>
-          <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px;">
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Fade radius</span>
-              <input
-                v-model.number="radialFade.radius"
-                type="number"
-                min="1"
-                :max="layoutRadius * chunkCols"
-                step="0.5"
-                :disabled="!radialFade.enabled"
-                style="flex: 1;"
-              >
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Fade width</span>
-              <input
-                v-model.number="radialFade.width"
-                type="number"
-                min="0.25"
-                :max="layoutRadius * 8"
-                step="0.25"
-                :disabled="!radialFade.enabled"
-                style="flex: 1;"
-              >
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-              <span style="opacity: 0.8;">Min height scale</span>
-              <input
-                v-model.number="radialFade.minHeightScale"
-                type="number"
-                min="0"
-                max="0.5"
-                step="0.01"
-                :disabled="!radialFade.enabled"
-                style="flex: 1;"
-              >
-            </div>
-          </div>
-        </div>
-      </details>
-      <details open style="margin: 8px 0 0 0;">
-        <summary style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-          <span></span>
-          <span>Generation</span>
-        </summary>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; text-align: right;">
-          <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; width: 100%;">
-            <span style="opacity: 0.8;">Scale</span>
-            <input
-              v-model.number="generation.scale"
-              type="number"
-              step="0.01"
-              @input="onGenerationScaleChange"
-              style="flex: 1;"
-            >
-          </div>
-          <div style="display: grid; grid-template-columns: auto 100px; gap: 6px 8px; width: 100%; margin-top: 6px;">
-            <span style="opacity: 0.8; grid-column: 1 / -1; text-align: right;">Noise scales (debug)</span>
-            <label style="opacity:0.8; text-align:right;">Continent</label>
-            <input v-model.number="generation.tuning.continentScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Warp</label>
-            <input v-model.number="generation.tuning.warpScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Warp strength</label>
-            <input v-model.number="generation.tuning.warpStrength" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Plate size</label>
-            <input v-model.number="generation.tuning.plateSize" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Ridge</label>
-            <input v-model.number="generation.tuning.ridgeScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Detail</label>
-            <input v-model.number="generation.tuning.detailScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-            <label style="opacity:0.8; text-align:right;">Climate belt</label>
-            <input v-model.number="generation.tuning.climateScale" type="number" step="0.01" @input="onGeneratorTuningChange" style="width:100%;">
-          </div>
-          <div style="opacity: 0.8;">{{ generation.scale.toFixed(2) }}×</div>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; justify-content: flex-end;">
-            <input
-              v-model="generation.expandNeighborhood"
-              type="checkbox"
-              @change="onToggleExpandNeighborhood"
-            >
-            10× neighborhood (debug)
-          </label>
-        </div>
-      </details>
-    </div>
+      :features="features"
+      :radialFade="radialFade"
+      :generation="generation"
+      :benchmark="benchmark"
+      @update:features="features = $event"
+      @update:radialFade="radialFade = $event"
+      @update:generation="generation = $event"
+      @toggle-clutter="onToggleClutter"
+      @toggle-shadows="onToggleShadows"
+      @toggle-water="onToggleWater"
+      @toggle-sand="onToggleSand"
+      @toggle-chunk-colors="onToggleChunkColors"
+      @toggle-radial-fade="onToggleRadialFade"
+      @generation-scale-change="onGenerationScaleChange"
+      @generator-tuning-change="onGeneratorTuningChange"
+      @toggle-expand-neighborhood="onToggleExpandNeighborhood"
+      @run-benchmark="runBenchmark"
+      style="position: absolute; right: 6px; top: 28px;"
+    />
   </div>
 </template>
 
@@ -222,9 +79,13 @@ import PlayerMarker from '@/renderer/PlayerMarker';
 import ClutterManager from '@/world/ClutterManager';
 import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMaterial';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { updateRadialFadeUniforms } from '@/renderer/radialFade';
+import ChunkNeighborhood from '@/renderer/ChunkNeighborhood';
+import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 
 export default {
   name: 'WorldMap',
+  components: { WorldDebugPanel },
   data() {
     return {
       // core three
@@ -250,6 +111,7 @@ export default {
   trailTopIM: null,
   trailSideIM: null,
   trailTimer: null,
+  neighborhood: null,
   // Water
   waterMesh: null,
   sandMesh: null,
@@ -666,18 +528,8 @@ export default {
     },
     onToggleRadialFade() {
       // Force materials to recompile if toggled on after init
-      if (this.topIM && this.sideIM && this.topIM.material && this.sideIM.material) {
-        const topMat = this.topIM.material;
-        const sideMat = this.sideIM.material;
-        if (this.radialFade.enabled) {
-          // Inject if missing
-          if (!this._fadeUniforms || !this._fadeUniforms.top) this.setupRadialFade(topMat, 'top');
-          if (!this._fadeUniforms || !this._fadeUniforms.side) this.setupRadialFade(sideMat, 'side');
-        }
-        // Trigger refresh either way
-        topMat.needsUpdate = true;
-        sideMat.needsUpdate = true;
-      }
+  if (this.topIM && this.topIM.material) this.topIM.material.needsUpdate = true;
+  if (this.sideIM && this.sideIM.material) this.sideIM.material.needsUpdate = true;
       // Ensure clutter respects the new fade state immediately
       this.scheduleClutterCommit(0);
     },
@@ -685,6 +537,10 @@ export default {
   // WorldMap rendering reacts to values each frame via uniforms; here we only persist
     
     applyChunkColors(enabled) {
+      if (this.neighborhood && this.neighborhood.applyChunkColors) {
+        this.neighborhood.applyChunkColors(!!enabled);
+        return;
+      }
       if (!this.topIM || !this.sideIM || !this.indexToQR) return;
       const count = this.indexToQR.length;
   const tmpColor = this._tmpColorTop;
@@ -800,78 +656,57 @@ export default {
   // Snapshot current visible neighborhood to trail before switching
   this.snapshotTrailAndArmClear(3000);
   this.centerChunk.x = wx; this.centerChunk.y = wy;
-      if (!this.topIM || !this.sideIM) return;
-  // Fill each of slots in computed order
-  for (let s = 0; s < this.neighborOffsets.length; s += 1) {
-        const off = this.neighborOffsets[s];
-        this.fillChunk(s, wx + off.dx, wy + off.dy);
+      if (this.neighborhood) {
+        this.neighborhood.setCenterChunk(wx, wy);
+      } else if (this.topIM && this.sideIM) {
+        for (let s = 0; s < this.neighborOffsets.length; s += 1) {
+          const off = this.neighborOffsets[s];
+          this.fillChunk(s, wx + off.dx, wy + off.dy);
+        }
+        this.topIM.instanceMatrix.needsUpdate = true;
+        this.sideIM.instanceMatrix.needsUpdate = true;
+        if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+        if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+        if (this.topIM.material) this.topIM.material.needsUpdate = true;
+        if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
       }
-      this.topIM.instanceMatrix.needsUpdate = true;
-      this.sideIM.instanceMatrix.needsUpdate = true;
-      if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
-      if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-  // Refresh materials to pick up instanced color defines
-  if (this.topIM.material) this.topIM.material.needsUpdate = true;
-  if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
   // Rebuild clutter for current 3x3 neighborhood so new chunks have props
   this.commitClutterForNeighborhood();
     },
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
       if (!this.topGeom || !this.sideGeom) return;
-      const layoutRadius = this.layoutRadius;
-      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
-      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-      const sx = this.modelScaleFactor;
-      const xzScale = sx * this.contactScale;
-      // Prepare instancing
-      this.countPerChunk = this.chunkCols * this.chunkRows;
       // Determine neighborhood radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
       const radius = this.generation?.expandNeighborhood ? 5 : 1;
       this._neighborRadius = radius; // cache for bounds
-      this.neighborOffsets = this.computeNeighborOffsets(radius);
-      const total = this.neighborOffsets.length * this.countPerChunk;
-      const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-      const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  // Inject radial fade into terrain materials (gated by uniform uFadeEnabled)
-  this.setupRadialFade(topMat, 'top');
-  this.setupRadialFade(sideMat, 'side');
-  // Mark top material so its height isn’t compressed by the fade
-  topMat.defines = Object.assign({}, topMat.defines, { TOP_BUCKET: 1 });
-  // Ensure shadow depth/distance materials get the same fade logic
-  const topDepth = topMat.clone(); topDepth.depthWrite = true; topDepth.colorWrite = false; this.setupRadialFadeDepth(topDepth, 'top');
-  const sideDepth = sideMat.clone(); sideDepth.depthWrite = true; sideDepth.colorWrite = false; this.setupRadialFadeDepth(sideDepth, 'side');
-  this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
-  this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
-  this.topIM.customDepthMaterial = topDepth;
-  this.topIM.customDistanceMaterial = topDepth;
-  this.sideIM.customDepthMaterial = sideDepth;
-  this.sideIM.customDistanceMaterial = sideDepth;
-      this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  // Pre-create instanceColor attributes to avoid white/black flashes and ensure flags
-  const colorsTop = new Float32Array(total * 3);
-  const colorsSide = new Float32Array(total * 3);
-  this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
-  this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(colorsSide, 3);
-      this.indexToQR = new Array(total);
-  this.scene.add(this.sideIM);
-  this.scene.add(this.topIM);
-  // Trail instancers (reuse same materials so fade applies consistently)
-  this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
-  this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
-  this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const tColorsTop = new Float32Array(total * 3);
-  const tColorsSide = new Float32Array(total * 3);
-  this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(tColorsTop, 3);
-  this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(tColorsSide, 3);
-  this.trailTopIM.visible = false;
-  this.trailSideIM.visible = false;
-  this.trailTopIM.renderOrder = (this.topIM.renderOrder || 0) - 1;
-  this.trailSideIM.renderOrder = (this.sideIM.renderOrder || 0) - 1;
-  this.scene.add(this.trailSideIM);
-  this.scene.add(this.trailTopIM);
+      // Use ChunkNeighborhood service to build
+      if (this.neighborhood) { try { this.neighborhood.dispose(); } catch (e) {} this.neighborhood = null; }
+      this.neighborhood = new ChunkNeighborhood({
+        scene: this.scene,
+        topGeom: this.topGeom,
+        sideGeom: this.sideGeom,
+        layoutRadius: this.layoutRadius,
+        spacingFactor: this.spacingFactor,
+        modelScaleFactor: this.modelScaleFactor,
+        contactScale: this.contactScale,
+        sideInset: this.sideInset,
+        chunkCols: this.chunkCols,
+        chunkRows: this.chunkRows,
+        neighborRadius: radius,
+        features: this.features,
+        world: this.world,
+        pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
+      });
+      const built = this.neighborhood.build();
+      this.topIM = built.topIM;
+      this.sideIM = built.sideIM;
+      this.trailTopIM = built.trailTopIM;
+      this.trailSideIM = built.trailSideIM;
+      this.indexToQR = built.indexToQR;
+      this.neighborOffsets = built.neighborOffsets;
+      this.countPerChunk = built.countPerChunk;
+      this._fadeUniforms = built.fadeUniforms;
+      this._fadeUniformsDepth = built.fadeUniformsDepth;
       // Create a single hover overlay mesh to avoid relying on instance colors
       if (this.topIM && this.topGeom) {
         const hoverMat = new THREE.MeshBasicMaterial({
@@ -982,15 +817,20 @@ export default {
       if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
     },
     rebuildChunkGrid() {
-      // Remove and dispose old instancers and trails
-      const disposeIM = (im) => {
-        if (!im) return;
-        try { this.scene.remove(im); } catch (e) {}
-        try { if (im.material && im.material.dispose) im.material.dispose(); } catch (e) {}
-        try { if (im.customDepthMaterial && im.customDepthMaterial.dispose) im.customDepthMaterial.dispose(); } catch (e) {}
-        try { if (im.customDistanceMaterial && im.customDistanceMaterial.dispose) im.customDistanceMaterial.dispose(); } catch (e) {}
-      };
-      disposeIM(this.topIM); disposeIM(this.sideIM); disposeIM(this.trailTopIM); disposeIM(this.trailSideIM);
+      // Remove and dispose old instancers via neighborhood service if present
+      if (this.neighborhood && this.neighborhood.dispose) {
+        this.neighborhood.dispose();
+      } else {
+        const disposeIM = (im) => {
+          if (!im) return;
+          try { this.scene.remove(im); } catch (e) {}
+          try { if (im.material && im.material.dispose) im.material.dispose(); } catch (e) {}
+          try { if (im.customDepthMaterial && im.customDepthMaterial.dispose) im.customDepthMaterial.dispose(); } catch (e) {}
+          try { if (im.customDistanceMaterial && im.customDistanceMaterial.dispose) im.customDistanceMaterial.dispose(); } catch (e) {}
+        };
+        disposeIM(this.topIM); disposeIM(this.sideIM); disposeIM(this.trailTopIM); disposeIM(this.trailSideIM);
+      }
+      this.neighborhood = null;
       this.topIM = null; this.sideIM = null; this.trailTopIM = null; this.trailSideIM = null;
       this.pickMeshes = [];
       this.indexToQR = [];
@@ -1651,55 +1491,24 @@ export default {
       }
       // Update radial fade uniforms to follow the camera target
       if (this._fadeUniforms) {
-        const cx = this.orbit.target.x;
-        const cz = this.orbit.target.z;
-        const col = new THREE.Color(this.radialFade.color);
-        const uTop = this._fadeUniforms.top;
-        const uSide = this._fadeUniforms.side;
-        if (uTop) {
-          if (uTop.uFadeCenter && uTop.uFadeCenter.value) uTop.uFadeCenter.value.set(cx, cz);
-          if (uTop.uFadeRadius) uTop.uFadeRadius.value = this.radialFade.radius;
-          if (uTop.uFadeWidth) uTop.uFadeWidth.value = this.radialFade.width;
-          if (uTop.uFadeColor && uTop.uFadeColor.value) uTop.uFadeColor.value.copy(col);
-          if (uTop.uFadeEnabled) uTop.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
-          if (uTop.uMinHeightScale) uTop.uMinHeightScale.value = this.radialFade.minHeightScale;
-          if (uTop.uCullWholeHex) uTop.uCullWholeHex.value = 1;
-          if (uTop.uHexCornerRadius) uTop.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
-        }
-        if (uSide) {
-          if (uSide.uFadeCenter && uSide.uFadeCenter.value) uSide.uFadeCenter.value.set(cx, cz);
-          if (uSide.uFadeRadius) uSide.uFadeRadius.value = this.radialFade.radius;
-          if (uSide.uFadeWidth) uSide.uFadeWidth.value = this.radialFade.width;
-          if (uSide.uFadeColor && uSide.uFadeColor.value) uSide.uFadeColor.value.copy(col);
-          if (uSide.uFadeEnabled) uSide.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
-          if (uSide.uMinHeightScale) uSide.uMinHeightScale.value = this.radialFade.minHeightScale;
-          if (uSide.uCullWholeHex) uSide.uCullWholeHex.value = 1;
-          if (uSide.uHexCornerRadius) uSide.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
-        }
+        updateRadialFadeUniforms(this._fadeUniforms, {
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: !!this.radialFade.enabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
       }
       if (this._fadeUniformsDepth) {
-        const cx = this.orbit.target.x;
-        const cz = this.orbit.target.z;
-        const uTop = this._fadeUniformsDepth.top;
-        const uSide = this._fadeUniformsDepth.side;
-        if (uTop) {
-          if (uTop.uFadeCenter && uTop.uFadeCenter.value) uTop.uFadeCenter.value.set(cx, cz);
-          if (uTop.uFadeRadius) uTop.uFadeRadius.value = this.radialFade.radius;
-          if (uTop.uFadeWidth) uTop.uFadeWidth.value = this.radialFade.width;
-          if (uTop.uFadeEnabled) uTop.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
-          if (uTop.uMinHeightScale) uTop.uMinHeightScale.value = this.radialFade.minHeightScale;
-          if (uTop.uCullWholeHex) uTop.uCullWholeHex.value = 1;
-          if (uTop.uHexCornerRadius) uTop.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
-        }
-        if (uSide) {
-          if (uSide.uFadeCenter && uSide.uFadeCenter.value) uSide.uFadeCenter.value.set(cx, cz);
-          if (uSide.uFadeRadius) uSide.uFadeRadius.value = this.radialFade.radius;
-          if (uSide.uFadeWidth) uSide.uFadeWidth.value = this.radialFade.width;
-          if (uSide.uFadeEnabled) uSide.uFadeEnabled.value = this.radialFade.enabled ? 1 : 0;
-          if (uSide.uMinHeightScale) uSide.uMinHeightScale.value = this.radialFade.minHeightScale;
-          if (uSide.uCullWholeHex) uSide.uCullWholeHex.value = 1;
-          if (uSide.uHexCornerRadius) uSide.uHexCornerRadius.value = this.layoutRadius * this.contactScale;
-        }
+        updateRadialFadeUniforms(this._fadeUniformsDepth, {
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: !!this.radialFade.enabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
       }
       // Keep clutter fade in sync so instances outside radius are discarded
     if (this.clutter && this.clutter.setRadialFadeState) {
