@@ -21,9 +21,9 @@
 </template>
 
 <script>
-import AbilityMockup from '@/components/ability/AbilityMockup';
-import VesselMini from '@/components/ability/VesselMini';
-import {mapState} from "vuex";
+import AbilityMockup from '@/components/ability/AbilityMockup.vue';
+import VesselMini from '@/components/ability/VesselMini.vue';
+import { useAbilityStore } from '@/stores/abilityStore';
 
 export default {
   components: {
@@ -37,9 +37,7 @@ export default {
       },
   }),
   computed: {
-    ...mapState({
-      elements: (state) => state.ability.elements,
-    })
+    elements() { return useAbilityStore().elements || {}; },
   },
 }
 </script>

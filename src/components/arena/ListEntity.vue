@@ -86,7 +86,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { useArenaStore } from '@/stores/arenaStore';
 
 export default {
   props: {
@@ -118,17 +118,11 @@ export default {
         'turn-active': this.entities[this.x][this.y].active,
       };
     },
-    ...mapState({
-      entities: (state) => state.arena.entities,
-    }),
+  entities() { return useArenaStore().entities; },
   },
   methods: {
-    entityMouseOver() {
-      this.$store.commit('arena/entityMouseOver', { x: this.x, y: this.y });
-    },
-    entityMouseOut() {
-      this.$store.commit('arena/entityMouseOut', { x: this.x, y: this.y });
-    },
+    entityMouseOver() { useArenaStore().entityMouseOver({ x: this.x, y: this.y }); },
+    entityMouseOut() { useArenaStore().entityMouseOut({ x: this.x, y: this.y }); },
   },
 };
 </script>

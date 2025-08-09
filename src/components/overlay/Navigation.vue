@@ -1,8 +1,8 @@
 <template>
   <v-card>
     <v-navigation-drawer
-      v-model="$store.state.navigation"
-      :mini-variant="$store.state.navigation"
+      v-model="navigation"
+      :mini-variant="navigation"
       permanent
       app
     >
@@ -12,8 +12,8 @@
         </v-list-item-avatar>
 
         <v-list-item-title>
-          {{ $store.state.user.character.firstName }}
-          {{ $store.state.user.character.lastName }}
+          {{ character.firstName }}
+          {{ character.lastName }}
         </v-list-item-title>
       </v-list-item>
 
@@ -53,7 +53,9 @@
 
 <script>
 import { mdiChevronLeft, mdiLock } from '@mdi/js';
-import { mapState } from 'vuex';
+import { useArenaStore } from '@/stores/arenaStore';
+import { useUserStore } from '@/stores/userStore';
+import { useUiStore } from '@/stores/uiStore';
 
 export default {
   data: () => ({
@@ -74,9 +76,12 @@ export default {
       });
       return routes;
     },
-    ...mapState({
-      combat: (state) => state.arena.combat,
-    }),
+    combat() { return useArenaStore().combat; },
+    navigation: {
+      get() { return useUiStore().navigation; },
+      set(v) { useUiStore().navigation = v; }
+    },
+    character() { return useUserStore().character || {}; },
   },
   methods: {
     showLock(route) {

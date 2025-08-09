@@ -10,17 +10,15 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
-import ListEntity from '@/components/arena/ListEntity';
+import { useArenaStore } from '@/stores/arenaStore';
+import ListEntity from '@/components/arena/ListEntity.vue';
 
 export default {
   components: {
     ListEntity,
   },
   computed: {
-    ...mapState({
-      entityRegistry: (state) => state.arena.entityRegistry,
-    }),
+    entityRegistry() { return useArenaStore().entityRegistry; },
   },
 };
 </script>

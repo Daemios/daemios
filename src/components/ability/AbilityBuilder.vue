@@ -115,9 +115,9 @@
 
 <script>
 import { mdiClose } from '@mdi/js';
-import { mapState } from 'vuex';
-import VesselMini from '@/components/ability/VesselMini';
-import AbilityMockup from '@/components/ability/AbilityMockup';
+import { useAbilityStore } from '@/stores/abilityStore';
+import VesselMini from '@/components/ability/VesselMini.vue';
+import AbilityMockup from '@/components/ability/AbilityMockup.vue';
 
 export default {
   components: { VesselMini, AbilityMockup },
@@ -140,9 +140,7 @@ export default {
     selected_element: null,
   }),
   computed: {
-    ...mapState({
-      elements: (state) => state.ability.elements,
-    }),
+    elements() { return useAbilityStore().elements || {}; },
   },
   methods: {
     abilitySubtext(preset_core_id, selected_element) {

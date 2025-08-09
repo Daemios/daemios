@@ -11,7 +11,7 @@
 <script>
 import { mdiClose } from '@mdi/js';
 import BasicDialog from '@/components/dialogs/BasicDialog.vue';
-import { mapState } from 'vuex';
+import { useDialogsStore } from '@/stores/dialogsStore';
 
 export default {
   components: {
@@ -21,9 +21,10 @@ export default {
       mdiClose,
   }),
   computed: {
-    ...mapState({
-      isAbilitiesOpen: state => state.dialogs.isAbilitiesOpen,
-    }),
-  }
+    isAbilitiesOpen: {
+      get() { return useDialogsStore().isAbilitiesOpen; },
+      set(v) { useDialogsStore().isAbilitiesOpen = v; },
+    },
+  },
 };
 </script>

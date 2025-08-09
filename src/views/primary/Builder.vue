@@ -143,9 +143,10 @@
 <script>
 
 import { mdiCheck, mdiCircleMedium, mdiCircleSmall } from '@mdi/js';
-import { mapState} from 'vuex';
 import api from '@/functions/api';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
+import { useDataStore } from '@/stores/dataStore';
+import { useUserStore } from '@/stores/userStore';
 
 export default {
   components: {CharacterSlide},
@@ -178,9 +179,7 @@ export default {
     }
   }),
   computed: {
-    ...mapState({
-      races: state => state.data.races,
-    }),
+    races() { return useDataStore().races || []; },
     // Find the race in races that has a race_id prop that matches the value in this.race
     race() {
       if (this.race_id) {
@@ -196,7 +195,7 @@ export default {
     }
   },
   mounted() {
-    this.$store.dispatch('data/getRaces')
+    useDataStore().getRaces();
     //api.get('user/character/builder/presets').then(response => {
     //  this.presets = response;
     //});

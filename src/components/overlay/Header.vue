@@ -5,7 +5,7 @@
     dense
   >
     <v-app-bar-nav-icon
-      @click="$store.state.navigation = !$store.state.navigation"
+      @click="toggleNav"
     />
     <v-spacer />
     <v-app-bar-nav-icon @click="$router.push('/login')">
@@ -17,13 +17,17 @@
 <script>
 
 import { mdiLogout } from '@mdi/js';
+import { useUiStore } from '@/stores/uiStore';
 
 export default {
   data: () => ({
     mdiLogout,
   }),
-  computed: {
-
+  methods: {
+    toggleNav() {
+      const ui = useUiStore();
+      ui.navigation = !ui.navigation;
+    }
   }
 };
 </script>

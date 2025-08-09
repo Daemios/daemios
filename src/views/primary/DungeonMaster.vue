@@ -150,7 +150,7 @@
             Combat
             <v-spacer />
             <v-btn
-              v-if="!$store.state.arena.combat"
+              v-if="!combat"
               small
               color="primary"
               @click="startCombat()"
@@ -158,7 +158,7 @@
               Start
             </v-btn>
             <v-btn
-              v-if="$store.state.arena.combat"
+              v-if="combat"
               small
               color="primary"
               @click="endCombat()"

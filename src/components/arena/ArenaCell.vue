@@ -26,7 +26,7 @@
       class="overlay hover-overlay"
     />
     <div
-      v-if="$store.state.arena.debug"
+      v-if="debug"
       class="overlay d-flex align-center justify-center"
     >
       {{ x }}|{{ y }}
@@ -48,9 +48,9 @@
   </div>
 </template>
 <script>
-import { mapState } from 'vuex';
-import ArenaEntity from '@/components/arena/ArenaEntity';
-const cell_colors = require('../../mixins/cell_colors')
+import { useArenaStore } from '@/stores/arenaStore';
+import ArenaEntity from '@/components/arena/ArenaEntity.vue';
+import cell_colors from '@/mixins/cell_colors';
 
 export default {
   components: {
@@ -74,10 +74,9 @@ export default {
     hovered: false,
   }),
   computed: {
-    ...mapState({
-      entities: (state) => state.arena.entities,
-      overlays: (state) => state.arena.overlays,
-    }),
+    entities() { return useArenaStore().entities; },
+  overlays() { return useArenaStore().overlays; },
+  debug() { return useArenaStore().debug; },
     cellClasses() {
 
       const classes = {

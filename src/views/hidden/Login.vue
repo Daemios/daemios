@@ -119,7 +119,7 @@
     >
       <v-icon
         class="mr-1"
-        @click="$store.commit('audio/toggleMute')"
+        @click="toggleMute"
       >
         {{ mdiVolumeSource }}
       </v-icon>
@@ -136,6 +136,7 @@
 <script>
 import mixin_audio from '@/mixins/audio';
 import api from "@/functions/api";
+import { useAudioStore } from '@/stores/audioStore';
 
 export default {
   mixins: [mixin_audio],
@@ -151,6 +152,9 @@ export default {
     },
   }),
   methods: {
+    toggleMute() {
+      useAudioStore().toggleMute();
+    },
     login() {
       api.post('open/login', {
         email: this.form.email,

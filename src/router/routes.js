@@ -6,7 +6,7 @@ export default [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/hidden/Login'),
+  component: () => import('@/views/hidden/Login.vue'),
     meta: {
       overlay: false,
       combat_lock: false,
@@ -15,7 +15,7 @@ export default [
   {
     path: '/builder',
     name: 'Builder',
-    component: () => import('@/views/primary/Builder'),
+  component: () => import('@/views/primary/Builder.vue'),
     meta: {
       overlay: false,
       combat_lock: false,
@@ -24,7 +24,7 @@ export default [
   {
     path: '/',
     name: 'DnDaemios',
-    component: () => import('@/views/primary/Main'),
+  component: () => import('@/views/primary/Main.vue'),
     meta: {
       render: true,
       icon: mdiEarth,
@@ -35,7 +35,7 @@ export default [
   {
     path: '/dungeon-master',
     name: 'Dungeon Master',
-    component: () => import('@/views/primary/DungeonMaster'),
+  component: () => import('@/views/primary/DungeonMaster.vue'),
     meta: {
       render: true,
       icon: mdiWizardHat,
@@ -46,7 +46,7 @@ export default [
   {
     path: '/worldmap',
     name: 'World Map',
-    component: () => import('@/views/primary/WorldMap'),
+  component: () => import('@/views/primary/WorldMap.vue'),
     meta: {
       overlay: false,
       combat_lock: false,
@@ -55,7 +55,7 @@ export default [
   {
     path: '/characters',
     name: 'Characters',
-    component: () => import('@/views/hidden/Characters'),
+  component: () => import('@/views/hidden/Characters.vue'),
     meta: {
       render: false,
       overlay: false,
@@ -64,7 +64,7 @@ export default [
   {
     path: '/:pathMatch(.*)*',
     name: 'Page Not Found',
-    component: () => import('@/views/hidden/NotFound'),
+  component: () => import('@/views/hidden/NotFound.vue'),
     meta: {
       requiresAuth: false,
       permission: null,

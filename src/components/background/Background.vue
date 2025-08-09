@@ -23,7 +23,7 @@ export default {
     this.initThreeJS();
     this.animate();
   },
-  beforeDestroy() {
+  beforeUnmount() {
     cancelAnimationFrame(this.animationFrameId);
     this.plane.material.dispose();
     this.plane.geometry.dispose();

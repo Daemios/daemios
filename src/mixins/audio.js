@@ -1,5 +1,5 @@
-import { mapState } from 'vuex';
 import { mdiVolumeSource, mdiVolumeMute } from '@mdi/js';
+import { useAudioStore } from '@/stores/audioStore';
 
 export default {
   data: () => ({
@@ -7,9 +7,9 @@ export default {
     mdiVolumeMute,
   }),
   computed: {
-    ...mapState({
-      volume: (state) => state.audio.volume,
-    }),
+    volume() {
+      return useAudioStore().volume;
+    },
     volumeIcon() {
       return this.volume > 0 ? mdiVolumeSource : mdiVolumeMute;
     },

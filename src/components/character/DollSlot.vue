@@ -8,7 +8,7 @@
 </template>
 
 <script>
-import Item from '@/components/inventory/Item';
+import Item from '@/components/inventory/Item.vue';
 
 export default {
   components: { Item },

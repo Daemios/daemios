@@ -4,7 +4,7 @@
       <!-- Player Character -->
       <CharacterSlide
         v-if="character"
-        :name="$store.state.user.character.name"
+  :name="character.name"
         :color="character.race.color"
         :title="character.race.name"
         :avatar_url="character.image"
@@ -19,20 +19,19 @@
 </template>
 
 <script>
-import Arena from '@/components/arena/Arena';
+import Arena from '@/components/arena/Arena.vue';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
-import { mapState } from 'vuex';
+import { useUserStore } from '@/stores/userStore';
 
 export default {
   components: {
     CharacterSlide,
     Arena,
   },
-  // import the character state from vuex
   computed: {
-    ...mapState({
-      character: (state) => state.user.character,
-    }),
+    character() {
+      return useUserStore().character;
+    },
   },
 };
 </script>

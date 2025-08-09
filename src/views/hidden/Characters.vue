@@ -129,7 +129,7 @@ import mixin_locations from '@/mixins/locations';
 import VesselMini from '@/components/ability/VesselMini';
 import AnimatedBackground from '@/components/general/AnimatedBackground';
 import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout } from '@mdi/js';
-import {mapState} from "vuex";
+import { useUserStore } from '@/stores/userStore';
 
 export default {
   components: { VesselMini, AnimatedBackground },
@@ -143,9 +143,7 @@ export default {
       mdiLogout,
   }),
   computed: {
-    ...mapState({
-      characters: (state) => state.user.characters,
-    }),
+    characters() { return useUserStore().characters || []; },
     disableUp() {
       return this.characters.length < 1 || this.character_index === 0;
     },
@@ -154,7 +152,7 @@ export default {
     },
   },
   mounted() {
-    this.$store.dispatch('user/getCharacters');
+    useUserStore().getCharacters();
   },
   methods: {
     characterUp() {
@@ -167,19 +165,14 @@ export default {
         this.character_index += 5;
       }
     },
-    characterSelect(id) {
-      this.zoom = true;
-      this.$store.dispatch('user/selectCharacter', id);
-    },
+  characterSelect(id) { this.zoom = true; useUserStore().selectCharacter(id); },
     characterCreate() {
       this.zoom = true;
       setTimeout(() => {
         window.location.href = '/builder';
       }, 1500);
     },
-    logout() {
-      this.$store.dispatch('user/logout');
-    },
+  logout() { useUserStore().logout(); },
   },
 }
 </script>

@@ -30,23 +30,19 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { useArenaStore } from '@/stores/arenaStore';
 
 export default {
   computed: {
-    ...mapState({
-      entities: (state) => state.arena.entities,
-      active: (state) => state.arena.activeRegister,
-      entityRegistry: (state) => state.arena.entityRegistry,
-    }),
+    entities() { return useArenaStore().entities; },
+    active() { return useArenaStore().activeRegister; },
+    entityRegistry() { return useArenaStore().entityRegistry; },
   },
   methods: {
     nextEntity(offset = 1) {
-      const registry_entry = this.entityRegistry[
-        (this.active.index + offset) % this.entityRegistry.length
-      ];
-
-      return this.entities[registry_entry.x][registry_entry.y];
+      const store = useArenaStore();
+      const registry_entry = store.entityRegistry[(store.activeRegister.index + offset) % store.entityRegistry.length];
+      return store.entities[registry_entry.x][registry_entry.y];
     },
   },
 };

@@ -27,7 +27,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleEquipment')"
+          @click="dialogs.toggleEquipment()"
         >
           <v-icon small>
             {{ mdiHumanMale }}
@@ -38,7 +38,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleInventory')"
+          @click="dialogs.toggleInventory()"
         >
           <v-icon small>
             {{ mdiTreasureChest }}
@@ -49,7 +49,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleAbilities')"
+          @click="dialogs.toggleAbilities()"
         >
           <v-icon small>
             {{ mdiSword }}
@@ -60,7 +60,7 @@
           x-small
           height="30"
           width="30"
-          @click="$store.commit('dialogs/toggleOptions')"
+          @click="dialogs.toggleOptions()"
         >
           <v-icon small>
             {{ mdiCog }}
@@ -71,7 +71,7 @@
 
     <!-- Websocket lock -->
     <v-dialog
-      :value="!$store.state.socket.connection"
+  :value="!socket.connection"
       persistent
       max-width="400"
     >
@@ -92,6 +92,9 @@
 
 <script>
 import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from '@mdi/js';
+import { useDialogsStore } from '@/stores/dialogsStore';
+import { useSocketStore } from '@/stores/socketStore';
+import { useUserStore } from '@/stores/userStore';
 
 import Background from '@/components/background/Background.vue';
 
@@ -100,11 +103,11 @@ import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-    Background: () => import('@/components/background/Background'),
-    Equipment: () => import('@/components/dialogs/Equipment'),
-    Inventory: () => import('@/components/dialogs/Inventory'),
-    Abilities: () => import('@/components/dialogs/Abilities'),
-    Options: () => import('@/components/dialogs/Options'),
+  Background: () => import('@/components/background/Background.vue'),
+  Equipment: () => import('@/components/dialogs/Equipment.vue'),
+  Inventory: () => import('@/components/dialogs/Inventory.vue'),
+  Abilities: () => import('@/components/dialogs/Abilities.vue'),
+  Options: () => import('@/components/dialogs/Options.vue'),
   },
   mixins: [
     mixin_keybinds,
@@ -115,7 +118,15 @@ export default {
     mdiTreasureChest,
     mdiSword,
     mdiCog,
+    dialogs: null,
+    socket: null,
+    user: null,
   }),
+  created() {
+    this.dialogs = useDialogsStore();
+    this.socket = useSocketStore();
+    this.user = useUserStore();
+  },
   mounted() {
     const uri = this.$route.path;
     if (
@@ -124,7 +135,7 @@ export default {
       uri !== '/characters' &&
       uri !== '/builder'
     ) {
-      this.$store.dispatch('user/getUser');
+      this.user.getUser();
     }
   },
 };
@@ -159,7 +170,8 @@ html
 
 /* iOS Fix height */
 html, body, .v-application, .v-application--wrap
-
+  min-height: 100%
+  margin: 0
 /* General global styling */
 #app
   font-family: Avenir, Helvetica, Arial, sans-serif
