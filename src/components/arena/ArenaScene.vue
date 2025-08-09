@@ -19,6 +19,7 @@ const entityGroup = new THREE.Group();
 const entityMeshes = new Map();
 
 function terrainColor(cell) {
+  if (cell.terrain.color) return new THREE.Color(cell.terrain.color);
   if (!cell.terrain.passable) return new THREE.Color('#333333');
   const moisture = cell.terrain.moisture ?? 0;
   const flora = cell.terrain.flora ?? 0;
@@ -38,8 +39,9 @@ function buildTerrain() {
   }
   terrainWidth = store.terrain.length;
   terrainHeight = store.terrain[0].length;
-  const geom = new THREE.PlaneGeometry(cellSize, cellSize);
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const geom = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
+  geom.rotateX(Math.PI / 2);
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const count = terrainWidth * terrainHeight;
   terrainMesh = new THREE.InstancedMesh(geom, mat, count);
   terrainMesh.userData.cells = [];
@@ -47,7 +49,10 @@ function buildTerrain() {
   for (let x = 0; x < terrainWidth; x += 1) {
     for (let y = 0; y < terrainHeight; y += 1) {
       const cell = store.terrain[x][y];
-      const matrix = new THREE.Matrix4().makeTranslation(x + 0.5, -(y + 0.5), 0);
+      const h = cell.terrain.height ?? 0;
+      const pos = new THREE.Vector3(x + 0.5, -(y + 0.5), h / 2);
+      const matrix = new THREE.Matrix4();
+      matrix.compose(pos, new THREE.Quaternion(), new THREE.Vector3(1, 1, h));
       terrainMesh.setMatrixAt(i, matrix);
       terrainMesh.setColorAt(i, terrainColor(cell));
       terrainMesh.userData.cells[i] = { x, y };
@@ -103,7 +108,8 @@ function rebuildOverlays() {
     const mesh = new THREE.InstancedMesh(geom, mat, coords.length);
     let idx = 0;
     coords.forEach(({ x, y }) => {
-      const mtx = new THREE.Matrix4().makeTranslation(x + 0.5, -(y + 0.5), 0.01);
+      const h = store.terrain?.[x]?.[y]?.terrain.height || 0;
+      const mtx = new THREE.Matrix4().makeTranslation(x + 0.5, -(y + 0.5), h + 0.01);
       mesh.setMatrixAt(idx, mtx);
       idx += 1;
     });
@@ -130,7 +136,8 @@ function syncEntities() {
         const entity = column[y];
         if (!entity) continue;
         let mesh = entityMeshes.get(entity);
-        const target = new THREE.Vector3(Number(x) + 0.5, -Number(y) - 0.5, 0.5);
+        const h = store.terrain?.[x]?.[y]?.terrain.height || 0;
+        const target = new THREE.Vector3(Number(x) + 0.5, -Number(y) - 0.5, h + 0.3);
         if (!mesh) {
           const geom = new THREE.CylinderGeometry(0.4, 0.4, 0.6, 12);
           const mat = new THREE.MeshBasicMaterial({ color: factionColors[entity.faction] || factionColors.neutral });
@@ -275,6 +282,10 @@ function animate() {
 
 onMounted(() => {
   scene = new THREE.Scene();
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+  directional.position.set(5, -10, 10);
+  scene.add(ambient, directional);
   scene.add(overlayGroup);
   scene.add(entityGroup);
   camera = new THREE.OrthographicCamera(0, 10, 0, -10, 0.1, 1000);
