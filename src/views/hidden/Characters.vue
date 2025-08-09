@@ -5,12 +5,6 @@
     column
     class="login"
   >
-    <AnimatedBackground
-      src="/video/forest.mp4"
-      :zoom="zoom"
-    />
-
-
     <!-- Character Select -->
     <v-layout
       column
@@ -127,15 +121,13 @@
 import mixin_audio from '@/mixins/audio';
 import mixin_locations from '@/mixins/locations';
 import VesselMini from '@/components/ability/VesselMini.vue';
-import AnimatedBackground from '@/components/general/AnimatedBackground.vue';
 import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout } from '@mdi/js';
 import { useUserStore } from '@/stores/userStore';
 
 export default {
-  components: { VesselMini, AnimatedBackground },
+  components: { VesselMini },
   mixins: [mixin_audio, mixin_locations],
   data: () => ({
-      zoom: false,
       character_index: 0, // shows i+5 characters
       mdiPlus,
       mdiChevronUp,
@@ -169,12 +161,9 @@ export default {
         this.character_index += 5;
       }
     },
-    characterSelect(id) { this.zoom = true; this.userStore.selectCharacter(id); },
+    characterSelect(id) { this.userStore.selectCharacter(id); },
     characterCreate() {
-      this.zoom = true;
-      setTimeout(() => {
-        window.location.href = '/builder';
-      }, 1500);
+      window.location.href = '/builder';
     },
     logout() { this.userStore.logout(); },
   },
