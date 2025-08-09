@@ -4,6 +4,36 @@
     class="world-map"
     style="position: relative; width: 100%; height: 100vh;"
   >
+    <!-- Current tile panel (left) -->
+    <div
+      style="position: absolute; left: 6px; top: 28px; z-index: 3; background: rgba(0,0,0,0.55); color: #fff; padding: 8px 10px; border-radius: 6px; min-width: 240px; max-width: 320px;"
+      @pointerdown.stop
+      @pointermove.stop
+      @pointerup.stop
+      @click.stop
+      @wheel.stop.prevent
+      @contextmenu.stop.prevent
+    >
+      <details open style="margin: 0;">
+        <summary style="cursor: pointer; user-select: none; outline: none;">Current Tile</summary>
+        <div v-if="currentTileInfo" style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <div><span style="opacity: 0.8;">Axial</span>: q={{ currentTileInfo.q }}, r={{ currentTileInfo.r }}</div>
+          <div v-if="currentTileInfo.col != null"><span style="opacity: 0.8;">Offset</span>: col={{ currentTileInfo.col }}, row={{ currentTileInfo.row }}</div>
+          <div v-if="currentTileInfo.wx != null"><span style="opacity: 0.8;">Chunk</span>: ({{ currentTileInfo.wx }}, {{ currentTileInfo.wy }})</div>
+          <div><span style="opacity: 0.8;">World</span>: x={{ fmt(currentTileInfo.world.x) }}, z={{ fmt(currentTileInfo.world.z) }}</div>
+          <div><span style="opacity: 0.8;">Biome</span>: {{ currentTileInfo.cell.biome }}</div>
+          <div><span style="opacity: 0.8;">hRaw</span>: {{ fmt(currentTileInfo.cell.hRaw) }} | <span style="opacity: 0.8;">h</span>: {{ fmt(currentTileInfo.cell.h) }}</div>
+          <div><span style="opacity: 0.8;">yScale</span>: {{ fmt(currentTileInfo.cell.yScale) }}</div>
+          <div><span style="opacity: 0.8;">foliage</span>: {{ fmt(currentTileInfo.cell.f) }} | <span style="opacity: 0.8;">temp</span>: {{ fmt(currentTileInfo.cell.t) }}</div>
+        </div>
+        <div v-else style="opacity: 0.8; margin-top: 6px;">
+          Click a tile to select it.
+          <div v-if="hoverIdx != null && indexToQR && indexToQR[hoverIdx]" style="margin-top: 6px;">
+            Hover: q={{ indexToQR[hoverIdx].q }}, r={{ indexToQR[hoverIdx].r }}
+          </div>
+        </div>
+      </details>
+    </div>
     <!-- Debug overlay -->
     <div
       v-if="debug.show"
@@ -270,7 +300,20 @@ export default {
   keyLight: null,
   // stores
   settings: null,
+  // selection
+  selectedQR: { q: null, r: null },
     };
+  },
+  computed: {
+    currentTileInfo() {
+      const q = this.selectedQR?.q; const r = this.selectedQR?.r;
+      if (q == null || r == null || !this.world) return null;
+      const cell = this.world.getCell(q, r);
+      const { x, z } = this.getTileWorldPos(q, r);
+      const off = this.axialToOffset ? this.axialToOffset(q, r) : { col: null, row: null };
+      const ch = this.chunkForAxial ? this.chunkForAxial(q, r) : { wx: null, wy: null };
+      return { q, r, world: { x, z }, col: off.col, row: off.row, wx: ch.wx, wy: ch.wy, cell };
+    },
   },
   mounted() {
     // pinia stores
@@ -318,6 +361,21 @@ export default {
     this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
   },
   methods: {
+    // Small number formatter for panel
+    fmt(v, n = 3) { if (v == null || Number.isNaN(v)) return '—'; const x = Number(v); return Math.abs(x) < 1e-6 ? '0' : x.toFixed(n); },
+    setCurrentTile(q, r) {
+      if (q == null || r == null) { this.selectedQR.q = null; this.selectedQR.r = null; return; }
+      this.selectedQR.q = q; this.selectedQR.r = r;
+    },
+    // Find any instanced index for a given q,r (linear scan; fast enough for panel)
+    findIndexForQR(q, r) {
+      if (!this.indexToQR) return null;
+      for (let i = 0; i < this.indexToQR.length; i += 1) {
+        const info = this.indexToQR[i];
+        if (info && info.q === q && info.r === r) return i;
+      }
+      return null;
+    },
     // Helper: commit clutter for current 3x3 chunk neighborhood and current fade
     commitClutterForNeighborhood() {
       if (!this.clutter || !this.world) return;
@@ -812,6 +870,7 @@ export default {
       if (startIdx != null) {
         this.addLocationMarkerAtIndex(startIdx);
         this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
+  this.setCurrentTile(startQ, startR);
       }
     },
     computeContactScaleFromGeom() {
@@ -1645,6 +1704,7 @@ export default {
         const idx = hit.instanceId;
         if (idx != null && this.indexToQR[idx]) {
           const { q, r } = this.indexToQR[idx];
+          this.setCurrentTile(q, r);
           api.post('world/move', { q, r });
           // Also move camera focus and location marker locally with smoothing
           this.focusCameraOnQR(q, r, { smooth: true, duration: 700 });

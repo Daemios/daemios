@@ -1,4 +1,4 @@
-import router from '@/router';
+import router from '@/router/index.js';
 
 // Resolve API base endpoint without depending on a global store
 function resolveApiBase() {
