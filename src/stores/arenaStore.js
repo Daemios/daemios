@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia';
-import api from '@/functions/api';
 import { cartesian } from '@/mixins/cartesian';
 
 export const useArenaStore = defineStore('arena', {
@@ -102,6 +101,52 @@ export const useArenaStore = defineStore('arena', {
       const index = this.overlayRegistry[args.overlay].findIndex((entry) => entry.x === args.x && entry.y === args.y);
       if (index !== -1) this.overlayRegistry[args.overlay].splice(index, 1);
     },
+    generateDummyArena(size = 15) {
+      const terrain = [];
+      for (let x = 0; x < size; x += 1) {
+        terrain[x] = [];
+        for (let y = 0; y < size; y += 1) {
+          const passable = Math.random() > 0.1;
+          terrain[x][y] = {
+            terrain: {
+              passable,
+              moisture: Math.random(),
+              flora: passable ? Math.random() : 0,
+            },
+          };
+        }
+      }
+      this.setTerrainData(terrain);
+      const entities = [];
+      const player = {
+        name: 'Hero',
+        faction: 'player',
+        img: '/favicon.ico',
+        active: true,
+        hover: false,
+        mp: { current: 10 },
+        effects: [],
+        log: [],
+      };
+      if (!entities[this.activeRegister.x]) entities[this.activeRegister.x] = [];
+      entities[this.activeRegister.x][this.activeRegister.y] = player;
+      const enemy = {
+        name: 'Enemy',
+        faction: 'enemy',
+        img: '/favicon.ico',
+        active: false,
+        hover: false,
+        mp: { current: 8 },
+        effects: [],
+        log: [],
+      };
+      if (!entities[5]) entities[5] = [];
+      entities[5][5] = enemy;
+      this.setEntities(entities);
+      this.clearEntityRegistry();
+      this.registerEntity({ x: this.activeRegister.x, y: this.activeRegister.y });
+      this.registerEntity({ x: 5, y: 5 });
+    },
     moveByCell() {
       if (this.confirmedPath.length > 0) {
         const { x, y } = this.confirmedPath[0];
@@ -125,15 +170,14 @@ export const useArenaStore = defineStore('arena', {
       }
     },
     movement() {
-      api.post('arena/move', { to: [1, 1] }).then(() => { /* future update board */ });
+      this.moveEntity();
     },
     setTerrainData(data) {
       this.buildOverlays(data);
       this.setTerrain(data);
     },
     async getTerrain() {
-      const response = await api.get('arena/terrain');
-      this.setTerrainData(response);
+      if (!this.terrain) this.generateDummyArena();
     },
   },
 });
