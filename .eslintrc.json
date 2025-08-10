@@ -1,11 +1,21 @@
 {
+  "root": true,
+  "parser": "vue-eslint-parser",
   "parserOptions": {
-    "parser": "@babel/eslint-parser",
-    "ecmaVersion": 11,
+    "parser": {
+      "js": "espree"
+    },
+    "ecmaVersion": 2022,
     "sourceType": "module"
   },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
   "extends": [
-    "plugin:vue/vue3-recommended"
+    "plugin:vue/vue3-recommended",
+    "eslint:recommended"
   ],
   "rules": {
     "camelcase": "off",
