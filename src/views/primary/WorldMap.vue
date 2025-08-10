@@ -83,6 +83,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { updateRadialFadeUniforms } from '@/renderer/radialFade';
 import ChunkManager from '@/renderer/ChunkManager';
 import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
+import { profiler, createWebGLTimer } from '@/utils/profiler';
 
 export default {
   name: 'WorldMap',
@@ -120,6 +121,7 @@ export default {
   waterMesh: null,
   sandMesh: null,
   waterMaterial: null,
+  waterStencilIM: null,
   waterStyle: 'realistic', // 'realistic' | 'stylized'
   waterSeabedTex: null,
   waterMaskTex: null,
@@ -211,6 +213,11 @@ export default {
       fpsTime: 0,
       fps: 0,
       fpsEl: null,
+      // profiler
+      profilerEnabled: true,
+      profEl: null,
+      _profLastUpdate: 0,
+      _gpuTimer: null,
       // benchmark
       benchmark: {
         running: false,
@@ -259,6 +266,17 @@ export default {
   mounted() {
     // pinia stores
     this.settings = useSettingsStore();
+    // Startup marker for this view
+    try {
+      if (typeof window !== 'undefined') {
+        if (!window.__DAEMIOS_STARTUP) window.__DAEMIOS_STARTUP = { t0: (performance.now?.() ?? Date.now()) };
+        window.__DAEMIOS_STARTUP.worldMapMounted = (performance.now?.() ?? Date.now());
+      }
+    } catch (e) {}
+    // Expose a tiny timing hook for modules that don't import the profiler directly
+    if (typeof window !== 'undefined') {
+      window.__DAEMIOS_PROF = (label, ms) => { try { if (this.profilerEnabled) profiler.push(label, ms); } catch (e) {} };
+    }
     // Load persisted settings for this view (header: settings.worldMap)
     try {
       const saved = this.settings.get('worldMap', null);
@@ -715,6 +733,29 @@ export default {
     setCenterChunk(wx, wy) {
       this.centerChunk.x = wx; this.centerChunk.y = wy;
       if (this.chunkManager) this.chunkManager.setCenterChunk(wx, wy, { trailMs: 3000 });
+  // Update water stencil to follow the new neighborhood
+  this.rebuildWaterStencil();
+    // Keep water textures centered: rebuild if we drift near the texture edge
+      if (this.waterMaterial && this.waterMesh && this.waterMaskTex) {
+        const u = this.waterMaterial.uniforms;
+        const q0 = u.uGridQ0 ? (u.uGridQ0.value|0) : 0;
+        const r0 = u.uGridR0 ? (u.uGridR0.value|0) : 0;
+        const N = u.uGridN ? (u.uGridN.value|0) : 0;
+        const S = u.uGridOffset ? (u.uGridOffset.value|0) : 0;
+        if (N > 0) {
+      const rad = (this._neighborRadius != null) ? this._neighborRadius : 1;
+      const baseCol = (wx - rad) * this.chunkCols;
+      const baseRow = (wy - rad) * this.chunkRows;
+      const newQ0 = baseCol;
+      const newR0 = baseRow - Math.floor(baseCol / 2);
+          const dq = Math.abs(newQ0 - q0);
+          const dr = Math.abs(newR0 - r0);
+          const guard = Math.max(8, Math.floor(S * 0.35));
+          if (dq > (S - guard) || dr > (S - guard)) {
+            this.buildWater();
+          }
+        }
+      }
     },
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
@@ -745,6 +786,7 @@ export default {
         pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
   streamBudgetMs: 6,
   streamMaxChunksPerTick: 0,
+  rowsPerSlice: 6,
         onBuilt: (built) => {
           this.topIM = built.topIM;
           this.sideIM = built.sideIM;
@@ -774,6 +816,12 @@ export default {
           if (this.chunkManager) this.chunkManager.trailActive = false;
         },
       });
+      // Startup: chunk build start
+      try {
+        const now4 = performance.now?.() ?? Date.now();
+        const t0 = (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP?.t0) ? window.__DAEMIOS_STARTUP.t0 : now4;
+        profiler.push('startup.chunk.build.start', now4 - t0);
+      } catch (e) {}
       this.chunkManager.build(this.topGeom, this.sideGeom);
       // Create a single hover overlay mesh to avoid relying on instance colors
       if (this.topIM && this.topGeom) {
@@ -930,6 +978,12 @@ export default {
       return Math.max(0.5, Math.min(1.5, needed));
     },
     init() {
+      // Startup: world init begin
+      try {
+        const now0 = performance.now?.() ?? Date.now();
+        const t0 = (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP?.t0) ? window.__DAEMIOS_STARTUP.t0 : now0;
+        profiler.push('startup.world.init.begin', now0 - t0);
+      } catch (e) {}
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
 
@@ -943,7 +997,7 @@ export default {
       this.orbit.theta = Math.atan2(camVec.x, camVec.z);
       this.orbit.phi = Math.acos(camVec.y / this.orbit.radius);
 
-  this.renderer = markRaw(new THREE.WebGLRenderer({ antialias: false }));
+  this.renderer = markRaw(new THREE.WebGLRenderer({ antialias: false, stencil: true }));
   // Slightly upscale to reduce aliasing while keeping perf in check
   const devicePR = Math.min(1.5, (window.devicePixelRatio || 1));
   this.renderer.setPixelRatio(devicePR);
@@ -953,6 +1007,13 @@ export default {
       this.renderer.toneMappingExposure = 1.0;
       this.renderer.physicallyCorrectLights = false;
       this.$refs.sceneContainer.appendChild(this.renderer.domElement);
+      // Startup: first content visible
+      try {
+        const now1 = performance.now?.() ?? Date.now();
+        const t0 = (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP?.t0) ? window.__DAEMIOS_STARTUP.t0 : now1;
+        profiler.push('startup.first.content', now1 - t0);
+        if (typeof window !== 'undefined') window.__DAEMIOS_STARTUP.firstContent = true;
+      } catch (e) {}
 
       // FPS overlay
       this.fpsEl = document.createElement('div');
@@ -964,17 +1025,34 @@ export default {
       this.fpsEl.textContent = 'FPS: --';
       this.$refs.sceneContainer.appendChild(this.fpsEl);
 
-  this.composer = markRaw(new EffectComposer(this.renderer));
-  const renderPass = new RenderPass(this.scene, this.camera);
-  this.composer.addPass(renderPass);
+      // Profiler overlay
+      this.profilerEnabled = true;
+      this.profEl = document.createElement('div');
+      Object.assign(this.profEl.style, {
+  position: 'absolute', bottom: '6px', left: '6px', padding: '4px 6px',
+        background: 'rgba(0,0,0,0.35)', color: '#fff', font: '11px monospace',
+        borderRadius: '4px', pointerEvents: 'none', whiteSpace: 'pre', zIndex: 1,
+      });
+      this.profEl.textContent = '';
+      this.$refs.sceneContainer.appendChild(this.profEl);
 
-  const pr = this.renderer.getPixelRatio();
+      // Set up GPU timer if available
+      try {
+        this._gpuTimer = createWebGLTimer(this.renderer);
+        if (this._gpuTimer) profiler.setGPU(this._gpuTimer);
+      } catch (e) { /* ignore */ }
 
-  this.fxaaPass = markRaw(new ShaderPass(FXAAShader));
-  this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
-  this.composer.addPass(this.fxaaPass);
+      this.composer = markRaw(new EffectComposer(this.renderer));
+      const renderPass = new RenderPass(this.scene, this.camera);
+      this.composer.addPass(renderPass);
+
+      const pr = this.renderer.getPixelRatio();
+
+      this.fxaaPass = markRaw(new ShaderPass(FXAAShader));
+      this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
+      this.composer.addPass(this.fxaaPass);
   
-  this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
+      this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
       this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
       this.keyLight.position.set(22, 40, 28);
       this.scene.add(this.ambientLight, this.keyLight);
@@ -1005,11 +1083,24 @@ export default {
       this.loadModel();
       this.animate = this.animate.bind(this);
       this.animate();
+      // Startup: world init end
+      try {
+        const now2 = performance.now?.() ?? Date.now();
+        const t0 = (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP?.t0) ? window.__DAEMIOS_STARTUP.t0 : now2;
+        profiler.push('startup.world.init.end', now2 - t0);
+      } catch (e) {}
     },
     loadModel() {
       const loader = new GLTFLoader();
+  const __tLoadStart = performance.now?.() ?? Date.now();
   loader.load('/models/hex-can.glb', (gltf) => {
         this.hexModel = markRaw(gltf.scene);
+        try {
+          const now3 = performance.now?.() ?? Date.now();
+          const t0 = (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP?.t0) ? window.__DAEMIOS_STARTUP.t0 : now3;
+          profiler.push('startup.asset.hex.load', now3 - t0);
+          profiler.push('startup.asset.hex.load.self', now3 - __tLoadStart);
+        } catch (e) {}
         if (this.orientation === 'flat') {
           this.hexModel.rotation.y = Math.PI / 6;
         }
@@ -1306,6 +1397,11 @@ export default {
           console.info('[WorldMap] gapFraction =', (this.gapFraction || 0).toFixed(4), 'contactScale =', applied.toFixed(4));
         }
   this.createChunkGrid();
+  // Build global water plane now that geometries and world are ready
+  // This reintroduces the water surface for chunked rendering
+  if (this.features && this.features.water != null) {
+    this.buildWater();
+  }
       }, undefined, (err) => {
         console.error('[WorldMap] Failed to load /models/hex-can.glb', err);
       });
@@ -1322,7 +1418,7 @@ export default {
       const tmpColor = new THREE.Color();
       const tmpSide = new THREE.Color();
 
-      const count = (2 * size + 1) * (2 * size + 1);
+      const count = (2 * size + 1) * (2 * size +  1);
   const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, count));
@@ -1357,29 +1453,83 @@ export default {
       if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
     },
     buildWater() {
+      const __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       // Remove old
       if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
-      if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
-    // 1) Create land mask texture (N x N), R channel 1.0=land, 0.0=water
-      const N = (2 * this.gridSize + 1);
-    const data = new Uint8Array(N * N * 4);
-    const seabed = new Uint8Array(N * N * 4);
+  if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
+  if (this.waterStencilIM) { if (this.waterStencilIM.parent) this.waterStencilIM.parent.remove(this.waterStencilIM); this.waterStencilIM = null; }
+    // 1) Create land mask/seabed textures sized to fully cover the water plane (plus padding)
+      const radius = this._neighborRadius != null ? this._neighborRadius : 1;
+      // Estimate plane dimensions for current neighborhood (reuse below for geometry)
+      const hexW_est = this.layoutRadius * 1.5 * this.spacingFactor;
+      const hexH_est = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+      const totalCols_est = (2 * radius + 1) * this.chunkCols;
+      const totalRows_est = (2 * radius + 1) * this.chunkRows;
+      const planeW_est = totalCols_est * hexW_est * 3.0;
+      const planeH_est = totalRows_est * hexH_est * 3.0;
+  // Compute S so that the mask square in axial covers the entire plane footprint with generous padding
+      const halfW = planeW_est * 0.5;
+      const halfH = planeH_est * 0.5;
+      const corners = [
+        { x: -halfW, z: -halfH },
+        { x: -halfW, z:  halfH },
+        { x:  halfW, z: -halfH },
+        { x:  halfW, z:  halfH },
+      ];
+      let maxQAbs = 0, maxRAbs = 0;
+      for (const c of corners) {
+        const q = c.x / Math.max(1e-6, hexW_est);
+        const r = c.z / Math.max(1e-6, hexH_est) - q * 0.5;
+        maxQAbs = Math.max(maxQAbs, Math.abs(q));
+        maxRAbs = Math.max(maxRAbs, Math.abs(r));
+      }
+      const pad = Math.max(32, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
+      const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
+  const N = (2 * S + 1);
+  // Choose a stable integer axial origin aligned to the top-left of the visible neighborhood
+  const nbBaseCol = (this.centerChunk.x - radius) * this.chunkCols;
+  const nbBaseRow = (this.centerChunk.y - radius) * this.chunkRows;
+  const qOrigin = nbBaseCol;
+  const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
+  const data = new Uint8Array(N * N * 4);
+  const coverage = new Uint8Array(N * N * 4);
+      const seabed = new Uint8Array(N * N * 4);
       let i = 0;
-      for (let r = -this.gridSize; r <= this.gridSize; r += 1) {
-        for (let q = -this.gridSize; q <= this.gridSize; q += 1) {
-          const cell = this.world.getCell(q, r);
+      for (let r = -S; r <= S; r += 1) {
+        for (let q = -S; q <= S; q += 1) {
+          const qW = q + qOrigin;
+          const rW = r + rOrigin;
+          const cell = this.world.getCell(qW, rW);
           const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
           const v = isWater ? 0 : 255;
           data[i] = v; // R
           data[i + 1] = 0;
           data[i + 2] = 0;
           data[i + 3] = 255;
-      // Seabed: store normalized yScale (top height factor) in R channel
-      const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
-      seabed[i] = Math.floor(ys * 255);
-      seabed[i + 1] = 0;
-      seabed[i + 2] = 0;
-      seabed[i + 3] = 255;
+          // Seabed: store normalized yScale (top height factor) in R channel
+          const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
+          seabed[i] = Math.floor(ys * 255);
+          seabed[i + 1] = 0;
+          seabed[i + 2] = 0;
+          seabed[i + 3] = 255;
+          // Coverage: 1 inside the currently rendered hex footprint (union with trail when active), else 0
+          let inRect = false;
+          if (this.centerChunk) {
+            const rads = this._neighborRadius != null ? this._neighborRadius : 1;
+            const baseCol = (this.centerChunk.x - rads) * this.chunkCols;
+            const baseRow = (this.centerChunk.y - rads) * this.chunkRows;
+            const endCol = (this.centerChunk.x + rads) * this.chunkCols + (this.chunkCols - 1);
+            const endRow = (this.centerChunk.y + rads) * this.chunkRows + (this.chunkRows - 1);
+            const off = this.axialToOffset(qW, rW);
+            if (off.col >= baseCol && off.col <= endCol && off.row >= baseRow && off.row <= endRow) inRect = true;
+            // Union with previous neighborhood while trail is visible for seamless transitions
+            if (rads === 1 && this._prevNeighborhoodRect && this.trailTopIM && this.trailTopIM.visible) {
+              const c = off.col, rOff = off.row;
+              if (c >= this._prevNeighborhoodRect.colMin && c <= this._prevNeighborhoodRect.colMax && rOff >= this._prevNeighborhoodRect.rowMin && rOff <= this._prevNeighborhoodRect.rowMax) inRect = true;
+            }
+          }
+          const cv = inRect ? 255 : 0;
+          coverage[i] = cv; coverage[i+1] = 0; coverage[i+2] = 0; coverage[i+3] = 255;
           i += 4;
         }
       }
@@ -1391,7 +1541,15 @@ export default {
       tex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterMaskTex = tex;
 
-    const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
+  const coverageTex = markRaw(new THREE.DataTexture(coverage, N, N, THREE.RGBAFormat));
+  coverageTex.needsUpdate = true;
+  coverageTex.magFilter = THREE.LinearFilter;
+  coverageTex.minFilter = THREE.LinearFilter;
+  coverageTex.wrapS = THREE.ClampToEdgeWrapping;
+  coverageTex.wrapT = THREE.ClampToEdgeWrapping;
+  this.waterCoverageTex = coverageTex;
+
+      const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
     seabedTex.needsUpdate = true;
     seabedTex.magFilter = THREE.LinearFilter;
     seabedTex.minFilter = THREE.LinearFilter;
@@ -1422,16 +1580,19 @@ export default {
   if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
   if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
 
-      // 3) Single large planes spanning the map
-      const planeSize = (this.gridSize * this.layoutRadius * this.spacingFactor * 4);
-      const geom = new THREE.PlaneGeometry(planeSize * 3, planeSize * 3, 1, 1);
+  // 3) Single large plane spanning the current visible neighborhood (with generous padding)
+  const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+  const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+  const totalCols = (2 * radius + 1) * this.chunkCols;
+  const totalRows = (2 * radius + 1) * this.chunkRows;
+  const planeW = totalCols * hexW * 3.0;
+  const planeH = totalRows * hexH * 3.0;
+  const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
   // Removed sand underlay plane to eliminate tan plane in the scene
 
-  // Water plane at global sea level (just above shallowWater threshold)
-  const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
-  const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+      // Water plane at global sea level (just above shallowWater threshold)
       const factory = (this.waterStyle === 'stylized') ? createStylizedWaterMaterial : createRealisticWaterMaterial;
       // Compute sea level world Y and hex world vertical scale factor
       const seaH = BIOME_THRESHOLDS.shallowWater;
@@ -1441,14 +1602,20 @@ export default {
       const hexMaxYScaled = this.hexMaxY * this.modelScaleFactor;
       const seaLevelY = hexMaxYScaled * seaLevelYScale;
 
-      const mat = markRaw(factory({
+  // Use the same origin used to build the textures for exact alignment
+  const centerQ0 = qOrigin;
+  const centerR0 = rOrigin;
+    const mat = markRaw(factory({
         opacity: 0.96,
         maskTexture: this.waterMaskTex,
+        coverageTexture: this.waterCoverageTex,
         seabedTexture: this.waterSeabedTex,
         hexW,
         hexH,
-        gridN: (2 * this.gridSize + 1),
-        gridOffset: this.gridSize,
+        gridN: N,
+        gridOffset: S,
+        gridQ0: centerQ0,
+        gridR0: centerR0,
         shoreWidth: 0.12,
         hexMaxYScaled,
         seaLevelY,
@@ -1456,11 +1623,32 @@ export default {
         nearAlpha: 0.08,
         farAlpha: 0.9,
   }));
+  // Stencil-mask the plane so it only draws over water hex tops
+  mat.stencilWrite = true;
+  mat.stencilFunc = THREE.EqualStencilFunc;
+  mat.stencilRef = 1;
+  mat.stencilMask = 0xff;
+  mat.stencilFail = THREE.KeepStencilOp;
+  mat.stencilZFail = THREE.KeepStencilOp;
+  mat.stencilZPass = THREE.KeepStencilOp;
   this.waterMaterial = markRaw(mat);
   const mesh = markRaw(new THREE.Mesh(geom, mat));
   // Position water at previously computed world sea level (plus tiny epsilon to avoid z-fight)
   const waterY = seaLevelY + 0.001;
-      mesh.position.y = waterY;
+      // Center the plane over the current neighborhood in world XZ using axial mapping
+  const baseCol = (this.centerChunk.x - radius) * this.chunkCols;
+  const baseRow = (this.centerChunk.y - radius) * this.chunkRows;
+  const endCol = (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
+  const endRow = (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
+  const tlAx = this.offsetToAxial(baseCol, baseRow);
+  const brAx = this.offsetToAxial(endCol, endRow);
+  const xTL = hexW * tlAx.q;
+  const zTL = hexH * (tlAx.r + tlAx.q * 0.5);
+  const xBR = hexW * brAx.q;
+  const zBR = hexH * (brAx.r + brAx.q * 0.5);
+  const centerX = 0.5 * (xTL + xBR);
+  const centerZ = 0.5 * (zTL + zBR);
+      mesh.position.set(centerX, waterY, centerZ);
       mesh.renderOrder = 1;
       mesh.frustumCulled = false;
       mesh.castShadow = false;
@@ -1468,9 +1656,69 @@ export default {
       this.scene.add(mesh);
   this.waterMesh = mesh;
 
+  // Create stencil instanced mesh that marks water tile footprints
+  const stencilCols = (2 * radius + 1) * this.chunkCols;
+  const stencilRows = (2 * radius + 1) * this.chunkRows;
+  const maxInstances = stencilCols * stencilRows;
+  const stencilMaterial = markRaw(new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  stencilMaterial.colorWrite = false; // don't draw to color buffer
+  stencilMaterial.depthWrite = false;
+  stencilMaterial.depthTest = false;
+  stencilMaterial.stencilWrite = true;
+  stencilMaterial.stencilFunc = THREE.AlwaysStencilFunc;
+  stencilMaterial.stencilRef = 1;
+  stencilMaterial.stencilMask = 0xff;
+  stencilMaterial.stencilFail = THREE.KeepStencilOp;
+  stencilMaterial.stencilZFail = THREE.KeepStencilOp;
+  stencilMaterial.stencilZPass = THREE.ReplaceStencilOp;
+  const waterStencil = markRaw(new THREE.InstancedMesh(this.topGeom, stencilMaterial, maxInstances));
+  waterStencil.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  waterStencil.frustumCulled = false;
+  waterStencil.renderOrder = 0; // before water plane
+  this.scene.add(waterStencil);
+  this.waterStencilIM = waterStencil;
+  this.rebuildWaterStencil();
+
       const visible = !!this.features.water;
       if (this.waterMesh) this.waterMesh.visible = visible;
       if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && visible;
+    },
+    rebuildWaterStencil() {
+      const __t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (!this.waterStencilIM || !this.topGeom || !this.world) return;
+      const layoutRadius = this.layoutRadius;
+      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+      const sx = this.modelScaleFactor;
+      const xzScale = sx * this.contactScale;
+      const radius = this._neighborRadius != null ? this._neighborRadius : 1;
+      const colMin = (this.centerChunk.x - radius) * this.chunkCols;
+      const rowMin = (this.centerChunk.y - radius) * this.chunkRows;
+      const colMax = (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
+      const rowMax = (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
+      const waterY = this.waterMesh ? this.waterMesh.position.y : 0;
+      const dummy = this._waterStencilDummy || (this._waterStencilDummy = markRaw(new THREE.Object3D()));
+      let count = 0;
+      for (let row = rowMin; row <= rowMax; row += 1) {
+        for (let col = colMin; col <= colMax; col += 1) {
+          const { q, r } = this.offsetToAxial(col, row);
+          const cell = this.world.getCell(q, r);
+          const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+          if (!isWater) continue;
+          const x = hexWidth * q;
+          const z = hexHeight * (r + q / 2);
+          dummy.position.set(x, waterY, z);
+          dummy.rotation.set(0, 0, 0);
+          // Flat imprint at plane height; very thin Y
+          dummy.scale.set(xzScale, 0.001, xzScale);
+          dummy.updateMatrix();
+          this.waterStencilIM.setMatrixAt(count, dummy.matrix);
+          count += 1;
+        }
+      }
+      this.waterStencilIM.count = count;
+      this.waterStencilIM.instanceMatrix.needsUpdate = true;
+      if (this.profilerEnabled) profiler.push('build.water.stencil', ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t1);
     },
     getHeight(q, r) {
       const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
@@ -1488,40 +1736,44 @@ export default {
     },
     animate() {
       requestAnimationFrame(this.animate);
+      // Start frame profiling
+      if (this.profilerEnabled) profiler.beginFrame();
+      // Startup: record first frame once
+      if (typeof window !== 'undefined' && window.__DAEMIOS_STARTUP && !window.__DAEMIOS_STARTUP.firstFrame) {
+        try {
+          const nowF = performance.now?.() ?? Date.now();
+          const t0 = window.__DAEMIOS_STARTUP.t0 ?? nowF;
+          profiler.push('startup.first.frame', nowF - t0);
+          window.__DAEMIOS_STARTUP.firstFrame = true;
+        } catch (e) {}
+      }
       // Camera tween update before render
       if (this.cameraTween && this.cameraTween.active) {
+        if (this.profilerEnabled) profiler.start('frame.tween');
         const now = performance.now();
         const t = Math.min(1, (now - this.cameraTween.startTime) / this.cameraTween.duration);
-        // Smoothstep ease
         const tt = t * t * (3 - 2 * t);
-        // Lerp target
         this.orbit.target.lerpVectors(this.cameraTween.start.target, this.cameraTween.end.target, tt);
-        // Lerp radius
         this.orbit.radius = this.cameraTween.start.radius + (this.cameraTween.end.radius - this.cameraTween.start.radius) * tt;
-        // Shortest-angle lerp for theta
-        const a = this.cameraTween.start.theta;
-        const b = this.cameraTween.end.theta;
-        let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
-        if (d < -Math.PI) d += Math.PI * 2;
+        const a = this.cameraTween.start.theta; const b = this.cameraTween.end.theta;
+        let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI; if (d < -Math.PI) d += Math.PI * 2;
         this.orbit.theta = a + d * tt;
-        // Lerp phi
         this.orbit.phi = this.cameraTween.start.phi + (this.cameraTween.end.phi - this.cameraTween.start.phi) * tt;
         this.updateCameraFromOrbit();
         if (t >= 1) {
           this.cameraTween.active = false;
-          // Restore pixel ratio after tween
-          if (this.tweenSaved.pixelRatio != null) {
-            this.renderer.setPixelRatio(this.tweenSaved.pixelRatio);
-            this.tweenSaved.pixelRatio = null;
-            this.onResize();
-          }
+          if (this.tweenSaved.pixelRatio != null) { this.renderer.setPixelRatio(this.tweenSaved.pixelRatio); this.tweenSaved.pixelRatio = null; this.onResize(); }
         }
+        if (this.profilerEnabled) profiler.end('frame.tween');
       }
       // Animate water
       if (this.waterMaterial) {
+        if (this.profilerEnabled) profiler.start('frame.waterUniform');
         this.waterMaterial.uniforms.uTime.value = (performance.now() * 0.001);
+        if (this.profilerEnabled) profiler.end('frame.waterUniform');
       }
       // Update radial fade uniforms to follow the camera target
+      if (this.profilerEnabled) profiler.start('frame.fadeUniforms');
       if (this._fadeUniforms) {
         updateRadialFadeUniforms(this._fadeUniforms, {
           center: { x: this.orbit.target.x, y: this.orbit.target.z },
@@ -1562,7 +1814,7 @@ export default {
           hexCornerRadius: this.layoutRadius * this.contactScale,
         });
       }
-      // Unify fade behavior: while chunks stream, temporarily disable discard to prevent outer-ring dropouts
+      // Unify fade behavior while streaming
       const streaming = !!(this.chunkManager && this.chunkManager.streaming);
       const fadeEnabled = !!this.radialFade.enabled && !streaming;
       if (this._fadeUniforms) {
@@ -1585,67 +1837,129 @@ export default {
           hexCornerRadius: this.layoutRadius * this.contactScale,
         });
       }
-      // Keep clutter fade in sync with the same rule so behavior matches for 1x and 10x neighborhoods
       if (this.clutter && this.clutter.setRadialFadeState) {
-        this.clutter.setRadialFadeState({
-          enabled: fadeEnabled,
-          center: { x: this.orbit.target.x, y: this.orbit.target.z },
-          radius: this.radialFade.radius,
-          corner: this.layoutRadius * this.contactScale,
-          cullWholeHex: true,
-        });
+        this.clutter.setRadialFadeState({ enabled: fadeEnabled, center: { x: this.orbit.target.x, y: this.orbit.target.z }, radius: this.radialFade.radius, corner: this.layoutRadius * this.contactScale, cullWholeHex: true });
       }
-      // Stick large planes to the camera target to avoid visible seams
-      if (this.waterMesh) { this.waterMesh.position.x = this.orbit.target.x; this.waterMesh.position.z = this.orbit.target.z; }
-      if (this.sandMesh) { this.sandMesh.position.x = this.orbit.target.x; this.sandMesh.position.z = this.orbit.target.z; }
-      if (this.fadeUnderlay) { this.fadeUnderlay.position.x = this.orbit.target.x; this.fadeUnderlay.position.z = this.orbit.target.z; }
-  // No atlas overlay; nothing to sync
-      // Update billboards (yaw-only) before render
-      if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
-      if (this.locationMarker && this.locationMarker.visible) {
-        // Extract position and scale from marker's current matrix
-        const pos = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
-        const scl = new THREE.Vector3();
-        this.locationMarker.matrix.decompose(pos, quat, scl);
-        const dx = this.camera.position.x - pos.x;
-        const dz = this.camera.position.z - pos.z;
-        // Add 90° to align the marker's flat face toward the camera
-        const yaw = Math.atan2(dx, dz) + Math.PI / 2;
-        const yQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
-        this.locationMarker.matrix.compose(pos, yQuat, scl);
+      if (this.profilerEnabled) profiler.end('frame.fadeUniforms');
+
+  // Update billboards (yaw-only) before render
+  if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
+  if (this.locationMarker && this.locationMarker.visible) {
+    const pos = new THREE.Vector3(); const quat = new THREE.Quaternion(); const scl = new THREE.Vector3();
+    this.locationMarker.matrix.decompose(pos, quat, scl);
+    const dx = this.camera.position.x - pos.x; const dz = this.camera.position.z - pos.z;
+    const yaw = Math.atan2(dx, dz) + Math.PI / 2;
+    const yQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
+    this.locationMarker.matrix.compose(pos, yQuat, scl);
+  }
+  // Render with GPU timing if supported
+  if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.begin) this._gpuTimer.begin();
+  if (this.profilerEnabled) profiler.start('frame.render');
+  this.composer.render();
+  if (this.profilerEnabled) profiler.end('frame.render');
+  if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.end) this._gpuTimer.end();
+
+  // Tilt-shift follow
+  if (this.tiltShiftEnabled) this.updateTiltFocus();
+
+  // FPS
+  const now = performance.now();
+  if (!this.fpsTime) { this.fpsTime = now; this.fpsFrames = 0; }
+  this.fpsFrames += 1; const elapsed = now - this.fpsTime;
+  if (elapsed >= 500) { this.fps = Math.round((this.fpsFrames * 1000) / elapsed); if (this.fpsEl) this.fpsEl.textContent = `FPS: ${this.fps}`; this.fpsTime = now; this.fpsFrames = 0; }
+
+  // End frame profiling and update overlay ~2x/sec
+  if (this.profilerEnabled) {
+    profiler.endFrame();
+    if (!this._profLastUpdate || (now - this._profLastUpdate) > 500) {
+      this._profLastUpdate = now;
+      const lines = [];
+      const fmt = (v) => (v != null && isFinite(v)) ? (v < 0.095 ? (v * 1000).toFixed(2) + 'µs' : v.toFixed(2) + 'ms') : '--';
+      const cpu = profiler.stats('frame.cpu');
+      const gpu = profiler.stats('frame.gpu');
+      const rnd = profiler.stats('frame.render');
+      const fdu = profiler.stats('frame.fadeUniforms');
+      const tw = profiler.stats('frame.tween');
+      const wu = profiler.stats('frame.waterUniform');
+      const st = profiler.stats('stream.tick');
+      const sfs = profiler.stats('stream.fillSlice');
+      const cl = profiler.stats('clutter.tick');
+      const wb = profiler.stats('build.water');
+      const ws = profiler.stats('build.water.stencil');
+  const cg = profiler.stats('chunk.generate');
+  const cgCell = profiler.stats('chunk.gen.cell');
+  const cgMatrix = profiler.stats('chunk.gen.matrix');
+  const cgColor = profiler.stats('chunk.gen.color');
+      if (cpu) lines.push(`cpu ${fmt(cpu.avg)} (last ${fmt(cpu.last)})`);
+      if (gpu) lines.push(`gpu ${fmt(gpu.avg)} (last ${fmt(gpu.last)})`);
+      if (rnd) lines.push(`render ${fmt(rnd.avg)}`);
+      if (fdu) lines.push(`fadeU ${fmt(fdu.avg)}`);
+      if (tw) lines.push(`tween ${fmt(tw.avg)}`);
+      if (wu) lines.push(`waterU ${fmt(wu.avg)}`);
+      if (st) lines.push(`stream ${fmt(st.avg)}`);
+      if (sfs) lines.push(`slice ${fmt(sfs.avg)}`);
+      if (cl) lines.push(`clutter ${fmt(cl.avg)}`);
+      if (wb) lines.push(`water ${fmt(wb.avg)}`);
+      if (ws) lines.push(`stencil ${fmt(ws.avg)}`);
+  const qtot = profiler.stats('stream.queue.total');
+  if (qtot) lines.push(`queue.total ${fmt(qtot.last ?? qtot.avg)}`);
+  const qrate = profiler.stats('stream.queue.rate');
+  const qdone = profiler.stats('stream.queue.done');
+  const qtasks = profiler.stats('stream.queue.totalTasks');
+  const qeta = profiler.stats('stream.queue.eta');
+  if (qrate || qdone || qtasks || qeta) {
+    const parts = [];
+    if (qdone && qtasks) parts.push(`${Math.round(qdone.last||0)}/${Math.round(qtasks.last||0)}`);
+    if (qrate) parts.push(`${(qrate.last||0).toFixed(1)}t/s`);
+    if (qeta) parts.push(`eta ${fmt(qeta.last||qeta.avg)}`);
+    if (parts.length) lines.push('  ' + parts.join('  '));
+  }
+  if (cg) lines.push(`chunk ${fmt(cg.avg)} (last ${fmt(cg.last)})`);
+      if (cgCell || cgMatrix || cgColor) {
+        const parts = [];
+        if (cgCell) parts.push(`cell ${fmt(cgCell.avg)}`);
+        if (cgMatrix) parts.push(`matrix ${fmt(cgMatrix.avg)}`);
+        if (cgColor) parts.push(`color ${fmt(cgColor.avg)}`);
+        if (parts.length) lines.push('  ' + parts.join('  '));
       }
-      this.composer.render();
-      // Keep tilt-shift focal line tracking the current target each frame
-      if (this.tiltShiftEnabled) this.updateTiltFocus();
-      const now = performance.now();
-      if (!this.fpsTime) { this.fpsTime = now; this.fpsFrames = 0; }
-      this.fpsFrames += 1;
-      const elapsed = now - this.fpsTime;
-      if (elapsed >= 500) {
-        this.fps = Math.round((this.fpsFrames * 1000) / elapsed);
-        if (this.fpsEl) this.fpsEl.textContent = `FPS: ${this.fps}`;
-        this.fpsTime = now; this.fpsFrames = 0;
+      // Lightweight renderer stats
+      if (this.renderer && this.renderer.info && this.renderer.info.render) {
+        const ri = this.renderer.info;
+        const tris = (ri.render.triangles != null) ? ri.render.triangles : 0;
+        const calls = (ri.render.calls != null) ? ri.render.calls : 0;
+        lines.push(`dc ${calls}  tris ${(tris >= 1000) ? Math.round(tris / 1000) + 'k' : tris}`);
       }
-      // Benchmark sampling: accumulate instantaneous FPS each frame for duration
-      if (this.benchmark && this.benchmark.running) {
-        const b = this.benchmark;
-        // Use instantaneous fps estimate from frame time delta if available
-        if (this._lastFrameTs == null) this._lastFrameTs = now;
-        const dt = now - this._lastFrameTs;
-        this._lastFrameTs = now;
-        const instFps = dt > 0 ? 1000 / dt : 0;
-        b.frames += 1;
-        b.sum += instFps;
-        if (instFps < b.min) b.min = instFps;
-        if (instFps > b.max) b.max = instFps;
-        if ((now - b.startedAt) >= b.durationMs) {
-          const avg = b.frames > 0 ? (b.sum / b.frames) : 0;
-          b.result = { avg, min: b.min, max: b.max, frames: b.frames };
-          b.running = false;
-        }
+  // Show startup timings briefly
+  const s0 = profiler.stats('startup.app.mounted');
+  const s1 = profiler.stats('startup.router.ready');
+  const s2 = profiler.stats('startup.world.init.begin');
+  const s3 = profiler.stats('startup.world.init.end');
+  const s4 = profiler.stats('startup.asset.hex.load');
+  const s5 = profiler.stats('startup.chunk.build.start');
+  const s6 = profiler.stats('startup.first.frame');
+  const s7 = profiler.stats('startup.first.content');
+  const sFmt = (s) => s ? (s.last ?? s.avg) : null;
+  const sParts = [];
+  const sPush = (lab, s) => { const v = sFmt(s); if (v != null) sParts.push(`${lab} ${(v < 0.095 ? (v * 1000).toFixed(1)+'µs' : v.toFixed(1)+'ms')}`); };
+  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('hex', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
+  if (sParts.length) lines.push('startup ' + sParts.join('  '));
+  // Streaming queue and instance progress
+      if (this.chunkManager && this.chunkManager.neighborhood) {
+        const nb = this.chunkManager.neighborhood;
+        const qLen = nb._buildQueue ? nb._buildQueue.length : 0;
+        const cur = nb._buildCursor || 0;
+  if (qLen > 0) { lines.push(`queue ${cur}/${qLen}`); }
+        const vis = nb.topIM ? (nb.topIM.count | 0) : 0;
+        const tgt = nb._targetCount || 0;
+        if (tgt > 0) lines.push(`inst ${vis}/${tgt}`);
       }
-    },
+      this.profEl.textContent = lines.join('\n');
+      this.profEl.style.display = lines.length ? 'block' : 'none';
+    }
+  }
+
+  // Benchmark sampling remains below
+},
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
@@ -1854,6 +2168,7 @@ export default {
   const geomBox = new THREE.Box3().setFromObject(marker);
         // Compute current XZ radius
         const size = new THREE.Vector3(); geomBox.getSize(size);
+        geomBox.getCenter(center);
         const currentR = Math.max(size.x, size.z) * 0.5 || 1;
         const desiredR = this.layoutRadius * this.markerDesiredRadius;
         const s = desiredR / currentR;

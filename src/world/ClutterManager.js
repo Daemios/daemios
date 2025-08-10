@@ -286,12 +286,12 @@ export default class ClutterManager {
   const { layoutRadius, contactScale, filter } = job.opts;
   const hexMaxY = (job.opts && typeof job.opts.hexMaxY === 'number') ? job.opts.hexMaxY : 1.0;
   const modelScaleYFn = typeof job.opts.modelScaleY === 'function' ? job.opts.modelScaleY : (() => 1.0);
-    const tileInner = layoutRadius * contactScale * this.avoidEdges;
-    const doRadialCullWholeHex = this._fade.enabled && this._fade.cullWholeHex && this._fade.radius > 0;
-    const fadeCx = this._fade.center.x;
-    const fadeCz = this._fade.center.y;
-    const fadeCorner = this._fade.corner || 0.0;
-    const tStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const tileInner = layoutRadius * contactScale * this.avoidEdges;
+  const doRadialCullWholeHex = this._fade.enabled && this._fade.cullWholeHex && this._fade.radius > 0;
+  const fadeCx = this._fade.center.x;
+  const fadeCz = this._fade.center.y;
+  const fadeCorner = this._fade.corner || 0.0;
+  const tStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
     // Phase 1: generate placements by tiles
     if (job.phase === 1) {

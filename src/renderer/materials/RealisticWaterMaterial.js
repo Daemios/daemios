@@ -16,8 +16,10 @@ export default function createRealisticWaterMaterial(options = {}) {
     opacity: 0.7,
     foamColor: new THREE.Color(0xffffff),
     foamShoreStrength: 0.6,
-    maskTexture: null,
-    hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
+  maskTexture: null,
+  coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
+  hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
+  gridQ0: 0, gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
     shoreWidth: 0.12, // kept for API compatibility
     // Animation
     timeScale: 1.0,
@@ -35,6 +37,11 @@ export default function createRealisticWaterMaterial(options = {}) {
   depthMax: 1.0,      // world units at which opacity reaches farAlpha
   nearAlpha: 0.12,    // alpha near shore (shallow)
   farAlpha: 0.85,     // alpha at/max depth
+  // Shoreline wave bands (near-hex waves)
+  shoreWaveStrength: 0.45,
+  shoreWaveSpacing: 0.42, // in units of min(hexW,hexH)
+  shoreWaveWidth: 0.28,   // 0..1 threshold for band width
+  shoreWaveSpeed: 0.12,
   ...options,
   };
 
@@ -46,9 +53,11 @@ export default function createRealisticWaterMaterial(options = {}) {
     uOpacity: { value: opt.opacity },
     uFoamCol: { value: opt.foamColor },
     uFoamShoreStrength: { value: opt.foamShoreStrength },
-    uMask: { value: opt.maskTexture },
+  uMask: { value: opt.maskTexture },
+  uCoverage: { value: opt.coverageTexture },
   uSeabed: { value: opt.seabedTexture },
-    uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
+  uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
+  uGridQ0: { value: opt.gridQ0 }, uGridR0: { value: opt.gridR0 },
     uSpecularStrength: { value: opt.specularStrength },
     uShininess: { value: opt.shininess },
     uNormalAmp: { value: opt.normalAmp },
@@ -61,6 +70,11 @@ export default function createRealisticWaterMaterial(options = {}) {
   uDepthMax: { value: opt.depthMax },
   uNearAlpha: { value: opt.nearAlpha },
   uFarAlpha: { value: opt.farAlpha },
+  // Shore waves
+  uShoreWaveStrength: { value: opt.shoreWaveStrength },
+  uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
+  uShoreWaveWidth: { value: opt.shoreWaveWidth },
+  uShoreWaveSpeed: { value: opt.shoreWaveSpeed },
   };
 
   const vertexShader = `
@@ -76,6 +90,8 @@ export default function createRealisticWaterMaterial(options = {}) {
 
   const fragmentShader = `
     precision highp float;
+    precision highp int;
+    precision mediump sampler2D;
     varying vec3 vWorldPos;
     varying vec3 vViewPos;
     uniform float uTime;
@@ -84,14 +100,20 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniform vec3 uFoamCol;
     uniform float uFoamShoreStrength;
   uniform sampler2D uMask; // R:1 land, 0 water
+  uniform sampler2D uCoverage; // R:1 inside rendered hex area, 0 outside
   uniform sampler2D uSeabed; // R: normalized yScale for seabed top
-    uniform float uHexW, uHexH; uniform int uGridN, uGridOffset;
+  uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
     uniform float uSpecularStrength, uShininess;
     uniform float uNormalAmp;
     uniform vec2 uFlowDir1, uFlowDir2;
     uniform float uFlowSpeed1, uFlowSpeed2;
   uniform float uHexMaxYScaled, uSeaLevelY, uDepthMax;
   uniform float uNearAlpha, uFarAlpha;
+  // Shore waves
+  uniform float uShoreWaveStrength;
+  uniform float uShoreWaveSpacing;
+  uniform float uShoreWaveWidth;
+  uniform float uShoreWaveSpeed;
 
     // Simple value noise
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -99,8 +121,10 @@ export default function createRealisticWaterMaterial(options = {}) {
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
-  float sampleMaskXZ(vec2 xz){ int N=uGridN; int S=uGridOffset; if(N<=0) return 0.0; vec2 qr = worldToAxial(xz); float iq=qr.x+float(S); float ir=qr.y+float(S); if(iq<0.0||iq>float(N-1)||ir<0.0||ir>float(N-1)) return 0.0; float u=(iq+0.5)/float(N); float v=(ir+0.5)/float(N); return texture2D(uMask, vec2(u,v)).r; }
-  float sampleSeabedXZ(vec2 xz){ int N=uGridN; int S=uGridOffset; if(N<=0) return 0.0; vec2 qr=worldToAxial(xz); float iq=qr.x+float(S); float ir=qr.y+float(S); if(iq<0.0||iq>float(N-1)||ir<0.0||ir>float(N-1)) return 0.0; float u=(iq+0.5)/float(N); float v=(ir+0.5)/float(N); return texture2D(uSeabed, vec2(u,v)).r; }
+  float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
+  float sampleMaskXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr = worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float m = texture2D(uMask, vec2(u,v)).r; float inside = insideGridXZ(xz); return mix(1.0, m, inside); }
+  float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
+  float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
 
     void main(){
       vec2 xz = vWorldPos.xz;
@@ -130,16 +154,74 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec3 H = normalize(L + V);
       float spec = pow(max(0.0, dot(N, H)), uShininess) * uSpecularStrength;
 
-      // Soft shoreline foam (mask-based), very cheap
-      float eps = min(uHexW, uHexH) * 0.08;
+      // Soft shoreline foam and smoother shoreline detection (hex-aware)
+      // Use 6-direction sampling aligned with hex axes for a smoother gradient
+  // Small step in axial space (fraction of a tile); converted to world deltas per axis
+  float ha = 0.18; // axial units (~1/5.5 tile) for more local sampling
+  vec2 a1w = vec2(uHexW, 0.5 * uHexH);
+  vec2 a2w = vec2(0.0, uHexH);
+  vec2 a3w = - (a1w + a2w);
+  vec2 a1 = normalize(a1w);
+  vec2 a2 = normalize(a2w);
+  vec2 a3 = normalize(a3w);
+      // Center and 6 neighbors
       float m0 = sampleMaskXZ(xz);
-      float m1 = sampleMaskXZ(xz + vec2(eps,0.0));
-      float m2 = sampleMaskXZ(xz + vec2(0.0,eps));
-      float edge = max(0.0, (m1 + m2) * 0.5 - m0);
+  float m_p1 = sampleMaskXZ(xz + a1w * ha);
+  float m_m1 = sampleMaskXZ(xz - a1w * ha);
+  float m_p2 = sampleMaskXZ(xz + a2w * ha);
+  float m_m2 = sampleMaskXZ(xz - a2w * ha);
+  float m_p3 = sampleMaskXZ(xz + a3w * ha);
+  float m_m3 = sampleMaskXZ(xz - a3w * ha);
+      // Local smoothed mask (center + 6 ring samples)
+      float mS = (m0 + m_p1 + m_m1 + m_p2 + m_m2 + m_p3 + m_m3) / 7.0;
+  // Hex-aware gradient as sum of central differences along axes, scaled by step size
+  float l1 = length(a1w);
+  float l2 = length(a2w);
+  float l3 = length(a3w);
+  float s1 = (m_p1 - m_m1) / max(1e-4, (2.0 * ha * l1));
+  float s2 = (m_p2 - m_m2) / max(1e-4, (2.0 * ha * l2));
+  float s3 = (m_p3 - m_m3) / max(1e-4, (2.0 * ha * l3));
+  vec2 g = s1 * a1 + s2 * a2 + s3 * a3;
+  float gmag = max(1e-4, length(g));
+  // Tangent direction along shoreline for additional smoothing
+  vec2 T = (gmag > 1e-3) ? normalize(vec2(-g.y, g.x)) : a1; // stable fallback
+  float tstep = 0.06 * min(uHexW, uHexH);
+  float m_t1 = sampleMaskXZ(xz + T * tstep);
+  float m_t2 = sampleMaskXZ(xz - T * tstep);
+  float kSmooth = step(2e-3, gmag); // apply only where a boundary exists
+  float mSmooth = mix(mS, (mS * 2.0 + m_t1 + m_t2) * 0.25, kSmooth);
+      // Edge measure for foam: average positive jump from center to ring
+      float edge = (
+        max(0.0, m_p1 - m0) + max(0.0, m_m1 - m0) +
+        max(0.0, m_p2 - m0) + max(0.0, m_m2 - m0) +
+        max(0.0, m_p3 - m0) + max(0.0, m_m3 - m0)
+      ) / 6.0;
       float foam = smoothstep(0.02, 0.20, edge) * uFoamShoreStrength;
 
-  vec3 col = mix(baseCol, uFoamCol, foam);
-  col += spec;
+      // Signed-distance into water side using smoothed mask and hex-aware gradient
+  float signedDist = (mSmooth - 0.5) / gmag;
+      float d = clamp(-signedDist, 0.0, 1e6); // distance into water side
+
+  // Animated wave bands along the shore (subtle, fades after a few bands)
+  float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
+  float pos = (d / max(1e-4, spacing)) + uTime * uShoreWaveSpeed;
+  float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
+  float bands = smoothstep(1.0 - uShoreWaveWidth, 1.0, stripe);
+  float nearFade = 1.0 - smoothstep(0.0, 3.0, d / max(1e-4, spacing));
+  // Strictly restrict to water side using signed distance
+  float insideWater = step(1e-4, d);
+  float waveIntensity = clamp(bands * nearFade * insideWater, 0.0, 1.0);
+  float shoreWaves = waveIntensity * uShoreWaveStrength;
+
+  // Soft feather for edges based on intensity only; solid core independent of strength
+  // Make most of the band solid white and fully opaque (lower threshold widens it)
+  float waveMaskSolid = step(0.20, waveIntensity);
+  float cov = sampleCoverageXZ(xz);
+  float covSoft = smoothstep(0.25, 0.75, cov);
+  float inside = insideGridXZ(xz);
+  vec3 col = mix(baseCol, uFoamCol, max(foam, waveMaskSolid * covSoft));
+  // Remove specular tint on solid bands
+  col += spec * (1.0 - waveMaskSolid);
 
   // Depth-based transparency using seabed height field
   float yScale = sampleSeabedXZ(xz);
@@ -147,6 +229,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   float depth = max(0.0, uSeaLevelY - seabedY);
   float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
+  // Make solid band fully opaque, but only inside coverage
+  alpha = max(alpha, waveMaskSolid * covSoft);
+  // Hide outside of rendered hex coverage and outside texture window
+  alpha *= (covSoft * inside);
   gl_FragColor = vec4(col, alpha);
     }
   `;

@@ -32,6 +32,7 @@ export default class ChunkManager {
     // Streaming budgets
     this.streamBudgetMs = opts.streamBudgetMs ?? 6;
   this.streamMaxChunksPerTick = opts.streamMaxChunksPerTick ?? 0; // 0 = unlimited
+  this.rowsPerSlice = opts.rowsPerSlice ?? 4;
 
     // Misc world info for clutter placement
     this.hexMaxY = opts.hexMaxY ?? 1;
@@ -75,6 +76,7 @@ export default class ChunkManager {
       pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
       streamBudgetMs: this.streamBudgetMs,
   streamMaxChunksPerTick: this.streamMaxChunksPerTick,
+      rowsPerSlice: this.rowsPerSlice,
       onBuildStart: () => {
         this.streaming = true;
       },

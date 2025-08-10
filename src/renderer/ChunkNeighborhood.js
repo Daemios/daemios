@@ -21,6 +21,7 @@ export default class ChunkNeighborhood {
   // Streaming build tuning (helps avoid long stalls on large neighborhoods)
   this.streamBudgetMs = opts.streamBudgetMs ?? 6; // max ms of work per tick
   this.streamMaxChunksPerTick = opts.streamMaxChunksPerTick ?? 0; // 0 = unlimited per tick
+  this.rowsPerSlice = opts.rowsPerSlice ?? 4; // rows to process per slice
 
     this.countPerChunk = this.chunkCols * this.chunkRows;
     this.neighborOffsets = this.computeNeighborOffsets(this.neighborRadius);
@@ -41,6 +42,11 @@ export default class ChunkNeighborhood {
   this._idleId = null; // requestIdleCallback handle (if available)
   this._writtenUntil = 0; // progressive visible instance count
   this._targetCount = 0; // final expected instance count for current build
+  // Queue timing
+  this._queueStartTime = 0; // performance.now() at start
+  this._queueTaskCount = 0; // number of chunk tasks in this queue
+  this._queueDoneCount = 0; // tasks finished in current queue
+  this._savedBudget = null; this._savedRowsPerSlice = null; // to restore post-boost
   this._onBuildComplete = typeof opts.onBuildComplete === 'function' ? opts.onBuildComplete : null;
   this._onBuildStart = typeof opts.onBuildStart === 'function' ? opts.onBuildStart : null;
 
@@ -151,6 +157,11 @@ export default class ChunkNeighborhood {
 
   fillChunk(slotIndex, wx, wy, instBaseOverride) {
     if (!this.topIM || !this.sideIM) return;
+  // profiler: start per-chunk timer (synchronous path)
+  const __profChunkStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  // Sub-stage timers (sampled) for profiling
+  let __dtCell = 0, __dtMatrix = 0, __dtColor = 0, __samples = 0;
+  const __SAMPLE_EVERY = 32; // sample 1 out of 32 tiles to keep overhead low
     const layoutRadius = this.layoutRadius;
     const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
     const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
@@ -177,7 +188,13 @@ export default class ChunkNeighborhood {
         const r = gRow - Math.floor(gCol / 2);
         const x = hexWidth * q;
         const z = hexHeight * (r + q / 2);
+        // Sampled timing: cell fetch
+        let __t0;
+        const __doSample = ((local & (__SAMPLE_EVERY - 1)) === 0);
+        if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         const cell = this.world ? this.world.getCell(q, r) : null;
+        if (__doSample) { __dtCell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
+        if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); __samples += 1; }
   const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
   // Top matrix
   _pos.set(x, 0, z);
@@ -192,6 +209,7 @@ export default class ChunkNeighborhood {
         const instIdx = startIdx + local;
         this.topIM.setMatrixAt(instIdx, topMatrix);
         this.sideIM.setMatrixAt(instIdx, sideMatrix);
+        if (__doSample) { __dtMatrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         if (useChunkColors) {
           this.topIM.setColorAt(instIdx, cTop);
           this.sideIM.setColorAt(instIdx, cSide);
@@ -201,8 +219,22 @@ export default class ChunkNeighborhood {
           this.topIM.setColorAt(instIdx, topC);
           this.sideIM.setColorAt(instIdx, sideC);
         }
+        if (__doSample) { __dtColor += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         this.indexToQR[instIdx] = { q, r, wx, wy, col: gCol, row: gRow };
         local += 1;
+      }
+    }
+    // profiler: end per-chunk timer (synchronous path)
+    const __profChunkEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const __profChunkDt = __profChunkEnd - __profChunkStart;
+    if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+      try { window.__DAEMIOS_PROF('chunk.generate', __profChunkDt); } catch (e) {}
+      // Scale sampled sub-timers to full chunk cost estimate
+      if (__samples > 0) {
+        const mult = (this.chunkCols * this.chunkRows) / __samples;
+        try { window.__DAEMIOS_PROF('chunk.gen.cell', __dtCell * mult); } catch (e) {}
+        try { window.__DAEMIOS_PROF('chunk.gen.matrix', __dtMatrix * mult); } catch (e) {}
+        try { window.__DAEMIOS_PROF('chunk.gen.color', __dtColor * mult); } catch (e) {}
       }
     }
   }
@@ -236,6 +268,10 @@ export default class ChunkNeighborhood {
     const _quatIdentity = this._quatIdentity || (this._quatIdentity = new THREE.Quaternion(0, 0, 0, 1));
 
     let rowsDone = 0;
+    // Prepare sampled sub-timers on the task (persist across slices)
+    if (task && !task.__profSub) {
+      task.__profSub = { cell: 0, matrix: 0, color: 0, samples: 0 };
+    }
     while (st.row < this.chunkRows && rowsDone < budgetRows) {
       const row = st.row;
       for (let col = 0; col < this.chunkCols; col += 1) {
@@ -245,10 +281,16 @@ export default class ChunkNeighborhood {
         const r = gRow - Math.floor(gCol / 2);
         const x = hexWidth * q;
         const z = hexHeight * (r + q / 2);
+        // Sampled timings per ~32 tiles
+        const __doSample = ((st.local & 31) === 0);
+        let __t0;
+        if (__doSample) __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         const cell = this.world ? this.world.getCell(q, r) : null;
+        if (__doSample) task.__profSub.cell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0;
         const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
         _pos.set(x, 0, z);
         _scl.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+        if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         _mat.compose(_pos, _quatIdentity, _scl);
         const instIdx = task.startIdx + st.local;
         this.topIM.setMatrixAt(instIdx, _mat);
@@ -256,6 +298,7 @@ export default class ChunkNeighborhood {
         _scl.set(sideXZ, sideY, sideXZ);
         _mat.compose(_pos, _quatIdentity, _scl);
         this.sideIM.setMatrixAt(instIdx, _mat);
+        if (__doSample) { task.__profSub.matrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); task.__profSub.samples += 1; }
         if (useChunkColors) {
           this.topIM.setColorAt(instIdx, st.cTop);
           this.sideIM.setColorAt(instIdx, st.cSide);
@@ -265,6 +308,7 @@ export default class ChunkNeighborhood {
           this.topIM.setColorAt(instIdx, topC);
           this.sideIM.setColorAt(instIdx, sideC);
         }
+        if (__doSample) { task.__profSub.color += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         this.indexToQR[instIdx] = { q, r, wx: task.wx, wy: task.wy, col: gCol, row: gRow };
         st.local += 1;
       }
@@ -385,6 +429,20 @@ export default class ChunkNeighborhood {
   // Attach per-task state and ensure increasing startIdx order
   this._buildQueue = tasks.map((t) => ({ ...t, state: null }));
     this._buildCursor = 0;
+  // Record queue timing and size
+  this._queueStartTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  this._queueTaskCount = this._buildQueue.length;
+  this._queueDoneCount = 0;
+  // Mild first-load boost: if nothing visible yet, temporarily raise throughput
+  if ((this.topIM.count | 0) === 0 || (this.sideIM.count | 0) === 0) {
+    this._savedBudget = this.streamBudgetMs; this._savedRowsPerSlice = this.rowsPerSlice;
+    this.streamBudgetMs = Math.max(this.streamBudgetMs, 12);
+    this.rowsPerSlice = Math.max(this.rowsPerSlice, 8);
+    if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+      try { window.__DAEMIOS_PROF('stream.config.budget', this.streamBudgetMs); } catch (e) {}
+      try { window.__DAEMIOS_PROF('stream.config.rows', this.rowsPerSlice); } catch (e) {}
+    }
+  }
   // Store target final count for this build (accounts for any culling)
   // Since we are only updating arrivals, the total visible count should remain unchanged during streaming.
   this._targetCount = this.neighborOffsets.length * this.countPerChunk;
@@ -474,44 +532,99 @@ export default class ChunkNeighborhood {
     if (!this._buildQueue || token !== this._buildToken) return; // canceled or superseded
     const tStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     let chunksDone = 0;
+    // profiler: mark tick start
+    const __profTickStart = tStart;
 
     while (this._buildCursor < this._buildQueue.length) {
       const task = this._buildQueue[this._buildCursor];
-  // Fill a slice (few rows) of current chunk
-  const finished = this._fillChunkSlice(task, 4); // 4 rows per slice for faster progress
+      // profiler: mark per-chunk start once
+      if (task && task.__profChunkStart == null) {
+        task.__profChunkStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      }
+      // Fill a slice (few rows) of current chunk
+      const __sliceT0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const finished = this._fillChunkSlice(task, this.rowsPerSlice); // tunable rows per slice
+      if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+        const dtSlice = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __sliceT0;
+        try { window.__DAEMIOS_PROF('stream.fillSlice', dtSlice); } catch (e) {}
+      }
       // Update visible counts progressively (tasks are packed sequentially)
-  // Only reveal complete chunks: floor to chunk multiple to avoid partial rows showing
-  const safeUntil = Math.floor(this._writtenUntil / this.countPerChunk) * this.countPerChunk;
-  this.topIM.count = Math.max(this._prevVisibleTop || 0, safeUntil);
-  this.sideIM.count = Math.max(this._prevVisibleSide || 0, safeUntil);
+      const safeUntil = Math.floor(this._writtenUntil / this.countPerChunk) * this.countPerChunk;
+      this.topIM.count = Math.max(this._prevVisibleTop || 0, safeUntil);
+      this.sideIM.count = Math.max(this._prevVisibleSide || 0, safeUntil);
 
       // Check budget after each slice, not only per-chunk
       const tNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       const elapsed = tNow - tStart;
       if (elapsed >= this.streamBudgetMs) {
-        // Flush GPU updates for work done this tick
         this.topIM.instanceMatrix.needsUpdate = true;
         this.sideIM.instanceMatrix.needsUpdate = true;
         if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
         if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+        // profiler: record tick
+    if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+          try {
+            window.__DAEMIOS_PROF('stream.tick', elapsed);
+            const done = this._queueDoneCount || 0; const total = this._queueTaskCount || 0;
+            const eNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            const eElapsed = eNow - (this._queueStartTime || eNow);
+            const rate = eElapsed > 0 ? (done / eElapsed) * 1000 : 0; // tasks/sec
+            const remain = Math.max(total - done, 0);
+      const eta = (remain === 0) ? 0 : (rate > 0 ? (remain / rate) * 1000 : 0);
+            window.__DAEMIOS_PROF('stream.queue.done', done);
+            window.__DAEMIOS_PROF('stream.queue.totalTasks', total);
+            window.__DAEMIOS_PROF('stream.queue.eta', eta);
+            window.__DAEMIOS_PROF('stream.queue.rate', rate);
+          } catch (e) {}
+        }
         this._scheduleStreamingTick(token);
         return;
       }
 
       if (finished) {
+        // profiler: report per-chunk time
+        if (task && task.__profChunkStart != null) {
+          const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          const __dtChunk = __now - task.__profChunkStart;
+          if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+            try { window.__DAEMIOS_PROF('chunk.generate', __dtChunk); } catch (e) {}
+          }
+          delete task.__profChunkStart;
+        }
+        // profiler: report sub-stage estimates (scaled from samples)
+        if (task && task.__profSub && typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+          const sub = task.__profSub; const samples = sub.samples || 1;
+          const mult = (this.chunkCols * this.chunkRows) / samples;
+          try { window.__DAEMIOS_PROF('chunk.gen.cell', sub.cell * mult); } catch (e) {}
+          try { window.__DAEMIOS_PROF('chunk.gen.matrix', sub.matrix * mult); } catch (e) {}
+          try { window.__DAEMIOS_PROF('chunk.gen.color', sub.color * mult); } catch (e) {}
+          delete task.__profSub;
+        }
         // Move to next chunk task
         this._buildCursor += 1;
-        // Mark slot complete
-        if (typeof task.slotIndex === 'number' && this._slotProgress) {
-          this._slotProgress[task.slotIndex] = true;
-        }
+        this._queueDoneCount += 1;
+        if (typeof task.slotIndex === 'number' && this._slotProgress) { this._slotProgress[task.slotIndex] = true; }
         chunksDone += 1;
-        // Optional per-tick task limit
-  if (chunksDone === 0 || (this.streamMaxChunksPerTick > 0 && chunksDone >= this.streamMaxChunksPerTick)) {
+        if (chunksDone === 0 || (this.streamMaxChunksPerTick > 0 && chunksDone >= this.streamMaxChunksPerTick)) {
           this.topIM.instanceMatrix.needsUpdate = true;
           this.sideIM.instanceMatrix.needsUpdate = true;
           if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
           if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+          if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+            try {
+              window.__DAEMIOS_PROF('stream.tick', ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __profTickStart);
+              const done = this._queueDoneCount || 0; const total = this._queueTaskCount || 0;
+              const eNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+              const eElapsed = eNow - (this._queueStartTime || eNow);
+              const rate = eElapsed > 0 ? (done / eElapsed) * 1000 : 0;
+              const remain = Math.max(total - done, 0);
+              const eta = rate > 0 ? (remain / rate) * 1000 : 0;
+              window.__DAEMIOS_PROF('stream.queue.done', done);
+              window.__DAEMIOS_PROF('stream.queue.totalTasks', total);
+              window.__DAEMIOS_PROF('stream.queue.eta', remain === 0 ? 0 : eta);
+              window.__DAEMIOS_PROF('stream.queue.rate', rate);
+            } catch (e) {}
+          }
           this._scheduleStreamingTick(token);
           return;
         }
@@ -523,25 +636,45 @@ export default class ChunkNeighborhood {
     this.sideIM.instanceMatrix.needsUpdate = true;
     if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
     if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-    // Clear queue
     this._buildQueue = null;
     this._buildCursor = 0;
-  // Ensure counts reflect completion (now safe to reduce to exact new total)
-  this._writtenUntil = Math.max(this._writtenUntil, this._targetCount);
-  const finalCount = Math.min(this._targetCount, this.indexToQR.length);
-  this.topIM.count = finalCount;
-  this.sideIM.count = finalCount;
-  this._prevVisibleTop = this.topIM.count;
-  this._prevVisibleSide = this.sideIM.count;
-  if (this._onBuildComplete) { try { this._onBuildComplete(); } catch (e) {} }
-  // Restore fade state after streaming completes
-  if (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uFadeEnabled) this._fadeUniforms.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
-  if (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uFadeEnabled) this._fadeUniforms.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
-  if (this._fadeUniformsDepth && this._fadeUniformsDepth.top && this._fadeUniformsDepth.top.uFadeEnabled) this._fadeUniformsDepth.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
-  if (this._fadeUniformsDepth && this._fadeUniformsDepth.side && this._fadeUniformsDepth.side.uFadeEnabled) this._fadeUniformsDepth.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
-  if (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uFadeEnabled) this._fadeUniformsTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
-  if (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uFadeEnabled) this._fadeUniformsTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
-  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.top && this._fadeUniformsDepthTrail.top.uFadeEnabled) this._fadeUniformsDepthTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
-  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.side && this._fadeUniformsDepthTrail.side.uFadeEnabled) this._fadeUniformsDepthTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
+    this._writtenUntil = Math.max(this._writtenUntil, this._targetCount);
+    const finalCount = Math.min(this._targetCount, this.indexToQR.length);
+    this.topIM.count = finalCount;
+    this.sideIM.count = finalCount;
+    this._prevVisibleTop = this.topIM.count;
+    this._prevVisibleSide = this.sideIM.count;
+    // Queue total duration
+    try {
+      if (this._queueStartTime) {
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        const dt = now - this._queueStartTime;
+        if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
+          try {
+            // Final numbers
+            const done = this._queueTaskCount; // all tasks completed
+            const total = this._queueTaskCount;
+            const rate = total > 0 ? (total / Math.max(dt, 0.001)) * 1000 : 0; // tasks/sec
+            window.__DAEMIOS_PROF('stream.queue.total', dt);
+            window.__DAEMIOS_PROF('stream.queue.rate', rate);
+            window.__DAEMIOS_PROF('stream.queue.done', done);
+            window.__DAEMIOS_PROF('stream.queue.totalTasks', total);
+            window.__DAEMIOS_PROF('stream.queue.eta', 0);
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    // Restore streaming throughput if it was boosted
+    if (this._savedBudget != null) { this.streamBudgetMs = this._savedBudget; this._savedBudget = null; }
+    if (this._savedRowsPerSlice != null) { this.rowsPerSlice = this._savedRowsPerSlice; this._savedRowsPerSlice = null; }
+    if (this._onBuildComplete) { try { this._onBuildComplete(); } catch (e) {} }
+    if (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uFadeEnabled) this._fadeUniforms.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
+    if (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uFadeEnabled) this._fadeUniforms.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
+    if (this._fadeUniformsDepth && this._fadeUniformsDepth.top && this._fadeUniformsDepth.top.uFadeEnabled) this._fadeUniformsDepth.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
+    if (this._fadeUniformsDepth && this._fadeUniformsDepth.side && this._fadeUniformsDepth.side.uFadeEnabled) this._fadeUniformsDepth.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
+    if (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uFadeEnabled) this._fadeUniformsTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
+    if (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uFadeEnabled) this._fadeUniformsTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
+    if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.top && this._fadeUniformsDepthTrail.top.uFadeEnabled) this._fadeUniformsDepthTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
+    if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.side && this._fadeUniformsDepthTrail.side.uFadeEnabled) this._fadeUniformsDepthTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
   }
 }

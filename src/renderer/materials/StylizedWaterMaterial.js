@@ -27,7 +27,8 @@ export default function createStylizedWaterMaterial(options = {}) {
     waveLen: [7.0, 4.2, 2.4],
     waveSpeed: [0.55, 0.75, 1.0],
     waveDirDeg: [18, -45, 75],
-    maskTexture: null,  // DataTexture: R channel 1=land, 0=water
+  maskTexture: null,  // DataTexture: R channel 1=land, 0=water
+  coverageTexture: null, // DataTexture: R channel 1=rendered hex area, 0=outside
     hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
     // shoreline band params (world-space, relative to hex scale)
     shoreMaxDist: 0.9,        // in units of min(hexW,hexH)
@@ -69,8 +70,10 @@ export default function createStylizedWaterMaterial(options = {}) {
     uDir1: { value: new THREE.Vector2(Math.cos(opt.waveDirDeg[0]*Math.PI/180), Math.sin(opt.waveDirDeg[0]*Math.PI/180)) },
     uDir2: { value: new THREE.Vector2(Math.cos(opt.waveDirDeg[1]*Math.PI/180), Math.sin(opt.waveDirDeg[1]*Math.PI/180)) },
     uDir3: { value: new THREE.Vector2(Math.cos(opt.waveDirDeg[2]*Math.PI/180), Math.sin(opt.waveDirDeg[2]*Math.PI/180)) },
-    uMask: { value: opt.maskTexture },
+  uMask: { value: opt.maskTexture },
+  uCoverage: { value: opt.coverageTexture },
     uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
+    uGridQ0: { value: options.gridQ0 || 0 }, uGridR0: { value: options.gridR0 || 0 },
     uLightDir: { value: new THREE.Vector3(0.4, 1.0, 0.35).normalize() },
     // shoreline bands
     uShoreMaxDist: { value: opt.shoreMaxDist },
@@ -101,6 +104,8 @@ export default function createStylizedWaterMaterial(options = {}) {
 
   const fragmentShader = `
     precision highp float;
+    precision highp int;
+    precision mediump sampler2D;
     varying vec3 vWorldPos;
     varying vec3 vViewPos;
     uniform float uTime;
@@ -111,14 +116,23 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniform float uSpecularStrength, uShininess;
     uniform vec3 uWaveAmp, uWaveLen, uWaveSpeed;
     uniform vec2 uDir1, uDir2, uDir3;
-    uniform sampler2D uMask; // R:1 land, 0 water
-    uniform float uHexW, uHexH; uniform int uGridN, uGridOffset;
+  uniform sampler2D uMask; // R:1 land, 0 water
+  uniform sampler2D uCoverage; // R: 1 inside rendered hex area, 0 outside
+  uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
     uniform vec3 uLightDir;
     uniform float uShoreMaxDist, uShoreStripeSpacing, uShoreStripeWidth, uShoreAnimSpeed, uGradEpsScale, uShoreTailCut;
     uniform float uShoreNoiseScale, uShoreNoiseStrength, uShoreNoiseThresholdLow, uShoreNoiseThresholdHigh, uShorePhaseJitter, uShoreNoiseSpeed;
 
     // Helpers
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+    float sampleCoverageXZ(vec2 xz){
+      float N = uGridN; float S = uGridOffset; if(N<=0.5) return 0.0;
+      vec2 qr = vec2(xz.x / uHexW, xz.y / uHexH - (xz.x / uHexW) * 0.5);
+  float iq = (qr.x - uGridQ0) + S; float ir = (qr.y - uGridR0) + S;
+      float u = clamp((iq + 0.5) / N, 0.0, 1.0);
+      float v = clamp((ir + 0.5) / N, 0.0, 1.0);
+      return texture2D(uCoverage, vec2(u,v)).r;
+    }
 
     void gerstner(vec2 dir, float amp, float len, float speed, in vec2 xz, float t, inout float h, inout vec3 N){
       float k = 6.2831853 / max(0.001, len);
@@ -137,12 +151,11 @@ export default function createStylizedWaterMaterial(options = {}) {
     // Map world xz to axial and sample mask continuously (Linear-filtered texture)
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
     float sampleMaskXZ(vec2 xz){
-      int N = uGridN; int S = uGridOffset; if(N<=0) return 0.0;
+  float N = uGridN; float S = uGridOffset; if(N<=0.5) return 0.0;
       vec2 qr = worldToAxial(xz);
-      float iq = qr.x + float(S); float ir = qr.y + float(S);
-      // Treat OOB as water (0.0) so no false shoreline at map edges
-      if(iq < 0.0 || iq > float(N-1) || ir < 0.0 || ir > float(N-1)) return 0.0;
-      float u = (iq + 0.5) / float(N); float v = (ir + 0.5) / float(N);
+  float iq = (qr.x - uGridQ0) + S; float ir = (qr.y - uGridR0) + S;
+  float u = clamp((iq + 0.5) / N, 0.0, 1.0);
+  float v = clamp((ir + 0.5) / N, 0.0, 1.0);
       return texture2D(uMask, vec2(u,v)).r;
     }
 
@@ -238,11 +251,13 @@ export default function createStylizedWaterMaterial(options = {}) {
       float heightFoam = smoothstep(0.15, 0.45, h);
       float crestFoam = clamp(slopeFoam * heightFoam, 0.0, 1.0);
 
-      float foam = clamp((shoreWhite + crestFoam) * uFoamIntensity, 0.0, 1.0);
+  float foam = clamp((shoreWhite + crestFoam) * uFoamIntensity, 0.0, 1.0);
 
-      vec3 col = mix(diffuse, uFoamCol, foam);
+  float cov = sampleCoverageXZ(xz);
+  float covSoft = smoothstep(0.25, 0.75, cov);
+  vec3 col = mix(diffuse, uFoamCol, foam * covSoft);
       col += spec;
-      gl_FragColor = vec4(col, uOpacity);
+  gl_FragColor = vec4(col, uOpacity * covSoft);
     }
   `;
 
