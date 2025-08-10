@@ -154,53 +154,23 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec3 H = normalize(L + V);
       float spec = pow(max(0.0, dot(N, H)), uShininess) * uSpecularStrength;
 
-      // Soft shoreline foam and smoother shoreline detection (hex-aware)
-      // Use 6-direction sampling aligned with hex axes for a smoother gradient
-  // Small step in axial space (fraction of a tile); converted to world deltas per axis
-  float ha = 0.18; // axial units (~1/5.5 tile) for more local sampling
-  vec2 a1w = vec2(uHexW, 0.5 * uHexH);
-  vec2 a2w = vec2(0.0, uHexH);
-  vec2 a3w = - (a1w + a2w);
-  vec2 a1 = normalize(a1w);
-  vec2 a2 = normalize(a2w);
-  vec2 a3 = normalize(a3w);
-      // Center and 6 neighbors
-      float m0 = sampleMaskXZ(xz);
-  float m_p1 = sampleMaskXZ(xz + a1w * ha);
-  float m_m1 = sampleMaskXZ(xz - a1w * ha);
-  float m_p2 = sampleMaskXZ(xz + a2w * ha);
-  float m_m2 = sampleMaskXZ(xz - a2w * ha);
-  float m_p3 = sampleMaskXZ(xz + a3w * ha);
-  float m_m3 = sampleMaskXZ(xz - a3w * ha);
-      // Local smoothed mask (center + 6 ring samples)
-      float mS = (m0 + m_p1 + m_m1 + m_p2 + m_m2 + m_p3 + m_m3) / 7.0;
-  // Hex-aware gradient as sum of central differences along axes, scaled by step size
-  float l1 = length(a1w);
-  float l2 = length(a2w);
-  float l3 = length(a3w);
-  float s1 = (m_p1 - m_m1) / max(1e-4, (2.0 * ha * l1));
-  float s2 = (m_p2 - m_m2) / max(1e-4, (2.0 * ha * l2));
-  float s3 = (m_p3 - m_m3) / max(1e-4, (2.0 * ha * l3));
-  vec2 g = s1 * a1 + s2 * a2 + s3 * a3;
+  // Shoreline detection with circular (isotropic) gradient to avoid diamond artifacts
+  float stepLen = 0.14 * min(uHexW, uHexH);
+  vec2 ex = vec2(stepLen, 0.0);
+  vec2 ey = vec2(0.0, stepLen);
+  float m0 = sampleMaskXZ(xz);
+  float m1 = sampleMaskXZ(xz + ex);
+  float m2 = sampleMaskXZ(xz - ex);
+  float m3 = sampleMaskXZ(xz + ey);
+  float m4 = sampleMaskXZ(xz - ey);
+  float mS = (m0 + m1 + m2 + m3 + m4) / 5.0;
+  vec2 g = vec2((m1 - m2) / max(1e-4, (2.0 * stepLen)), (m3 - m4) / max(1e-4, (2.0 * stepLen)));
   float gmag = max(1e-4, length(g));
-  // Tangent direction along shoreline for additional smoothing
-  vec2 T = (gmag > 1e-3) ? normalize(vec2(-g.y, g.x)) : a1; // stable fallback
-  float tstep = 0.06 * min(uHexW, uHexH);
-  float m_t1 = sampleMaskXZ(xz + T * tstep);
-  float m_t2 = sampleMaskXZ(xz - T * tstep);
-  float kSmooth = step(2e-3, gmag); // apply only where a boundary exists
-  float mSmooth = mix(mS, (mS * 2.0 + m_t1 + m_t2) * 0.25, kSmooth);
-      // Edge measure for foam: average positive jump from center to ring
-      float edge = (
-        max(0.0, m_p1 - m0) + max(0.0, m_m1 - m0) +
-        max(0.0, m_p2 - m0) + max(0.0, m_m2 - m0) +
-        max(0.0, m_p3 - m0) + max(0.0, m_m3 - m0)
-      ) / 6.0;
-      float foam = smoothstep(0.02, 0.20, edge) * uFoamShoreStrength;
-
-      // Signed-distance into water side using smoothed mask and hex-aware gradient
-  float signedDist = (mSmooth - 0.5) / gmag;
-      float d = clamp(-signedDist, 0.0, 1e6); // distance into water side
+  // Remove gradient foam to avoid white smearing; keep only banded waves
+  float foam = 0.0;
+  // Signed distance into water side
+  float signedDist = (mS - 0.5) / gmag;
+  float d = clamp(-signedDist, 0.0, 1e6);
 
   // Animated wave bands along the shore (subtle, fades after a few bands)
   float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
@@ -213,18 +183,14 @@ export default function createRealisticWaterMaterial(options = {}) {
   float waveIntensity = clamp(bands * nearFade * insideWater, 0.0, 1.0);
   float shoreWaves = waveIntensity * uShoreWaveStrength;
 
-  // Soft feather for edges based on intensity only; solid core independent of strength
-  // Make most of the band solid white and fully opaque (lower threshold widens it)
-  float waveMaskSolid = step(0.20, waveIntensity);
+  // Crisp binary stripes: pure white bands, no gradient; hide outside coverage
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  // Force shoreline solid white near the edge in all directions for now
-  float nearMask = 1.0 - smoothstep(0.0, spacing * 1.5, d);
-  float bandsSolid = step(1e-3, gmag) * step(1e-4, d) * nearMask;
-  vec3 col = mix(baseCol, uFoamCol, max(foam, max(waveMaskSolid * covSoft, bandsSolid)));
-  // Remove specular tint on solid bands
-  col += spec * (1.0 - waveMaskSolid);
+  float waveMask = step(0.5, waveIntensity) * covSoft * inside;
+  vec3 col = mix(baseCol, uFoamCol, waveMask);
+  // Keep specular off on the white bands
+  col += spec * (1.0 - waveMask);
 
   // Depth-based transparency using seabed height field
   float yScale = sampleSeabedXZ(xz);
@@ -232,10 +198,8 @@ export default function createRealisticWaterMaterial(options = {}) {
   float depth = max(0.0, uSeaLevelY - seabedY);
   float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
-  // Make solid white band fully opaque regardless of coverage
-  alpha = max(alpha, bandsSolid);
-  // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
-  alpha *= mix(1.0, covSoft * inside, step(0.5, waveMaskSolid));
+  // Opaque where stripes are; base water alpha elsewhere
+  alpha = max(alpha, waveMask);
   gl_FragColor = vec4(col, alpha);
     }
   `;

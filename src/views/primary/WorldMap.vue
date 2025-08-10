@@ -78,7 +78,6 @@ import { BIOME_THRESHOLDS } from '@/terrain/biomes';
 import WorldGrid from '@/world/WorldGrid';
 import PlayerMarker from '@/renderer/PlayerMarker';
 import ClutterManager from '@/world/ClutterManager';
-import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMaterial';
 import createRealisticWaterMaterial from '@/renderer/materials/RealisticWaterMaterial';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { updateRadialFadeUniforms } from '@/renderer/radialFade';
@@ -123,7 +122,7 @@ export default {
   // Water
   waterMesh: null,
   waterMaterial: null,
-  waterStyle: 'realistic', // 'realistic' | 'stylized'
+  // Always use realistic water
   waterSeabedTex: null,
   waterMaskTex: null,
   // Location marker (GLB)
@@ -1247,11 +1246,11 @@ export default {
       // Profiler overlay
       this.profilerEnabled = true;
       this.profEl = document.createElement('div');
-      Object.assign(this.profEl.style, {
+  Object.assign(this.profEl.style, {
   position: 'absolute', bottom: '6px', left: '6px', padding: '4px 6px',
-        background: 'rgba(0,0,0,0.35)', color: '#fff', font: '11px monospace',
-        borderRadius: '4px', pointerEvents: 'none', whiteSpace: 'pre', zIndex: 1,
-      });
+    background: 'rgba(0,0,0,0.35)', color: '#fff', font: '11px monospace',
+    borderRadius: '4px', pointerEvents: 'none', whiteSpace: 'pre-wrap', maxWidth: '420px', zIndex: 1,
+  });
       this.profEl.textContent = '';
   this.$refs.sceneContainer.appendChild(this.profEl);
   // Respect visibility toggle
@@ -1762,8 +1761,8 @@ export default {
       }
   const tex = markRaw(new THREE.DataTexture(data, N, N, THREE.RGBAFormat));
       tex.needsUpdate = true;
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterMaskTex = tex;
@@ -1822,7 +1821,7 @@ export default {
   // Removed sand underlay plane to eliminate tan plane in the scene
 
       // Water plane at global sea level (just above shallowWater threshold)
-      const factory = (this.waterStyle === 'stylized') ? createStylizedWaterMaterial : createRealisticWaterMaterial;
+  const factory = createRealisticWaterMaterial;
       // Compute sea level world Y and hex world vertical scale factor
       const seaH = BIOME_THRESHOLDS.shallowWater;
       const base = (this.elevation && this.elevation.base != null) ? this.elevation.base : 0.08;
@@ -2108,7 +2107,17 @@ export default {
   const sParts = [];
   const sPush = (lab, s) => { const v = sFmt(s); if (v != null) sParts.push(`${lab} ${(v < 0.095 ? (v * 1000).toFixed(1)+'µs' : v.toFixed(1)+'ms')}`); };
   sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('hex', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
-  if (sParts.length) lines.push('startup ' + sParts.join('  '));
+  if (sParts.length) {
+    // Split into short groups so the line doesn't get too long
+    const chunk = (arr, n) => {
+      const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out;
+    };
+    const groups = chunk(sParts, 4);
+    lines.push('startup ' + groups[0].join('  '));
+    for (let gi = 1; gi < groups.length; gi++) {
+      lines.push('        ' + groups[gi].join('  '));
+    }
+  }
   // Streaming queue and instance progress
       if (this.chunkManager && this.chunkManager.neighborhood) {
         const nb = this.chunkManager.neighborhood;
