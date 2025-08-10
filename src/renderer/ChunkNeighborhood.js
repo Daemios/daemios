@@ -17,6 +17,7 @@ export default class ChunkNeighborhood {
     this.neighborRadius = opts.neighborRadius ?? 1;
     this.features = opts.features || {};
     this.world = opts.world; // expects getCell(q,r)
+  this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
     this.pastelColorForChunk = opts.pastelColorForChunk || ((wx, wy) => new THREE.Color(0xffffff));
   // Streaming build tuning (helps avoid long stalls on large neighborhoods)
   this.streamBudgetMs = opts.streamBudgetMs ?? 6; // max ms of work per tick
@@ -81,8 +82,8 @@ export default class ChunkNeighborhood {
     this._fadeUniforms = { top: topRef.top, side: sideRef.side };
     this._fadeUniformsDepth = { top: topDepthRef.top, side: sideDepthRef.side };
 
-    this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
-    this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
+  this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
+  this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
   // Avoid incorrect whole-mesh frustum culling while instances span a wide area
   this.topIM.frustumCulled = false;
   this.sideIM.frustumCulled = false;
@@ -92,13 +93,36 @@ export default class ChunkNeighborhood {
     this.sideIM.customDistanceMaterial = sideDepth;
     this.topIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.sideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Add compact per-instance attributes for fast shader-based transforms
+    const iCenterTop = new THREE.InstancedBufferAttribute(new Float32Array(total * 2), 2);
+    const iScaleTop = new THREE.InstancedBufferAttribute(new Float32Array(total), 1);
+    const iCenterSide = new THREE.InstancedBufferAttribute(new Float32Array(total * 2), 2);
+    const iScaleSide = new THREE.InstancedBufferAttribute(new Float32Array(total), 1);
+    this.topIM.geometry.setAttribute('iCenter', iCenterTop);
+    this.topIM.geometry.setAttribute('iScaleY', iScaleTop);
+    this.sideIM.geometry.setAttribute('iCenter', iCenterSide);
+    this.sideIM.geometry.setAttribute('iScaleY', iScaleSide);
+    // Cache raw arrays
+    this._ctrArrTop = iCenterTop.array; this._scyArrTop = iScaleTop.array;
+    this._ctrArrSide = iCenterSide.array; this._scyArrSide = iScaleSide.array;
+    // Initialize instanceMatrix to identity so built-in instancing math (raycast, etc.) stays stable
+    const writeIdentityBlocks = (arr) => {
+      for (let i = 0, off = 0; i < total; i += 1, off += 16) {
+        arr[off+0] = 1; arr[off+1] = 0; arr[off+2] = 0; arr[off+3] = 0;
+        arr[off+4] = 0; arr[off+5] = 1; arr[off+6] = 0; arr[off+7] = 0;
+        arr[off+8] = 0; arr[off+9] = 0; arr[off+10]= 1; arr[off+11]= 0;
+        arr[off+12]= 0; arr[off+13]= 0; arr[off+14]= 0; arr[off+15]= 1;
+      }
+    };
+    if (this.topIM.instanceMatrix && this.topIM.instanceMatrix.array) writeIdentityBlocks(this.topIM.instanceMatrix.array);
+    if (this.sideIM.instanceMatrix && this.sideIM.instanceMatrix.array) writeIdentityBlocks(this.sideIM.instanceMatrix.array);
     // pre-create instance colors
     const colorsTop = new Float32Array(total * 3);
     const colorsSide = new Float32Array(total * 3);
     this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
     this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(colorsSide, 3);
 
-    this.indexToQR = new Array(total);
+  this.indexToQR = new Array(total);
     this.scene.add(this.sideIM);
     this.scene.add(this.topIM);
   // Cache raw typed arrays for fast writes
@@ -121,13 +145,22 @@ export default class ChunkNeighborhood {
     this._fadeUniformsTrail = { top: topTrailRef.top, side: sideTrailRef.side };
     this._fadeUniformsDepthTrail = { top: topDepthTrailRef.top, side: sideDepthTrailRef.side };
 
-    this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMatTrail, total));
-    this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMatTrail, total));
+  this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMatTrail, total));
+  this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMatTrail, total));
   // Avoid incorrect culling of wide-span trails
   this.trailTopIM.frustumCulled = false;
   this.trailSideIM.frustumCulled = false;
     this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Trail meshes mirror transforms via the same compact attributes
+    if (this._ctrArrTop && this._scyArrTop) {
+      this.trailTopIM.geometry.setAttribute('iCenter', new THREE.InstancedBufferAttribute(this._ctrArrTop, 2));
+      this.trailTopIM.geometry.setAttribute('iScaleY', new THREE.InstancedBufferAttribute(this._scyArrTop, 1));
+    }
+    if (this._ctrArrSide && this._scyArrSide) {
+      this.trailSideIM.geometry.setAttribute('iCenter', new THREE.InstancedBufferAttribute(this._ctrArrSide, 2));
+      this.trailSideIM.geometry.setAttribute('iScaleY', new THREE.InstancedBufferAttribute(this._scyArrSide, 1));
+    }
     this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
     this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
     this.trailTopIM.visible = false;
@@ -141,11 +174,99 @@ export default class ChunkNeighborhood {
     this.scene.add(this.trailSideIM);
     this.scene.add(this.trailTopIM);
 
+    // Custom raycast that mirrors shader-based instance transforms for accurate picking
+    const makeAttrRaycast = (im, ctrArrRef, scyArrRef) => {
+      const helper = new THREE.Mesh(im.geometry, new THREE.MeshBasicMaterial());
+      const tmpMat = new THREE.Matrix4();
+      const tmpPos = new THREE.Vector3();
+      const tmpQuat = new THREE.Quaternion();
+      const tmpScale = new THREE.Vector3();
+      const tmpHits = [];
+      const raycastImpl = function raycast(raycaster, intersects) {
+        // Fallback to default if not using attributes path
+        if (!im.material || !im.material.defines || !im.material.defines.USE_ATTR_TRANSFORM) {
+          THREE.InstancedMesh.prototype.raycast.call(im, raycaster, intersects);
+          return;
+        }
+        const ctrArr = ctrArrRef;
+        const scyArr = scyArrRef;
+        const count = Math.min(im.count | 0, im.instanceMatrix ? im.instanceMatrix.count : (ctrArr ? (ctrArr.length / 2) : 0));
+        const xzScale = (im.material && im.material.userData && im.material.userData.uXZScale != null)
+          ? im.material.userData.uXZScale : 1.0;
+        helper.geometry = im.geometry; // ensure up to date
+        // Iterate visible instances; build world matrix as modelMatrix * Translate(iCenter) * Scale(uXZScale, iScaleY, uXZScale)
+        for (let i = 0; i < count; i += 1) {
+          const cx = ctrArr ? ctrArr[i * 2] : 0;
+          const cz = ctrArr ? ctrArr[i * 2 + 1] : 0;
+          const sy = scyArr ? (scyArr[i] || 1.0) : 1.0;
+          tmpPos.set(cx, 0, cz);
+          tmpQuat.identity();
+          tmpScale.set(xzScale, sy, xzScale);
+          tmpMat.compose(tmpPos, tmpQuat, tmpScale);
+          helper.matrixWorld.copy(im.matrixWorld).multiply(tmpMat);
+          // Delegate to Mesh.raycast using the helper with our matrixWorld
+          tmpHits.length = 0;
+          THREE.Mesh.prototype.raycast.call(helper, raycaster, tmpHits);
+          if (tmpHits.length > 0) {
+            for (let k = 0; k < tmpHits.length; k += 1) {
+              const hit = tmpHits[k];
+              hit.object = im; // report parent InstancedMesh
+              hit.instanceId = i;
+              intersects.push(hit);
+            }
+          }
+        }
+      };
+      return raycastImpl;
+    };
+    // Install on top and side meshes
+    if (this.topIM && this._ctrArrTop && this._scyArrTop) {
+      this.topIM.raycast = makeAttrRaycast(this.topIM, this._ctrArrTop, this._scyArrTop);
+    }
+    if (this.sideIM && this._ctrArrSide && this._scyArrSide) {
+      this.sideIM.raycast = makeAttrRaycast(this.sideIM, this._ctrArrSide, this._scyArrSide);
+    }
+
   // Initialize slot assignments array length
   this._slotAssignments = new Array(this.neighborOffsets.length).fill(null);
   this._slotProgress = new Array(this.neighborOffsets.length).fill(false);
 
-    return {
+  // Enable shader attr transforms and set uniform scales
+  topMat.defines = Object.assign({}, topMat.defines, { USE_ATTR_TRANSFORM: 1 });
+  sideMat.defines = Object.assign({}, sideMat.defines, { USE_ATTR_TRANSFORM: 1 });
+  topMatTrail.defines = Object.assign({}, topMatTrail.defines, { USE_ATTR_TRANSFORM: 1 });
+  sideMatTrail.defines = Object.assign({}, sideMatTrail.defines, { USE_ATTR_TRANSFORM: 1 });
+  // Depth variants also need the define
+  topDepth.defines = Object.assign({}, topDepth.defines, { USE_ATTR_TRANSFORM: 1 });
+  sideDepth.defines = Object.assign({}, sideDepth.defines, { USE_ATTR_TRANSFORM: 1 });
+  topDepthTrail.defines = Object.assign({}, topDepthTrail.defines, { USE_ATTR_TRANSFORM: 1 });
+  sideDepthTrail.defines = Object.assign({}, sideDepthTrail.defines, { USE_ATTR_TRANSFORM: 1 });
+  const sx = this.modelScaleFactor; const xzScale = sx * this.contactScale; const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
+  // Stash uniform defaults onto materials so onBeforeCompile can read initial scale
+  topMat.userData = Object.assign({}, topMat.userData, { uXZScale: xzScale });
+  sideMat.userData = Object.assign({}, sideMat.userData, { uXZScale: sideXZ });
+  topMatTrail.userData = Object.assign({}, topMatTrail.userData, { uXZScale: xzScale });
+  sideMatTrail.userData = Object.assign({}, sideMatTrail.userData, { uXZScale: sideXZ });
+  topDepth.userData = Object.assign({}, topDepth.userData, { uXZScale: xzScale });
+  sideDepth.userData = Object.assign({}, sideDepth.userData, { uXZScale: sideXZ });
+  topDepthTrail.userData = Object.assign({}, topDepthTrail.userData, { uXZScale: xzScale });
+  sideDepthTrail.userData = Object.assign({}, sideDepthTrail.userData, { uXZScale: sideXZ });
+  if (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uXZScale) this._fadeUniforms.top.uXZScale.value = xzScale;
+  if (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uXZScale) this._fadeUniforms.side.uXZScale.value = sideXZ;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uXZScale) this._fadeUniformsTrail.top.uXZScale.value = xzScale;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uXZScale) this._fadeUniformsTrail.side.uXZScale.value = sideXZ;
+  if (this._fadeUniformsDepth && this._fadeUniformsDepth.top && this._fadeUniformsDepth.top.uXZScale) this._fadeUniformsDepth.top.uXZScale.value = xzScale;
+  if (this._fadeUniformsDepth && this._fadeUniformsDepth.side && this._fadeUniformsDepth.side.uXZScale) this._fadeUniformsDepth.side.uXZScale.value = sideXZ;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.top && this._fadeUniformsDepthTrail.top.uXZScale) this._fadeUniformsDepthTrail.top.uXZScale.value = xzScale;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.side && this._fadeUniformsDepthTrail.side.uXZScale) this._fadeUniformsDepthTrail.side.uXZScale.value = sideXZ;
+
+  // Force recompile after define changes
+  topMat.needsUpdate = true; sideMat.needsUpdate = true;
+  topMatTrail.needsUpdate = true; sideMatTrail.needsUpdate = true;
+  topDepth.needsUpdate = true; sideDepth.needsUpdate = true;
+  topDepthTrail.needsUpdate = true; sideDepthTrail.needsUpdate = true;
+
+  return {
       topIM: this.topIM,
       sideIM: this.sideIM,
       trailTopIM: this.trailTopIM,
@@ -170,7 +291,8 @@ export default class ChunkNeighborhood {
     const layoutRadius = this.layoutRadius;
     const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
     const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-    const sx = this.modelScaleFactor;
+  const sx = this.modelScaleFactor;
+  const hMag = (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
     const xzScale = sx * this.contactScale;
     const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
     const baseCol = wx * this.chunkCols;
@@ -181,14 +303,8 @@ export default class ChunkNeighborhood {
     const cTop = this.pastelColorForChunk(wx, wy);
     const cSide = cTop.clone().multiplyScalar(0.8);
   // Preallocated math objects for fast instance matrix composition (no per-instance clones)
-  // Fast TRS writer: column-major 4x4 with identity rotation
-  const writeMat = (arr, idx16, tx, ty, tz, sxm, sym, szm) => {
-    // zero/identity base
-    arr[idx16+0] = sxm; arr[idx16+1] = 0;   arr[idx16+2] = 0;   arr[idx16+3] = 0;
-    arr[idx16+4] = 0;   arr[idx16+5] = sym; arr[idx16+6] = 0;   arr[idx16+7] = 0;
-    arr[idx16+8] = 0;   arr[idx16+9] = 0;   arr[idx16+10]= szm; arr[idx16+11]= 0;
-    arr[idx16+12]= tx;  arr[idx16+13]= ty;  arr[idx16+14]= tz;  arr[idx16+15]= 1;
-  };
+  // Attribute writers
+  const writeCenter = (arr2, idx2, x, z) => { arr2[idx2] = x; arr2[idx2+1] = z; };
     for (let row = 0; row < this.chunkRows; row += 1) {
       for (let col = 0; col < this.chunkCols; col += 1) {
         const gCol = baseCol + col;
@@ -205,22 +321,17 @@ export default class ChunkNeighborhood {
         if (__doSample) { __dtCell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); __samples += 1; }
   const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-  // Top matrix via direct writes
+  // Top center/scale via attributes
   const instIdx = startIdx + local;
-  if (this._matArrTop) {
-    const idx16 = instIdx * 16;
-    writeMat(this._matArrTop, idx16, x, 0, z, xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-  } else {
-    // Fallback
-    this.topIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale).setPosition(x, 0, z));
+  if (this._ctrArrTop && this._scyArrTop) {
+    writeCenter(this._ctrArrTop, instIdx * 2, x, z);
+    this._scyArrTop[instIdx] = sx * (cell ? cell.yScale : 1.0) * hMag;
   }
-  // Side matrix via direct writes
-  const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-  if (this._matArrSide) {
-    const idx16b = instIdx * 16;
-    writeMat(this._matArrSide, idx16b, x, 0, z, sideXZ, sideY, sideXZ);
-  } else {
-    this.sideIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(sideXZ, sideY, sideXZ).setPosition(x, 0, z));
+  // Side via attributes
+  const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0) * hMag);
+  if (this._ctrArrSide && this._scyArrSide) {
+    writeCenter(this._ctrArrSide, instIdx * 2, x, z);
+    this._scyArrSide[instIdx] = sideY;
   }
         if (__doSample) { __dtMatrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         if (useChunkColors) {
@@ -250,9 +361,11 @@ export default class ChunkNeighborhood {
         try { window.__DAEMIOS_PROF('chunk.gen.color', __dtColor * mult); } catch (e) {}
       }
     }
-    // After direct writes, ensure flags are set
-    if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
-    if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
+  // After direct writes, ensure flags are set
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iCenter) this.topIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iScaleY) this.topIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iCenter) this.sideIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iScaleY) this.sideIM.geometry.attributes.iScaleY.needsUpdate = true;
     if (this.topIM && this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
     if (this.sideIM && this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
   }
@@ -274,17 +387,13 @@ export default class ChunkNeighborhood {
     const layoutRadius = this.layoutRadius;
     const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
     const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-    const sx = this.modelScaleFactor;
+  const sx = this.modelScaleFactor;
+  const hMag = (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
     const xzScale = sx * this.contactScale;
     const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
     const useChunkColors = !!this.features.chunkColors;
 
-    const writeMat = (arr, idx16, tx, ty, tz, sxm, sym, szm) => {
-      arr[idx16+0] = sxm; arr[idx16+1] = 0;   arr[idx16+2] = 0;   arr[idx16+3] = 0;
-      arr[idx16+4] = 0;   arr[idx16+5] = sym; arr[idx16+6] = 0;   arr[idx16+7] = 0;
-      arr[idx16+8] = 0;   arr[idx16+9] = 0;   arr[idx16+10]= szm; arr[idx16+11]= 0;
-      arr[idx16+12]= tx;  arr[idx16+13]= ty;  arr[idx16+14]= tz;  arr[idx16+15]= 1;
-    };
+  const writeCenter = (arr2, idx2, x, z) => { arr2[idx2] = x; arr2[idx2+1] = z; };
 
     let rowsDone = 0;
     // Prepare sampled sub-timers on the task (persist across slices)
@@ -309,18 +418,15 @@ export default class ChunkNeighborhood {
         const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         const instIdx = task.startIdx + st.local;
-        // Write top matrix
-        if (this._matArrTop) {
-          writeMat(this._matArrTop, instIdx * 16, x, 0, z, xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-        } else {
-          this.topIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale).setPosition(x, 0, z));
+        // Write attribute center/scale
+        if (this._ctrArrTop && this._scyArrTop) {
+          writeCenter(this._ctrArrTop, instIdx * 2, x, z);
+          this._scyArrTop[instIdx] = sx * (cell ? cell.yScale : 1.0) * hMag;
         }
-        // Side matrix
-        const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-        if (this._matArrSide) {
-          writeMat(this._matArrSide, instIdx * 16, x, 0, z, sideXZ, sideY, sideXZ);
-        } else {
-          this.sideIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(sideXZ, sideY, sideXZ).setPosition(x, 0, z));
+        const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0) * hMag);
+        if (this._ctrArrSide && this._scyArrSide) {
+          writeCenter(this._ctrArrSide, instIdx * 2, x, z);
+          this._scyArrSide[instIdx] = sideY;
         }
         if (__doSample) { task.__profSub.matrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); task.__profSub.samples += 1; }
         if (useChunkColors) {
@@ -580,9 +686,15 @@ export default class ChunkNeighborhood {
       // Check budget after each slice, not only per-chunk
       const tNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       const elapsed = tNow - tStart;
-      if (elapsed >= this.streamBudgetMs) {
-  if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
-  if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
+    if (elapsed >= this.streamBudgetMs) {
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iCenter) this.topIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iScaleY) this.topIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iCenter) this.sideIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iScaleY) this.sideIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iCenter) this.trailTopIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iScaleY) this.trailTopIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iCenter) this.trailSideIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iScaleY) this.trailSideIM.geometry.attributes.iScaleY.needsUpdate = true;
         if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
         if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
         // profiler: record tick
@@ -630,8 +742,14 @@ export default class ChunkNeighborhood {
         if (typeof task.slotIndex === 'number' && this._slotProgress) { this._slotProgress[task.slotIndex] = true; }
         chunksDone += 1;
         if (chunksDone === 0 || (this.streamMaxChunksPerTick > 0 && chunksDone >= this.streamMaxChunksPerTick)) {
-          if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
-          if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
+          if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iCenter) this.topIM.geometry.attributes.iCenter.needsUpdate = true;
+          if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iScaleY) this.topIM.geometry.attributes.iScaleY.needsUpdate = true;
+          if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iCenter) this.sideIM.geometry.attributes.iCenter.needsUpdate = true;
+          if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iScaleY) this.sideIM.geometry.attributes.iScaleY.needsUpdate = true;
+          if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iCenter) this.trailTopIM.geometry.attributes.iCenter.needsUpdate = true;
+          if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iScaleY) this.trailTopIM.geometry.attributes.iScaleY.needsUpdate = true;
+          if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iCenter) this.trailSideIM.geometry.attributes.iCenter.needsUpdate = true;
+          if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iScaleY) this.trailSideIM.geometry.attributes.iScaleY.needsUpdate = true;
           if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
           if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
           if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
@@ -656,8 +774,14 @@ export default class ChunkNeighborhood {
     }
 
   // All tasks done: final flush
-  if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
-  if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iCenter) this.topIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.topIM && this.topIM.geometry && this.topIM.geometry.attributes && this.topIM.geometry.attributes.iScaleY) this.topIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iCenter) this.sideIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.sideIM && this.sideIM.geometry && this.sideIM.geometry.attributes && this.sideIM.geometry.attributes.iScaleY) this.sideIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iCenter) this.trailTopIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.trailTopIM && this.trailTopIM.geometry && this.trailTopIM.geometry.attributes && this.trailTopIM.geometry.attributes.iScaleY) this.trailTopIM.geometry.attributes.iScaleY.needsUpdate = true;
+  if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iCenter) this.trailSideIM.geometry.attributes.iCenter.needsUpdate = true;
+  if (this.trailSideIM && this.trailSideIM.geometry && this.trailSideIM.geometry.attributes && this.trailSideIM.geometry.attributes.iScaleY) this.trailSideIM.geometry.attributes.iScaleY.needsUpdate = true;
     if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
     if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
     this._buildQueue = null;

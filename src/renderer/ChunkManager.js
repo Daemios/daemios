@@ -24,6 +24,7 @@ export default class ChunkManager {
     this.chunkRows = opts.chunkRows;
     this.neighborRadius = opts.neighborRadius ?? 1;
     this.features = opts.features || {};
+  this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
     this.centerChunk = { x: opts.centerChunk?.x ?? 0, y: opts.centerChunk?.y ?? 0 };
 
     // Rendering helpers
@@ -36,7 +37,7 @@ export default class ChunkManager {
 
     // Misc world info for clutter placement
     this.hexMaxY = opts.hexMaxY ?? 1;
-    this.modelScaleY = opts.modelScaleY || (() => 1.0);
+  this.modelScaleY = opts.modelScaleY || (() => 1.0);
 
     // Callbacks to integrate with host (WorldMap)
     this.onBuilt = opts.onBuilt || (() => {});
@@ -73,6 +74,7 @@ export default class ChunkManager {
       neighborRadius: this.neighborRadius,
       features: this.features,
       world: this.world,
+  heightMagnitude: this.heightMagnitude,
       pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
       streamBudgetMs: this.streamBudgetMs,
   streamMaxChunksPerTick: this.streamMaxChunksPerTick,
@@ -176,7 +178,7 @@ export default class ChunkManager {
     const layoutRadius = this.layoutRadius;
     const contactScale = this.contactScale;
     const hexMaxY = this.hexMaxY;
-    const modelScaleY = this.modelScaleY;
+  const modelScaleY = (q, r) => (this.modelScaleY ? this.modelScaleY(q, r) : 1.0);
     // Commit asynchronously (ClutterManager streams internally)
   this.clutter.commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY, filter: undefined, offsetRect: rect });
   }

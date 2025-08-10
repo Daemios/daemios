@@ -158,6 +158,7 @@ export default {
       fxaaPass: null,
       
       modelScaleFactor: 1,
+  heightMagnitude: 2.0, // global vertical exaggeration (e.g., 2x)
   modelCenter: markRaw(new THREE.Vector3(0, 0, 0)),
       orientation: 'flat',
       orbit: {
@@ -356,7 +357,7 @@ export default {
       const hexMaxY = this.hexMaxY;
       const modelScaleY = (q, r) => {
         const c = this.world.getCell(q, r);
-        return this.modelScaleFactor * (c ? c.yScale : 1);
+        return this.modelScaleFactor * (c ? c.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
       };
   // Compute offset rect of the active neighborhood (radius derived from neighborOffsets)
   const radius = this._neighborRadius != null ? this._neighborRadius : 1;
@@ -788,8 +789,9 @@ export default {
         hexMaxY: this.hexMaxY,
         modelScaleY: (q, r) => {
           const c = this.world.getCell(q, r);
-          return this.modelScaleFactor * (c ? c.yScale : 1);
+          return this.modelScaleFactor * (c ? c.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
         },
+        heightMagnitude: (this.heightMagnitude != null ? this.heightMagnitude : 1.0),
         pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
   streamBudgetMs: 6,
   streamMaxChunksPerTick: 0,
@@ -1631,7 +1633,7 @@ export default {
       const base = (this.elevation && this.elevation.base != null) ? this.elevation.base : 0.08;
       const maxH = (this.elevation && this.elevation.max != null) ? this.elevation.max : 1.2;
       const seaLevelYScale = base + seaH * maxH;
-      const hexMaxYScaled = this.hexMaxY * this.modelScaleFactor;
+  const hexMaxYScaled = this.hexMaxY * this.modelScaleFactor * (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
       const seaLevelY = hexMaxYScaled * seaLevelYScale;
 
   // Use the same origin used to build the textures for exact alignment
@@ -1651,7 +1653,7 @@ export default {
         shoreWidth: 0.12,
         hexMaxYScaled,
         seaLevelY,
-        depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
+  depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
         nearAlpha: 0.08,
         farAlpha: 0.9,
   }));
@@ -2072,14 +2074,17 @@ export default {
         const idx = hit.instanceId;
         if (idx != null && this.topIM) {
           if (this.hoverMesh) {
-            this.topIM.getMatrixAt(idx, this.tmpMatrix);
-            this.hoverMesh.matrix.copy(this.tmpMatrix);
-            // Keep scale identical; rely on polygonOffset to avoid z-fighting
+            const m = this.composeTileMatrix(idx, 'top');
+            this.hoverMesh.matrix.copy(m);
             this.hoverMesh.visible = true;
           }
           this.hoverIdx = idx;
-          // Update player marker preview to current hover (prepping for movement UX)
-          if (this.playerMarker && this.topIM) this.playerMarker.setPosition(idx, this.topIM);
+          // Update player marker preview to current hover using world position
+          if (this.playerMarker) {
+            const ps = this.computeTilePosScale(idx, 'top');
+            const pos = new THREE.Vector3(ps.x, this.hexMaxY * ps.scaleY + 0.01, ps.z);
+            this.playerMarker.setWorldPosition(pos);
+          }
         }
       } else {
         this.hoverIdx = null;
@@ -2242,20 +2247,38 @@ export default {
       if (idx == null || !this.topIM) return;
       this.ensureLocationMarkerLoaded((err) => {
         if (err) return;
-        const m = new THREE.Matrix4();
-        this.topIM.getMatrixAt(idx, m);
-        const pos = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
-        const scl = new THREE.Vector3();
-        m.decompose(pos, quat, scl);
-  // Keep marker’s own scale; ignore instance scale. Position above tile top surface.
+        // Compose from attribute-based transform (center + scales)
+        const ps = this.computeTilePosScale(idx, 'top');
+        const pos = new THREE.Vector3(ps.x, this.hexMaxY * ps.scaleY + 0.05 * this.layoutRadius, ps.z);
         const markerQuat = new THREE.Quaternion();
         const markerScale = this.locationMarker.scale.clone();
-  const lift = 0.05 * this.layoutRadius; // small world-space lift
-  pos.y = this.hexMaxY * scl.y + lift;
         this.locationMarker.matrix.compose(pos, markerQuat, markerScale);
         this.locationMarker.visible = true;
       });
+    },
+    // Helpers: compose per-tile transforms mirroring shader attribute path
+    computeTilePosScale(idx, bucket = 'top') {
+      const info = (this.indexToQR && this.indexToQR[idx]) ? this.indexToQR[idx] : null;
+      if (!info) return { x: 0, z: 0, scaleY: 1 };
+      const q = info.q, r = info.r;
+      const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+      const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+      const x = hexW * q;
+      const z = hexH * (r + q / 2);
+      const cell = this.world.getCell(q, r);
+      const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+      const scaleY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0));
+      const xzScale = (this.modelScaleFactor || 1) * this.contactScale * (bucket === 'side' ? (this.sideInset != null ? this.sideInset : 0.996) : 1.0);
+      return { x, z, scaleY, xzScale };
+    },
+    composeTileMatrix(idx, bucket = 'top') {
+      const ps = this.computeTilePosScale(idx, bucket);
+      const m = new THREE.Matrix4();
+      const pos = new THREE.Vector3(ps.x, 0, ps.z);
+      const quat = new THREE.Quaternion();
+      const scl = new THREE.Vector3(ps.xzScale, ps.scaleY, ps.xzScale);
+      m.compose(pos, quat, scl);
+      return m;
     },
     addRandomLocationMarker() {
       const idx = this.chooseRandomTileIndex({ landOnly: true });

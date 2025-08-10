@@ -38,6 +38,16 @@ export default class PlayerMarker {
     this._compose();
   }
 
+  // Direct world position setter (Y is expected to be at desired height already)
+  setWorldPosition(posVec3) {
+    if (!posVec3) return;
+    const quat = new THREE.Quaternion();
+    const scale = new THREE.Vector3(1, 1, 1);
+    this.mesh.matrix.compose(posVec3, quat, scale);
+    this.mesh.visible = true;
+    this._pos.copy(posVec3);
+  }
+
   // Rotate around Y to face camera (billboard without tilt)
   faceCamera(camera) {
     if (!camera || !this.mesh.visible) return;
