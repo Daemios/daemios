@@ -109,6 +109,12 @@ export default function createSeaWavesMaterial(options = {}) {
       return line;
     }
 
+    // Screen-space dither pattern to convert alpha into a stipple mask.
+    float dither(vec2 fragCoord){
+      vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+      return fract(magic.z * fract(dot(fragCoord, magic.xy)));
+    }
+
     void main() {
       vec2 p = vWorldXZ;
 
@@ -124,8 +130,9 @@ export default function createSeaWavesMaterial(options = {}) {
       // Combine
       float crests = clamp(L1 * uStrength1 + L2 * uStrength2, 0.0, 1.0);
       vec3 color = mix(base, uFoam, crests);
-
-      gl_FragColor = vec4(color, uOpacity);
+      float alpha = clamp(uOpacity, 0.0, 1.0);
+      if(alpha < dither(gl_FragCoord.xy)) discard;
+      gl_FragColor = vec4(color, 1.0);
     }
   `;
 
@@ -133,8 +140,8 @@ export default function createSeaWavesMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
     polygonOffset: true,
     polygonOffsetFactor: -1,

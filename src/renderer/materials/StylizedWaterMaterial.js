@@ -178,6 +178,12 @@ export default function createStylizedWaterMaterial(options = {}) {
       return v;
     }
 
+    // Screen-space dither pattern for alpha stippling.
+    float dither(vec2 fragCoord){
+      vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+      return fract(magic.z * fract(dot(fragCoord, magic.xy)));
+    }
+
     void main(){
       vec3 V = normalize(-vViewPos);
       vec2 xz = vWorldPos.xz;
@@ -277,7 +283,9 @@ export default function createStylizedWaterMaterial(options = {}) {
   vec3 col = mix(diffuse, uFoamCol, max(foam, bandsSolid));
       col += spec;
   // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
-  gl_FragColor = vec4(col, uOpacity);
+  float alpha = clamp(uOpacity, 0.0, 1.0);
+  if(alpha < dither(gl_FragCoord.xy)) discard;
+  gl_FragColor = vec4(col, 1.0);
     }
   `;
 
@@ -285,8 +293,8 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
   });
   return mat;

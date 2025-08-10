@@ -126,6 +126,13 @@ export default function createRealisticWaterMaterial(options = {}) {
   float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
   float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
 
+  // Screen-door dithering function using interleaved gradient noise.
+  // Generates a small, repeatable pattern without texture fetches.
+  float dither(vec2 fragCoord){
+    vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(magic.z * fract(dot(fragCoord, magic.xy)));
+  }
+
     void main(){
       vec2 xz = vWorldPos.xz;
       vec3 V = normalize(-vViewPos);
@@ -236,7 +243,8 @@ export default function createRealisticWaterMaterial(options = {}) {
   alpha = max(alpha, bandsSolid);
   // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
   alpha *= mix(1.0, covSoft * inside, step(0.5, waveMaskSolid));
-  gl_FragColor = vec4(col, alpha);
+  if(alpha < dither(gl_FragCoord.xy)) discard;
+  gl_FragColor = vec4(col, 1.0);
     }
   `;
 
@@ -244,8 +252,8 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
   });
   return mat;
