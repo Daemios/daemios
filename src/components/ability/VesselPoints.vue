@@ -28,7 +28,7 @@
       <v-btn
         dark
         x-small
-        :disabled="current - 1 < start && positiveOnly"
+        :disabled="modelValue - 1 < start && positiveOnly"
         @click="decrement()"
       >
         <v-icon
@@ -63,36 +63,35 @@ export default {
       type: Boolean,
       default: false,
     },
+    modelValue: {
+      type: Number,
+      required: true,
+    },
   },
+  emits: ['update:modelValue'],
   data: () => ({
-      mdiPlus,
-      mdiMinus,
-      current: null,
+    mdiPlus,
+    mdiMinus,
   }),
   computed: {
     divisions() {
-      return Math.floor(this.current / 9);
+      return Math.floor(this.modelValue / 9);
     },
-  },
-  mounted() {
-    this.current = this.start;
   },
   methods: {
     increment() {
-      this.current += 1;
-      this.$emit('input', this.current);
+      this.$emit('update:modelValue', this.modelValue + 1);
     },
     decrement() {
-      this.current -= 1;
-      this.$emit('input', this.current);
+      this.$emit('update:modelValue', this.modelValue - 1);
     },
     classes(n) {
       return {
         black: (this.start >= n),
-        'green lighten-2': (this.current >= n && n > this.start),
+        'green lighten-2': (this.modelValue >= n && n > this.start),
         'red lighten-2': (
-          this.current < this.start // are we going negative
-          && n > this.current // cell is higher than the current aka its point is removed
+          this.modelValue < this.start // are we going negative
+          && n > this.modelValue // cell is higher than the current aka its point is removed
           && n <= this.start // cell is part of the existing points
         ),
       };

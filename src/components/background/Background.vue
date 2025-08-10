@@ -16,13 +16,15 @@ export default {
     plane: null,
     plane_segments: 10,
     animationFrameId: null,
+    controls: null,
   }),
   mounted() {
     this.initThreeJS();
-    this.animate();
+    this.animationFrameId = requestAnimationFrame(this.animate);
   },
   beforeUnmount() {
     cancelAnimationFrame(this.animationFrameId);
+    window.removeEventListener('resize', this.resize);
     this.plane.material.dispose();
     this.plane.geometry.dispose();
   },
@@ -44,7 +46,7 @@ export default {
         1000
   ));
       this.camera.position.z = 50;
-  this.controls = markRaw(new OrbitControls(this.camera, this.renderer.domElement));
+      this.controls = markRaw(new OrbitControls(this.camera, this.renderer.domElement));
 
       // todo move this eventually when we have other scene content
     this.addLoginContent();
@@ -87,12 +89,9 @@ export default {
       this.scene.add(this.plane);
     },
     animate() {
-      requestAnimationFrame(this.animate.bind(this));
-
-      // Update controls
       this.controls.update();
-
       this.renderer.render(this.scene, this.camera);
+      this.animationFrameId = requestAnimationFrame(this.animate);
     },
     resize() {
       this.camera.aspect = window.innerWidth / window.innerHeight;
