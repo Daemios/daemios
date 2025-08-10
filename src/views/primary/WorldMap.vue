@@ -81,7 +81,7 @@ import createStylizedWaterMaterial from '@/renderer/materials/StylizedWaterMater
 import createRealisticWaterMaterial from '@/renderer/materials/RealisticWaterMaterial';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { updateRadialFadeUniforms } from '@/renderer/radialFade';
-import ChunkNeighborhood from '@/renderer/ChunkNeighborhood';
+import ChunkManager from '@/renderer/ChunkManager';
 import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 
 export default {
@@ -114,7 +114,8 @@ export default {
   trailTimer: null,
   // Keep previous neighborhood bounds for clutter persistence during trail visibility
   _prevNeighborhoodRect: null,
-  neighborhood: null,
+  neighborhood: null, // kept for compatibility; managed by chunkManager
+  chunkManager: null,
   // Water
   waterMesh: null,
   sandMesh: null,
@@ -344,7 +345,10 @@ export default {
         rowMax: (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1),
       };
   // If a previous neighborhood exists and trail is visible, union the rect so clutter persists under trail
-  const rect = (this.trailTopIM && this.trailTopIM.visible && this._prevNeighborhoodRect)
+  // Only union for small (radius=1) neighborhoods. For expanded (10x) neighborhoods,
+  // unioning dramatically increases work and can freeze the main thread.
+  const shouldUnion = (radius === 1) && (this.trailTopIM && this.trailTopIM.visible && this._prevNeighborhoodRect);
+  const rect = shouldUnion
         ? {
             colMin: Math.min(curr.colMin, this._prevNeighborhoodRect.colMin),
             rowMin: Math.min(curr.rowMin, this._prevNeighborhoodRect.rowMin),
@@ -499,6 +503,8 @@ export default {
     },
     snapshotTrailAndArmClear(delayMs = 3000) {
       if (!this.topIM || !this.sideIM || !this.trailTopIM || !this.trailSideIM) return;
+      // Cancel any in-progress trail copy job (legacy streaming path)
+      if (this._trailCopy && this._trailCopy.cancel) { try { this._trailCopy.cancel(); } catch (e) {} this._trailCopy = null; }
       // Capture current neighborhood rect so clutter can persist under the trail
       if (this._neighborRadius != null && this.centerChunk) {
         const r = this._neighborRadius;
@@ -509,24 +515,32 @@ export default {
           rowMax: (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1),
         };
       }
-      const count = this.topIM.count;
-      // Copy matrices
-      this.trailTopIM.instanceMatrix.copy(this.topIM.instanceMatrix);
-      this.trailSideIM.instanceMatrix.copy(this.sideIM.instanceMatrix);
-      this.trailTopIM.instanceMatrix.needsUpdate = true;
-      this.trailSideIM.instanceMatrix.needsUpdate = true;
-      // Colors
-      if (this.topIM.instanceColor && this.trailTopIM.instanceColor) {
-        this.trailTopIM.instanceColor.array.set(this.topIM.instanceColor.array);
-        this.trailTopIM.instanceColor.needsUpdate = true;
-      }
-      if (this.sideIM.instanceColor && this.trailSideIM.instanceColor) {
-        this.trailSideIM.instanceColor.array.set(this.sideIM.instanceColor.array);
-        this.trailSideIM.instanceColor.needsUpdate = true;
-      }
-      // Show trail
+      const count = this.topIM.count | 0;
+      // Ensure trail counts reflect the snapshot size up-front
+      this.trailTopIM.count = count;
+      this.trailSideIM.count = count;
+      // Show trail immediately
       this.trailTopIM.visible = true;
       this.trailSideIM.visible = true;
+      // Perform a synchronous copy of instance data so the trail is ready before any rebuild writes
+      try {
+        // Matrices
+        this.trailTopIM.instanceMatrix.array.set(this.topIM.instanceMatrix.array.subarray(0, count * 16), 0);
+        this.trailSideIM.instanceMatrix.array.set(this.sideIM.instanceMatrix.array.subarray(0, count * 16), 0);
+        this.trailTopIM.instanceMatrix.needsUpdate = true;
+        this.trailSideIM.instanceMatrix.needsUpdate = true;
+        // Colors (if present)
+        if (this.topIM.instanceColor && this.trailTopIM.instanceColor) {
+          this.trailTopIM.instanceColor.array.set(this.topIM.instanceColor.array.subarray(0, count * 3), 0);
+          this.trailTopIM.instanceColor.needsUpdate = true;
+        }
+        if (this.sideIM.instanceColor && this.trailSideIM.instanceColor) {
+          this.trailSideIM.instanceColor.array.set(this.sideIM.instanceColor.array.subarray(0, count * 3), 0);
+          this.trailSideIM.instanceColor.needsUpdate = true;
+        }
+      } catch (e) {
+        // As a fallback, keep trail visible without colors if copy fails
+      }
       // Reset any previous timer
       if (this.trailTimer) { clearTimeout(this.trailTimer); this.trailTimer = null; }
       // Auto-hide after delayMs
@@ -536,6 +550,24 @@ export default {
         this.trailSideIM.visible = false;
   // Clear previous rect so future clutter commits don't include it
   this._prevNeighborhoodRect = null;
+        // Cancel any leftover job ref
+        if (this._trailCopy && this._trailCopy.cancel) { try { this._trailCopy.cancel(); } catch (e) {} this._trailCopy = null; }
+      }, Math.max(0, delayMs | 0));
+    },
+    // Extend trail visibility without resnapshotting (used when moving again before trail hides)
+    extendTrail(delayMs = 3000) {
+      if (!this.trailTopIM || !this.trailSideIM) return;
+      // Ensure trail stays visible
+      this.trailTopIM.visible = true;
+      this.trailSideIM.visible = true;
+      // Reset timer to hide later
+      if (this.trailTimer) { clearTimeout(this.trailTimer); this.trailTimer = null; }
+      this.trailTimer = setTimeout(() => {
+        this.trailTimer = null;
+        this.trailTopIM.visible = false;
+        this.trailSideIM.visible = false;
+        // Clear previous rect so future clutter commits don't include it
+        this._prevNeighborhoodRect = null;
       }, Math.max(0, delayMs | 0));
     },
     
@@ -679,27 +711,10 @@ export default {
         }
       }
     },
-    // Position 3x3 chunk neighborhood around a center (wx, wy)
+    // Position neighborhood; delegate to manager
     setCenterChunk(wx, wy) {
-  // Snapshot current visible neighborhood to trail before switching
-  this.snapshotTrailAndArmClear(3000);
-  this.centerChunk.x = wx; this.centerChunk.y = wy;
-      if (this.neighborhood) {
-        this.neighborhood.setCenterChunk(wx, wy);
-      } else if (this.topIM && this.sideIM) {
-        for (let s = 0; s < this.neighborOffsets.length; s += 1) {
-          const off = this.neighborOffsets[s];
-          this.fillChunk(s, wx + off.dx, wy + off.dy);
-        }
-        this.topIM.instanceMatrix.needsUpdate = true;
-        this.sideIM.instanceMatrix.needsUpdate = true;
-        if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
-        if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-        if (this.topIM.material) this.topIM.material.needsUpdate = true;
-        if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
-      }
-  // Rebuild clutter for current 3x3 neighborhood so new chunks have props
-  this.commitClutterForNeighborhood();
+      this.centerChunk.x = wx; this.centerChunk.y = wy;
+      if (this.chunkManager) this.chunkManager.setCenterChunk(wx, wy, { trailMs: 3000 });
     },
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
@@ -707,12 +722,11 @@ export default {
       // Determine neighborhood radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
       const radius = this.generation?.expandNeighborhood ? 5 : 1;
       this._neighborRadius = radius; // cache for bounds
-      // Use ChunkNeighborhood service to build
-      if (this.neighborhood) { try { this.neighborhood.dispose(); } catch (e) {} this.neighborhood = null; }
-      this.neighborhood = new ChunkNeighborhood({
+      // Build via ChunkManager
+      if (this.chunkManager && this.chunkManager.dispose) { try { this.chunkManager.dispose(); } catch (e) {} }
+      this.chunkManager = new ChunkManager({
         scene: this.scene,
-        topGeom: this.topGeom,
-        sideGeom: this.sideGeom,
+        world: this.world,
         layoutRadius: this.layoutRadius,
         spacingFactor: this.spacingFactor,
         modelScaleFactor: this.modelScaleFactor,
@@ -722,21 +736,45 @@ export default {
         chunkRows: this.chunkRows,
         neighborRadius: radius,
         features: this.features,
-        world: this.world,
+        centerChunk: this.centerChunk,
+        hexMaxY: this.hexMaxY,
+        modelScaleY: (q, r) => {
+          const c = this.world.getCell(q, r);
+          return this.modelScaleFactor * (c ? c.yScale : 1);
+        },
         pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
+  streamBudgetMs: 6,
+  streamMaxChunksPerTick: 0,
+        onBuilt: (built) => {
+          this.topIM = built.topIM;
+          this.sideIM = built.sideIM;
+          this.trailTopIM = built.trailTopIM;
+          this.trailSideIM = built.trailSideIM;
+          this.indexToQR = built.indexToQR;
+          this.neighborOffsets = built.neighborOffsets;
+          this.countPerChunk = built.countPerChunk;
+          this._fadeUniforms = built.fadeUniforms;
+          this._fadeUniformsDepth = built.fadeUniformsDepth;
+          this._fadeUniformsTrail = built.fadeUniformsTrail;
+          this._fadeUniformsDepthTrail = built.fadeUniformsDepthTrail;
+        },
+        onPickMeshes: (meshes) => {
+          this.pickMeshes = markRaw(meshes);
+        },
+        onSnapshotTrail: (ms) => {
+          this.snapshotTrailAndArmClear(ms);
+        },
+        onExtendTrail: (ms) => {
+          this.extendTrail(ms);
+        },
+        onHideTrail: () => {
+          if (this.trailTopIM) this.trailTopIM.visible = false;
+          if (this.trailSideIM) this.trailSideIM.visible = false;
+          if (this.trailTimer) { clearTimeout(this.trailTimer); this.trailTimer = null; }
+          if (this.chunkManager) this.chunkManager.trailActive = false;
+        },
       });
-      const built = this.neighborhood.build();
-      this.topIM = built.topIM;
-      this.sideIM = built.sideIM;
-      this.trailTopIM = built.trailTopIM;
-      this.trailSideIM = built.trailSideIM;
-      this.indexToQR = built.indexToQR;
-      this.neighborOffsets = built.neighborOffsets;
-      this.countPerChunk = built.countPerChunk;
-      this._fadeUniforms = built.fadeUniforms;
-      this._fadeUniformsDepth = built.fadeUniformsDepth;
-  this._fadeUniformsTrail = built.fadeUniformsTrail;
-  this._fadeUniformsDepthTrail = built.fadeUniformsDepthTrail;
+      this.chunkManager.build(this.topGeom, this.sideGeom);
       // Create a single hover overlay mesh to avoid relying on instance colors
       if (this.topIM && this.topGeom) {
         const hoverMat = new THREE.MeshBasicMaterial({
@@ -762,32 +800,9 @@ export default {
   // Ensure colors are applied based on current toggle at startup
   this.applyChunkColors(!!this.features.chunkColors);
 
-      // Prepare clutter for the current grid
-      if (this.clutter) {
-        this.clutter.addTo(this.scene);
-        this.clutter.prepareFromGrid(this.world);
-        // If assets already loaded, commit immediately; else load then commit
-        this.clutter.loadAssets().then(() => this.commitClutterForNeighborhood());
-      }
+  // Clutter now handled by ChunkManager
 
-      // Compute a sensible default radius for radial fade based on current 3x3 chunk extents
-      // Create a tan underlay plane to show through where hexes are discarded by the radial fade
-      if (!this.fadeUnderlay) {
-        const planeSize = (this.chunkCols * this.layoutRadius * this.spacingFactor * 8);
-        const geom = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
-        geom.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xF3EED9, transparent: true, opacity: 1.0, depthWrite: false });
-  const plane = markRaw(new THREE.Mesh(geom, mat));
-        // Place slightly below the minimum terrain height
-        const y = Math.max(0.02 * this.hexMaxY * this.modelScaleFactor, 0.05);
-        plane.position.y = y;
-        plane.renderOrder = -1;
-        plane.frustumCulled = false;
-        plane.receiveShadow = false;
-        plane.castShadow = false;
-        this.scene.add(plane);
-        this.fadeUnderlay = plane;
-      }
+  // Removed tan underlay plane (fadeUnderlay) to eliminate background plane
 
       if (this.radialFade) {
         // Define hex dimensions for this scope
@@ -983,7 +998,7 @@ export default {
   if (this.world && this.world.setGeneratorTuning && this.generation && this.generation.tuning) {
     this.world.setGeneratorTuning(this.generation.tuning);
   }
-  this.clutter = markRaw(new ClutterManager());
+  this.clutter = markRaw(new ClutterManager({ streamBudgetMs: 6 }));
   // Tie clutter RNG to the same seed for deterministic placement
   if (this.clutter) this.clutter.worldSeed = this.worldSeed;
 
@@ -1412,18 +1427,7 @@ export default {
       const geom = new THREE.PlaneGeometry(planeSize * 3, planeSize * 3, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
-      // Simple sand underlay to avoid black background
-      const sandGeom = geom.clone();
-      const sandMat = new THREE.MeshBasicMaterial({ color: 0xD7C49E, transparent: true, opacity: 1.0, depthWrite: false });
-  const sand = markRaw(new THREE.Mesh(sandGeom, sandMat));
-  const sandY = Math.max(0.01 * this.hexMaxY * this.modelScaleFactor, 0.10 * minTop);
-      sand.position.y = sandY;
-      sand.renderOrder = 0;
-      sand.frustumCulled = false;
-      sand.castShadow = false;
-      sand.receiveShadow = false;
-      this.scene.add(sand);
-  this.sandMesh = sand;
+  // Removed sand underlay plane to eliminate tan plane in the scene
 
   // Water plane at global sea level (just above shallowWater threshold)
   const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
@@ -1558,14 +1562,37 @@ export default {
           hexCornerRadius: this.layoutRadius * this.contactScale,
         });
       }
-      // Keep clutter fade in sync so instances outside radius are discarded
-    if (this.clutter && this.clutter.setRadialFadeState) {
-        this.clutter.setRadialFadeState({
-          enabled: !!this.radialFade.enabled,
+      // Unify fade behavior: while chunks stream, temporarily disable discard to prevent outer-ring dropouts
+      const streaming = !!(this.chunkManager && this.chunkManager.streaming);
+      const fadeEnabled = !!this.radialFade.enabled && !streaming;
+      if (this._fadeUniforms) {
+        updateRadialFadeUniforms(this._fadeUniforms, {
           center: { x: this.orbit.target.x, y: this.orbit.target.z },
-      radius: this.radialFade.radius,
-      corner: this.layoutRadius * this.contactScale,
-      cullWholeHex: true,
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: fadeEnabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
+      }
+      if (this._fadeUniformsDepth) {
+        updateRadialFadeUniforms(this._fadeUniformsDepth, {
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          width: this.radialFade.width,
+          enabled: fadeEnabled,
+          minHeightScale: this.radialFade.minHeightScale,
+          hexCornerRadius: this.layoutRadius * this.contactScale,
+        });
+      }
+      // Keep clutter fade in sync with the same rule so behavior matches for 1x and 10x neighborhoods
+      if (this.clutter && this.clutter.setRadialFadeState) {
+        this.clutter.setRadialFadeState({
+          enabled: fadeEnabled,
+          center: { x: this.orbit.target.x, y: this.orbit.target.z },
+          radius: this.radialFade.radius,
+          corner: this.layoutRadius * this.contactScale,
+          cullWholeHex: true,
         });
       }
       // Stick large planes to the camera target to avoid visible seams
@@ -1687,7 +1714,13 @@ export default {
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
+      const targets = (this.pickMeshes || []).filter(Boolean);
+      if (targets.length === 0) {
+        this.hoverIdx = null;
+        if (this.hoverMesh) this.hoverMesh.visible = false;
+        return;
+      }
+      const intersects = this.raycaster.intersectObjects(targets, true);
       if (intersects.length > 0) {
         const hit = intersects[0];
         const idx = hit.instanceId;

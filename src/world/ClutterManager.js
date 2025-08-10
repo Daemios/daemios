@@ -30,6 +30,12 @@ export default class ClutterManager {
     this.maxPerType = 15000; // hard cap safety
   this._shadowsEnabled = false;
   this._fade = { enabled: false, center: new THREE.Vector2(0, 0), radius: 0.0, corner: 0.5, cullWholeHex: true };
+  // Streaming job state for non-blocking commits
+  this._job = null; // { token, phase, placements, tileIter, write, yCache, stats }
+  this._jobToken = 0;
+  this._rafId = null;
+  this._idleId = null;
+  this.streamBudgetMs = options.streamBudgetMs ?? 7; // per-tick budget
   }
 
   addTo(scene) { this.scene = scene; this._ensurePools(); this._attachPools(); }
@@ -176,84 +182,157 @@ export default class ClutterManager {
     this.world = worldGrid;
   }
 
-  // Build instances based on world data and spawn rules.
+  // Build instances based on world data and spawn rules (non-blocking streaming).
   commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY, filter, offsetRect, axialRect }) {
     if (!this.scene || !this.world) return;
-    const rngBase = makeRng(this.worldSeed);
-    const tileInner = layoutRadius * contactScale * this.avoidEdges;
+    // Cancel any in-flight job
+    this._cancelCommitJob();
+    const token = ++this._jobToken;
 
-    // Collect placements per type
-    const placements = new Map();
-    for (const t of this.types) placements.set(t.id, []);
-
-    const forEachTile = (cb) => {
-      if (offsetRect && typeof offsetRect === 'object') {
-        const { colMin, colMax, rowMin, rowMax } = offsetRect;
-        const offsetToAxial = (col, row) => ({ q: col, r: row - Math.floor(col / 2) });
-        for (let col = colMin; col <= colMax; col += 1) {
-          for (let row = rowMin; row <= rowMax; row += 1) {
-            const { q, r } = offsetToAxial(col, row);
-            cb(q, r);
-          }
-        }
-        return;
-      }
-      if (axialRect && typeof axialRect === 'object') {
-        const { qMin, qMax, rMin, rMax } = axialRect;
-        for (let q = qMin; q <= qMax; q += 1) {
-          for (let r = rMin; r <= rMax; r += 1) cb(q, r);
-        }
-        return;
-      }
-      const bounds = this.world.bounds();
-      for (let q = bounds.minQ; q <= bounds.maxQ; q += 1) {
-        for (let r = bounds.minR; r <= bounds.maxR; r += 1) cb(q, r);
-      }
+    // Prepare job state
+    const job = {
+      token,
+      phase: 1, // 1=collect placements, 2=ensure pools, 3=write instances
+      opts: { layoutRadius, contactScale, hexMaxY, modelScaleY, filter, offsetRect, axialRect },
+      placements: new Map(this.types.map((t) => [t.id, []])),
+      // tile iterator state
+      tileIter: this._makeTileIterator({ offsetRect, axialRect }),
+      yCache: new Map(),
+      // phase 3 write state
+      write: { typeIndex: 0, instIndex: 0, maxWritable: 0, maxScl: 0 },
     };
+    this._job = job;
 
-    forEachTile((q, r) => {
-      if (typeof filter === 'function' && !filter(q, r)) return;
-      const cell = this.world.getCell(q, r);
+  // Keep existing pools visible during streaming to avoid visible disappearance.
+  // We will only increase counts as we stream new data and set final values at the end.
+  for (const [, im] of this.pools) { if (im) { im.instanceMatrix.needsUpdate = true; } }
+
+    // Kick off streaming
+    this._scheduleCommitTick(token);
+  }
+
+  // Create a tile iterator that yields small batches of axial q,r
+  _makeTileIterator({ offsetRect, axialRect }) {
+    if (offsetRect && typeof offsetRect === 'object') {
+      const { colMin, colMax, rowMin, rowMax } = offsetRect;
+      let col = colMin;
+      let row = rowMin;
+      return {
+        next: () => {
+          if (col > colMax) return null;
+          const q = col;
+          const r = row - Math.floor(col / 2);
+          const out = { q, r };
+          row += 1;
+          if (row > rowMax) { row = rowMin; col += 1; }
+          return out;
+        },
+      };
+    }
+    if (axialRect && typeof axialRect === 'object') {
+      const { qMin, qMax, rMin, rMax } = axialRect;
+      let q = qMin;
+      let r = rMin;
+      return {
+        next: () => {
+          if (q > qMax) return null;
+          const out = { q, r };
+          r += 1;
+          if (r > rMax) { r = rMin; q += 1; }
+          return out;
+        },
+      };
+    }
+    // Full bounds fallback
+    const b = this.world.bounds();
+    let q = b.minQ; let r = b.minR;
+    return {
+      next: () => {
+        if (q > b.maxQ) return null;
+        const out = { q, r };
+        r += 1;
+        if (r > b.maxR) { r = b.minR; q += 1; }
+        return out;
+      },
+    };
+  }
+
+  _cancelCommitJob() {
+    this._job = null;
+    this._jobToken += 1;
+    if (this._rafId != null && typeof cancelAnimationFrame === 'function') {
+      try { cancelAnimationFrame(this._rafId); } catch (e) {}
+    }
+    if (this._idleId != null && typeof cancelIdleCallback === 'function') {
+      try { cancelIdleCallback(this._idleId); } catch (e) {}
+    }
+    this._rafId = null; this._idleId = null;
+  }
+
+  _scheduleCommitTick(token) {
+    const run = () => this._processCommitTick(token);
+    if (typeof requestIdleCallback === 'function') {
+      this._idleId = requestIdleCallback(run, { timeout: Math.max(4, this.streamBudgetMs) });
+    } else if (typeof requestAnimationFrame === 'function') {
+      this._rafId = requestAnimationFrame(() => run());
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
+  _processCommitTick(token) {
+    const job = this._job;
+    if (!job || token !== this._jobToken) return;
+  const { layoutRadius, contactScale, filter } = job.opts;
+  const hexMaxY = (job.opts && typeof job.opts.hexMaxY === 'number') ? job.opts.hexMaxY : 1.0;
+  const modelScaleYFn = typeof job.opts.modelScaleY === 'function' ? job.opts.modelScaleY : (() => 1.0);
+    const tileInner = layoutRadius * contactScale * this.avoidEdges;
+    const doRadialCullWholeHex = this._fade.enabled && this._fade.cullWholeHex && this._fade.radius > 0;
+    const fadeCx = this._fade.center.x;
+    const fadeCz = this._fade.center.y;
+    const fadeCorner = this._fade.corner || 0.0;
+    const tStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+    // Phase 1: generate placements by tiles
+    if (job.phase === 1) {
+      let steps = 0;
+      for (;;) {
+        const next = job.tileIter.next();
+        if (!next) { job.phase = 2; break; }
+        const { q, r } = next;
+        // Cull whole tiles if outside fade reach
+        if (doRadialCullWholeHex) {
+          const hw = layoutRadius * 1.5;
+          const hh = Math.sqrt(3) * layoutRadius;
+          const hx = hw * q;
+          const hz = hh * (r + q / 2);
+          const d = Math.hypot(hx - fadeCx, hz - fadeCz);
+          const minCenterDist = Math.max(0, d - tileInner);
+          if ((minCenterDist + fadeCorner) >= this._fade.radius) { steps += 1; if ((performance.now?.() ?? Date.now()) - tStart >= this.streamBudgetMs) break; else continue; }
+        }
+        if (typeof filter === 'function' && !filter(q, r)) { steps += 1; if ((performance.now?.() ?? Date.now()) - tStart >= this.streamBudgetMs) break; else continue; }
+        const cell = this.world.getCell(q, r);
         const biomeRules = (type) => type.biomes[cell.biome];
-        const foliage = cell.f; // 0..1
-        const temp = cell.t; // 0..1
-        // Per-tile RNG seed
+        const foliage = cell.f; const temp = cell.t;
         const seed = (q * 73856093) ^ (r * 19349663) ^ this.worldSeed;
         const rng = makeRng(seed >>> 0);
-
-        // Shared per-tile flora placements for collision across tree types
         const floraPlaced = [];
-
-  for (const typeDef of this.types) {
+        for (const typeDef of this.types) {
           const rule = biomeRules(typeDef);
           if (!rule) continue;
-          // Temperature gating for tree types
-          if (typeDef.id === 'tree_pine' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') {
-            // Prefer cold: suppress in warm temps
-            if (temp > 0.45) continue;
-          }
-          if (typeDef.id === 'tree_round' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') {
-            // Prefer warm: suppress in cold temps
-            if (temp < 0.35) continue;
-          }
-
+          if (typeDef.id === 'tree_pine' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') { if (temp > 0.45) continue; }
+          if (typeDef.id === 'tree_round' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') { if (temp < 0.35) continue; }
           const baseDensity = Math.max(0, (rule.density || 0) * this.densityMultiplier);
           const maxPerTile = Math.max(0, rule.maxPerTile || 0);
           if (baseDensity <= 0 || maxPerTile <= 0) continue;
-
-          // Capacity by foliage for flora; else derive from density directly
           let capacity;
           if (typeDef.category === 'flora') {
             const fol = THREE.MathUtils.clamp((foliage - 0.28) / (0.82 - 0.28), 0, 1);
             capacity = Math.max(0, Math.round(THREE.MathUtils.lerp(0, maxPerTile, Math.pow(fol, 1.1))));
           } else {
-            // For non-flora (e.g., rocks), don't round tiny densities to zero.
-            // Use full capacity and gate acceptance by baseDensity probability per attempt.
             capacity = Math.max(0, maxPerTile);
           }
           if (capacity <= 0) continue;
-
-          // Rejection sampling with collision avoidance; acceptance gated by biome density
           const maxAttempts = Math.max(capacity * 8, maxPerTile * 6);
           let placed = 0;
           for (let k = 0; k < maxAttempts && placed < capacity; k += 1) {
@@ -264,93 +343,167 @@ export default class ClutterManager {
             const offz = rr * Math.sin(th);
             const yaw = (typeDef.rotation && typeDef.rotation.yawRandom) ? rng.nextIn(0, Math.PI * 2) : 0;
             const scl = rng.nextIn(typeDef.scale.min, typeDef.scale.max);
-
-            // Collision radius based on desiredRadius and scale
             const baseR = (typeDef.desiredRadius || 0.3) * layoutRadius * scl;
             const minDist = baseR * 1.15 * (typeDef.category === 'flora' ? this.collisionFactorFlora : 1.0);
             let ok = true;
             if (typeDef.category === 'flora') {
               for (let j = 0; j < floraPlaced.length; j += 1) {
                 const p = floraPlaced[j];
-                const dx = offx - p.x;
-                const dz = offz - p.z;
+                const dx = offx - p.x; const dz = offz - p.z;
                 if ((dx * dx + dz * dz) < (minDist + p.minDist) * (minDist + p.minDist)) { ok = false; break; }
               }
             }
             if (!ok) continue;
-            placements.get(typeDef.id).push({ q, r, offx, offz, yaw, scl });
+            job.placements.get(typeDef.id).push({ q, r, offx, offz, yaw, scl });
             if (typeDef.category === 'flora') floraPlaced.push({ x: offx, z: offz, minDist });
             placed += 1;
           }
+        }
+        steps += 1;
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if ((now - tStart) >= this.streamBudgetMs) break;
+      }
+      if (job.phase !== 2) { this._scheduleCommitTick(token); return; }
     }
-  });
 
-    // Ensure pools exist with sufficient capacity, then write instances
-    const dummy = new THREE.Object3D();
-    const hexWidth = layoutRadius * 1.5; // spacingFactor=1
-    const hexHeight = Math.sqrt(3) * layoutRadius;
-    for (const t of this.types) {
-      const asset = this.assets.get(t.id);
-      if (!asset) continue;
-      const list = placements.get(t.id);
-      const needed = Math.min(this.maxPerType, list.length);
-      let im = this.pools.get(t.id);
-      if (!im) {
-        // Create pool on the fly if missing
-        const cap = Math.max(1, needed);
-        im = new THREE.InstancedMesh(asset.geom, asset.material, cap);
-        im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        im.count = 0;
-        im.visible = this.enabled;
-        im.frustumCulled = false; // avoid incorrect culling across wide map
-  im.castShadow = this._shadowsEnabled;
-  im.receiveShadow = this._shadowsEnabled;
-        if (asset.depthMaterial) {
-          im.customDepthMaterial = asset.depthMaterial;
-          im.customDistanceMaterial = asset.depthMaterial;
+    // Phase 2: ensure pools sized; replace if needed
+  if (job.phase === 2) {
+      for (const t of this.types) {
+        const asset = this.assets.get(t.id);
+        if (!asset) continue;
+        const list = job.placements.get(t.id);
+        const needed = Math.min(this.maxPerType, list.length);
+        let im = this.pools.get(t.id);
+        if (!im) {
+          const cap = Math.max(1, needed);
+          im = new THREE.InstancedMesh(asset.geom, asset.material, cap);
+          im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          im.count = 0;
+          im.visible = this.enabled;
+          im.frustumCulled = false;
+          im.castShadow = this._shadowsEnabled;
+          im.receiveShadow = this._shadowsEnabled;
+          if (asset.depthMaterial) { im.customDepthMaterial = asset.depthMaterial; im.customDistanceMaterial = asset.depthMaterial; }
+          if (this.scene) this.scene.add(im);
+          this.pools.set(t.id, im);
+        } else if (needed > im.instanceMatrix.count) {
+          const grown = Math.max(needed, Math.ceil(im.instanceMatrix.count * 1.5));
+          const cap = Math.min(this.maxPerType, grown);
+          const newIM = new THREE.InstancedMesh(asset.geom, asset.material, cap);
+          newIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          newIM.visible = this.enabled;
+          newIM.frustumCulled = false;
+          newIM.castShadow = this._shadowsEnabled;
+          newIM.receiveShadow = this._shadowsEnabled;
+          if (asset.depthMaterial) { newIM.customDepthMaterial = asset.depthMaterial; newIM.customDistanceMaterial = asset.depthMaterial; }
+          // Copy previous matrices to preserve current visuals
+          try {
+            const prevCount = Math.min(im.count | 0, newIM.instanceMatrix.count);
+            if (prevCount > 0) {
+              newIM.instanceMatrix.array.set(im.instanceMatrix.array.subarray(0, prevCount * 16), 0);
+              newIM.count = prevCount;
+              newIM.instanceMatrix.needsUpdate = true;
+            } else {
+              newIM.count = 0;
+            }
+          } catch (e) { newIM.count = im.count | 0; }
+          // Swap in scene
+          if (im.parent) im.parent.add(newIM); else if (this.scene) this.scene.add(newIM);
+          if (im.parent) im.parent.remove(im);
+          this.pools.set(t.id, newIM);
+        } else {
+          // Reuse existing pool; keep count so no flicker; we will overwrite progressively.
         }
-        if (this.scene) this.scene.add(im);
-        this.pools.set(t.id, im);
-      } else if (needed > im.instanceMatrix.count) {
-        // Replace with larger capacity
-        const cap = needed;
-        const newIM = new THREE.InstancedMesh(asset.geom, asset.material, cap);
-        newIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        newIM.visible = this.enabled;
-        newIM.frustumCulled = false;
-  newIM.castShadow = this._shadowsEnabled;
-  newIM.receiveShadow = this._shadowsEnabled;
-        if (asset.depthMaterial) {
-          newIM.customDepthMaterial = asset.depthMaterial;
-          newIM.customDistanceMaterial = asset.depthMaterial;
-        }
-        if (im.parent) im.parent.add(newIM); else if (this.scene) this.scene.add(newIM);
-        if (im.parent) im.parent.remove(im);
-        this.pools.set(t.id, newIM);
       }
+      // Init write state
+  job.phase = 3;
+  job.write = { typeIndex: 0, instIndex: 0, dstIndex: 0, maxWritable: 0, maxScl: 0 };
+      this._scheduleCommitTick(token);
+      return;
     }
-    // Second pass to actually write matrices after possible pool creation/replacement
-  for (const t of this.types) {
-      const im = this.pools.get(t.id);
-      if (!im) continue;
-      const list = placements.get(t.id);
-  const writeCount = Math.min(im.instanceMatrix.count, list.length);
-  for (let i = 0; i < writeCount; i += 1) {
-        const it = list[i];
-        const x = hexWidth * it.q + it.offx;
-        const z = hexHeight * (it.r + it.q / 2) + it.offz;
-  // Slight lift to avoid z-fight, kept very small to preserve contact shadows
-  const y = hexMaxY * modelScaleY(it.q, it.r) + (0.005 * layoutRadius);
-        dummy.position.set(x, y, z);
-        dummy.rotation.set(0, it.yaw, 0);
-    // Scale up to map scale: desiredRadius was relative to layoutRadius base=1
-    dummy.scale.setScalar(it.scl * layoutRadius);
-        dummy.updateMatrix();
-        im.setMatrixAt(i, dummy.matrix);
+
+    // Phase 3: write matrices progressively
+    if (job.phase === 3) {
+  const _mat = new THREE.Matrix4();
+      const _pos = new THREE.Vector3();
+      const _quat = new THREE.Quaternion();
+      const _scl = new THREE.Vector3();
+      const _axisY = new THREE.Vector3(0, 1, 0);
+      const hexWidth = layoutRadius * 1.5;
+      const hexHeight = Math.sqrt(3) * layoutRadius;
+      const doRadialCull = this._fade.enabled && this._fade.cullWholeHex && this._fade.radius > 0;
+      const cx = this._fade.center.x; const cz = this._fade.center.y; const cornerR = this._fade.corner || 0.0;
+      // Write across types with time budget
+      for (;;) {
+        if (job.write.typeIndex >= this.types.length) { break; }
+        const t = this.types[job.write.typeIndex];
+        const im = this.pools.get(t.id);
+        if (!im) { job.write.typeIndex += 1; job.write.instIndex = 0; job.write.dstIndex = 0; job.write.maxWritable = 0; job.write.maxScl = 0; continue; }
+        const list = job.placements.get(t.id);
+        if (job.write.maxWritable === 0) job.write.maxWritable = Math.min(im.instanceMatrix.count, list.length);
+        const asset = this.assets.get(t.id);
+        let maxScl = job.write.maxScl;
+        while (job.write.instIndex < job.write.maxWritable) {
+          const it = list[job.write.instIndex];
+          const x = hexWidth * it.q + it.offx;
+          const z = hexHeight * (it.r + it.q / 2) + it.offz;
+          if (doRadialCull) {
+            const dx = x - cx; const dz = z - cz; const cDist = Math.hypot(dx, dz);
+            if ((cDist + cornerR) >= this._fade.radius) { job.write.instIndex += 1; continue; }
+          }
+          // Y cache per (q,r)
+          const key = it.q + ',' + it.r;
+          let y = job.yCache.get(key);
+          if (y === undefined) { y = hexMaxY * modelScaleYFn(it.q, it.r) + (0.005 * layoutRadius); job.yCache.set(key, y); }
+          _pos.set(x, y, z);
+          _quat.setFromAxisAngle(_axisY, it.yaw);
+          _scl.setScalar(it.scl * layoutRadius);
+          _mat.compose(_pos, _quat, _scl);
+          // Write to a stable destination index (overwriting front); avoid shrinking visible count mid-stream
+          const wIdx = job.write.dstIndex;
+          if (wIdx < im.instanceMatrix.count) im.setMatrixAt(wIdx, _mat);
+          // Non-decreasing visible count during stream
+          im.count = Math.max(im.count || 0, wIdx + 1);
+          if (it.scl > maxScl) maxScl = it.scl;
+          job.write.instIndex += 1;
+          job.write.dstIndex += 1;
+
+          // Budget check per few instances
+          const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          if ((now - tStart) >= this.streamBudgetMs) {
+            im.instanceMatrix.needsUpdate = true;
+            job.write.maxScl = maxScl;
+            this._scheduleCommitTick(token);
+            return;
+          }
+        }
+        // Finished this type; finalize frustum tuning and advance
+  // Finalize this type: clamp to written count, then update visibility
+  im.count = Math.min(job.write.dstIndex, im.instanceMatrix.count);
+  im.instanceMatrix.needsUpdate = true;
+  im.visible = this.enabled && im.count > 0;
+        if (doRadialCull && im.count > 0 && asset && asset.geom) {
+          const geomBS = asset.geom.boundingSphere;
+          const baseModelR = geomBS ? geomBS.radius : (t.desiredRadius || 0.5);
+          const modelR = baseModelR * layoutRadius * (maxScl || 1);
+          const sphereR = this._fade.radius + cornerR + modelR;
+          const bs = new THREE.Sphere(new THREE.Vector3(cx, 0, cz), sphereR);
+          if (!asset.geom._daemiosSharedCloned) {
+            const cloned = asset.geom.clone(); cloned.boundingSphere = bs; im.geometry = cloned; asset.geom._daemiosSharedCloned = true;
+          } else {
+            im.geometry.boundingSphere = bs;
+          }
+          im.frustumCulled = true;
+        } else if (!doRadialCull) {
+          im.frustumCulled = false;
+        }
+  job.write.typeIndex += 1; job.write.instIndex = 0; job.write.dstIndex = 0; job.write.maxWritable = 0; job.write.maxScl = 0;
+        const now2 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if ((now2 - tStart) >= this.streamBudgetMs) { this._scheduleCommitTick(token); return; }
       }
-      im.instanceMatrix.needsUpdate = true;
-  im.count = writeCount;
-  im.visible = this.enabled && writeCount > 0;
+  // Done all types
+  this._job = null;
+      return;
     }
   }
 

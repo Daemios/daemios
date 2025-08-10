@@ -18,6 +18,9 @@ export default class ChunkNeighborhood {
     this.features = opts.features || {};
     this.world = opts.world; // expects getCell(q,r)
     this.pastelColorForChunk = opts.pastelColorForChunk || ((wx, wy) => new THREE.Color(0xffffff));
+  // Streaming build tuning (helps avoid long stalls on large neighborhoods)
+  this.streamBudgetMs = opts.streamBudgetMs ?? 6; // max ms of work per tick
+  this.streamMaxChunksPerTick = opts.streamMaxChunksPerTick ?? 0; // 0 = unlimited per tick
 
     this.countPerChunk = this.chunkCols * this.chunkRows;
     this.neighborOffsets = this.computeNeighborOffsets(this.neighborRadius);
@@ -29,6 +32,23 @@ export default class ChunkNeighborhood {
     this.indexToQR = [];
     this._fadeUniforms = null;
     this._fadeUniformsDepth = null;
+
+  // Internal streaming build state
+  this._buildQueue = null; // Array of {slotIndex, wx, wy, startIdx}
+  this._buildCursor = 0;
+  this._buildToken = 0; // increment to cancel in-flight builds
+  this._rafId = null; // requestAnimationFrame handle
+  this._idleId = null; // requestIdleCallback handle (if available)
+  this._writtenUntil = 0; // progressive visible instance count
+  this._targetCount = 0; // final expected instance count for current build
+  this._onBuildComplete = typeof opts.onBuildComplete === 'function' ? opts.onBuildComplete : null;
+  this._onBuildStart = typeof opts.onBuildStart === 'function' ? opts.onBuildStart : null;
+
+  // Persistent slot assignment across moves: keeps overlapping world chunks in the same slot
+  // so their instance ranges (startIdx) do not change and do not require rewriting.
+  this._slotAssignments = []; // index: slotIndex -> { wx, wy } | null
+  this._chunkToSlot = new Map(); // key "wx,wy" -> slotIndex
+  this._slotProgress = []; // index: slotIndex -> boolean (true when fully built)
   }
 
   computeNeighborOffsets(radius) {
@@ -57,6 +77,9 @@ export default class ChunkNeighborhood {
 
     this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
     this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
+  // Avoid incorrect whole-mesh frustum culling while instances span a wide area
+  this.topIM.frustumCulled = false;
+  this.sideIM.frustumCulled = false;
     this.topIM.customDepthMaterial = topDepth;
     this.topIM.customDistanceMaterial = topDepth;
     this.sideIM.customDepthMaterial = sideDepth;
@@ -89,6 +112,9 @@ export default class ChunkNeighborhood {
 
     this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMatTrail, total));
     this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMatTrail, total));
+  // Avoid incorrect culling of wide-span trails
+  this.trailTopIM.frustumCulled = false;
+  this.trailSideIM.frustumCulled = false;
     this.trailTopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trailSideIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
@@ -103,6 +129,10 @@ export default class ChunkNeighborhood {
     this.trailSideIM.customDistanceMaterial = sideDepthTrail;
     this.scene.add(this.trailSideIM);
     this.scene.add(this.trailTopIM);
+
+  // Initialize slot assignments array length
+  this._slotAssignments = new Array(this.neighborOffsets.length).fill(null);
+  this._slotProgress = new Array(this.neighborOffsets.length).fill(false);
 
     return {
       topIM: this.topIM,
@@ -119,7 +149,7 @@ export default class ChunkNeighborhood {
     };
   }
 
-  fillChunk(slotIndex, wx, wy) {
+  fillChunk(slotIndex, wx, wy, instBaseOverride) {
     if (!this.topIM || !this.sideIM) return;
     const layoutRadius = this.layoutRadius;
     const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
@@ -129,12 +159,16 @@ export default class ChunkNeighborhood {
     const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
     const baseCol = wx * this.chunkCols;
     const baseRow = wy * this.chunkRows;
-    const startIdx = slotIndex * this.countPerChunk;
+  const startIdx = (typeof instBaseOverride === 'number') ? instBaseOverride : (slotIndex * this.countPerChunk);
     let local = 0;
     const useChunkColors = !!this.features.chunkColors;
     const cTop = this.pastelColorForChunk(wx, wy);
     const cSide = cTop.clone().multiplyScalar(0.8);
-    const dummy = this._transformDummy || (this._transformDummy = markRaw(new THREE.Object3D()));
+  // Preallocated math objects for fast instance matrix composition (no per-instance clones)
+  const _mat = this._mat || (this._mat = new THREE.Matrix4());
+  const _pos = this._pos || (this._pos = new THREE.Vector3());
+  const _scl = this._scl || (this._scl = new THREE.Vector3());
+  const _quatIdentity = this._quatIdentity || (this._quatIdentity = new THREE.Quaternion(0, 0, 0, 1));
     for (let row = 0; row < this.chunkRows; row += 1) {
       for (let col = 0; col < this.chunkCols; col += 1) {
         const gCol = baseCol + col;
@@ -144,16 +178,17 @@ export default class ChunkNeighborhood {
         const x = hexWidth * q;
         const z = hexHeight * (r + q / 2);
         const cell = this.world ? this.world.getCell(q, r) : null;
-        const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-        dummy.position.set(x, 0, z);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-        dummy.updateMatrix();
-        const topMatrix = dummy.matrix.clone();
-        const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-        dummy.scale.set(sideXZ, sideY, sideXZ);
-        dummy.updateMatrix();
-        const sideMatrix = dummy.matrix.clone();
+  const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+  // Top matrix
+  _pos.set(x, 0, z);
+  _scl.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+  _mat.compose(_pos, _quatIdentity, _scl);
+  const topMatrix = _mat;
+  // Side matrix (only Y changes)
+  const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
+  _scl.set(sideXZ, sideY, sideXZ);
+  _mat.compose(_pos, _quatIdentity, _scl);
+  const sideMatrix = _mat;
         const instIdx = startIdx + local;
         this.topIM.setMatrixAt(instIdx, topMatrix);
         this.sideIM.setMatrixAt(instIdx, sideMatrix);
@@ -172,23 +207,208 @@ export default class ChunkNeighborhood {
     }
   }
 
-  setCenterChunk(wx, wy) {
-    if (!this.topIM || !this.sideIM) return;
-    for (let s = 0; s < this.neighborOffsets.length; s += 1) {
-      const off = this.neighborOffsets[s];
-      this.fillChunk(s, wx + off.dx, wy + off.dy);
+  // A time-sliced variant that fills a chunk progressively, resuming from task.state
+  _fillChunkSlice(task, budgetRows = 2) {
+    // Ensure state
+    if (!task.state) {
+      task.state = {
+        row: 0,
+        local: 0,
+        baseCol: task.wx * this.chunkCols,
+        baseRow: task.wy * this.chunkRows,
+        cTop: this.pastelColorForChunk(task.wx, task.wy),
+        cSide: null,
+      };
+      task.state.cSide = task.state.cTop.clone().multiplyScalar(0.8);
     }
-    this.topIM.instanceMatrix.needsUpdate = true;
-    this.sideIM.instanceMatrix.needsUpdate = true;
-    if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
-    if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-    if (this.topIM.material) this.topIM.material.needsUpdate = true;
-    if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+    const st = task.state;
+    const layoutRadius = this.layoutRadius;
+    const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+    const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+    const sx = this.modelScaleFactor;
+    const xzScale = sx * this.contactScale;
+    const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
+    const useChunkColors = !!this.features.chunkColors;
+
+    const _mat = this._mat || (this._mat = new THREE.Matrix4());
+    const _pos = this._pos || (this._pos = new THREE.Vector3());
+    const _scl = this._scl || (this._scl = new THREE.Vector3());
+    const _quatIdentity = this._quatIdentity || (this._quatIdentity = new THREE.Quaternion(0, 0, 0, 1));
+
+    let rowsDone = 0;
+    while (st.row < this.chunkRows && rowsDone < budgetRows) {
+      const row = st.row;
+      for (let col = 0; col < this.chunkCols; col += 1) {
+        const gCol = st.baseCol + col;
+        const gRow = st.baseRow + row;
+        const q = gCol;
+        const r = gRow - Math.floor(gCol / 2);
+        const x = hexWidth * q;
+        const z = hexHeight * (r + q / 2);
+        const cell = this.world ? this.world.getCell(q, r) : null;
+        const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+        _pos.set(x, 0, z);
+        _scl.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+        _mat.compose(_pos, _quatIdentity, _scl);
+        const instIdx = task.startIdx + st.local;
+        this.topIM.setMatrixAt(instIdx, _mat);
+        const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
+        _scl.set(sideXZ, sideY, sideXZ);
+        _mat.compose(_pos, _quatIdentity, _scl);
+        this.sideIM.setMatrixAt(instIdx, _mat);
+        if (useChunkColors) {
+          this.topIM.setColorAt(instIdx, st.cTop);
+          this.sideIM.setColorAt(instIdx, st.cSide);
+        } else {
+          const topC = cell ? cell.colorTop : st.cTop;
+          const sideC = cell ? cell.colorSide : st.cSide;
+          this.topIM.setColorAt(instIdx, topC);
+          this.sideIM.setColorAt(instIdx, sideC);
+        }
+        this.indexToQR[instIdx] = { q, r, wx: task.wx, wy: task.wy, col: gCol, row: gRow };
+        st.local += 1;
+      }
+      st.row += 1;
+      rowsDone += 1;
+      // Update progressive visible count (since tasks are packed sequentially)
+      this._writtenUntil = Math.max(this._writtenUntil, task.startIdx + st.local);
+    }
+    const done = (st.row >= this.chunkRows);
+    return done;
+  }
+
+  setCenterChunk(wx, wy, options = {}) {
+    if (!this.topIM || !this.sideIM) return;
+    // Cancel any in-flight streaming build
+    this._cancelStreamingBuild();
+
+    // If whole-hex radial fade culling is active, skip chunks that cannot contribute
+    const ufTop = this._fadeUniforms && this._fadeUniforms.top;
+    const doCull = !!(ufTop && ufTop.uFadeEnabled && ufTop.uFadeEnabled.value === 1 && ufTop.uCullWholeHex && ufTop.uCullWholeHex.value === 1);
+    const fadeCenter = doCull && ufTop.uFadeCenter && ufTop.uFadeCenter.value ? ufTop.uFadeCenter.value : null;
+    const fadeRadius = doCull && ufTop.uFadeRadius ? ufTop.uFadeRadius.value : 0;
+    const fadeCorner = doCull && ufTop.uHexCornerRadius ? ufTop.uHexCornerRadius.value : 0;
+    const layoutRadius = this.layoutRadius;
+    const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
+    const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
+
+    // Determine desired chunks for new center
+    const totalSlots = this.neighborOffsets.length;
+    const desired = [];
+    const desiredKeys = new Set();
+    for (let i = 0; i < totalSlots; i += 1) {
+      const off = this.neighborOffsets[i];
+      const cw = wx + off.dx;
+      const cy = wy + off.dy;
+      const key = `${cw},${cy}`;
+      desired.push({ wx: cw, wy: cy, key });
+      desiredKeys.add(key);
+    }
+
+    const tasks = [];
+    if (this._chunkToSlot.size === 0) {
+      // First-time build: assign all desired into their index-matched slots
+      for (let i = 0; i < totalSlots; i += 1) {
+        const d = desired[i];
+        this._slotAssignments[i] = { wx: d.wx, wy: d.wy };
+        this._chunkToSlot.set(d.key, i);
+        this._slotProgress[i] = false;
+        tasks.push({ slotIndex: i, wx: d.wx, wy: d.wy, startIdx: i * this.countPerChunk });
+      }
+    } else {
+      // Compute keepers (present in both old and new) and leavers (present before, not now)
+      const reservedSlots = new Set();
+      const leaverSlots = [];
+      for (const [key, slot] of this._chunkToSlot.entries()) {
+        if (desiredKeys.has(key)) {
+          reservedSlots.add(slot);
+        } else {
+          leaverSlots.push(slot);
+        }
+      }
+      // Re-enqueue any keeper slot that didn't finish last build so it completes across rapid moves
+      for (const [key, slot] of this._chunkToSlot.entries()) {
+        if (desiredKeys.has(key) && this._slotProgress[slot] !== true) {
+          const [cwStr, cyStr] = key.split(',');
+          const cw = parseInt(cwStr, 10); const cy = parseInt(cyStr, 10);
+          tasks.push({ slotIndex: slot, wx: cw, wy: cy, startIdx: slot * this.countPerChunk });
+        }
+      }
+      // Build list of arrivals (in desired but not in old)
+      const arrivals = desired.filter((d) => !this._chunkToSlot.has(d.key));
+      // Assign arrivals to freed slots; fallback to any unreserved slot if needed
+      let freeIter = 0;
+      const isReserved = (idx) => reservedSlots.has(idx);
+      const nextUnreserved = () => {
+        while (freeIter < totalSlots) {
+          if (!isReserved(freeIter)) return freeIter++;
+          freeIter += 1;
+        }
+        return -1;
+      };
+      const freeSlotsQueue = leaverSlots.slice();
+      for (const arr of arrivals) {
+        let slotIndex = freeSlotsQueue.length > 0 ? freeSlotsQueue.shift() : nextUnreserved();
+        if (slotIndex < 0) slotIndex = 0;
+        this._slotAssignments[slotIndex] = { wx: arr.wx, wy: arr.wy };
+        this._chunkToSlot.set(arr.key, slotIndex);
+        reservedSlots.add(slotIndex);
+        this._slotProgress[slotIndex] = false;
+        tasks.push({ slotIndex, wx: arr.wx, wy: arr.wy, startIdx: slotIndex * this.countPerChunk });
+      }
+      // Cleanup leavers from reverse map
+      for (const slot of leaverSlots) {
+        for (const [k, s] of this._chunkToSlot.entries()) {
+          if (s === slot && !desiredKeys.has(k)) { this._chunkToSlot.delete(k); break; }
+        }
+      }
+    }
+
+  // While streaming, temporarily disable radial fade discard on tiles and the trail to avoid abrupt dropouts
+    this._fadePrevEnabledTop = (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uFadeEnabled) ? this._fadeUniforms.top.uFadeEnabled.value : 0;
+    this._fadePrevEnabledSide = (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uFadeEnabled) ? this._fadeUniforms.side.uFadeEnabled.value : 0;
+  this._fadePrevEnabledTopTrail = (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uFadeEnabled) ? this._fadeUniformsTrail.top.uFadeEnabled.value : 0;
+  this._fadePrevEnabledSideTrail = (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uFadeEnabled) ? this._fadeUniformsTrail.side.uFadeEnabled.value : 0;
+    if (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uFadeEnabled) this._fadeUniforms.top.uFadeEnabled.value = 0;
+    if (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uFadeEnabled) this._fadeUniforms.side.uFadeEnabled.value = 0;
+    if (this._fadeUniformsDepth && this._fadeUniformsDepth.top && this._fadeUniformsDepth.top.uFadeEnabled) this._fadeUniformsDepth.top.uFadeEnabled.value = 0;
+    if (this._fadeUniformsDepth && this._fadeUniformsDepth.side && this._fadeUniformsDepth.side.uFadeEnabled) this._fadeUniformsDepth.side.uFadeEnabled.value = 0;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uFadeEnabled) this._fadeUniformsTrail.top.uFadeEnabled.value = 0;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uFadeEnabled) this._fadeUniformsTrail.side.uFadeEnabled.value = 0;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.top && this._fadeUniformsDepthTrail.top.uFadeEnabled) this._fadeUniformsDepthTrail.top.uFadeEnabled.value = 0;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.side && this._fadeUniformsDepthTrail.side.uFadeEnabled) this._fadeUniformsDepthTrail.side.uFadeEnabled.value = 0;
+
+    // Notify host that streaming is starting
+    if (this._onBuildStart) { try { this._onBuildStart(); } catch (e) {} }
+  // Start streaming build with a fresh token
+    const token = ++this._buildToken;
+  // Attach per-task state and ensure increasing startIdx order
+  this._buildQueue = tasks.map((t) => ({ ...t, state: null }));
+    this._buildCursor = 0;
+  // Store target final count for this build (accounts for any culling)
+  // Since we are only updating arrivals, the total visible count should remain unchanged during streaming.
+  this._targetCount = this.neighborOffsets.length * this.countPerChunk;
+  // Keep previous counts visible while streaming new content; on first pass, ramp up from 0
+  this._writtenUntil = Math.min(this.topIM.count | 0, this.indexToQR.length);
+  if ((this._writtenUntil | 0) === 0) {
+    // Show at least the range up to first task start to make progress visible
+    if (tasks.length > 0) this._writtenUntil = Math.max(this._writtenUntil, tasks[0].startIdx);
+  }
+  // Clamp previous visible counts to whole-chunk boundaries to avoid showing partial chunks
+  const prevTop = this.topIM.count | 0;
+  const prevSide = this.sideIM.count | 0;
+  const prevSafeTop = Math.floor(prevTop / this.countPerChunk) * this.countPerChunk;
+  const prevSafeSide = Math.floor(prevSide / this.countPerChunk) * this.countPerChunk;
+  this._prevVisibleTop = prevSafeTop;
+  this._prevVisibleSide = prevSafeSide;
+  if (this.topIM.count !== prevSafeTop) this.topIM.count = prevSafeTop;
+  if (this.sideIM.count !== prevSafeSide) this.sideIM.count = prevSafeSide;
+    this._scheduleStreamingTick(token);
   }
 
   applyChunkColors(enabled) {
     if (!this.topIM || !this.sideIM || !this.indexToQR) return;
-    const count = this.indexToQR.length;
+  const count = this.topIM ? this.topIM.count : (this.indexToQR ? this.indexToQR.length : 0);
     const tmpTop = new THREE.Color();
     const tmpSide = new THREE.Color();
     for (let i = 0; i < count; i += 1) {
@@ -209,8 +429,7 @@ export default class ChunkNeighborhood {
     }
     if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
     if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
-    if (this.topIM.material) this.topIM.material.needsUpdate = true;
-    if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+  // No material recompile needed when only colors change
   }
 
   dispose() {
@@ -223,5 +442,106 @@ export default class ChunkNeighborhood {
     };
     disposeIM(this.topIM); disposeIM(this.sideIM); disposeIM(this.trailTopIM); disposeIM(this.trailSideIM);
     this.topIM = null; this.sideIM = null; this.trailTopIM = null; this.trailSideIM = null;
+  }
+
+  // --- Streaming helpers ---
+  _cancelStreamingBuild() {
+    this._buildQueue = null;
+    this._buildCursor = 0;
+    this._buildToken += 1; // invalidate any pending tick
+    if (this._rafId != null && typeof cancelAnimationFrame === 'function') {
+      try { cancelAnimationFrame(this._rafId); } catch (e) {}
+    }
+    if (this._idleId != null && typeof cancelIdleCallback === 'function') {
+      try { cancelIdleCallback(this._idleId); } catch (e) {}
+    }
+    this._rafId = null;
+    this._idleId = null;
+  }
+
+  _scheduleStreamingTick(token) {
+    const run = () => this._processStreamingTick(token);
+    // Use rAF for predictable, steady progress every frame
+    if (typeof requestAnimationFrame === 'function') {
+      this._rafId = requestAnimationFrame(() => run());
+    } else {
+      // Fallback
+      setTimeout(run, 0);
+    }
+  }
+
+  _processStreamingTick(token) {
+    if (!this._buildQueue || token !== this._buildToken) return; // canceled or superseded
+    const tStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    let chunksDone = 0;
+
+    while (this._buildCursor < this._buildQueue.length) {
+      const task = this._buildQueue[this._buildCursor];
+  // Fill a slice (few rows) of current chunk
+  const finished = this._fillChunkSlice(task, 4); // 4 rows per slice for faster progress
+      // Update visible counts progressively (tasks are packed sequentially)
+  // Only reveal complete chunks: floor to chunk multiple to avoid partial rows showing
+  const safeUntil = Math.floor(this._writtenUntil / this.countPerChunk) * this.countPerChunk;
+  this.topIM.count = Math.max(this._prevVisibleTop || 0, safeUntil);
+  this.sideIM.count = Math.max(this._prevVisibleSide || 0, safeUntil);
+
+      // Check budget after each slice, not only per-chunk
+      const tNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const elapsed = tNow - tStart;
+      if (elapsed >= this.streamBudgetMs) {
+        // Flush GPU updates for work done this tick
+        this.topIM.instanceMatrix.needsUpdate = true;
+        this.sideIM.instanceMatrix.needsUpdate = true;
+        if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+        if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+        this._scheduleStreamingTick(token);
+        return;
+      }
+
+      if (finished) {
+        // Move to next chunk task
+        this._buildCursor += 1;
+        // Mark slot complete
+        if (typeof task.slotIndex === 'number' && this._slotProgress) {
+          this._slotProgress[task.slotIndex] = true;
+        }
+        chunksDone += 1;
+        // Optional per-tick task limit
+  if (chunksDone === 0 || (this.streamMaxChunksPerTick > 0 && chunksDone >= this.streamMaxChunksPerTick)) {
+          this.topIM.instanceMatrix.needsUpdate = true;
+          this.sideIM.instanceMatrix.needsUpdate = true;
+          if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+          if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+          this._scheduleStreamingTick(token);
+          return;
+        }
+      }
+    }
+
+  // All tasks done: final flush
+    this.topIM.instanceMatrix.needsUpdate = true;
+    this.sideIM.instanceMatrix.needsUpdate = true;
+    if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+    if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
+    // Clear queue
+    this._buildQueue = null;
+    this._buildCursor = 0;
+  // Ensure counts reflect completion (now safe to reduce to exact new total)
+  this._writtenUntil = Math.max(this._writtenUntil, this._targetCount);
+  const finalCount = Math.min(this._targetCount, this.indexToQR.length);
+  this.topIM.count = finalCount;
+  this.sideIM.count = finalCount;
+  this._prevVisibleTop = this.topIM.count;
+  this._prevVisibleSide = this.sideIM.count;
+  if (this._onBuildComplete) { try { this._onBuildComplete(); } catch (e) {} }
+  // Restore fade state after streaming completes
+  if (this._fadeUniforms && this._fadeUniforms.top && this._fadeUniforms.top.uFadeEnabled) this._fadeUniforms.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
+  if (this._fadeUniforms && this._fadeUniforms.side && this._fadeUniforms.side.uFadeEnabled) this._fadeUniforms.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
+  if (this._fadeUniformsDepth && this._fadeUniformsDepth.top && this._fadeUniformsDepth.top.uFadeEnabled) this._fadeUniformsDepth.top.uFadeEnabled.value = this._fadePrevEnabledTop ? 1 : 0;
+  if (this._fadeUniformsDepth && this._fadeUniformsDepth.side && this._fadeUniformsDepth.side.uFadeEnabled) this._fadeUniformsDepth.side.uFadeEnabled.value = this._fadePrevEnabledSide ? 1 : 0;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.top && this._fadeUniformsTrail.top.uFadeEnabled) this._fadeUniformsTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
+  if (this._fadeUniformsTrail && this._fadeUniformsTrail.side && this._fadeUniformsTrail.side.uFadeEnabled) this._fadeUniformsTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.top && this._fadeUniformsDepthTrail.top.uFadeEnabled) this._fadeUniformsDepthTrail.top.uFadeEnabled.value = this._fadePrevEnabledTopTrail ? 1 : 0;
+  if (this._fadeUniformsDepthTrail && this._fadeUniformsDepthTrail.side && this._fadeUniformsDepthTrail.side.uFadeEnabled) this._fadeUniformsDepthTrail.side.uFadeEnabled.value = this._fadePrevEnabledSideTrail ? 1 : 0;
   }
 }
