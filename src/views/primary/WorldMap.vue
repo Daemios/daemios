@@ -52,7 +52,6 @@
       @toggle-clutter="onToggleClutter"
       @toggle-shadows="onToggleShadows"
       @toggle-water="onToggleWater"
-      @toggle-sand="onToggleSand"
       @toggle-chunk-colors="onToggleChunkColors"
   @toggle-directions="onToggleDirections"
       @toggle-radial-fade="onToggleRadialFade"
@@ -74,7 +73,6 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import SimplexNoise from 'simplex-noise';
 import api from '@/functions/api';
 import { BIOME_THRESHOLDS } from '@/terrain/biomes';
 import WorldGrid from '@/world/WorldGrid';
@@ -124,7 +122,6 @@ export default {
   chunkManager: null,
   // Water
   waterMesh: null,
-  sandMesh: null,
   waterMaterial: null,
   waterStyle: 'realistic', // 'realistic' | 'stylized'
   waterSeabedTex: null,
@@ -239,7 +236,7 @@ export default {
   
   // Debug / Features (defaults; will be overridden from settings if present)
   debug: { show: true },
-  features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
+  features: { shadows: true, water: true, chunkColors: true, clutter: true },
   // Directions helper overlay
   _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
@@ -406,7 +403,12 @@ export default {
       if (this.clutterCommitTimer) { clearTimeout(this.clutterCommitTimer); this.clutterCommitTimer = null; }
       this.clutterCommitTimer = setTimeout(() => {
         this.clutterCommitTimer = null;
-        this.commitClutterForNeighborhood();
+        // Prefer ChunkManager's commit (unions with trail correctly)
+        if (this.chunkManager && this.chunkManager.commitClutterForNeighborhood) {
+          this.chunkManager.commitClutterForNeighborhood();
+        } else {
+          this.commitClutterForNeighborhood();
+        }
       }, Math.max(0, delayMs | 0));
     },
   setupRadialFade(mat, bucketKey) {
@@ -709,14 +711,18 @@ export default {
       }
     },
     onToggleClutter() {
-      if (this.clutter) {
-        this.clutter.setEnabled(!!this.features.clutter);
-        // If enabling and no instances yet, prepare/commit
-        if (this.features.clutter && this.world) {
-          this.clutter.addTo(this.scene);
-          this.clutter.prepareFromGrid(this.world);
-          // Use neighborhood-aware commit so clutter appears across current 3x3 and respects fade
-          this.commitClutterForNeighborhood();
+      const svc = (this.chunkManager && this.chunkManager.clutter) ? this.chunkManager.clutter : this.clutter;
+      if (svc) {
+        const enable = !!this.features.clutter;
+        svc.setEnabled(enable);
+        if (enable) {
+          // Ensure attached and prepared, then commit current area
+          svc.addTo(this.scene);
+          if (this.world) svc.prepareFromGrid(this.world);
+          this.scheduleClutterCommit(0);
+        } else {
+          // Detach from scene to guarantee removal
+          svc.removeFrom(this.scene);
         }
       }
   // Refresh direction frame to match new neighborhood bounds
@@ -888,6 +894,7 @@ export default {
       this.chunkManager = new ChunkManager({
         scene: this.scene,
         world: this.world,
+  clutter: this.clutter,
         layoutRadius: this.layoutRadius,
         spacingFactor: this.spacingFactor,
         modelScaleFactor: this.modelScaleFactor,
@@ -1650,9 +1657,8 @@ export default {
     },
     buildWater() {
       const __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-      // Remove old
-      if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
-  if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
+  // Remove old
+  if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
   // No stencil instanced mesh to remove anymore
     // 1) Create land mask/seabed textures sized to fully cover the water plane (plus padding)
       const radius = this._neighborRadius != null ? this._neighborRadius : 1;
@@ -1856,9 +1862,8 @@ export default {
 
   // No stencil instanced mesh; water draws across the plane and masks via textures
 
-      const visible = !!this.features.water;
-      if (this.waterMesh) this.waterMesh.visible = visible;
-      if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && visible;
+  const visible = !!this.features.water;
+  if (this.waterMesh) this.waterMesh.visible = visible;
     },
   // rebuildWaterStencil: removed (no stencil)
     getHeight(q, r) {
@@ -1978,8 +1983,9 @@ export default {
           hexCornerRadius: this.layoutRadius * this.contactScale,
         });
       }
-      if (this.clutter && this.clutter.setRadialFadeState) {
-        this.clutter.setRadialFadeState({ enabled: fadeEnabled, center: { x: this.orbit.target.x, y: this.orbit.target.z }, radius: this.radialFade.radius, corner: this.layoutRadius * this.contactScale, cullWholeHex: true });
+      const cfade = (this.chunkManager && this.chunkManager.clutter) ? this.chunkManager.clutter : this.clutter;
+      if (cfade && cfade.setRadialFadeState) {
+        cfade.setRadialFadeState({ enabled: fadeEnabled, center: { x: this.orbit.target.x, y: this.orbit.target.z }, radius: this.radialFade.radius, corner: this.layoutRadius * this.contactScale, cullWholeHex: true });
       }
       if (this.profilerEnabled) profiler.end('frame.fadeUniforms');
 
@@ -2410,11 +2416,7 @@ export default {
     },
     onToggleWater() {
       if (!this.waterMesh) this.buildWater();
-    if (this.waterMesh) this.waterMesh.visible = this.features.water;
-    if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && this.features.water;
-    },
-    onToggleSand() {
-      if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && !!this.features.water;
+  if (this.waterMesh) this.waterMesh.visible = this.features.water;
     },
     runBenchmark() {
       if (this.benchmark.running) return;

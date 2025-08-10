@@ -30,7 +30,6 @@
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.clutter" @change="onToggleFeature('clutter', $event)"> Clutter</label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.shadows" @change="onToggleFeature('shadows', $event)"> Shadows</label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.water" @change="onToggleFeature('water', $event)"> Water</label>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.sandUnderlay" @change="onToggleFeature('sandUnderlay', $event)"> Sand</label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.chunkColors" @change="onToggleFeature('chunkColors', $event)"> Chunk colors</label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="radialLocal.enabled" @change="onToggleRadialFade($event)"> Radial fade</label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" :checked="featuresLocal.directions" @change="onToggleFeature('directions', $event)"> Directions</label>
@@ -126,7 +125,6 @@ export default {
     'toggle-clutter',
     'toggle-shadows',
     'toggle-water',
-    'toggle-sand',
     'toggle-chunk-colors',
   'toggle-directions',
     'toggle-radial-fade',
@@ -148,7 +146,7 @@ export default {
       this.$emit('update:features', next);
       // Fire specific hooks for parent side-effects
       const map = {
-  clutter: 'toggle-clutter', shadows: 'toggle-shadows', water: 'toggle-water', sandUnderlay: 'toggle-sand', chunkColors: 'toggle-chunk-colors', directions: 'toggle-directions',
+  clutter: 'toggle-clutter', shadows: 'toggle-shadows', water: 'toggle-water', chunkColors: 'toggle-chunk-colors', directions: 'toggle-directions',
       };
       const ev = map[key]; if (ev) this.$emit(ev);
     },
