@@ -124,8 +124,10 @@ export default function createSeaWavesMaterial(options = {}) {
       // Combine
       float crests = clamp(L1 * uStrength1 + L2 * uStrength2, 0.0, 1.0);
       vec3 color = mix(base, uFoam, crests);
-
-      gl_FragColor = vec4(color, uOpacity);
+      float alpha = clamp(uOpacity, 0.0, 1.0);
+      float dither = hash(gl_FragCoord.xy);
+      if (alpha < dither) discard;
+      gl_FragColor = vec4(color, 1.0);
     }
   `;
 
@@ -133,8 +135,8 @@ export default function createSeaWavesMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
     polygonOffset: true,
     polygonOffsetFactor: -1,

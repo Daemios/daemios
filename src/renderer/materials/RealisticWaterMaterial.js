@@ -236,7 +236,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   alpha = max(alpha, bandsSolid);
   // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
   alpha *= mix(1.0, covSoft * inside, step(0.5, waveMaskSolid));
-  gl_FragColor = vec4(col, alpha);
+  // Dither-based transparency: convert alpha to a stipple pattern in screen space
+  float dither = hash12(gl_FragCoord.xy);
+  if (alpha < dither) discard;
+  gl_FragColor = vec4(col, 1.0);
     }
   `;
 
@@ -244,8 +247,8 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
   });
   return mat;

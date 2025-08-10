@@ -277,7 +277,10 @@ export default function createStylizedWaterMaterial(options = {}) {
   vec3 col = mix(diffuse, uFoamCol, max(foam, bandsSolid));
       col += spec;
   // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
-  gl_FragColor = vec4(col, uOpacity);
+  float alpha = clamp(uOpacity, 0.0, 1.0);
+  float dither = hash12(gl_FragCoord.xy);
+  if (alpha < dither) discard;
+  gl_FragColor = vec4(col, 1.0);
     }
   `;
 
@@ -285,8 +288,8 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
   });
   return mat;
