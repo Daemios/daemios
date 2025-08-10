@@ -124,8 +124,9 @@ export default {
   waterMesh: null,
   waterMaterial: null,
   waterStyle: 'realistic', // 'realistic' | 'stylized'
-  waterSeabedTex: null,
   waterMaskTex: null,
+  sceneDepthTarget: null,
+  depthMaterial: null,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
@@ -337,7 +338,25 @@ export default {
     flagsList(flags) {
       if (!flags || typeof flags !== 'object') return '—';
       const on = Object.keys(flags).filter((k) => !!flags[k]);
-      return on.length ? on.join(',') : 'none';
+      return on.length ? on.join(', ') : 'none';
+    },
+    _createDepthTarget() {
+      const w = Math.max(1, Math.floor(this.renderer.domElement.width / 2));
+      const h = Math.max(1, Math.floor(this.renderer.domElement.height / 2));
+      if (this.sceneDepthTarget) this.sceneDepthTarget.dispose();
+      const rt = new THREE.WebGLRenderTarget(w, h, {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+      });
+      rt.depthTexture = new THREE.DepthTexture(w, h);
+      rt.depthTexture.type = THREE.UnsignedInt248Type;
+      rt.depthTexture.needsUpdate = true;
+      this.sceneDepthTarget = markRaw(rt);
+      if (this.waterMaterial) {
+        const u = this.waterMaterial.uniforms;
+        u.uDepthTex.value = rt.depthTexture;
+        u.uInvResolution.value.set(1 / this.renderer.domElement.width, 1 / this.renderer.domElement.height);
+      }
     },
     onToggleStatsPane() {
       this.profilerEnabled = !this.profilerEnabled;
@@ -1226,6 +1245,8 @@ export default {
       this.renderer.toneMappingExposure = 1.0;
       this.renderer.physicallyCorrectLights = false;
       this.$refs.sceneContainer.appendChild(this.renderer.domElement);
+      this.depthMaterial = markRaw(new THREE.MeshDepthMaterial());
+      this._createDepthTarget();
       // Startup: first content visible
       try {
         const now1 = performance.now?.() ?? Date.now();
@@ -1678,7 +1699,7 @@ export default {
   // Remove old
   if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
   // No stencil instanced mesh to remove anymore
-    // 1) Create land mask/seabed textures sized to fully cover the water plane (plus padding)
+    // 1) Create land mask/coverage textures sized to fully cover the water plane (plus padding)
       const radius = this._neighborRadius != null ? this._neighborRadius : 1;
       // Estimate plane dimensions for current neighborhood (reuse below for geometry)
       const hexW_est = this.layoutRadius * 1.5 * this.spacingFactor;
@@ -1720,7 +1741,6 @@ export default {
   const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
   const data = new Uint8Array(N * N * 4);
   const coverage = new Uint8Array(N * N * 4);
-      const seabed = new Uint8Array(N * N * 4);
       let i = 0;
       for (let r = -S; r <= S; r += 1) {
         for (let q = -S; q <= S; q += 1) {
@@ -1733,12 +1753,6 @@ export default {
           data[i + 1] = 0;
           data[i + 2] = 0;
           data[i + 3] = 255;
-          // Seabed: store normalized yScale (top height factor) in R channel
-          const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
-          seabed[i] = Math.floor(ys * 255);
-          seabed[i + 1] = 0;
-          seabed[i + 2] = 0;
-          seabed[i + 3] = 255;
           // Coverage: 1 inside the currently rendered hex footprint (union with trail when active), else 0
           let inRect = false;
           if (this.centerChunk) {
@@ -1775,14 +1789,6 @@ export default {
   coverageTex.wrapS = THREE.ClampToEdgeWrapping;
   coverageTex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterCoverageTex = coverageTex;
-
-      const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
-    seabedTex.needsUpdate = true;
-    seabedTex.magFilter = THREE.NearestFilter;
-    seabedTex.minFilter = THREE.NearestFilter;
-    seabedTex.wrapS = THREE.ClampToEdgeWrapping;
-    seabedTex.wrapT = THREE.ClampToEdgeWrapping;
-    this.waterSeabedTex = seabedTex;
 
   // 2) Keep seabed hex tops: no culling. Sides for water tiles are already kept short during instancing.
 
@@ -1838,7 +1844,6 @@ export default {
         opacity: 0.96,
         maskTexture: this.waterMaskTex,
         coverageTexture: this.waterCoverageTex,
-        seabedTexture: this.waterSeabedTex,
         hexW,
         hexH,
         gridN: N,
@@ -1846,11 +1851,11 @@ export default {
         gridQ0: centerQ0,
         gridR0: centerR0,
         shoreWidth: 0.12,
-        hexMaxYScaled,
-        seaLevelY,
-  depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
-        nearAlpha: 0.08,
-        farAlpha: 0.9,
+        depthTexture: this.sceneDepthTarget ? this.sceneDepthTarget.depthTexture : null,
+        resolution: new THREE.Vector2(this.renderer.domElement.width, this.renderer.domElement.height),
+        cameraNear: this.camera.near,
+        cameraFar: this.camera.far,
+        attenuation: 2.0,
   }));
   // No stencil: shader textures handle water/shore coverage and visibility
   this.waterMaterial = markRaw(mat);
@@ -2007,6 +2012,20 @@ export default {
       }
       if (this.profilerEnabled) profiler.end('frame.fadeUniforms');
 
+  // Render scene depth for water
+  if (this.sceneDepthTarget && this.depthMaterial) {
+    const wasVisible = this.waterMesh ? this.waterMesh.visible : false;
+    if (this.waterMesh) this.waterMesh.visible = false;
+    const prevMat = this.scene.overrideMaterial;
+    this.scene.overrideMaterial = this.depthMaterial;
+    this.renderer.setRenderTarget(this.sceneDepthTarget);
+    this.renderer.clear();
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(null);
+    this.scene.overrideMaterial = prevMat;
+    if (this.waterMesh) this.waterMesh.visible = wasVisible;
+  }
+
   // Update billboards (yaw-only) before render
   if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
   if (this.locationMarker && this.locationMarker.visible) {
@@ -2136,6 +2155,7 @@ export default {
   const pr = this.renderer.getPixelRatio();
   if (this.fxaaPass) this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
   if (this.tiltShiftEnabled) this.updateTiltFocus();
+  this._createDepthTarget();
     },
     onPointerDown(event) {
       if (event.button === 2) {

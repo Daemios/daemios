@@ -29,7 +29,13 @@ export default function createStylizedWaterMaterial(options = {}) {
     waveDirDeg: [18, -45, 75],
   maskTexture: null,  // DataTexture: R channel 1=land, 0=water
   coverageTexture: null, // DataTexture: R channel 1=rendered hex area, 0=outside
-    hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
+  hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
+  // Scene depth texture
+  depthTexture: null,
+  cameraNear: 0.1,
+  cameraFar: 1000.0,
+  resolution: new THREE.Vector2(1, 1),
+  attenuation: 2.0,
     // shoreline band params (world-space, relative to hex scale)
     shoreMaxDist: 0.9,        // in units of min(hexW,hexH)
     shoreStripeSpacing: 0.35, // in units of min(hexW,hexH)
@@ -74,6 +80,11 @@ export default function createStylizedWaterMaterial(options = {}) {
   uCoverage: { value: opt.coverageTexture },
     uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
     uGridQ0: { value: options.gridQ0 || 0 }, uGridR0: { value: options.gridR0 || 0 },
+    uDepthTex: { value: opt.depthTexture },
+    uInvResolution: { value: new THREE.Vector2(1 / opt.resolution.x, 1 / opt.resolution.y) },
+    uCameraNear: { value: opt.cameraNear },
+    uCameraFar: { value: opt.cameraFar },
+    uAttenK: { value: opt.attenuation },
     uLightDir: { value: new THREE.Vector3(0.4, 1.0, 0.35).normalize() },
     // shoreline bands
     uShoreMaxDist: { value: opt.shoreMaxDist },
@@ -103,8 +114,8 @@ export default function createStylizedWaterMaterial(options = {}) {
   `;
 
   const fragmentShader = `
-    precision highp float;
-    precision highp int;
+    precision mediump float;
+    precision mediump int;
     precision mediump sampler2D;
     varying vec3 vWorldPos;
     varying vec3 vViewPos;
@@ -118,6 +129,9 @@ export default function createStylizedWaterMaterial(options = {}) {
     uniform vec2 uDir1, uDir2, uDir3;
   uniform sampler2D uMask; // R:1 land, 0 water
   uniform sampler2D uCoverage; // R: 1 inside rendered hex area, 0 outside
+  uniform sampler2D uDepthTex;
+  uniform vec2 uInvResolution;
+  uniform float uCameraNear, uCameraFar, uAttenK;
   uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
     uniform vec3 uLightDir;
     uniform float uShoreMaxDist, uShoreStripeSpacing, uShoreStripeWidth, uShoreAnimSpeed, uGradEpsScale, uShoreTailCut;
@@ -276,8 +290,18 @@ export default function createStylizedWaterMaterial(options = {}) {
   float covSoft = smoothstep(0.25, 0.75, cov);
   vec3 col = mix(diffuse, uFoamCol, max(foam, bandsSolid));
       col += spec;
-  // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
-  gl_FragColor = vec4(col, uOpacity);
+  vec2 suv = gl_FragCoord.xy * uInvResolution;
+  float sceneDepth = texture2D(uDepthTex, suv).r;
+  float waterDepth = gl_FragCoord.z;
+  float nd = sceneDepth * 2.0 - 1.0;
+  float sceneLin = (2.0 * uCameraNear * uCameraFar) / (uCameraFar + uCameraNear - nd * (uCameraFar - uCameraNear));
+  float ndw = waterDepth * 2.0 - 1.0;
+  float waterLin = (2.0 * uCameraNear * uCameraFar) / (uCameraFar + uCameraNear - ndw * (uCameraFar - uCameraNear));
+  float thickness = max(0.0, sceneLin - waterLin);
+  float alpha = clamp((1.0 - exp(-uAttenK * thickness)) * uOpacity, 0.0, 1.0);
+  alpha = max(alpha, bandsSolid);
+  alpha *= covSoft;
+  gl_FragColor = vec4(col, alpha);
     }
   `;
 
