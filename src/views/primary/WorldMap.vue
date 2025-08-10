@@ -124,8 +124,8 @@ export default {
   waterMesh: null,
   waterMaterial: null,
   waterStyle: 'realistic', // 'realistic' | 'stylized'
-  waterSeabedTex: null,
   waterMaskTex: null,
+  sceneDepthTarget: null,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
@@ -1272,6 +1272,17 @@ export default {
       this.fxaaPass = markRaw(new ShaderPass(FXAAShader));
       this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
       this.composer.addPass(this.fxaaPass);
+
+      // Half-resolution depth render target for water thickness calculations
+      const dtW = Math.floor(width / 2);
+      const dtH = Math.floor(height / 2);
+      this.sceneDepthTarget = markRaw(new THREE.WebGLRenderTarget(dtW, dtH));
+      this.sceneDepthTarget.texture.minFilter = THREE.NearestFilter;
+      this.sceneDepthTarget.texture.magFilter = THREE.NearestFilter;
+      this.sceneDepthTarget.texture.generateMipmaps = false;
+      this.sceneDepthTarget.depthTexture = new THREE.DepthTexture(dtW, dtH);
+      this.sceneDepthTarget.depthTexture.format = THREE.DepthFormat;
+      this.sceneDepthTarget.depthTexture.type = THREE.UnsignedShortType;
   
       this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
       this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
@@ -1720,7 +1731,6 @@ export default {
   const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
   const data = new Uint8Array(N * N * 4);
   const coverage = new Uint8Array(N * N * 4);
-      const seabed = new Uint8Array(N * N * 4);
       let i = 0;
       for (let r = -S; r <= S; r += 1) {
         for (let q = -S; q <= S; q += 1) {
@@ -1733,12 +1743,6 @@ export default {
           data[i + 1] = 0;
           data[i + 2] = 0;
           data[i + 3] = 255;
-          // Seabed: store normalized yScale (top height factor) in R channel
-          const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
-          seabed[i] = Math.floor(ys * 255);
-          seabed[i + 1] = 0;
-          seabed[i + 2] = 0;
-          seabed[i + 3] = 255;
           // Coverage: 1 inside the currently rendered hex footprint (union with trail when active), else 0
           let inRect = false;
           if (this.centerChunk) {
@@ -1775,14 +1779,6 @@ export default {
   coverageTex.wrapS = THREE.ClampToEdgeWrapping;
   coverageTex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterCoverageTex = coverageTex;
-
-      const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
-    seabedTex.needsUpdate = true;
-    seabedTex.magFilter = THREE.NearestFilter;
-    seabedTex.minFilter = THREE.NearestFilter;
-    seabedTex.wrapS = THREE.ClampToEdgeWrapping;
-    seabedTex.wrapT = THREE.ClampToEdgeWrapping;
-    this.waterSeabedTex = seabedTex;
 
   // 2) Keep seabed hex tops: no culling. Sides for water tiles are already kept short during instancing.
 
@@ -1838,7 +1834,10 @@ export default {
         opacity: 0.96,
         maskTexture: this.waterMaskTex,
         coverageTexture: this.waterCoverageTex,
-        seabedTexture: this.waterSeabedTex,
+        sceneDepthTexture: this.sceneDepthTarget ? this.sceneDepthTarget.depthTexture : null,
+        resolution: this.sceneDepthTarget ? new THREE.Vector2(this.sceneDepthTarget.width, this.sceneDepthTarget.height) : new THREE.Vector2(1,1),
+        cameraNear: this.camera.near,
+        cameraFar: this.camera.far,
         hexW,
         hexH,
         gridN: N,
@@ -1846,11 +1845,6 @@ export default {
         gridQ0: centerQ0,
         gridR0: centerR0,
         shoreWidth: 0.12,
-        hexMaxYScaled,
-        seaLevelY,
-  depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
-        nearAlpha: 0.08,
-        farAlpha: 0.9,
   }));
   // No stencil: shader textures handle water/shore coverage and visibility
   this.waterMaterial = markRaw(mat);
@@ -2020,6 +2014,23 @@ export default {
   // Render with GPU timing if supported
   if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.begin) this._gpuTimer.begin();
   if (this.profilerEnabled) profiler.start('frame.render');
+  // Prepass: render scene depth (without water) to texture
+  if (this.sceneDepthTarget) {
+    const prevVis = this.waterMesh ? this.waterMesh.visible : false;
+    if (this.waterMesh) this.waterMesh.visible = false;
+    const prevRT = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.sceneDepthTarget);
+    this.renderer.clear();
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(prevRT);
+    if (this.waterMesh) this.waterMesh.visible = prevVis;
+    if (this.waterMaterial) {
+      this.waterMaterial.uniforms.uSceneDepth.value = this.sceneDepthTarget.depthTexture;
+      this.waterMaterial.uniforms.uResolution.value.set(this.sceneDepthTarget.width, this.sceneDepthTarget.height);
+      this.waterMaterial.uniforms.uCameraNear.value = this.camera.near;
+      this.waterMaterial.uniforms.uCameraFar.value = this.camera.far;
+    }
+  }
   this.composer.render();
   if (this.profilerEnabled) profiler.end('frame.render');
   if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.end) this._gpuTimer.end();
@@ -2135,6 +2146,11 @@ export default {
       this.composer.setSize(width, height);
   const pr = this.renderer.getPixelRatio();
   if (this.fxaaPass) this.fxaaPass.material.uniforms.resolution.value.set(1 / (width * pr), 1 / (height * pr));
+  if (this.sceneDepthTarget) {
+    const dtW = Math.floor(width / 2);
+    const dtH = Math.floor(height / 2);
+    this.sceneDepthTarget.setSize(dtW, dtH);
+  }
   if (this.tiltShiftEnabled) this.updateTiltFocus();
     },
     onPointerDown(event) {

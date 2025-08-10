@@ -19,7 +19,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   maskTexture: null,
   coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
   hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
-  gridQ0: 0, gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
+  gridQ0: 0, gridR0: 0, // axial origin (center) that the mask/coverage textures are built around
     shoreWidth: 0.12, // kept for API compatibility
     // Animation
     timeScale: 1.0,
@@ -30,13 +30,12 @@ export default function createRealisticWaterMaterial(options = {}) {
     normalAmp: 0.06,
     specularStrength: 0.15,
     shininess: 48.0,
-  // Depth-based transparency
-  seabedTexture: null,
-  hexMaxYScaled: 1.0, // hexMaxY * modelScaleFactor passed from WorldMap
-  seaLevelY: 0.0,     // world Y of water plane
-  depthMax: 1.0,      // world units at which opacity reaches farAlpha
-  nearAlpha: 0.12,    // alpha near shore (shallow)
-  farAlpha: 0.85,     // alpha at/max depth
+  // Screen-space depth based transparency
+  sceneDepthTexture: null,
+  resolution: new THREE.Vector2(1, 1),
+  cameraNear: 0.1,
+  cameraFar: 1000.0,
+  attenuation: 1.5,
   // Shoreline wave bands (near-hex waves)
   shoreWaveStrength: 0.45,
   shoreWaveSpacing: 0.42, // in units of min(hexW,hexH)
@@ -55,7 +54,11 @@ export default function createRealisticWaterMaterial(options = {}) {
     uFoamShoreStrength: { value: opt.foamShoreStrength },
   uMask: { value: opt.maskTexture },
   uCoverage: { value: opt.coverageTexture },
-  uSeabed: { value: opt.seabedTexture },
+  uSceneDepth: { value: opt.sceneDepthTexture },
+  uResolution: { value: opt.resolution },
+  uCameraNear: { value: opt.cameraNear },
+  uCameraFar: { value: opt.cameraFar },
+  uAttenK: { value: opt.attenuation },
   uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
   uGridQ0: { value: opt.gridQ0 }, uGridR0: { value: opt.gridR0 },
     uSpecularStrength: { value: opt.specularStrength },
@@ -65,11 +68,6 @@ export default function createRealisticWaterMaterial(options = {}) {
     uFlowDir2: { value: opt.flowDir2 },
     uFlowSpeed1: { value: opt.flowSpeed1 },
     uFlowSpeed2: { value: opt.flowSpeed2 },
-  uHexMaxYScaled: { value: opt.hexMaxYScaled },
-  uSeaLevelY: { value: opt.seaLevelY },
-  uDepthMax: { value: opt.depthMax },
-  uNearAlpha: { value: opt.nearAlpha },
-  uFarAlpha: { value: opt.farAlpha },
   // Shore waves
   uShoreWaveStrength: { value: opt.shoreWaveStrength },
   uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
@@ -101,14 +99,14 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniform float uFoamShoreStrength;
   uniform sampler2D uMask; // R:1 land, 0 water
   uniform sampler2D uCoverage; // R:1 inside rendered hex area, 0 outside
-  uniform sampler2D uSeabed; // R: normalized yScale for seabed top
+  uniform sampler2D uSceneDepth; // scene depth texture
+  uniform vec2 uResolution; // resolution of depth texture
+  uniform float uCameraNear, uCameraFar, uAttenK;
   uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
     uniform float uSpecularStrength, uShininess;
     uniform float uNormalAmp;
     uniform vec2 uFlowDir1, uFlowDir2;
     uniform float uFlowSpeed1, uFlowSpeed2;
-  uniform float uHexMaxYScaled, uSeaLevelY, uDepthMax;
-  uniform float uNearAlpha, uFarAlpha;
   // Shore waves
   uniform float uShoreWaveStrength;
   uniform float uShoreWaveSpacing;
@@ -124,7 +122,11 @@ export default function createRealisticWaterMaterial(options = {}) {
   float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
   float sampleMaskXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr = worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float m = texture2D(uMask, vec2(u,v)).r; float inside = insideGridXZ(xz); return mix(0.0, m, inside); }
   float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
-  float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
+  // Linearize depth from [0,1] to view space distance
+  float linearizeDepth(float z){
+    float zndc = z * 2.0 - 1.0;
+    return (2.0 * uCameraNear * uCameraFar) / (uCameraFar + uCameraNear - zndc * (uCameraFar - uCameraNear));
+  }
 
     void main(){
       vec2 xz = vWorldPos.xz;
@@ -225,13 +227,14 @@ export default function createRealisticWaterMaterial(options = {}) {
   vec3 col = mix(baseCol, uFoamCol, max(foam, max(waveMaskSolid * covSoft, bandsSolid)));
   // Remove specular tint on solid bands
   col += spec * (1.0 - waveMaskSolid);
-
-  // Depth-based transparency using seabed height field
-  float yScale = sampleSeabedXZ(xz);
-  float seabedY = yScale * uHexMaxYScaled;
-  float depth = max(0.0, uSeaLevelY - seabedY);
-  float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
-  float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
+  // Depth-based transparency using scene depth texture
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float sceneDepth = texture2D(uSceneDepth, uv).r;
+  float waterDepth = gl_FragCoord.z;
+  float sceneLin = linearizeDepth(sceneDepth);
+  float waterLin = linearizeDepth(waterDepth);
+  float thickness = max(0.0, sceneLin - waterLin);
+  float alpha = clamp(1.0 - exp(-uAttenK * thickness), 0.0, 1.0) * uOpacity;
   // Make solid white band fully opaque regardless of coverage
   alpha = max(alpha, bandsSolid);
   // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
