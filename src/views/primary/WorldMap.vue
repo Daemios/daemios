@@ -45,6 +45,7 @@
       :radialFade="radialFade"
       :generation="generation"
       :benchmark="benchmark"
+  :statsVisible="profilerEnabled"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
       @update:generation="generation = $event"
@@ -53,10 +54,12 @@
       @toggle-water="onToggleWater"
       @toggle-sand="onToggleSand"
       @toggle-chunk-colors="onToggleChunkColors"
+  @toggle-directions="onToggleDirections"
       @toggle-radial-fade="onToggleRadialFade"
       @generation-scale-change="onGenerationScaleChange"
       @generator-tuning-change="onGeneratorTuningChange"
-      @toggle-expand-neighborhood="onToggleExpandNeighborhood"
+  @toggle-stats-pane="onToggleStatsPane"
+  @set-neighborhood-radius="onSetNeighborhoodRadius"
       @run-benchmark="runBenchmark"
       style="position: absolute; right: 6px; top: 28px;"
     />
@@ -121,7 +124,6 @@ export default {
   waterMesh: null,
   sandMesh: null,
   waterMaterial: null,
-  waterStencilIM: null,
   waterStyle: 'realistic', // 'realistic' | 'stylized'
   waterSeabedTex: null,
   waterMaskTex: null,
@@ -236,8 +238,10 @@ export default {
   // Debug / Features (defaults; will be overridden from settings if present)
   debug: { show: true },
   features: { shadows: true, water: true, sandUnderlay: false, chunkColors: true, clutter: true },
+  // Directions helper overlay
+  _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { scale: 1.0, expandNeighborhood: false, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generation: { scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
   worldSeed: 1337,
   // Progressive neighborhood expansion control
   _progressiveModeActive: false, // when true, skip progressive start on rebuilds
@@ -335,6 +339,10 @@ export default {
       if (!flags || typeof flags !== 'object') return '—';
       const on = Object.keys(flags).filter((k) => !!flags[k]);
       return on.length ? on.join(',') : 'none';
+    },
+    onToggleStatsPane() {
+      this.profilerEnabled = !this.profilerEnabled;
+      if (this.profEl) this.profEl.style.display = this.profilerEnabled ? 'block' : 'none';
     },
     setCurrentTile(q, r) {
       if (q == null || r == null) { this.selectedQR.q = null; this.selectedQR.r = null; return; }
@@ -597,6 +605,107 @@ export default {
     onToggleChunkColors() {
       this.applyChunkColors(!!this.features.chunkColors);
     },
+    onToggleDirections() {
+      const enabled = !!this.features.directions;
+      if (enabled) {
+        this.showDirectionsOverlay();
+      } else {
+        this.hideDirectionsOverlay();
+      }
+    },
+    showDirectionsOverlay() {
+      if (!this._dirOverlay) {
+        const el = document.createElement('div');
+        Object.assign(el.style, {
+          position: 'absolute', top: '6px', left: '6px', zIndex: 2,
+          background: 'rgba(0,0,0,0.45)', color: '#fff', padding: '4px 6px', borderRadius: '4px',
+          font: '12px monospace', pointerEvents: 'none'
+        });
+        el.textContent = 'N↑  E→  S↓  W←';
+        this._dirOverlay = el;
+      }
+      if (this._dirOverlay && !this._dirOverlay.parentElement) this.$refs.sceneContainer.appendChild(this._dirOverlay);
+      // Also draw a labeled rectangle around the current neighborhood in the 3D scene using helpers
+      this.drawNeighborhoodFrame();
+    },
+    hideDirectionsOverlay() {
+      if (this._dirOverlay && this._dirOverlay.parentElement) this._dirOverlay.parentElement.removeChild(this._dirOverlay);
+      this.clearNeighborhoodFrame();
+    },
+    drawNeighborhoodFrame() {
+      // Remove old first
+      this.clearNeighborhoodFrame();
+      // Compute current visible neighborhood rect in world XZ
+      const r = this._neighborRadius != null ? this._neighborRadius : 1;
+      const baseCol = (this.centerChunk.x - r) * this.chunkCols;
+      const baseRow = (this.centerChunk.y - r) * this.chunkRows;
+      const endCol = (this.centerChunk.x + r) * this.chunkCols + (this.chunkCols - 1);
+      const endRow = (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1);
+      const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+      const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+      const tlAx = this.offsetToAxial(baseCol, baseRow);
+      const brAx = this.offsetToAxial(endCol, endRow);
+      const xTL = hexW * tlAx.q; const zTL = hexH * (tlAx.r + tlAx.q * 0.5);
+      const xBR = hexW * brAx.q; const zBR = hexH * (brAx.r + brAx.q * 0.5);
+  const y = 0.001;
+  // Save coords for label updates
+  this._dirFrameCoords = { xTL, zTL, xBR, zBR, y };
+      const mat = new THREE.LineBasicMaterial({ color: 0xffcc00 });
+      const makeLine = (x1,z1,x2,z2) => {
+        const g = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x1,y,z1), new THREE.Vector3(x2,y,z2)
+        ]);
+        const l = new THREE.Line(g, mat);
+        l.renderOrder = 10; l.frustumCulled = false; return l;
+      };
+      const lines = [];
+      lines.push(makeLine(xTL, zTL, xBR, zTL)); // North edge
+      lines.push(makeLine(xBR, zTL, xBR, zBR)); // East edge
+      lines.push(makeLine(xBR, zBR, xTL, zBR)); // South edge
+      lines.push(makeLine(xTL, zBR, xTL, zTL)); // West edge
+      this._dirFrameLines = lines;
+      lines.forEach(l => this.scene.add(l));
+      // Place simple labels near edges (N/E/S/W) using small sprites via CSS2D-like overlay (simple divs with positions)
+      const addLabel = (txt, x, z) => {
+        const d = document.createElement('div');
+        d.textContent = txt;
+        Object.assign(d.style, { position: 'absolute', color: '#ffcc00', font: '12px monospace',
+          transform: 'translate(-50%, -50%)', pointerEvents: 'none', textShadow: '0 0 2px #000' });
+        d.dataset.dirLabel = '1';
+        document.body.appendChild(d);
+        return d;
+      };
+      const mid = (a,b)=> (a+b)/2;
+      this._dirLabels = [
+        addLabel('N', mid(xTL,xBR), zTL),
+        addLabel('E', xBR, mid(zTL,zBR)),
+        addLabel('S', mid(xTL,xBR), zBR),
+        addLabel('W', xTL, mid(zTL,zBR)),
+      ];
+    },
+    clearNeighborhoodFrame() {
+      if (this._dirFrameLines) { this._dirFrameLines.forEach((l)=>{ try{ this.scene.remove(l); l.geometry?.dispose?.(); }catch(e){} }); this._dirFrameLines = null; }
+      const labels = document.querySelectorAll('div[data-dir-label="1"]');
+      labels.forEach((n)=>{ try{ n.remove(); }catch(e){} });
+    },
+    _updateDirectionLabels() {
+      if (!this._dirLabels || !this._dirFrameCoords || !this.renderer || !this.camera) return;
+      const { xTL, zTL, xBR, zBR, y } = this._dirFrameCoords;
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      const mid = (a,b)=> (a+b)/2;
+      const points = [
+        { i: 0, x: mid(xTL,xBR), z: zTL }, // N
+        { i: 1, x: xBR, z: mid(zTL,zBR) }, // E
+        { i: 2, x: mid(xTL,xBR), z: zBR }, // S
+        { i: 3, x: xTL, z: mid(zTL,zBR) }, // W
+      ];
+      for (const p of points) {
+        const v = new THREE.Vector3(p.x, y, p.z).project(this.camera);
+        const sx = (v.x * 0.5 + 0.5) * rect.width; const sy = (-v.y * 0.5 + 0.5) * rect.height;
+        const el = this._dirLabels[p.i];
+        if (el) { el.style.left = `${(rect.left + sx)}px`; el.style.top = `${(rect.top + sy)}px`; }
+      }
+    },
     onToggleClutter() {
       if (this.clutter) {
         this.clutter.setEnabled(!!this.features.clutter);
@@ -608,6 +717,8 @@ export default {
           this.commitClutterForNeighborhood();
         }
       }
+  // Refresh direction frame to match new neighborhood bounds
+  if (this.features?.directions) this.drawNeighborhoodFrame();
     },
     onToggleRadialFade() {
       // Force materials to recompile if toggled on after init
@@ -738,8 +849,7 @@ export default {
     setCenterChunk(wx, wy) {
       this.centerChunk.x = wx; this.centerChunk.y = wy;
       if (this.chunkManager) this.chunkManager.setCenterChunk(wx, wy, { trailMs: 3000 });
-  // Update water stencil to follow the new neighborhood
-  this.rebuildWaterStencil();
+  // No stencil rebuild needed; water shader uses textures for masking
     // Keep water textures centered: rebuild if we drift near the texture edge
       if (this.waterMaterial && this.waterMesh && this.waterMaskTex) {
         const u = this.waterMaterial.uniforms;
@@ -765,8 +875,8 @@ export default {
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
       if (!this.topGeom || !this.sideGeom) return;
-  // Determine desired radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
-  const desiredRadius = this.generation?.expandNeighborhood ? 5 : 1;
+  // Determine desired radius (absolute)
+  const desiredRadius = Math.max(1, Number(this.generation?.radius ?? 5));
   // Progressive: on first build, always start with radius 1 to show content fast
   const progressiveStart = (desiredRadius > 1) && !this._progressiveModeActive;
   const radius = progressiveStart ? 1 : desiredRadius;
@@ -910,6 +1020,22 @@ export default {
         this._scheduleProgressiveExpand();
       }
     },
+    onSetNeighborhoodRadius(radius) {
+      const r = Math.max(1, Number(radius) || 1);
+      if (!this.generation) this.generation = {};
+      if (this.generation.radius === r) return;
+      this.generation.radius = r;
+      // Debounce heavy rebuilds
+      clearTimeout(this._radiusTimer);
+      this._radiusTimer = setTimeout(() => {
+        // Rebuild chunks at new radius
+        this.rebuildChunkGrid();
+        // Rebuild water to align textures/plane to new footprint
+        this.buildWater();
+        // Persist
+        if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
+      }, 120);
+    },
     _scheduleProgressiveExpand() {
       // Wait until the initial small queue finishes streaming, then expand
       if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId);
@@ -920,6 +1046,8 @@ export default {
           this._progressiveModeActive = true;
           this._neighborRadius = this._progressivePlanned;
           this.rebuildChunkGrid();
+          // Rebuild water to match the expanded footprint
+          this.buildWater();
           this._progressivePlanned = 0;
           // Allow future manual toggles to use progressive again if wanted
           this._progressiveModeActive = false;
@@ -941,12 +1069,7 @@ export default {
       out.sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
       return out;
     },
-    onToggleExpandNeighborhood() {
-      // Rebuild chunk instancers to match new neighborhood size
-      this.rebuildChunkGrid();
-      // Persist settings (watcher also covers this, but explicit is fine)
-      if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
-    },
+  // Removed legacy expand-neighborhood toggle handler
     rebuildChunkGrid() {
       // Remove and dispose old instancers via neighborhood service if present
       if (this.neighborhood && this.neighborhood.dispose) {
@@ -1031,7 +1154,7 @@ export default {
       this.orbit.theta = Math.atan2(camVec.x, camVec.z);
       this.orbit.phi = Math.acos(camVec.y / this.orbit.radius);
 
-  this.renderer = markRaw(new THREE.WebGLRenderer({ antialias: false, stencil: true }));
+  this.renderer = markRaw(new THREE.WebGLRenderer({ antialias: false, stencil: false }));
   // Slightly upscale to reduce aliasing while keeping perf in check
   const devicePR = Math.min(1.5, (window.devicePixelRatio || 1));
   this.renderer.setPixelRatio(devicePR);
@@ -1068,7 +1191,9 @@ export default {
         borderRadius: '4px', pointerEvents: 'none', whiteSpace: 'pre', zIndex: 1,
       });
       this.profEl.textContent = '';
-      this.$refs.sceneContainer.appendChild(this.profEl);
+  this.$refs.sceneContainer.appendChild(this.profEl);
+  // Respect visibility toggle
+  this.profEl.style.display = this.profilerEnabled ? 'block' : 'none';
 
       // Set up GPU timer if available
       try {
@@ -1491,16 +1616,19 @@ export default {
       // Remove old
       if (this.waterMesh) { if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh); this.waterMesh = null; }
   if (this.sandMesh) { if (this.sandMesh.parent) this.sandMesh.parent.remove(this.sandMesh); this.sandMesh = null; }
-  if (this.waterStencilIM) { if (this.waterStencilIM.parent) this.waterStencilIM.parent.remove(this.waterStencilIM); this.waterStencilIM = null; }
+  // No stencil instanced mesh to remove anymore
     // 1) Create land mask/seabed textures sized to fully cover the water plane (plus padding)
       const radius = this._neighborRadius != null ? this._neighborRadius : 1;
       // Estimate plane dimensions for current neighborhood (reuse below for geometry)
       const hexW_est = this.layoutRadius * 1.5 * this.spacingFactor;
       const hexH_est = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
-      const totalCols_est = (2 * radius + 1) * this.chunkCols;
-      const totalRows_est = (2 * radius + 1) * this.chunkRows;
-      const planeW_est = totalCols_est * hexW_est * 3.0;
-      const planeH_est = totalRows_est * hexH_est * 3.0;
+  const totalCols_est = (2 * radius + 1) * this.chunkCols;
+  const totalRows_est = (2 * radius + 1) * this.chunkRows;
+  // No extra plane margin; keep exactly to the neighborhood bounds
+  const marginCols_est = 0;
+  const marginRows_est = 0;
+  const planeW_est = (totalCols_est + marginCols_est) * hexW_est;
+  const planeH_est = (totalRows_est + marginRows_est) * hexH_est;
   // Compute S so that the mask square in axial covers the entire plane footprint with generous padding
       const halfW = planeW_est * 0.5;
       const halfH = planeH_est * 0.5;
@@ -1517,8 +1645,12 @@ export default {
         maxQAbs = Math.max(maxQAbs, Math.abs(q));
         maxRAbs = Math.max(maxRAbs, Math.abs(r));
       }
-      const pad = Math.max(32, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
-      const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
+  // Ensure at least a full one-chunk margin in the texture window
+  const chunkQSpan = this.chunkCols;
+  const chunkRSpan = this.chunkRows; // approx; axial r maps from rows
+  const chunkMargin = Math.max(chunkQSpan, chunkRSpan);
+  const pad = Math.max(chunkMargin + 8, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
+  const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
   const N = (2 * S + 1);
   // Choose a stable integer axial origin aligned to the top-left of the visible neighborhood
   const nbBaseCol = (this.centerChunk.x - radius) * this.chunkCols;
@@ -1569,24 +1701,24 @@ export default {
       }
   const tex = markRaw(new THREE.DataTexture(data, N, N, THREE.RGBAFormat));
       tex.needsUpdate = true;
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterMaskTex = tex;
 
   const coverageTex = markRaw(new THREE.DataTexture(coverage, N, N, THREE.RGBAFormat));
   coverageTex.needsUpdate = true;
-  coverageTex.magFilter = THREE.LinearFilter;
-  coverageTex.minFilter = THREE.LinearFilter;
+  coverageTex.magFilter = THREE.NearestFilter;
+  coverageTex.minFilter = THREE.NearestFilter;
   coverageTex.wrapS = THREE.ClampToEdgeWrapping;
   coverageTex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterCoverageTex = coverageTex;
 
       const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
     seabedTex.needsUpdate = true;
-    seabedTex.magFilter = THREE.LinearFilter;
-    seabedTex.minFilter = THREE.LinearFilter;
+    seabedTex.magFilter = THREE.NearestFilter;
+    seabedTex.minFilter = THREE.NearestFilter;
     seabedTex.wrapS = THREE.ClampToEdgeWrapping;
     seabedTex.wrapT = THREE.ClampToEdgeWrapping;
     this.waterSeabedTex = seabedTex;
@@ -1619,8 +1751,10 @@ export default {
   const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
   const totalCols = (2 * radius + 1) * this.chunkCols;
   const totalRows = (2 * radius + 1) * this.chunkRows;
-  const planeW = totalCols * hexW * 3.0;
-  const planeH = totalRows * hexH * 3.0;
+  const marginCols = 0;
+  const marginRows = 0;
+  const planeW = (totalCols + marginCols) * hexW;
+  const planeH = (totalRows + marginRows) * hexH;
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
@@ -1657,14 +1791,7 @@ export default {
         nearAlpha: 0.08,
         farAlpha: 0.9,
   }));
-  // Stencil-mask the plane so it only draws over water hex tops
-  mat.stencilWrite = true;
-  mat.stencilFunc = THREE.EqualStencilFunc;
-  mat.stencilRef = 1;
-  mat.stencilMask = 0xff;
-  mat.stencilFail = THREE.KeepStencilOp;
-  mat.stencilZFail = THREE.KeepStencilOp;
-  mat.stencilZPass = THREE.KeepStencilOp;
+  // No stencil: shader textures handle water/shore coverage and visibility
   this.waterMaterial = markRaw(mat);
   const mesh = markRaw(new THREE.Mesh(geom, mat));
   // Position water at previously computed world sea level (plus tiny epsilon to avoid z-fight)
@@ -1690,70 +1817,13 @@ export default {
       this.scene.add(mesh);
   this.waterMesh = mesh;
 
-  // Create stencil instanced mesh that marks water tile footprints
-  const stencilCols = (2 * radius + 1) * this.chunkCols;
-  const stencilRows = (2 * radius + 1) * this.chunkRows;
-  const maxInstances = stencilCols * stencilRows;
-  const stencilMaterial = markRaw(new THREE.MeshBasicMaterial({ color: 0x000000 }));
-  stencilMaterial.colorWrite = false; // don't draw to color buffer
-  stencilMaterial.depthWrite = false;
-  stencilMaterial.depthTest = false;
-  stencilMaterial.stencilWrite = true;
-  stencilMaterial.stencilFunc = THREE.AlwaysStencilFunc;
-  stencilMaterial.stencilRef = 1;
-  stencilMaterial.stencilMask = 0xff;
-  stencilMaterial.stencilFail = THREE.KeepStencilOp;
-  stencilMaterial.stencilZFail = THREE.KeepStencilOp;
-  stencilMaterial.stencilZPass = THREE.ReplaceStencilOp;
-  const waterStencil = markRaw(new THREE.InstancedMesh(this.topGeom, stencilMaterial, maxInstances));
-  waterStencil.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  waterStencil.frustumCulled = false;
-  waterStencil.renderOrder = 0; // before water plane
-  this.scene.add(waterStencil);
-  this.waterStencilIM = waterStencil;
-  this.rebuildWaterStencil();
+  // No stencil instanced mesh; water draws across the plane and masks via textures
 
       const visible = !!this.features.water;
       if (this.waterMesh) this.waterMesh.visible = visible;
       if (this.sandMesh) this.sandMesh.visible = !!this.features.sandUnderlay && visible;
     },
-    rebuildWaterStencil() {
-      const __t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-      if (!this.waterStencilIM || !this.topGeom || !this.world) return;
-      const layoutRadius = this.layoutRadius;
-      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
-      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-      const sx = this.modelScaleFactor;
-      const xzScale = sx * this.contactScale;
-      const radius = this._neighborRadius != null ? this._neighborRadius : 1;
-      const colMin = (this.centerChunk.x - radius) * this.chunkCols;
-      const rowMin = (this.centerChunk.y - radius) * this.chunkRows;
-      const colMax = (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
-      const rowMax = (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
-      const waterY = this.waterMesh ? this.waterMesh.position.y : 0;
-      const dummy = this._waterStencilDummy || (this._waterStencilDummy = markRaw(new THREE.Object3D()));
-      let count = 0;
-      for (let row = rowMin; row <= rowMax; row += 1) {
-        for (let col = colMin; col <= colMax; col += 1) {
-          const { q, r } = this.offsetToAxial(col, row);
-          const cell = this.world.getCell(q, r);
-          const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-          if (!isWater) continue;
-          const x = hexWidth * q;
-          const z = hexHeight * (r + q / 2);
-          dummy.position.set(x, waterY, z);
-          dummy.rotation.set(0, 0, 0);
-          // Flat imprint at plane height; very thin Y
-          dummy.scale.set(xzScale, 0.001, xzScale);
-          dummy.updateMatrix();
-          this.waterStencilIM.setMatrixAt(count, dummy.matrix);
-          count += 1;
-        }
-      }
-      this.waterStencilIM.count = count;
-      this.waterStencilIM.instanceMatrix.needsUpdate = true;
-      if (this.profilerEnabled) profiler.push('build.water.stencil', ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t1);
-    },
+  // rebuildWaterStencil: removed (no stencil)
     getHeight(q, r) {
       const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
       const plains = Math.pow(base, this.terrainShape.plainsExponent);
@@ -1893,6 +1963,9 @@ export default {
   if (this.profilerEnabled) profiler.end('frame.render');
   if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.end) this._gpuTimer.end();
 
+  // Update direction labels if active
+  if (this.features?.directions) this._updateDirectionLabels();
+
   // Tilt-shift follow
   if (this.tiltShiftEnabled) this.updateTiltFocus();
 
@@ -1918,8 +1991,7 @@ export default {
       const st = profiler.stats('stream.tick');
       const sfs = profiler.stats('stream.fillSlice');
       const cl = profiler.stats('clutter.tick');
-      const wb = profiler.stats('build.water');
-      const ws = profiler.stats('build.water.stencil');
+  const wb = profiler.stats('build.water');
   const cg = profiler.stats('chunk.generate');
   const cgCell = profiler.stats('chunk.gen.cell');
   const cgMatrix = profiler.stats('chunk.gen.matrix');
@@ -1933,8 +2005,7 @@ export default {
       if (st) lines.push(`stream ${fmt(st.avg)}`);
       if (sfs) lines.push(`slice ${fmt(sfs.avg)}`);
       if (cl) lines.push(`clutter ${fmt(cl.avg)}`);
-      if (wb) lines.push(`water ${fmt(wb.avg)}`);
-      if (ws) lines.push(`stencil ${fmt(ws.avg)}`);
+  if (wb) lines.push(`water ${fmt(wb.avg)}`);
   const qtot = profiler.stats('stream.queue.total');
   if (qtot) lines.push(`queue.total ${fmt(qtot.last ?? qtot.avg)}`);
   const qrate = profiler.stats('stream.queue.rate');

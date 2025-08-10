@@ -121,9 +121,9 @@ export default function createRealisticWaterMaterial(options = {}) {
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
-  float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
-  float sampleMaskXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr = worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float m = texture2D(uMask, vec2(u,v)).r; float inside = insideGridXZ(xz); return mix(1.0, m, inside); }
-  float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
+  float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
+  float sampleMaskXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr = worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float m = texture2D(uMask, vec2(u,v)).r; float inside = insideGridXZ(xz); return mix(0.0, m, inside); }
+  float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
   float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
 
     void main(){
@@ -219,7 +219,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  vec3 col = mix(baseCol, uFoamCol, max(foam, waveMaskSolid * covSoft));
+  // Force shoreline solid white near the edge in all directions for now
+  float nearMask = 1.0 - smoothstep(0.0, spacing * 1.5, d);
+  float bandsSolid = step(1e-3, gmag) * step(1e-4, d) * nearMask;
+  vec3 col = mix(baseCol, uFoamCol, max(foam, max(waveMaskSolid * covSoft, bandsSolid)));
   // Remove specular tint on solid bands
   col += spec * (1.0 - waveMaskSolid);
 
@@ -229,10 +232,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   float depth = max(0.0, uSeaLevelY - seabedY);
   float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
-  // Make solid band fully opaque, but only inside coverage
-  alpha = max(alpha, waveMaskSolid * covSoft);
-  // Hide outside of rendered hex coverage and outside texture window
-  alpha *= (covSoft * inside);
+  // Make solid white band fully opaque regardless of coverage
+  alpha = max(alpha, bandsSolid);
+  // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
+  alpha *= mix(1.0, covSoft * inside, step(0.5, waveMaskSolid));
   gl_FragColor = vec4(col, alpha);
     }
   `;

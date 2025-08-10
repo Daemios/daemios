@@ -126,7 +126,7 @@ export default function createStylizedWaterMaterial(options = {}) {
     // Helpers
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
     float sampleCoverageXZ(vec2 xz){
-      float N = uGridN; float S = uGridOffset; if(N<=0.5) return 0.0;
+      float N = uGridN; float S = uGridOffset; if(N<=0.5) return 1.0; // treat outside window as covered (far ocean)
       vec2 qr = vec2(xz.x / uHexW, xz.y / uHexH - (xz.x / uHexW) * 0.5);
   float iq = (qr.x - uGridQ0) + S; float ir = (qr.y - uGridR0) + S;
       float u = clamp((iq + 0.5) / N, 0.0, 1.0);
@@ -236,8 +236,8 @@ export default function createStylizedWaterMaterial(options = {}) {
         float bands = smoothstep(1.0 - uShoreStripeWidth, 1.0, stripe);
 
         // Range falloff with tail cut to avoid flashes near the end
-        float nd = d / max(1e-4, maxR);
-        float falloff = 1.0 - clamp(nd, 0.0, 1.0);
+  float nd = d / max(1e-4, maxR);
+  float falloff = 1.0 - clamp(nd, 0.0, 1.0);
         float tailGate = 1.0 - smoothstep(max(0.0, 1.0 - uShoreTailCut), 1.0, nd);
 
         // Apply breakup and ensure contribution only on water side (m0 ~ 0)
@@ -252,12 +252,32 @@ export default function createStylizedWaterMaterial(options = {}) {
       float crestFoam = clamp(slopeFoam * heightFoam, 0.0, 1.0);
 
   float foam = clamp((shoreWhite + crestFoam) * uFoamIntensity, 0.0, 1.0);
-
+  // Make near-shore region solid white in all directions for now (ignore stripe directionality)
+  float nearFade = 1.0 - smoothstep(0.0, 1.0, (/*d into water*/ max(0.0, 0.0)));
+  // We need d and maxR in this scope; recompute a conservative fallback using local gradient
+  // Use m0 and a small epsilon to approximate distance: treat within ~maxR as near
+  nearFade = 1.0; // fallback to always consider vicinity; will be clamped by mask sampling below
+  float bandsSolid = 0.0;
+  {
+    // Recompute gradient briefly
+    float s2 = min(uHexW, uHexH) * uGradEpsScale;
+    vec2 ex2 = vec2(s2, 0.0), ey2 = vec2(0.0, s2);
+    float m0b = sampleMaskXZ(xz);
+    float m1b = sampleMaskXZ(xz + ex2);
+    float m2b = sampleMaskXZ(xz - ex2);
+    float m3b = sampleMaskXZ(xz + ey2);
+    float m4b = sampleMaskXZ(xz - ey2);
+    float localEdge = step(0.02, (max(m0b, max(m1b, max(m2b, max(m3b, m4b)))) - min(m0b, min(m1b, min(m2b, min(m3b, m4b))))));
+    // Solid if we are on water side near any edge
+    float waterOnly2 = 1.0 - smoothstep(0.5, 0.55, m0b);
+    bandsSolid = localEdge * waterOnly2;
+  }
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
-  vec3 col = mix(diffuse, uFoamCol, foam * covSoft);
+  vec3 col = mix(diffuse, uFoamCol, max(foam, bandsSolid));
       col += spec;
-  gl_FragColor = vec4(col, uOpacity * covSoft);
+  // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
+  gl_FragColor = vec4(col, uOpacity);
     }
   `;
 
