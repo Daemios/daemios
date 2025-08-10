@@ -47,7 +47,8 @@ export function attachRadialFade(material, { bucketKey, layoutRadius, contactSca
         #endif
       `)
       .replace('#include <beginnormal_vertex>', `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`)
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+      // Use our own computed world position to avoid relying on worldPosition symbol presence
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
     const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
     const injectFrag = `
         float distXZ = length(vWorldPos.xz - uFadeCenter);
@@ -112,7 +113,7 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
         transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
       `)
       .replace('#include <beginnormal_vertex>', `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`)
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
     const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
     const injectFrag = `
         float distXZ = length(vWorldPos.xz - uFadeCenter);

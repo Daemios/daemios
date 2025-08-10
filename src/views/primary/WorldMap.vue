@@ -445,7 +445,8 @@ export default {
               transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
             #endif
           `)
-          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+          // Use the locally computed wpos_pre to avoid relying on worldPosition symbol
+          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
         // Fragment stage: either discard entire instances (whole-hex) or slice fragments (legacy)
   const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
         const injectFrag = `
@@ -513,7 +514,7 @@ export default {
             float f_v = float(uFadeEnabled) * smoothstep(inner_v, uFadeRadius, distXZ_v);
             transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
           `)
-          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
         const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
         const injectFrag = `
             // RADIAL_FADE_APPLIED
@@ -1054,7 +1055,10 @@ export default {
     onSetNeighborhoodRadius(radius) {
       const r = Math.max(1, Number(radius) || 1);
       if (!this.generation) this.generation = {};
-      if (this.generation.radius === r) return;
+  // Note: update:generation may have already set generation.radius before this handler runs.
+  // Compare against the ACTIVE neighborhood radius instead, so we still rebuild when needed.
+  const activeRadius = (this._neighborRadius != null) ? this._neighborRadius : (this.generation.radius ?? 1);
+  // Update target radius for persistence/UI
       this.generation.radius = r;
       // If radial fade is enabled, expand its radius to roughly match the new neighborhood footprint
       if (this.radialFade && this.radialFade.enabled) {
@@ -1072,8 +1076,22 @@ export default {
       // Debounce heavy rebuilds
       clearTimeout(this._radiusTimer);
       this._radiusTimer = setTimeout(() => {
-        // Rebuild chunks at new radius
-        this.rebuildChunkGrid();
+        // Only rebuild if the effective radius actually changes
+        if (activeRadius !== r) {
+          // Prefer an in-place rebuild of the current ChunkManager for faster updates
+          if (this.chunkManager && this.topGeom && this.sideGeom) {
+            this.chunkManager.neighborRadius = r;
+            this._neighborRadius = r;
+            this.chunkManager.build(this.topGeom, this.sideGeom);
+            if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+          } else {
+            // Fallback: full grid rebuild; skip progressive start for user-initiated size changes
+            const prevProg = this._progressiveModeActive;
+            this._progressiveModeActive = true;
+            this.rebuildChunkGrid();
+            this._progressiveModeActive = prevProg;
+          }
+        }
         // Rebuild water to align textures/plane to new footprint
         this.buildWater();
         // Persist
@@ -2485,11 +2503,9 @@ export default {
   this.keyLight.shadow.normalBias = 0.2;
         cam.updateProjectionMatrix();
       }
-      // Hex meshes
-      if (this.topIM) { this.topIM.castShadow = !!enabled; this.topIM.receiveShadow = !!enabled; }
-      if (this.sideIM) { this.sideIM.castShadow = !!enabled; this.sideIM.receiveShadow = !!enabled; }
-      // Clutter instances
-      if (this.clutter && this.clutter.setShadows) this.clutter.setShadows(!!enabled);
+  // Clutter instances (prefer ChunkManager's service)
+  const shadowSvc = (this.chunkManager && this.chunkManager.clutter) ? this.chunkManager.clutter : this.clutter;
+  if (shadowSvc && shadowSvc.setShadows) shadowSvc.setShadows(!!enabled);
       // Location marker: cast only (MeshBasic won't receive)
       if (this.locationMarker) {
         const setShadows = (node) => {

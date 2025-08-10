@@ -107,8 +107,8 @@ export default class ClutterManager {
           shader.uniforms.uCullWholeHex = { value: self._fade.cullWholeHex ? 1 : 0 };
           const vDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
           shader.vertexShader = vDecl + shader.vertexShader
-            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;`)
-            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;\n            vec4 wpos_pre = modelMatrix * imat * vec4(transformed, 1.0);`)
+            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
           const fDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
           const inject = `\n            // CLUTTER_FADE\n            if (uFadeEnabled == 1) {\n              if (uCullWholeHex == 1) {\n                float cDist = length(vInstCenter.xz - uFadeCenter);\n                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }\n              } else {\n                float d = length(vWorldPos.xz - uFadeCenter);\n                if (d >= uFadeRadius) { discard; }\n              }\n            }\n          `;
           shader.fragmentShader = shader.fragmentShader
@@ -127,8 +127,8 @@ export default class ClutterManager {
           shader.uniforms.uCullWholeHex = { value: self._fade.cullWholeHex ? 1 : 0 };
           const vDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
           shader.vertexShader = vDecl + shader.vertexShader
-            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;`)
-            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = worldPosition.xyz;');
+            .replace('#include <begin_vertex>', `#include <begin_vertex>\n            mat4 imat = mat4(1.0);\n            #ifdef USE_INSTANCING\n              imat = instanceMatrix;\n            #endif\n            vec4 wcenter = modelMatrix * imat * vec4(0.0, 0.0, 0.0, 1.0);\n            vInstCenter = wcenter.xyz;\n            vec4 wpos_pre = modelMatrix * imat * vec4(transformed, 1.0);`)
+            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
           const fDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform int uFadeEnabled; uniform float uHexCornerRadius; uniform int uCullWholeHex;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
           const inject = `\n            // CLUTTER_FADE_DEPTH\n            if (uFadeEnabled == 1) {\n              if (uCullWholeHex == 1) {\n                float cDist = length(vInstCenter.xz - uFadeCenter);\n                if ((cDist + uHexCornerRadius) >= uFadeRadius) { discard; }\n              } else {\n                float d = length(vWorldPos.xz - uFadeCenter);\n                if (d >= uFadeRadius) { discard; }\n              }\n            }\n          `;
           shader.fragmentShader = shader.fragmentShader
