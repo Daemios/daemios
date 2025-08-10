@@ -110,6 +110,8 @@ export default {
   hoverPrevColor: null,
   hoverMesh: null,
   playerMarker: null,
+  // Track if we've seeded the initial player spawn to avoid re-centering on rebuilds
+  playerSpawnSeeded: false,
   recenterTimer: null,
   pendingCenterChunk: null,
   // Trail layer to keep previous chunk neighborhood visible briefly
@@ -846,9 +848,9 @@ export default {
       }
     },
     // Position neighborhood; delegate to manager
-    setCenterChunk(wx, wy) {
+    setCenterChunk(wx, wy, options = {}) {
       this.centerChunk.x = wx; this.centerChunk.y = wy;
-      if (this.chunkManager) this.chunkManager.setCenterChunk(wx, wy, { trailMs: 3000 });
+      if (this.chunkManager) this.chunkManager.setCenterChunk(wx, wy, { trailMs: 3000, forceRefill: options && options.forceRefill === true });
   // No stencil rebuild needed; water shader uses textures for masking
     // Keep water textures centered: rebuild if we drift near the texture edge
       if (this.waterMaterial && this.waterMesh && this.waterMaskTex) {
@@ -996,23 +998,30 @@ export default {
         if (!this._fadeUniforms) this._fadeUniforms = {};
       }
 
-      // Initial spawn: center of the center chunk (1,1)
-      const spawnWx = 1; const spawnWy = 1;
-      if (spawnWx !== this.centerChunk.x || spawnWy !== this.centerChunk.y) {
-        this.setCenterChunk(spawnWx, spawnWy);
-      }
-      const midCol = spawnWx * this.chunkCols + Math.floor(this.chunkCols / 2);
-      const midRow = spawnWy * this.chunkRows + Math.floor(this.chunkRows / 2);
-      const { q: startQ, r: startR } = this.offsetToAxial(midCol, midRow);
-      let startIdx = null;
-      for (let iSearch = 0; iSearch < this.indexToQR.length; iSearch += 1) {
-        const info = this.indexToQR[iSearch];
-        if (info && info.q === startQ && info.r === startR) { startIdx = iSearch; break; }
-      }
-      if (startIdx != null) {
-        this.addLocationMarkerAtIndex(startIdx);
-        this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
+      // Initial spawn: center of the center chunk (1,1) — only once on first load
+  if (!this.playerSpawnSeeded) {
+        const spawnWx = 1; const spawnWy = 1;
+        if (spawnWx !== this.centerChunk.x || spawnWy !== this.centerChunk.y) {
+          this.setCenterChunk(spawnWx, spawnWy);
+        }
+        const midCol = spawnWx * this.chunkCols + Math.floor(this.chunkCols / 2);
+        const midRow = spawnWy * this.chunkRows + Math.floor(this.chunkRows / 2);
+        const { q: startQ, r: startR } = this.offsetToAxial(midCol, midRow);
+        // Compute world position directly from q,r (works before streaming fills indexToQR)
+        this.ensurePlayerMarker();
+        const pos2D = this.getTileWorldPos(startQ, startR);
+        const cell = this.world ? this.world.getCell(startQ, startR) : null;
+        const scaleY = (this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0));
+        const yTop = this.hexMaxY * scaleY;
+        const pos = new THREE.Vector3(pos2D.x, yTop + 0.01, pos2D.z);
+        if (this.playerMarker) this.playerMarker.setWorldPosition(pos);
+        // Also place the GLB location marker for clarity at the same world position
+        this.placeLocationMarkerAtWorld(pos);
+  this.focusCameraOnQR(startQ, startR, { smooth: true, duration: 900 });
   this.setCurrentTile(startQ, startR);
+  // Notify backend/state just like a user click would
+  try { api.post('world/move', { q: startQ, r: startR }); } catch (e) {}
+        this.playerSpawnSeeded = true;
       }
       // If progressive expansion is desired, schedule rebuild to the full radius
       if (progressiveStart) {
@@ -1020,11 +1029,39 @@ export default {
         this._scheduleProgressiveExpand();
       }
     },
+    ensurePlayerMarker() {
+      if (!this.playerMarker) {
+        this.playerMarker = markRaw(new PlayerMarker());
+        if (this.scene) this.playerMarker.addTo(this.scene);
+      }
+    },
+    placeLocationMarkerAtWorld(pos) {
+      this.ensureLocationMarkerLoaded((err) => {
+        if (err || !this.locationMarker) return;
+        const markerQuat = new THREE.Quaternion();
+        const markerScale = this.locationMarker.scale.clone();
+        this.locationMarker.matrix.compose(pos.clone(), markerQuat, markerScale);
+        this.locationMarker.visible = true;
+      });
+    },
     onSetNeighborhoodRadius(radius) {
       const r = Math.max(1, Number(radius) || 1);
       if (!this.generation) this.generation = {};
       if (this.generation.radius === r) return;
       this.generation.radius = r;
+      // If radial fade is enabled, expand its radius to roughly match the new neighborhood footprint
+      if (this.radialFade && this.radialFade.enabled) {
+        const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
+        const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
+        const totalCols = (2 * r + 1) * this.chunkCols;
+        const totalRows = (2 * r + 1) * this.chunkRows;
+        const halfW = 0.5 * hexW * Math.max(1, (totalCols - 1));
+        const halfH = 0.5 * hexH * Math.max(1, (totalRows - 1));
+        const inner = 0.85 * Math.min(halfW, halfH); // leave a margin inside bounds
+        const minWidth = Math.max(hexH * 1.5, this.layoutRadius * 1.0);
+        this.radialFade.radius = Math.max(inner, this.radialFade.radius || 0);
+        this.radialFade.width = Math.max(minWidth, this.radialFade.width || 0);
+      }
       // Debounce heavy rebuilds
       clearTimeout(this._radiusTimer);
       this._radiusTimer = setTimeout(() => {
@@ -2419,9 +2456,11 @@ export default {
   t.ridgeScale = sanitize(t.ridgeScale);
   t.detailScale = sanitize(t.detailScale);
   t.climateScale = sanitize(t.climateScale);
-      if (this.world && this.world.setGeneratorTuning) this.world.setGeneratorTuning(t);
-      // Refresh visible neighborhood so changes take effect immediately
-      if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
+  if (this.world && this.world.setGeneratorTuning) this.world.setGeneratorTuning(t);
+  // Refresh visible neighborhood so changes take effect immediately; force a refill of cached chunks
+  if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y, { forceRefill: true });
+  // Rebuild water textures/mask to match updated elevation/biomes
+  this.buildWater();
       this.scheduleClutterCommit(0);
       if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
     },

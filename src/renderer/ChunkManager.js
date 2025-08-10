@@ -114,7 +114,7 @@ export default class ChunkManager {
   setCenterChunk(wx, wy, options = {}) {
     if (!this.neighborhood) return;
     // Skip if center didn't change and we already have slot assignments populated
-    if (wx === this.centerChunk.x && wy === this.centerChunk.y) {
+    if (wx === this.centerChunk.x && wy === this.centerChunk.y && options.forceRefill !== true) {
       const assigned = !!(this.neighborhood && this.neighborhood._chunkToSlot && this.neighborhood._chunkToSlot.size > 0);
       if (assigned) return;
     }
@@ -150,7 +150,7 @@ export default class ChunkManager {
   this.centerChunk.x = wx; this.centerChunk.y = wy;
   const bias = { x: Math.sign(wx - prevX), y: Math.sign(wy - prevY) };
     // Stream neighborhood fill
-  this.neighborhood.setCenterChunk(wx, wy, { bias });
+  this.neighborhood.setCenterChunk(wx, wy, { bias, forceRefill: options.forceRefill === true });
     // Debounced clutter rebuild (lighter delay when small radius)
     const delay = (this.neighborRadius && this.neighborRadius > 1) ? 120 : 60;
     clearTimeout(this._clutterTimer); this._clutterTimer = setTimeout(() => this.commitClutterForNeighborhood(), delay);

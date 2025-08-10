@@ -479,7 +479,7 @@ export default class ChunkNeighborhood {
       desiredKeys.add(key);
     }
 
-    const tasks = [];
+  const tasks = [];
     if (this._chunkToSlot.size === 0) {
       // First-time build: assign all desired into their index-matched slots
       for (let i = 0; i < totalSlots; i += 1) {
@@ -500,12 +500,27 @@ export default class ChunkNeighborhood {
           leaverSlots.push(slot);
         }
       }
-      // Re-enqueue any keeper slot that didn't finish last build so it completes across rapid moves
-      for (const [key, slot] of this._chunkToSlot.entries()) {
-        if (desiredKeys.has(key) && this._slotProgress[slot] !== true) {
-          const [cwStr, cyStr] = key.split(',');
-          const cw = parseInt(cwStr, 10); const cy = parseInt(cyStr, 10);
-          tasks.push({ slotIndex: slot, wx: cw, wy: cy, startIdx: slot * this.countPerChunk });
+      const forceRefill = options && options.forceRefill === true;
+      if (forceRefill) {
+        // Force rebuild all desired chunks regardless of previous progress
+        for (const d of desired) {
+          const slot = this._chunkToSlot.get(d.key);
+          if (typeof slot === 'number') {
+            // Keep assignment stable and mark as not finished
+            this._slotAssignments[slot] = { wx: d.wx, wy: d.wy };
+            this._slotProgress[slot] = false;
+            tasks.push({ slotIndex: slot, wx: d.wx, wy: d.wy, startIdx: slot * this.countPerChunk });
+            reservedSlots.add(slot);
+          }
+        }
+      } else {
+        // Re-enqueue any keeper slot that didn't finish last build so it completes across rapid moves
+        for (const [key, slot] of this._chunkToSlot.entries()) {
+          if (desiredKeys.has(key) && this._slotProgress[slot] !== true) {
+            const [cwStr, cyStr] = key.split(',');
+            const cw = parseInt(cwStr, 10); const cy = parseInt(cyStr, 10);
+            tasks.push({ slotIndex: slot, wx: cw, wy: cy, startIdx: slot * this.countPerChunk });
+          }
         }
       }
       // Build list of arrivals (in desired but not in old)
@@ -530,7 +545,7 @@ export default class ChunkNeighborhood {
         this._slotProgress[slotIndex] = false;
         tasks.push({ slotIndex, wx: arr.wx, wy: arr.wy, startIdx: slotIndex * this.countPerChunk });
       }
-      // Cleanup leavers from reverse map
+  // Cleanup leavers from reverse map
       for (const slot of leaverSlots) {
         for (const [k, s] of this._chunkToSlot.entries()) {
           if (s === slot && !desiredKeys.has(k)) { this._chunkToSlot.delete(k); break; }
