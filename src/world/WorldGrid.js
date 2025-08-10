@@ -156,7 +156,7 @@ export default class WorldGrid {
     const blendRange = this.elevation.shorelineBlend;
   let yScale = baseScaleY;
     let biome = classifyBiome(hRaw);
-    if (biome !== 'deepWater' && biome !== 'shallowWater') {
+    if (biome !== 'deepWater' && biome !== 'ocean' && biome !== 'shallowWater') {
       if (hRaw <= shoreTop + blendRange) {
         const tt = (hRaw - shoreTop) / blendRange;
         const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : (tt * tt * (3 - 2 * tt));

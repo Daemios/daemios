@@ -91,7 +91,7 @@ function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
 // Bands and enums
 export const ElevationBand = {
-  DeepOcean: 'DeepOcean', Shelf: 'Shelf', Coast: 'Coast', Lowland: 'Lowland', Highland: 'Highland', Mountain: 'Mountain', Peak: 'Peak',
+  DeepOcean: 'DeepOcean', Ocean: 'Ocean', Shelf: 'Shelf', Coast: 'Coast', Lowland: 'Lowland', Highland: 'Highland', Mountain: 'Mountain', Peak: 'Peak',
 };
 export const TemperatureBand = { Polar: 'Polar', Cold: 'Cold', Temperate: 'Temperate', Tropical: 'Tropical' };
 export const MoistureBand = { Arid: 'Arid', SemiArid: 'SemiArid', Humid: 'Humid', Saturated: 'Saturated' };
@@ -100,6 +100,7 @@ const ElevationThresholds = {
   // Sharper contrast per design doc v1.1
   // Deep ocean expanded, open seas wider, more interior highlands/mountains
   deep: 0.05,
+  ocean: 0.08,
   shelf: 0.12,
   coast: 0.20,
   low: 0.45,
@@ -109,6 +110,7 @@ const ElevationThresholds = {
 
 function classifyElevationBand(h) {
   if (h < ElevationThresholds.deep) return ElevationBand.DeepOcean;
+  if (h < ElevationThresholds.ocean) return ElevationBand.Ocean;
   if (h < ElevationThresholds.shelf) return ElevationBand.Shelf;
   if (h < ElevationThresholds.coast) return ElevationBand.Coast;
   if (h < ElevationThresholds.low) return ElevationBand.Lowland;

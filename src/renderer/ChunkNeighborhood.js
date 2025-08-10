@@ -320,7 +320,7 @@ export default class ChunkNeighborhood {
         const cell = this.world ? this.world.getCell(q, r) : null;
         if (__doSample) { __dtCell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); __samples += 1; }
-  const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+  const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater'));
   // Top center/scale via attributes
   const instIdx = startIdx + local;
   if (this._ctrArrTop && this._scyArrTop) {
@@ -415,7 +415,7 @@ export default class ChunkNeighborhood {
         if (__doSample) __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         const cell = this.world ? this.world.getCell(q, r) : null;
         if (__doSample) task.__profSub.cell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0;
-        const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+        const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater'));
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         const instIdx = task.startIdx + st.local;
         // Write attribute center/scale

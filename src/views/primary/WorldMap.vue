@@ -824,7 +824,7 @@ export default {
           const x = hexWidth * q;
           const z = hexHeight * (r + q / 2);
           const cell = this.world ? this.world.getCell(q, r) : null;
-          const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+          const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater'));
           // Build matrix once and reuse for top/side with differing Y scale
           dummy.position.set(x, 0, z);
           dummy.rotation.set(0, 0, 0);
@@ -1709,7 +1709,7 @@ export default {
           const qW = q + qOrigin;
           const rW = r + rOrigin;
           const cell = this.world.getCell(qW, rW);
-          const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
+          const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater');
           const v = isWater ? 0 : 255;
           data[i] = v; // R
           data[i + 1] = 0;
@@ -1780,7 +1780,7 @@ export default {
         const cell = this.world.getCell(q, r);
         const topY = this.hexMaxY * modelScaleY(q, r);
         if (topY < minTop) minTop = topY;
-        const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater');
+        const isWater = cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater');
         if (isWater) {
           if (topY < minTopWater) minTopWater = topY;
           waterCount += 1;
@@ -2296,7 +2296,7 @@ export default {
         if (!coord) continue;
         if (!landOnly || !this.world) return idx;
         const cell = this.world.getCell(coord.q, coord.r);
-        if (cell && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') return idx;
+        if (cell && cell.biome !== 'deepWater' && cell.biome !== 'ocean' && cell.biome !== 'shallowWater') return idx;
       }
       // Fallback
       return Math.floor(Math.random() * this.indexToQR.length);
@@ -2380,7 +2380,7 @@ export default {
       const x = hexW * q;
       const z = hexH * (r + q / 2);
       const cell = this.world.getCell(q, r);
-      const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
+      const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'ocean' || cell.biome === 'shallowWater'));
       const scaleY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0));
       const xzScale = (this.modelScaleFactor || 1) * this.contactScale * (bucket === 'side' ? (this.sideInset != null ? this.sideInset : 0.996) : 1.0);
       return { x, z, scaleY, xzScale };
