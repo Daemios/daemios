@@ -1,22 +1,24 @@
+import { useDialogsStore } from '@/stores/dialogsStore';
+
 export default {
   data: () => ({
     keybinds_enabled: true,
-    keybind_listeners: {
-      keybind: null,
-      focusIn: null,
-      focusOut: null,
-    },
   }),
   methods: {
-  async handleKeypress(event) {
+    handleKeypress(event) {
       if (!this.keybinds_enabled) {
         return;
       }
-  const { useDialogsStore } = await import('@/stores/dialogsStore');
-  const dialogsStore = useDialogsStore();
+
+      const dialogsStore = useDialogsStore();
       switch (event.code) {
         case 'Escape':
-          if (dialogsStore.isEquipmentOpen || dialogsStore.isInventoryOpen || dialogsStore.isAbilitiesOpen || dialogsStore.isOptionsOpen) {
+          if (
+            dialogsStore.isEquipmentOpen
+            || dialogsStore.isInventoryOpen
+            || dialogsStore.isAbilitiesOpen
+            || dialogsStore.isOptionsOpen
+          ) {
             dialogsStore.closeEquipment();
             dialogsStore.closeInventory();
             dialogsStore.closeAbilities();
@@ -32,12 +34,12 @@ export default {
         case 'KeyI':
           dialogsStore.toggleInventory();
           break;
-        default: break;
+        default:
+          break;
       }
     },
     keybindDisable(event) {
       if (event.target.tagName.toUpperCase() === 'INPUT') {
-        console.log('keys disabled');
         this.keybinds_enabled = false;
       }
     },
