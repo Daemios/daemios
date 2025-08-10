@@ -23,25 +23,31 @@
     "vuetify": "^3.9.4"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.25.0",
     "@vitejs/plugin-vue": "^5.0.0",
     "@vue/compiler-sfc": "^3.5.18",
     "eslint": "^8.12.0",
     "eslint-config-airbnb": "^19.0.4",
     "eslint-plugin-vue": "^8.5.0",
+  "vue-eslint-parser": "^9.3.1",
     "vite": "^5.4.0",
     "vite-plugin-vuetify": "^2.0.0"
   },
   "eslintConfig": {
     "root": true,
     "env": {
-      "node": true
+      "browser": true,
+      "node": true,
+      "es2022": true
     },
     "extends": [
       "plugin:vue/vue3-essential",
       "eslint:recommended"
     ],
+    "parser": "vue-eslint-parser",
     "parserOptions": {
+      "parser": {
+        "js": "espree"
+      },
       "ecmaVersion": 2022,
       "sourceType": "module"
     }
