@@ -320,8 +320,8 @@ export default class ClutterManager {
         for (const typeDef of this.types) {
           const rule = biomeRules(typeDef);
           if (!rule) continue;
-          if (typeDef.id === 'tree_pine' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') { if (temp > 0.45) continue; }
-          if (typeDef.id === 'tree_round' && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') { if (temp < 0.35) continue; }
+          if (typeDef.id === 'tree_pine' && cell.biome !== 'deepWater' && cell.biome !== 'ocean' && cell.biome !== 'shallowWater') { if (temp > 0.45) continue; }
+          if (typeDef.id === 'tree_round' && cell.biome !== 'deepWater' && cell.biome !== 'ocean' && cell.biome !== 'shallowWater') { if (temp < 0.35) continue; }
           const baseDensity = Math.max(0, (rule.density || 0) * this.densityMultiplier);
           const maxPerTile = Math.max(0, rule.maxPerTile || 0);
           if (baseDensity <= 0 || maxPerTile <= 0) continue;

@@ -113,7 +113,7 @@ export const useArenaStore = defineStore('arena', {
           const cell = world.getCell(x - half, y - half);
           terrain[x][y] = {
             terrain: {
-              passable: cell.biome !== 'deepWater' && cell.biome !== 'shallowWater',
+                passable: cell.biome !== 'deepWater' && cell.biome !== 'ocean' && cell.biome !== 'shallowWater',
               moisture: cell.f,
               flora: cell.f,
               color: `#${cell.colorTop.getHexString()}`,

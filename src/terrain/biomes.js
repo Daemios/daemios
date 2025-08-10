@@ -7,6 +7,7 @@ const palette = {
   // Water
   abyss: new THREE.Color('#052234'),   // darker blue
   deepWater: new THREE.Color('#0f3a59'),
+  ocean: new THREE.Color('#155e8b'),
   shallowWater: new THREE.Color('#1e6ea3'),
   shelfCyan: new THREE.Color('#11a6b8'),
   lagoon: new THREE.Color('#2fd6c7'),
@@ -42,6 +43,7 @@ export function classifyFoliage(f) {
 export function classifyBiome(h) {
   // Updated thresholds for stronger elevation contrast
   if (h < 0.05) return 'deepWater';
+  if (h < 0.08) return 'ocean';
   if (h < 0.12) return 'shallowWater';
   if (h < 0.20) return 'beach';
   if (h < 0.45) return 'lowland';
@@ -53,6 +55,7 @@ export function classifyBiome(h) {
 // Export thresholds so terrain generation / height shaping can reference them without duplication
 export const BIOME_THRESHOLDS = {
   deepWater: 0.05,
+  ocean: 0.08,
   shallowWater: 0.12,
   beach: 0.20,
   lowland: 0.45,
@@ -98,9 +101,15 @@ export function biomeColor(h, foliage, t, outColor = new THREE.Color(), opts = n
     hsl.l = Math.max(0, hsl.l * (1 - 0.30 * depth));
     deepSand.setHSL(hsl.h, hsl.s, hsl.l);
     outColor.copy(deepSand);
+  } else if (h < 0.08) {
+    // Open ocean: transition between abyss and shelf
+    const f = (h - 0.05) / 0.03; // 0.05-0.08
+    const deepSand = palette.desertTan.clone().lerp(palette.dune, 0.5);
+    const midSand = palette.desertTan.clone().lerp(palette.dune, 0.55);
+    outColor.copy(deepSand).lerp(midSand, f);
   } else if (h < 0.12) {
-    // Shallow water: lighter sandy seabed approaching beach
-    const f = (h - 0.05) / 0.07; // 0.05-0.12
+    // Shallow water over continental shelf
+    const f = (h - 0.08) / 0.04; // 0.08-0.12
     const nearSea = palette.desertTan.clone().lerp(palette.dune, 0.6);
     const nearBeach = palette.beach.clone().lerp(palette.dune, 0.35);
     outColor.copy(nearSea).lerp(nearBeach, Math.pow(f, 0.85));
