@@ -251,33 +251,13 @@ export default function createStylizedWaterMaterial(options = {}) {
       float heightFoam = smoothstep(0.15, 0.45, h);
       float crestFoam = clamp(slopeFoam * heightFoam, 0.0, 1.0);
 
-  float foam = clamp((shoreWhite + crestFoam) * uFoamIntensity, 0.0, 1.0);
-  // Make near-shore region solid white in all directions for now (ignore stripe directionality)
-  float nearFade = 1.0 - smoothstep(0.0, 1.0, (/*d into water*/ max(0.0, 0.0)));
-  // We need d and maxR in this scope; recompute a conservative fallback using local gradient
-  // Use m0 and a small epsilon to approximate distance: treat within ~maxR as near
-  nearFade = 1.0; // fallback to always consider vicinity; will be clamped by mask sampling below
-  float bandsSolid = 0.0;
-  {
-    // Recompute gradient briefly
-    float s2 = min(uHexW, uHexH) * uGradEpsScale;
-    vec2 ex2 = vec2(s2, 0.0), ey2 = vec2(0.0, s2);
-    float m0b = sampleMaskXZ(xz);
-    float m1b = sampleMaskXZ(xz + ex2);
-    float m2b = sampleMaskXZ(xz - ex2);
-    float m3b = sampleMaskXZ(xz + ey2);
-    float m4b = sampleMaskXZ(xz - ey2);
-    float localEdge = step(0.02, (max(m0b, max(m1b, max(m2b, max(m3b, m4b)))) - min(m0b, min(m1b, min(m2b, min(m3b, m4b))))));
-    // Solid if we are on water side near any edge
-    float waterOnly2 = 1.0 - smoothstep(0.5, 0.55, m0b);
-    bandsSolid = localEdge * waterOnly2;
-  }
-  float cov = sampleCoverageXZ(xz);
-  float covSoft = smoothstep(0.25, 0.75, cov);
-  vec3 col = mix(diffuse, uFoamCol, max(foam, bandsSolid));
+      float foam = clamp((shoreWhite + crestFoam) * uFoamIntensity, 0.0, 1.0);
+      float cov = sampleCoverageXZ(xz);
+      float covSoft = smoothstep(0.25, 0.75, cov);
+      vec3 col = mix(diffuse, uFoamCol, foam * covSoft);
       col += spec;
-  // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
-  gl_FragColor = vec4(col, uOpacity);
+      // Alpha no longer hard-gated by coverage so water extends beyond neighborhood
+      gl_FragColor = vec4(col, uOpacity);
     }
   `;
 

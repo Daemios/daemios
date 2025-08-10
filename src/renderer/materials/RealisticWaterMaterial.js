@@ -219,10 +219,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  // Force shoreline solid white near the edge in all directions for now
-  float nearMask = 1.0 - smoothstep(0.0, spacing * 1.5, d);
-  float bandsSolid = step(1e-3, gmag) * step(1e-4, d) * nearMask;
-  vec3 col = mix(baseCol, uFoamCol, max(foam, max(waveMaskSolid * covSoft, bandsSolid)));
+  vec3 col = mix(baseCol, uFoamCol, max(foam, shoreWaves * covSoft));
   // Remove specular tint on solid bands
   col += spec * (1.0 - waveMaskSolid);
 
@@ -232,9 +229,9 @@ export default function createRealisticWaterMaterial(options = {}) {
   float depth = max(0.0, uSeaLevelY - seabedY);
   float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
-  // Make solid white band fully opaque regardless of coverage
-  alpha = max(alpha, bandsSolid);
-  // Allow base water to render outside coverage for a continuous ocean; still hide the solid band outside
+  // Ensure animated shore waves remain visible
+  alpha = max(alpha, shoreWaves * covSoft);
+  // Allow base water to render outside coverage for a continuous ocean; still hide the foam outside
   alpha *= mix(1.0, covSoft * inside, step(0.5, waveMaskSolid));
   gl_FragColor = vec4(col, alpha);
     }
