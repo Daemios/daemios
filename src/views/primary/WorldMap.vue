@@ -697,6 +697,9 @@ export default {
       const cTop = this.pastelColorForChunk(wx, wy);
       const cSide = cTop.clone().multiplyScalar(0.8);
       const dummy = this._transformDummy || (this._transformDummy = markRaw(new THREE.Object3D()));
+      const topMatrix = this._tmpMatrixTop || (this._tmpMatrixTop = new THREE.Matrix4());
+      const sideMatrix = this._tmpMatrixSide || (this._tmpMatrixSide = new THREE.Matrix4());
+      dummy.rotation.set(0, 0, 0);
       for (let row = 0; row < this.chunkRows; row += 1) {
         for (let col = 0; col < this.chunkCols; col += 1) {
           const gCol = baseCol + col;
@@ -708,15 +711,14 @@ export default {
           const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
           // Build matrix once and reuse for top/side with differing Y scale
           dummy.position.set(x, 0, z);
-          dummy.rotation.set(0, 0, 0);
           dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
           dummy.updateMatrix();
-          const topMatrix = dummy.matrix.clone();
+          topMatrix.copy(dummy.matrix);
           // Side scale adjustment
           const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
           dummy.scale.set(sideXZ, sideY, sideXZ);
           dummy.updateMatrix();
-          const sideMatrix = dummy.matrix.clone();
+          sideMatrix.copy(dummy.matrix);
           const instIdx = startIdx + local;
           this.topIM.setMatrixAt(instIdx, topMatrix);
           this.sideIM.setMatrixAt(instIdx, sideMatrix);
