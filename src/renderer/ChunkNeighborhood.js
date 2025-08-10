@@ -101,6 +101,11 @@ export default class ChunkNeighborhood {
     this.indexToQR = new Array(total);
     this.scene.add(this.sideIM);
     this.scene.add(this.topIM);
+  // Cache raw typed arrays for fast writes
+  this._matArrTop = this.topIM.instanceMatrix && this.topIM.instanceMatrix.array ? this.topIM.instanceMatrix.array : null;
+  this._matArrSide = this.sideIM.instanceMatrix && this.sideIM.instanceMatrix.array ? this.sideIM.instanceMatrix.array : null;
+  this._colArrTop = this.topIM.instanceColor && this.topIM.instanceColor.array ? this.topIM.instanceColor.array : null;
+  this._colArrSide = this.sideIM.instanceColor && this.sideIM.instanceColor.array ? this.sideIM.instanceColor.array : null;
 
     // trails: use cloned materials so later changes on live materials don't affect trail appearance
     const topMatTrail = topMat.clone();
@@ -176,10 +181,14 @@ export default class ChunkNeighborhood {
     const cTop = this.pastelColorForChunk(wx, wy);
     const cSide = cTop.clone().multiplyScalar(0.8);
   // Preallocated math objects for fast instance matrix composition (no per-instance clones)
-  const _mat = this._mat || (this._mat = new THREE.Matrix4());
-  const _pos = this._pos || (this._pos = new THREE.Vector3());
-  const _scl = this._scl || (this._scl = new THREE.Vector3());
-  const _quatIdentity = this._quatIdentity || (this._quatIdentity = new THREE.Quaternion(0, 0, 0, 1));
+  // Fast TRS writer: column-major 4x4 with identity rotation
+  const writeMat = (arr, idx16, tx, ty, tz, sxm, sym, szm) => {
+    // zero/identity base
+    arr[idx16+0] = sxm; arr[idx16+1] = 0;   arr[idx16+2] = 0;   arr[idx16+3] = 0;
+    arr[idx16+4] = 0;   arr[idx16+5] = sym; arr[idx16+6] = 0;   arr[idx16+7] = 0;
+    arr[idx16+8] = 0;   arr[idx16+9] = 0;   arr[idx16+10]= szm; arr[idx16+11]= 0;
+    arr[idx16+12]= tx;  arr[idx16+13]= ty;  arr[idx16+14]= tz;  arr[idx16+15]= 1;
+  };
     for (let row = 0; row < this.chunkRows; row += 1) {
       for (let col = 0; col < this.chunkCols; col += 1) {
         const gCol = baseCol + col;
@@ -196,28 +205,32 @@ export default class ChunkNeighborhood {
         if (__doSample) { __dtCell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); __samples += 1; }
   const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-  // Top matrix
-  _pos.set(x, 0, z);
-  _scl.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-  _mat.compose(_pos, _quatIdentity, _scl);
-  const topMatrix = _mat;
-  // Side matrix (only Y changes)
+  // Top matrix via direct writes
+  const instIdx = startIdx + local;
+  if (this._matArrTop) {
+    const idx16 = instIdx * 16;
+    writeMat(this._matArrTop, idx16, x, 0, z, xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+  } else {
+    // Fallback
+    this.topIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale).setPosition(x, 0, z));
+  }
+  // Side matrix via direct writes
   const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-  _scl.set(sideXZ, sideY, sideXZ);
-  _mat.compose(_pos, _quatIdentity, _scl);
-  const sideMatrix = _mat;
-        const instIdx = startIdx + local;
-        this.topIM.setMatrixAt(instIdx, topMatrix);
-        this.sideIM.setMatrixAt(instIdx, sideMatrix);
+  if (this._matArrSide) {
+    const idx16b = instIdx * 16;
+    writeMat(this._matArrSide, idx16b, x, 0, z, sideXZ, sideY, sideXZ);
+  } else {
+    this.sideIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(sideXZ, sideY, sideXZ).setPosition(x, 0, z));
+  }
         if (__doSample) { __dtMatrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
         if (useChunkColors) {
-          this.topIM.setColorAt(instIdx, cTop);
-          this.sideIM.setColorAt(instIdx, cSide);
+          if (this._colArrTop) { const o = instIdx * 3; this._colArrTop[o] = cTop.r; this._colArrTop[o+1] = cTop.g; this._colArrTop[o+2] = cTop.b; } else { this.topIM.setColorAt(instIdx, cTop); }
+          if (this._colArrSide) { const o2 = instIdx * 3; this._colArrSide[o2] = cSide.r; this._colArrSide[o2+1] = cSide.g; this._colArrSide[o2+2] = cSide.b; } else { this.sideIM.setColorAt(instIdx, cSide); }
         } else {
           const topC = cell ? cell.colorTop : cTop;
           const sideC = cell ? cell.colorSide : cSide;
-          this.topIM.setColorAt(instIdx, topC);
-          this.sideIM.setColorAt(instIdx, sideC);
+          if (this._colArrTop) { const o = instIdx * 3; this._colArrTop[o] = topC.r; this._colArrTop[o+1] = topC.g; this._colArrTop[o+2] = topC.b; } else { this.topIM.setColorAt(instIdx, topC); }
+          if (this._colArrSide) { const o2 = instIdx * 3; this._colArrSide[o2] = sideC.r; this._colArrSide[o2+1] = sideC.g; this._colArrSide[o2+2] = sideC.b; } else { this.sideIM.setColorAt(instIdx, sideC); }
         }
         if (__doSample) { __dtColor += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         this.indexToQR[instIdx] = { q, r, wx, wy, col: gCol, row: gRow };
@@ -237,8 +250,12 @@ export default class ChunkNeighborhood {
         try { window.__DAEMIOS_PROF('chunk.gen.color', __dtColor * mult); } catch (e) {}
       }
     }
+    // After direct writes, ensure flags are set
+    if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
+    if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
+    if (this.topIM && this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
+    if (this.sideIM && this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
   }
-
   // A time-sliced variant that fills a chunk progressively, resuming from task.state
   _fillChunkSlice(task, budgetRows = 2) {
     // Ensure state
@@ -262,10 +279,12 @@ export default class ChunkNeighborhood {
     const sideXZ = xzScale * (this.sideInset != null ? this.sideInset : 0.996);
     const useChunkColors = !!this.features.chunkColors;
 
-    const _mat = this._mat || (this._mat = new THREE.Matrix4());
-    const _pos = this._pos || (this._pos = new THREE.Vector3());
-    const _scl = this._scl || (this._scl = new THREE.Vector3());
-    const _quatIdentity = this._quatIdentity || (this._quatIdentity = new THREE.Quaternion(0, 0, 0, 1));
+    const writeMat = (arr, idx16, tx, ty, tz, sxm, sym, szm) => {
+      arr[idx16+0] = sxm; arr[idx16+1] = 0;   arr[idx16+2] = 0;   arr[idx16+3] = 0;
+      arr[idx16+4] = 0;   arr[idx16+5] = sym; arr[idx16+6] = 0;   arr[idx16+7] = 0;
+      arr[idx16+8] = 0;   arr[idx16+9] = 0;   arr[idx16+10]= szm; arr[idx16+11]= 0;
+      arr[idx16+12]= tx;  arr[idx16+13]= ty;  arr[idx16+14]= tz;  arr[idx16+15]= 1;
+    };
 
     let rowsDone = 0;
     // Prepare sampled sub-timers on the task (persist across slices)
@@ -288,25 +307,30 @@ export default class ChunkNeighborhood {
         const cell = this.world ? this.world.getCell(q, r) : null;
         if (__doSample) task.__profSub.cell += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0;
         const isWater = !!(cell && (cell.biome === 'deepWater' || cell.biome === 'shallowWater'));
-        _pos.set(x, 0, z);
-        _scl.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
         if (__doSample) { __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
-        _mat.compose(_pos, _quatIdentity, _scl);
         const instIdx = task.startIdx + st.local;
-        this.topIM.setMatrixAt(instIdx, _mat);
+        // Write top matrix
+        if (this._matArrTop) {
+          writeMat(this._matArrTop, instIdx * 16, x, 0, z, xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
+        } else {
+          this.topIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale).setPosition(x, 0, z));
+        }
+        // Side matrix
         const sideY = isWater ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1)) : (sx * (cell ? cell.yScale : 1.0));
-        _scl.set(sideXZ, sideY, sideXZ);
-        _mat.compose(_pos, _quatIdentity, _scl);
-        this.sideIM.setMatrixAt(instIdx, _mat);
+        if (this._matArrSide) {
+          writeMat(this._matArrSide, instIdx * 16, x, 0, z, sideXZ, sideY, sideXZ);
+        } else {
+          this.sideIM.setMatrixAt(instIdx, new THREE.Matrix4().makeScale(sideXZ, sideY, sideXZ).setPosition(x, 0, z));
+        }
         if (__doSample) { task.__profSub.matrix += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; __t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); task.__profSub.samples += 1; }
         if (useChunkColors) {
-          this.topIM.setColorAt(instIdx, st.cTop);
-          this.sideIM.setColorAt(instIdx, st.cSide);
+          if (this._colArrTop) { const o = instIdx * 3; this._colArrTop[o] = st.cTop.r; this._colArrTop[o+1] = st.cTop.g; this._colArrTop[o+2] = st.cTop.b; } else { this.topIM.setColorAt(instIdx, st.cTop); }
+          if (this._colArrSide) { const o2 = instIdx * 3; this._colArrSide[o2] = st.cSide.r; this._colArrSide[o2+1] = st.cSide.g; this._colArrSide[o2+2] = st.cSide.b; } else { this.sideIM.setColorAt(instIdx, st.cSide); }
         } else {
           const topC = cell ? cell.colorTop : st.cTop;
           const sideC = cell ? cell.colorSide : st.cSide;
-          this.topIM.setColorAt(instIdx, topC);
-          this.sideIM.setColorAt(instIdx, sideC);
+          if (this._colArrTop) { const o = instIdx * 3; this._colArrTop[o] = topC.r; this._colArrTop[o+1] = topC.g; this._colArrTop[o+2] = topC.b; } else { this.topIM.setColorAt(instIdx, topC); }
+          if (this._colArrSide) { const o2 = instIdx * 3; this._colArrSide[o2] = sideC.r; this._colArrSide[o2+1] = sideC.g; this._colArrSide[o2+2] = sideC.b; } else { this.sideIM.setColorAt(instIdx, sideC); }
         }
         if (__doSample) { task.__profSub.color += ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - __t0; }
         this.indexToQR[instIdx] = { q, r, wx: task.wx, wy: task.wy, col: gCol, row: gRow };
@@ -557,8 +581,8 @@ export default class ChunkNeighborhood {
       const tNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       const elapsed = tNow - tStart;
       if (elapsed >= this.streamBudgetMs) {
-        this.topIM.instanceMatrix.needsUpdate = true;
-        this.sideIM.instanceMatrix.needsUpdate = true;
+  if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
+  if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
         if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
         if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
         // profiler: record tick
@@ -606,8 +630,8 @@ export default class ChunkNeighborhood {
         if (typeof task.slotIndex === 'number' && this._slotProgress) { this._slotProgress[task.slotIndex] = true; }
         chunksDone += 1;
         if (chunksDone === 0 || (this.streamMaxChunksPerTick > 0 && chunksDone >= this.streamMaxChunksPerTick)) {
-          this.topIM.instanceMatrix.needsUpdate = true;
-          this.sideIM.instanceMatrix.needsUpdate = true;
+          if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
+          if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
           if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
           if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
           if (typeof window !== 'undefined' && window.__DAEMIOS_PROF) {
@@ -632,8 +656,8 @@ export default class ChunkNeighborhood {
     }
 
   // All tasks done: final flush
-    this.topIM.instanceMatrix.needsUpdate = true;
-    this.sideIM.instanceMatrix.needsUpdate = true;
+  if (this.topIM && this.topIM.instanceMatrix) this.topIM.instanceMatrix.needsUpdate = true;
+  if (this.sideIM && this.sideIM.instanceMatrix) this.sideIM.instanceMatrix.needsUpdate = true;
     if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
     if (this.sideIM.instanceColor) this.sideIM.instanceColor.needsUpdate = true;
     this._buildQueue = null;

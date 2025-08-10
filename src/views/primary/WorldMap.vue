@@ -238,6 +238,10 @@ export default {
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
   generation: { scale: 1.0, expandNeighborhood: false, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
   worldSeed: 1337,
+  // Progressive neighborhood expansion control
+  _progressiveModeActive: false, // when true, skip progressive start on rebuilds
+  _progressivePlanned: 0,
+  _progressiveCheckId: null,
   
   // Rendering toggles
   // Default chunkColors: true (use per-chunk pastel overrides)
@@ -760,9 +764,12 @@ export default {
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
       if (!this.topGeom || !this.sideGeom) return;
-      // Determine neighborhood radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
-      const radius = this.generation?.expandNeighborhood ? 5 : 1;
-      this._neighborRadius = radius; // cache for bounds
+  // Determine desired radius (1 => 3x3; 5 => 11x11 ~ 121 chunks)
+  const desiredRadius = this.generation?.expandNeighborhood ? 5 : 1;
+  // Progressive: on first build, always start with radius 1 to show content fast
+  const progressiveStart = (desiredRadius > 1) && !this._progressiveModeActive;
+  const radius = progressiveStart ? 1 : desiredRadius;
+  this._neighborRadius = radius; // cache for bounds
       // Build via ChunkManager
       if (this.chunkManager && this.chunkManager.dispose) { try { this.chunkManager.dispose(); } catch (e) {} }
       this.chunkManager = new ChunkManager({
@@ -895,6 +902,31 @@ export default {
         this.focusCameraOnIndex(startIdx, { smooth: true, duration: 900 });
   this.setCurrentTile(startQ, startR);
       }
+      // If progressive expansion is desired, schedule rebuild to the full radius
+      if (progressiveStart) {
+        this._progressivePlanned = desiredRadius;
+        this._scheduleProgressiveExpand();
+      }
+    },
+    _scheduleProgressiveExpand() {
+      // Wait until the initial small queue finishes streaming, then expand
+      if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId);
+      const check = () => {
+        const streaming = !!(this.chunkManager && this.chunkManager.streaming);
+        if (!streaming && this._progressivePlanned > 1) {
+          // Expand: rebuild grid at desired radius without re-triggering progressive path
+          this._progressiveModeActive = true;
+          this._neighborRadius = this._progressivePlanned;
+          this.rebuildChunkGrid();
+          this._progressivePlanned = 0;
+          // Allow future manual toggles to use progressive again if wanted
+          this._progressiveModeActive = false;
+          this._progressiveCheckId = null;
+        } else {
+          this._progressiveCheckId = requestAnimationFrame(check);
+        }
+      };
+      this._progressiveCheckId = requestAnimationFrame(check);
     },
     computeNeighborOffsets(radius) {
       const out = [];
