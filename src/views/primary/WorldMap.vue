@@ -72,11 +72,11 @@
       :generation="generation"
       :benchmark="benchmark"
       :stats-visible="profilerEnabled"
+      style="position: absolute; right: 6px; top: 28px;"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
       @update:generation="generation = $event"
       @toggle-clutter="onToggleClutter"
-      style="position: absolute; right: 6px; top: 28px;"
       @toggle-shadows="onToggleShadows"
       @toggle-water="onToggleWater"
       @toggle-chunk-colors="onToggleChunkColors"
@@ -87,7 +87,7 @@
       @toggle-stats-pane="onToggleStatsPane"
       @set-neighborhood-radius="onSetNeighborhoodRadius"
       @run-benchmark="runBenchmark"
-  @create-town="onCreateTown"
+      @create-town="onCreateTown"
     />
   </div>
 </template>

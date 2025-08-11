@@ -1,45 +1,55 @@
 import { defineStore } from 'pinia';
 import api from '@/functions/api';
 
-// Central world store: terrain, towns, and future world entities
+// Central world store: terrain, locations, and future world entities
+// Location model:
+// {
+//   chunkX, chunkY, hexQ, hexR, type, name, description, visibility, owner, specialization
+// }
 export const useWorldStore = defineStore('world', {
   state: () => ({
-    // Terrain cache
-    terrain: null,
-    // Towns
-    towns: null,
-    townsLoading: false,
+    worldSeed: null,
+    locations: null,
+    locationsLoading: false,
     lastError: null,
   }),
   actions: {
-    // Terrain
-    async getTerrain() {
-      if (this.terrain) return;
-      const response = await api.get('world/terrain');
-      this.terrain = response;
+    // World seed
+    setWorldSeed(seed) {
+      this.worldSeed = seed;
     },
-
-    // Towns
-    async fetchTowns() {
+    async fetchWorldSeed() {
       try {
-        this.townsLoading = true;
         this.lastError = null;
-        const res = await api.get('world/town/list');
-        // Accept either array or { towns: [...] }
-        this.towns = Array.isArray(res) ? res : (res?.towns ?? []);
+        const res = await api.get('world/seed');
+        this.worldSeed = res?.seed ?? null;
       } catch (e) {
         this.lastError = e?.message || String(e);
-        this.towns = this.towns ?? [];
-      } finally {
-        this.townsLoading = false;
+        this.worldSeed = null;
       }
     },
-    async createTown(payload = null) {
+
+    // Locations
+    async fetchLocations() {
+      try {
+        this.locationsLoading = true;
+        this.lastError = null;
+        const res = await api.get('location/list');
+        // Accept either array or { locations: [...] }
+        this.locations = Array.isArray(res) ? res : (res?.locations ?? []);
+      } catch (e) {
+        this.lastError = e?.message || String(e);
+        this.locations = this.locations ?? [];
+      } finally {
+        this.locationsLoading = false;
+      }
+    },
+    async createLocation(payload = null) {
       try {
         this.lastError = null;
-        await api.post('world/town/create/', payload ?? {});
+        await api.post('location/create/', payload ?? {});
         // Refresh after creating
-        await this.fetchTowns();
+        await this.fetchLocations();
       } catch (e) {
         this.lastError = e?.message || String(e);
         throw e;

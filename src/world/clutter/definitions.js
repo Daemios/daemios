@@ -17,6 +17,22 @@ export const CLUTTER_TYPES = [
     },
   },
   {
+    id: 'tree_dead',
+    model: '/models/clutter/tree-dead.glb',
+    category: 'flora',
+    desiredRadius: 0.32,
+    baseColor: 0x8b7d7b,
+    yLift: 0.02,
+    scale: { min: 0.7, max: 1.1 },
+    rotation: { yawRandom: true },
+    biomes: {
+      tundra: { density: 0.18, maxPerTile: 7 },
+      snow: { density: 0.10, maxPerTile: 5 },
+      highland: { density: 0.06, maxPerTile: 2 },
+      // Add more biomes if desired (e.g., wasteland, dead_forest)
+    },
+  },
+  {
     id: 'tree_round',
     model: '/models/clutter/tree-round.glb',
     category: 'flora',
