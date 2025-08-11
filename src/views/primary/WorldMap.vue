@@ -72,6 +72,7 @@
       :generation="generation"
       :benchmark="benchmark"
       :stats-visible="profilerEnabled"
+      :generator-versions="generatorVersions"
       style="position: absolute; right: 6px; top: 28px;"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
@@ -84,6 +85,7 @@
       @toggle-radial-fade="onToggleRadialFade"
       @generation-scale-change="onGenerationScaleChange"
       @generator-tuning-change="onGeneratorTuningChange"
+      @generator-version-change="onGeneratorVersionChange"
       @toggle-stats-pane="onToggleStatsPane"
       @set-neighborhood-radius="onSetNeighborhoodRadius"
       @run-benchmark="runBenchmark"
@@ -112,11 +114,13 @@ import ChunkManager from '@/3d/renderer/ChunkManager';
 import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 import { profiler, createWebGLTimer } from '@/utils/profiler';
 import { useWorldStore } from '@/stores/worldStore';
+import { availableWorldGenerators } from '@/3d/world/generation';
 
 export default {
   name: 'WorldMap',
   components: { WorldDebugPanel },
   data() {
+    const generatorVersions = availableWorldGenerators();
     return {
       // core three
       scene: null,
@@ -267,7 +271,8 @@ export default {
   // Directions helper overlay
   _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generatorVersions,
   worldSeed: 1337,
   // Progressive neighborhood expansion control
   _progressiveModeActive: false, // when true, skip progressive start on rebuilds
@@ -322,6 +327,7 @@ export default {
         if (saved.features && typeof saved.features === 'object') Object.assign(this.features, saved.features);
         if (saved.radialFade && typeof saved.radialFade === 'object') Object.assign(this.radialFade, saved.radialFade);
         if (saved.generation && typeof saved.generation === 'object') Object.assign(this.generation, saved.generation);
+        if (!this.generation.version) this.generation.version = this.generatorVersions[0];
         if (typeof saved.worldSeed === 'number') this.worldSeed = saved.worldSeed;
       }
     } catch (e) { /* noop */ }
@@ -1351,6 +1357,7 @@ export default {
         terrainShape: this.terrainShape,
     seed: this.worldSeed,
     generationScale: this.generation.scale,
+    generatorVersion: this.generation.version,
     }));
   // Apply any saved generator tuning immediately
   if (this.world && this.world.setGeneratorTuning && this.generation && this.generation.tuning) {
@@ -2551,6 +2558,16 @@ export default {
   // Rebuild water textures/mask to match updated elevation/biomes
   this.buildWater();
       this.scheduleClutterCommit(0);
+      if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
+    },
+    onGeneratorVersionChange() {
+      if (this.world && this.world.setGeneratorVersion) {
+        this.world.setGeneratorVersion(this.generation.version);
+        if (this.generation.tuning) this.world.setGeneratorTuning(this.generation.tuning);
+        if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y, { forceRefill: true });
+        this.buildWater();
+        this.scheduleClutterCommit(0);
+      }
       if (this.settings?.mergeAtPath) this.settings.mergeAtPath({ path: 'worldMap', value: { generation: this.generation } });
     },
     applyShadows(enabled) {

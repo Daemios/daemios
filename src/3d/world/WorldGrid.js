@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import SimplexNoise from 'simplex-noise';
 import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '../terrain/biomes';
-import { createHexGenerator } from './generation/HexWorldGenerator';
+import { createWorldGenerator } from './generation';
 
 export default class WorldGrid {
   constructor(opts = {}) {
@@ -31,6 +31,8 @@ export default class WorldGrid {
     };
   this.seed = opts.seed ?? 1337;
   this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
+  this.generatorVersion = opts.generatorVersion || 'hex';
+  this._generatorTuning = opts.generatorTuning || null;
   // Noise (seeded deterministically by world seed)
   // Legacy noises remain for minor shaping (e.g., shoreline), but are now tied to the same seed
   const seedStr = String(this.seed);
@@ -41,7 +43,8 @@ export default class WorldGrid {
   this.waterMaskNoise = new SimplexNoise('waterMask:' + seedStr);
 
     // New stateless world generator (pure per-hex); we keep one instance to reuse internal noise objects
-    this.hexGen = createHexGenerator(this.seed);
+    this.hexGen = createWorldGenerator(this.generatorVersion, this.seed);
+    if (this._generatorTuning && this.hexGen.setTuning) this.hexGen.setTuning(this._generatorTuning);
 
   // scratch
   this._tmpColor = new THREE.Color();
@@ -61,7 +64,17 @@ export default class WorldGrid {
 
   // Update generator tuning parameters at runtime
   setGeneratorTuning(tuning) {
-    if (this.hexGen && this.hexGen.setTuning) this.hexGen.setTuning(tuning || {});
+    this._generatorTuning = { ...(this._generatorTuning || {}), ...(tuning || {}) };
+    if (this.hexGen && this.hexGen.setTuning) this.hexGen.setTuning(this._generatorTuning);
+    this.invalidateCache();
+  }
+
+  // Swap the active generator algorithm by version key
+  setGeneratorVersion(version) {
+    if (!version || version === this.generatorVersion) return;
+    this.generatorVersion = version;
+    this.hexGen = createWorldGenerator(this.generatorVersion, this.seed);
+    if (this._generatorTuning && this.hexGen.setTuning) this.hexGen.setTuning(this._generatorTuning);
     this.invalidateCache();
   }
 

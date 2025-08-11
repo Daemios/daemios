@@ -116,6 +116,16 @@
       </summary>
       <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
         <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center;">
+          <span style="opacity: 0.8; text-align: right;">Version</span>
+          <select
+            :value="genLocal.version"
+            style="width: 100%;"
+            @change="onSetGeneratorVersion($event)"
+          >
+            <option v-for="v in generatorVersions" :key="v" :value="v">{{ v }}</option>
+          </select>
+        </div>
+        <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center;">
           <span style="opacity: 0.8; text-align: right;">Scale</span>
           <input
             :value="genLocal.scale"
@@ -291,6 +301,7 @@ export default {
     generation: { type: Object, required: true },
     benchmark: { type: Object, required: false },
   statsVisible: { type: Boolean, required: false, default: true },
+  generatorVersions: { type: Array, required: false, default: () => [] },
   },
   emits: [
     'update:features',
@@ -309,11 +320,14 @@ export default {
     'run-benchmark',
   // Gameplay actions
   'create-town',
+  'generator-version-change',
   ],
   computed: {
     featuresLocal() { return this.features || {}; },
     radialLocal() { return this.radialFade || {}; },
-  genLocal() { return this.generation || { scale: 1, tuning: {} }; },
+  genLocal() {
+      return this.generation || { scale: 1, tuning: {}, version: this.generatorVersions?.[0] };
+    },
   },
   methods: {
     fmt(v, n = 1) { if (v == null || Number.isNaN(v)) return '—'; const x = Number(v); return Math.abs(x) < 1e-6 ? '0' : x.toFixed(n); },
@@ -366,6 +380,12 @@ export default {
       this.$emit('set-neighborhood-radius', r);
     },
   // Removed legacy neighborhood expansion toggle
+    onSetGeneratorVersion(e) {
+      const version = e.target.value;
+      const next = { ...(this.genLocal || {}), version };
+      this.$emit('update:generation', next);
+      this.$emit('generator-version-change');
+    },
   },
 };
 </script>
