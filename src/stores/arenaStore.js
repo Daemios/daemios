@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { cartesian } from '@/mixins/cartesian';
-import WorldGrid from '@/world/WorldGrid';
+import WorldGrid from '@/3d/world/WorldGrid';
 
 export const useArenaStore = defineStore('arena', {
   state: () => ({
