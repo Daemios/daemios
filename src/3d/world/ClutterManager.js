@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import makeRng from '@/world/Random';
-import { CLUTTER_TYPES, CLUTTER_SETTINGS } from '@/world/clutter/definitions';
+import makeRng from '@/3d/world/Random';
+import { CLUTTER_TYPES, CLUTTER_SETTINGS } from '@/3d/world/clutter/definitions';
 
 // Helper to normalize a loaded mesh: center XZ, base at y=0
 function normalizeScene(root) {

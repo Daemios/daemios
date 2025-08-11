@@ -4,7 +4,7 @@ HexWorldGenerator
 - Usage:
 
 ```js
-import { createHexGenerator } from "@/world/generation/HexWorldGenerator.js";
+import { createHexGenerator } from "@/3d/world/generation/HexWorldGenerator.js";
 const gen = createHexGenerator(12345);
 const h = gen.get(10, -3);
 console.log(h.biomeMajor, h.elevationBand);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { markRaw } from 'vue';
-import ChunkNeighborhood from '@/renderer/ChunkNeighborhood';
-import ClutterManager from '@/world/ClutterManager';
+import ChunkNeighborhood from '@/3d/renderer/ChunkNeighborhood';
+import ClutterManager from '@/3d/world/ClutterManager';
 
 /**
  * ChunkManager

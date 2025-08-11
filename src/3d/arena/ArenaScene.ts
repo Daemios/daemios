@@ -1,7 +1,7 @@
-import { SceneController } from '../3d/core/SceneController'
-import { BasicPipeline } from '../3d/core/RenderPipeline'
-import { SquareGrid } from '../3d/grids/SquareGrid'
-import { SquareNav } from '../3d/nav/SquareNav'
+import { SceneController } from '../core/SceneController'
+import { BasicPipeline } from '../core/RenderPipeline'
+import { SquareGrid } from '../grids/SquareGrid'
+import { SquareNav } from '../nav/SquareNav'
 
 export class ArenaScene extends SceneController {
   constructor() {
