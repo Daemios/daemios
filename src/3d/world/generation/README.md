@@ -1,6 +1,8 @@
 HexWorldGenerator
 
 - Pure, deterministic per-hex generator matching the mobile-friendly spec.
+- A second generator, `2.0`, applies updated default tuning for the fantasy
+  but plausible world generation design.
 - Usage:
 
 ```js

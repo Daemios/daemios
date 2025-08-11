@@ -1,8 +1,10 @@
 import { createHexGenerator } from './HexWorldGenerator';
+import { createHexGenerator2 } from './HexWorldGenerator2';
 
 // Registry of available world generator factories keyed by version name
 const registry = {
   hex: createHexGenerator,
+  '2.0': createHexGenerator2,
 };
 
 /**
