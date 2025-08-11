@@ -414,6 +414,23 @@ export default class ClutterManager {
         } else {
           // Reuse existing pool; keep count so no flicker; we will overwrite progressively.
         }
+        // Operate on the current pool (could have been swapped above)
+        const pool = this.pools.get(t.id);
+        if (pool) {
+          // Clamp down any excess visible instances from the previous area right away
+          if (typeof pool.count === 'number') {
+            const clamped = Math.min(needed, pool.count | 0);
+            if (clamped !== pool.count) pool.count = clamped;
+          }
+          // If this type has no placements in the new area, hide it immediately so stale instances disappear
+          if (needed === 0) {
+            if (pool.count !== 0) pool.count = 0;
+            pool.visible = this.enabled && false;
+          } else {
+            // Keep it visible; final exact count will be set during phase 3 per-type finalize
+            pool.visible = this.enabled;
+          }
+        }
       }
       // Init write state
   job.phase = 3;

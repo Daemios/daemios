@@ -13,8 +13,8 @@
       <summary style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
         <span>Rendering</span>
         <button
-          @click.stop.prevent="onToggleStatsPane()"
           style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: pointer;"
+          @click.stop.prevent="onToggleStatsPane()"
         >
           {{ statsVisible ? 'Hide Stats' : 'Show Stats' }}
         </button>
@@ -48,7 +48,7 @@
     </details>
 
     <!-- Generation section -->
-    <details open style="margin: 8px 0 0 0;">
+  <details open style="margin: 8px 0 0 0;">
       <summary style="cursor: pointer; user-select: none; outline: none; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
         <span>Generation</span>
         <span style="opacity: 0.8;">{{ Number(genLocal.scale).toFixed(2) }}×</span>
@@ -105,6 +105,17 @@
   <!-- Removed legacy 10× neighborhood toggle in favor of absolute radius control -->
       </div>
     </details>
+
+    <!-- Actions (debug/gameplay) -->
+    <details open style="margin: 8px 0 0 0;">
+      <summary style="cursor: pointer; user-select: none; outline: none;">Actions</summary>
+      <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+        <button
+          style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;"
+          @click.stop.prevent="$emit('create-town')"
+        >Add Town</button>
+      </div>
+    </details>
   </div>
   </template>
 
@@ -133,6 +144,8 @@ export default {
   'toggle-stats-pane',
   'set-neighborhood-radius',
     'run-benchmark',
+  // Gameplay actions
+  'create-town',
   ],
   computed: {
     featuresLocal() { return this.features || {}; },

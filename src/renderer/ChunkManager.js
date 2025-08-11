@@ -127,24 +127,15 @@ export default class ChunkManager {
       try { this.onSnapshotTrail(trailMs); } catch (e) {}
       this.trailActive = true;
     }
-    // Store rect for clutter union under the trail
-  const r = this.neighborRadius;
-    const newPrev = {
+    // Store rect for clutter union under the trail: only the immediate previous neighborhood,
+    // not an accumulated union across moves.
+    const r = this.neighborRadius;
+    this._prevNeighborhoodRect = {
       colMin: (this.centerChunk.x - r) * this.chunkCols,
       rowMin: (this.centerChunk.y - r) * this.chunkRows,
       colMax: (this.centerChunk.x + r) * this.chunkCols + (this.chunkCols - 1),
       rowMax: (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1),
     };
-    if (this.trailActive && this._prevNeighborhoodRect) {
-      this._prevNeighborhoodRect = {
-        colMin: Math.min(this._prevNeighborhoodRect.colMin, newPrev.colMin),
-        rowMin: Math.min(this._prevNeighborhoodRect.rowMin, newPrev.rowMin),
-        colMax: Math.max(this._prevNeighborhoodRect.colMax, newPrev.colMax),
-        rowMax: Math.max(this._prevNeighborhoodRect.rowMax, newPrev.rowMax),
-      };
-    } else {
-      this._prevNeighborhoodRect = newPrev;
-    }
     // Update center
   const prevX = this.centerChunk.x; const prevY = this.centerChunk.y;
   this.centerChunk.x = wx; this.centerChunk.y = wy;
@@ -165,8 +156,8 @@ export default class ChunkManager {
       colMax: (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1),
       rowMax: (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1),
     };
-  // Unify behavior: if the trail is active, union with the previous neighborhood regardless of radius
-  const shouldUnion = !!this._prevNeighborhoodRect && !!this.trailActive;
+  // Only union clutter for small (radius=1) neighborhoods to prevent lingering clutter under large moves
+  const shouldUnion = (radius === 1) && !!this._prevNeighborhoodRect && !!this.trailActive;
     const rect = shouldUnion
       ? {
           colMin: Math.min(curr.colMin, this._prevNeighborhoodRect.colMin),

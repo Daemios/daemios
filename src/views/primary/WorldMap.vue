@@ -14,25 +14,51 @@
       @wheel.stop.prevent
       @contextmenu.stop.prevent
     >
-      <details open style="margin: 0;">
-        <summary style="cursor: pointer; user-select: none; outline: none;">Current Tile</summary>
-        <div v-if="currentTileInfo" style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+      <details
+        open
+        style="margin: 0;"
+      >
+        <summary style="cursor: pointer; user-select: none; outline: none;">
+          Current Tile
+        </summary>
+        <div
+          v-if="currentTileInfo"
+          style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;"
+        >
           <div><span style="opacity: 0.8;">Axial</span>: q={{ currentTileInfo.q }}, r={{ currentTileInfo.r }}</div>
-          <div v-if="currentTileInfo.col != null"><span style="opacity: 0.8;">Offset</span>: col={{ currentTileInfo.col }}, row={{ currentTileInfo.row }}</div>
-          <div v-if="currentTileInfo.wx != null"><span style="opacity: 0.8;">Chunk</span>: ({{ currentTileInfo.wx }}, {{ currentTileInfo.wy }})</div>
+          <div v-if="currentTileInfo.col != null">
+            <span style="opacity: 0.8;">Offset</span>: col={{ currentTileInfo.col }}, row={{ currentTileInfo.row }}
+          </div>
+          <div v-if="currentTileInfo.wx != null">
+            <span style="opacity: 0.8;">Chunk</span>: ({{ currentTileInfo.wx }}, {{ currentTileInfo.wy }})
+          </div>
           <div><span style="opacity: 0.8;">World</span>: x={{ fmt(currentTileInfo.world.x) }}, z={{ fmt(currentTileInfo.world.z) }}</div>
           <div><span style="opacity: 0.8;">Biome</span>: {{ currentTileInfo.cell.biome }}</div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Gen</span>: {{ currentTileInfo.cell.gen.biomeMajor }} / {{ currentTileInfo.cell.gen.biomeSub }}</div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Bands</span>: E={{ currentTileInfo.cell.gen.elevationBand }}, T={{ currentTileInfo.cell.gen.temperatureBand }}, M={{ currentTileInfo.cell.gen.moistureBand }}</div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen"><span style="opacity: 0.8;">Archetype</span>: {{ currentTileInfo.cell.gen.regionArchetype }}</div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen && currentTileInfo.cell.gen.flags"><span style="opacity: 0.8;">Flags</span>: {{ flagsList(currentTileInfo.cell.gen.flags) }}</div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
+            <span style="opacity: 0.8;">Gen</span>: {{ currentTileInfo.cell.gen.biomeMajor }} / {{ currentTileInfo.cell.gen.biomeSub }}
+          </div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
+            <span style="opacity: 0.8;">Bands</span>: E={{ currentTileInfo.cell.gen.elevationBand }}, T={{ currentTileInfo.cell.gen.temperatureBand }}, M={{ currentTileInfo.cell.gen.moistureBand }}
+          </div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
+            <span style="opacity: 0.8;">Archetype</span>: {{ currentTileInfo.cell.gen.regionArchetype }}
+          </div>
+          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen && currentTileInfo.cell.gen.flags">
+            <span style="opacity: 0.8;">Flags</span>: {{ flagsList(currentTileInfo.cell.gen.flags) }}
+          </div>
           <div><span style="opacity: 0.8;">hRaw</span>: {{ fmt(currentTileInfo.cell.hRaw) }} | <span style="opacity: 0.8;">h</span>: {{ fmt(currentTileInfo.cell.h) }}</div>
           <div><span style="opacity: 0.8;">yScale</span>: {{ fmt(currentTileInfo.cell.yScale) }}</div>
           <div><span style="opacity: 0.8;">foliage</span>: {{ fmt(currentTileInfo.cell.f) }} | <span style="opacity: 0.8;">temp</span>: {{ fmt(currentTileInfo.cell.t) }}</div>
         </div>
-        <div v-else style="opacity: 0.8; margin-top: 6px;">
+        <div
+          v-else
+          style="opacity: 0.8; margin-top: 6px;"
+        >
           Click a tile to select it.
-          <div v-if="hoverIdx != null && indexToQR && indexToQR[hoverIdx]" style="margin-top: 6px;">
+          <div
+            v-if="hoverIdx != null && indexToQR && indexToQR[hoverIdx]"
+            style="margin-top: 6px;"
+          >
             Hover: q={{ indexToQR[hoverIdx].q }}, r={{ indexToQR[hoverIdx].r }}
           </div>
         </div>
@@ -42,25 +68,26 @@
     <WorldDebugPanel
       v-if="debug.show"
       :features="features"
-      :radialFade="radialFade"
+      :radial-fade="radialFade"
       :generation="generation"
       :benchmark="benchmark"
-  :statsVisible="profilerEnabled"
+      :stats-visible="profilerEnabled"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
       @update:generation="generation = $event"
       @toggle-clutter="onToggleClutter"
+      style="position: absolute; right: 6px; top: 28px;"
       @toggle-shadows="onToggleShadows"
       @toggle-water="onToggleWater"
       @toggle-chunk-colors="onToggleChunkColors"
-  @toggle-directions="onToggleDirections"
+      @toggle-directions="onToggleDirections"
       @toggle-radial-fade="onToggleRadialFade"
       @generation-scale-change="onGenerationScaleChange"
       @generator-tuning-change="onGeneratorTuningChange"
-  @toggle-stats-pane="onToggleStatsPane"
-  @set-neighborhood-radius="onSetNeighborhoodRadius"
+      @toggle-stats-pane="onToggleStatsPane"
+      @set-neighborhood-radius="onSetNeighborhoodRadius"
       @run-benchmark="runBenchmark"
-      style="position: absolute; right: 6px; top: 28px;"
+  @create-town="onCreateTown"
     />
   </div>
 </template>
@@ -84,6 +111,7 @@ import { updateRadialFadeUniforms } from '@/renderer/radialFade';
 import ChunkManager from '@/renderer/ChunkManager';
 import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 import { profiler, createWebGLTimer } from '@/utils/profiler';
+import { useWorldStore } from '@/stores/worldStore';
 
 export default {
   name: 'WorldMap',
@@ -255,6 +283,7 @@ export default {
   keyLight: null,
   // stores
   settings: null,
+  worldStore: null,
   // selection
   selectedQR: { q: null, r: null },
     };
@@ -273,6 +302,7 @@ export default {
   mounted() {
     // pinia stores
     this.settings = useSettingsStore();
+  this.worldStore = useWorldStore();
     // Startup marker for this view
     try {
       if (typeof window !== 'undefined') {
@@ -313,7 +343,9 @@ export default {
       this.scheduleClutterCommit(120);
     }, { deep: true });
 
-    this.init();
+  this.init();
+  // Load towns list on map load
+  try { if (this.worldStore && this.worldStore.fetchTowns) this.worldStore.fetchTowns(); } catch (e) { /* noop */ }
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
     this.$refs.sceneContainer.addEventListener('pointermove', this.onPointerMove);
@@ -354,6 +386,17 @@ export default {
         if (info && info.q === q && info.r === r) return i;
       }
       return null;
+    },
+    async onCreateTown() {
+      try {
+        if (!this.worldStore) this.worldStore = useWorldStore();
+        await this.worldStore.createTown();
+        // For now, log the count
+        const n = Array.isArray(this.worldStore.towns) ? this.worldStore.towns.length : 0;
+        console.info(`[World] Town created. Total towns: ${n}`);
+      } catch (e) {
+        console.error('Failed to create town', e);
+      }
     },
   // Helper: commit clutter for current visible chunk neighborhood and current fade
     commitClutterForNeighborhood() {
@@ -585,6 +628,12 @@ export default {
         this.trailSideIM.visible = false;
   // Clear previous rect so future clutter commits don't include it
   this._prevNeighborhoodRect = null;
+        // Inform ChunkManager that the trail is no longer active and clear its union state
+        if (this.chunkManager) {
+          this.chunkManager.trailActive = false;
+          if (typeof this.chunkManager._prevNeighborhoodRect !== 'undefined') this.chunkManager._prevNeighborhoodRect = null;
+          if (this.chunkManager.commitClutterForNeighborhood) this.chunkManager.commitClutterForNeighborhood();
+        }
         // Cancel any leftover job ref
         if (this._trailCopy && this._trailCopy.cancel) { try { this._trailCopy.cancel(); } catch (e) {} this._trailCopy = null; }
       }, Math.max(0, delayMs | 0));
@@ -603,6 +652,12 @@ export default {
         this.trailSideIM.visible = false;
         // Clear previous rect so future clutter commits don't include it
         this._prevNeighborhoodRect = null;
+        // Inform ChunkManager and rebuild clutter without union
+        if (this.chunkManager) {
+          this.chunkManager.trailActive = false;
+          if (typeof this.chunkManager._prevNeighborhoodRect !== 'undefined') this.chunkManager._prevNeighborhoodRect = null;
+          if (this.chunkManager.commitClutterForNeighborhood) this.chunkManager.commitClutterForNeighborhood();
+        }
       }, Math.max(0, delayMs | 0));
     },
     
@@ -942,6 +997,11 @@ export default {
           if (this.trailSideIM) this.trailSideIM.visible = false;
           if (this.trailTimer) { clearTimeout(this.trailTimer); this.trailTimer = null; }
           if (this.chunkManager) this.chunkManager.trailActive = false;
+          // Trail is gone; rebuild clutter for the current neighborhood only
+          // so any clutter kept under the trail union gets removed immediately.
+          if (this.chunkManager && this.chunkManager.commitClutterForNeighborhood) {
+            this.chunkManager.commitClutterForNeighborhood();
+          }
         },
       });
       // Startup: chunk build start
