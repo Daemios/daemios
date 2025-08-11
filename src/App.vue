@@ -101,7 +101,7 @@ import mixin_socket from '@/mixins/socket';
 
 export default {
   components: {
-    Background: defineAsyncComponent(() => import('@/components/background/Background.vue')),
+    Background: defineAsyncComponent(() => import('@/3d/background/Background.vue')),
     Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
     Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
     Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),

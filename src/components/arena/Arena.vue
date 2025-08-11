@@ -10,7 +10,7 @@
 <script setup>
 import { storeToRefs } from 'pinia';
 import { onMounted } from 'vue';
-import ArenaScene from '@/components/arena/ArenaScene.vue';
+import ArenaScene from '@/3d/arena/ArenaScene.vue';
 import ListEntityList from '@/components/arena/ListEntityList.vue';
 import TurnIndicator from '@/components/arena/TurnIndicator.vue';
 import DebugPane from '@/components/arena/DebugPane.vue';

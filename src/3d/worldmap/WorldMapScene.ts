@@ -1,7 +1,7 @@
-import { SceneController } from '../3d/core/SceneController'
-import { BasicPipeline } from '../3d/core/RenderPipeline'
-import { HexGrid } from '../3d/grids/HexGrid'
-import { HexNav } from '../3d/nav/HexNav'
+import { SceneController } from '../core/SceneController'
+import { BasicPipeline } from '../core/RenderPipeline'
+import { HexGrid } from '../grids/HexGrid'
+import { HexNav } from '../nav/HexNav'
 
 export class WorldMapScene extends SceneController {
   constructor() {

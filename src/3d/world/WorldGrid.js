@@ -7,8 +7,8 @@
 
 import * as THREE from 'three';
 import SimplexNoise from 'simplex-noise';
-import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '@/terrain/biomes';
-import { createHexGenerator } from '@/world/generation/HexWorldGenerator';
+import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '../terrain/biomes';
+import { createHexGenerator } from './generation/HexWorldGenerator';
 
 export default class WorldGrid {
   constructor(opts = {}) {
