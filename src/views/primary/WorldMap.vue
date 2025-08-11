@@ -231,15 +231,6 @@ export default {
         minLand: 0.32,
         shorelineBlend: 0.08,
       },
-      terrainShape: {
-        baseFreq: 0.07,
-        mountainFreq: 0.16,
-        mountainThreshold: 0.78,
-        mountainStrength: 0.6,
-        plainsExponent: 1.6,
-        mountainExponent: 1.25,
-        finalExponent: 1.25,
-      },
 
       // fps
       fpsFrames: 0,
@@ -271,7 +262,7 @@ export default {
   // Directions helper overlay
   _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generation: { version: generatorVersions[0] || '2.0', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
   generatorVersions,
   worldSeed: 1337,
   // Progressive neighborhood expansion control
@@ -1350,15 +1341,14 @@ export default {
       this.$refs.sceneContainer.addEventListener('wheel', this.onWheel, { passive: false });
 
       // Init world data and auxiliary systems
-  this.world = markRaw(new WorldGrid({
+      this.world = markRaw(new WorldGrid({
         layoutRadius: this.layoutRadius,
         gridSize: this.gridSize,
         elevation: this.elevation,
-        terrainShape: this.terrainShape,
-    seed: this.worldSeed,
-    generationScale: this.generation.scale,
-    generatorVersion: this.generation.version,
-    }));
+        seed: this.worldSeed,
+        generationScale: this.generation.scale,
+        generatorVersion: this.generation.version,
+      }));
   // Apply any saved generator tuning immediately
   if (this.world && this.world.setGeneratorTuning && this.generation && this.generation.tuning) {
     this.world.setGeneratorTuning(this.generation.tuning);
@@ -1950,20 +1940,6 @@ export default {
   if (this.waterMesh) this.waterMesh.visible = visible;
     },
   // rebuildWaterStencil: removed (no stencil)
-    getHeight(q, r) {
-      const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
-      const plains = Math.pow(base, this.terrainShape.plainsExponent);
-      const mRaw = (this.mountainNoise.noise2D(q * this.terrainShape.mountainFreq + 250, r * this.terrainShape.mountainFreq + 250) + 1) / 2;
-      let mountain = 0;
-      if (mRaw > this.terrainShape.mountainThreshold) {
-        const norm = (mRaw - this.terrainShape.mountainThreshold) / (1 - this.terrainShape.mountainThreshold);
-        mountain = Math.pow(norm, this.terrainShape.mountainExponent) * this.terrainShape.mountainStrength;
-      }
-      let h = plains + mountain;
-      h = Math.min(1, Math.max(0, h));
-      h = Math.pow(h, this.terrainShape.finalExponent);
-      return h;
-    },
     animate() {
       requestAnimationFrame(this.animate);
       // Start frame profiling
