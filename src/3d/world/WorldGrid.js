@@ -74,7 +74,8 @@ export default class WorldGrid {
     if (!version || version === this.generatorVersion) return;
     this.generatorVersion = version;
     this.hexGen = createWorldGenerator(this.generatorVersion, this.seed);
-    if (this._generatorTuning && this.hexGen.setTuning) this.hexGen.setTuning(this._generatorTuning);
+    // Reset tuning so new generator's defaults take effect
+    this._generatorTuning = null;
     this.invalidateCache();
   }
 
