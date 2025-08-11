@@ -2563,7 +2563,8 @@ export default {
     onGeneratorVersionChange() {
       if (this.world && this.world.setGeneratorVersion) {
         this.world.setGeneratorVersion(this.generation.version);
-        if (this.generation.tuning) this.world.setGeneratorTuning(this.generation.tuning);
+        // Clear tuning so the new generator's defaults are used
+        this.generation.tuning = {};
         if (this.centerChunk) this.setCenterChunk(this.centerChunk.x, this.centerChunk.y, { forceRefill: true });
         this.buildWater();
         this.scheduleClutterCommit(0);
