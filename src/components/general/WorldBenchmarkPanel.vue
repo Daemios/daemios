@@ -85,6 +85,10 @@ export default {
       lines.push(this.fmtStat(s.chunkCell, 'Chunk Cell'));
       lines.push(this.fmtStat(s.chunkMatrix, 'Chunk Matrix'));
       lines.push(this.fmtStat(s.chunkColor, 'Chunk Color'));
+      if (s.queueTotal) lines.push(this.fmtStat(s.queueTotal, 'Queue Total'));
+      if (s.queueRate) lines.push(`Queue Rate: ${(s.queueRate.last ?? s.queueRate.avg ?? 0).toFixed(1)}t/s`);
+      if (s.queueDone && s.queueTasks) lines.push(`Queue Done: ${s.queueDone.last ?? s.queueDone.avg}/${s.queueTasks.last ?? s.queueTasks.avg}`);
+      if (s.queueEta) lines.push(`Queue ETA: ${s.queueEta.last ?? s.queueEta.avg}`);
       if (s.queueLen != null && s.queueCursor != null) lines.push(`Queue: ${s.queueCursor}/${s.queueLen}`);
       if (s.instCount != null && s.instTarget != null) lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
       return lines.join('\n');
