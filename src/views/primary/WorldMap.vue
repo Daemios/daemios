@@ -250,15 +250,18 @@ export default {
       const ch = this.chunkForAxial ? this.chunkForAxial(q, r) : { wx: null, wy: null };
       return { q, r, world: { x, z }, col: off.col, row: off.row, wx: ch.wx, wy: ch.wy, cell };
     },
-    worldSeed() {
-      // Replace with your actual logic for the world seed
-      return this.$store?.state?.worldSeed || null;
-    },
   },
   mounted() {
     // pinia stores
     this.settings = useSettingsStore();
   this.worldStore = useWorldStore();
+    this.$watch(
+      () => this.worldStore?.worldSeed,
+      (seed) => {
+        if (typeof seed === 'number') this.worldSeed = seed;
+      },
+      { immediate: true },
+    );
     // Startup marker for this view
     try {
       if (typeof window !== 'undefined') {
@@ -2269,8 +2272,10 @@ export default {
         if (this.hoverMesh) this.hoverMesh.visible = false;
       }
     },
-    onPointerUp(event) {
-      if (event.button === 2) this.rotating = false;
+    onPointerUp() {
+      // Ensure rotation stops on pointerup or when the pointer leaves the scene
+      // (pointerleave events don't report the original button).
+      this.rotating = false;
     },
     scheduleChunkRecentering(wx, wy, delayMs = 3000) {
       // Currently we spawn new chunks immediately via setCenterChunk.
