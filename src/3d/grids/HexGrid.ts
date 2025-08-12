@@ -66,13 +66,13 @@ export class HexGrid implements Grid {
   ring(center: Vec2, radius: number): Vec2[] {
     if (radius === 0) return [center]
     const results: Vec2[] = []
-    let cube = { x: center.x + radius, y: center.y - radius }
+    const dirs = this.neighbors({ x: 0, y: 0 })
+    let cube = { x: center.x + dirs[4].x * radius, y: center.y + dirs[4].y * radius }
     for (let i = 0; i < 6; i++) {
       for (let j = 0; j < radius; j++) {
         results.push({ x: cube.x, y: cube.y })
-        const dir = this.neighbors({ x: 0, y: 0 })[i]
-        cube.x += dir.x
-        cube.y += dir.y
+        cube.x += dirs[i].x
+        cube.y += dirs[i].y
       }
     }
     return results
