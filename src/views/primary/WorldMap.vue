@@ -279,6 +279,17 @@ export default {
       stats += `inst ${b.inst || ''}/${b.instMax || ''}`;
       return stats;
     },
+    benchmarkPanelChunk() {
+      const b = this.benchmark || {};
+      let stats = '';
+      stats += `chunk ${this.fmt(b.chunk, 2)}ms (last ${this.fmt(b.chunkLast, 2)}ms)\n`;
+      stats += `  cell ${this.fmt(b.cell, 2)}ms  matrix ${this.fmt(b.matrix, 2)}ms  color ${this.fmt(b.color, 2)}ms\n`;
+      stats += `queue.total ${this.fmt(b.queueTotal, 2)}ms\n`;
+      stats += `  ${b.queueCount || ''}/${b.queueMax || ''}  ${this.fmt(b.queueRate, 1)}t/s  eta ${this.fmt(b.queueEta, 2)}ms\n`;
+      stats += `  done ${b.queueDone || ''}/${b.queueTasks || ''}\n`;
+      stats += `inst ${b.inst || ''}/${b.instMax || ''}`;
+      return stats;
+    },
   },
   mounted() {
     // pinia stores
