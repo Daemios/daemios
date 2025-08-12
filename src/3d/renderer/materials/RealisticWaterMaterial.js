@@ -39,10 +39,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   farAlpha: 0.85,     // alpha at/max depth
   // Shoreline wave bands (near-hex waves)
   shoreWaveStrength: 0.45,
-  shoreWaveSpacing: 0.42, // in units of min(hexW,hexH)
-  shoreWaveWidth: 0.28,   // 0..1 threshold for band width
-  shoreWaveSpeed: 0.12,
-  shoreWaveOffset: 0.2,   // start distance from shoreline in units of min(hexW,hexH)
+  shoreWaveSpacing: .8, // in units of min(hexW,hexH) - much larger spacing
+  shoreWaveWidth: 0.08,   // much thinner foam band
+  shoreWaveSpeed: 0.15,
+  shoreWaveOffset: 0.001,   // extremely close to shore
   ...options,
   };
 
@@ -159,26 +159,26 @@ export default function createRealisticWaterMaterial(options = {}) {
 
   // Signed distance into water side
   float signedDist = sampleDistXZ(xz);
-  float d = clamp(-signedDist, 0.0, 1e6);
+  float d = -signedDist;
 
   // Animated wave bands along the shore (subtle, fades after a few bands)
   float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
-  float offset = uShoreWaveOffset * min(uHexW, uHexH);
+  float offset = 0.01 * min(uHexW, uHexH);
   float bandD = max(0.0, d - offset);
   float pos = (bandD / max(1e-4, spacing)) + uTime * uShoreWaveSpeed;
   float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
   float widthFac = 1.0 + (1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing)));
   float bands = smoothstep(1.0 - clamp(uShoreWaveWidth * widthFac, 0.0, 1.0), 1.0, stripe);
   float nearFade = 1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing));
-  float active = step(offset, d);
+  float isActive = step(offset, d);
   // Strictly restrict to water side using signed distance
   float insideWater = step(1e-4, d);
-  float waveIntensity = clamp(bands * nearFade * insideWater * active, 0.0, 1.0);
+  float waveIntensity = clamp(bands * nearFade * insideWater * isActive, 0.0, 1.0);
   // Crisp binary stripes: pure white bands, no gradient; hide outside coverage
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  float waveMask = step(0.5, waveIntensity) * covSoft * inside;
+  float waveMask = smoothstep(0.8, 1.0, waveIntensity) * nearFade * covSoft * inside;
   // Allow toggling waves via strength without affecting opacity/color
   waveMask *= step(1e-4, uShoreWaveStrength);
   vec3 col = mix(baseCol, uFoamCol, waveMask);
