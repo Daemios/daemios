@@ -37,6 +37,11 @@
       @run-benchmark="runBenchmark"
       @create-town="onCreateTown"
     />
+    <WorldBenchmarkPanel
+      ref="worldBenchmarkPanel"
+      :general-stats="benchmarkPanelGeneral"
+      :chunk-stats="benchmarkPanelChunk"
+    />
   </div>
 </template>
 
@@ -62,10 +67,11 @@ import { profiler, createWebGLTimer } from '@/utils/profiler';
 import { useWorldStore } from '@/stores/worldStore';
 import { availableWorldGenerators } from '@/3d/world/generation';
 import TileInfoPanel from '@/components/world/TileInfoPanel.vue';
+import WorldBenchmarkPanel from '@/components/general/WorldBenchmarkPanel.vue';
 
 export default {
   name: 'WorldMap',
-  components: { TileInfoPanel, WorldDebugPanel },
+  components: { TileInfoPanel, WorldDebugPanel, WorldBenchmarkPanel },
   data() {
     const generatorVersions = availableWorldGenerators();
     return {
@@ -251,6 +257,27 @@ export default {
       const off = this.axialToOffset ? this.axialToOffset(q, r) : { col: null, row: null };
       const ch = this.chunkForAxial ? this.chunkForAxial(q, r) : { wx: null, wy: null };
       return { q, r, world: { x, z }, col: off.col, row: off.row, wx: ch.wx, wy: ch.wy, cell };
+    },
+    benchmarkPanelGeneral() {
+      const b = this.benchmark || {};
+      let stats = '';
+      stats += `cpu ${this.fmt(b.cpu, 2)}ms (last ${this.fmt(b.cpuLast, 2)}ms)\n`;
+      stats += `gpu ${this.fmt(b.gpu, 2)}ms (last ${this.fmt(b.gpuLast, 2)}ms)\n`;
+      stats += `render ${this.fmt(b.render, 2)}ms\n`;
+      stats += `fadeU ${this.fmt(b.fadeU, 2)}µs\n`;
+      stats += `tween ${this.fmt(b.tween, 2)}µs\n`;
+      stats += `waterU ${this.fmt(b.waterU, 2)}µs\n`;
+      stats += `stream ${this.fmt(b.stream, 2)}ms\n`;
+      stats += `slice ${this.fmt(b.slice, 2)}ms\n`;
+      stats += `queue.total ${this.fmt(b.queueTotal, 2)}ms\n`;
+      stats += `  ${b.queueCount || ''}/${b.queueMax || ''}  ${this.fmt(b.queueRate, 1)}t/s  eta ${this.fmt(b.queueEta, 2)}ms\n`;
+      stats += `chunk ${this.fmt(b.chunk, 2)}ms (last ${this.fmt(b.chunkLast, 2)}ms)\n`;
+      stats += `  cell ${this.fmt(b.cell, 2)}ms  matrix ${this.fmt(b.matrix, 2)}ms  color ${this.fmt(b.color, 2)}ms\n`;
+      stats += `dc ${b.dc || ''}  tris ${b.tris || ''}\n`;
+      stats += `startup mount ${this.fmt(b.mount, 2)}ms  router ${this.fmt(b.router, 2)}ms  init0 ${this.fmt(b.init0, 2)}ms  init1 ${this.fmt(b.init1, 2)}ms\n`;
+      stats += `        hex ${this.fmt(b.hex, 2)}ms  chunk ${this.fmt(b.chunkTotal, 2)}ms  frame ${this.fmt(b.frame, 2)}ms  content ${this.fmt(b.content, 2)}ms\n`;
+      stats += `inst ${b.inst || ''}/${b.instMax || ''}`;
+      return stats;
     },
   },
   mounted() {
@@ -1300,19 +1327,6 @@ export default {
       this.fpsEl.textContent = 'FPS: --';
       this.$refs.sceneContainer.appendChild(this.fpsEl);
 
-      // Profiler overlay
-      this.profilerEnabled = true;
-      this.profEl = document.createElement('div');
-  Object.assign(this.profEl.style, {
-  position: 'absolute', bottom: '6px', left: '6px', padding: '4px 6px',
-    background: 'rgba(0,0,0,0.35)', color: '#fff', font: '11px monospace',
-    borderRadius: '4px', pointerEvents: 'none', whiteSpace: 'pre-wrap', maxWidth: '420px', zIndex: 1,
-  });
-      this.profEl.textContent = '';
-  this.$refs.sceneContainer.appendChild(this.profEl);
-  // Respect visibility toggle
-  this.profEl.style.display = this.profilerEnabled ? 'block' : 'none';
-
       // Set up GPU timer if available
       try {
         this._gpuTimer = createWebGLTimer(this.renderer);
@@ -2156,96 +2170,51 @@ export default {
     profiler.endFrame();
     if (!this._profLastUpdate || (now - this._profLastUpdate) > 500) {
       this._profLastUpdate = now;
-      const lines = [];
+      // Gather live stats for WorldBenchmarkPanel
+      const stats = {};
       const fmt = (v) => (v != null && isFinite(v)) ? (v < 0.095 ? (v * 1000).toFixed(2) + 'µs' : v.toFixed(2) + 'ms') : '--';
-      const cpu = profiler.stats('frame.cpu');
-      const gpu = profiler.stats('frame.gpu');
-      const rnd = profiler.stats('frame.render');
-      const fdu = profiler.stats('frame.fadeUniforms');
-      const tw = profiler.stats('frame.tween');
-      const wu = profiler.stats('frame.waterUniform');
-      const st = profiler.stats('stream.tick');
-      const sfs = profiler.stats('stream.fillSlice');
-      const cl = profiler.stats('clutter.tick');
-  const wb = profiler.stats('build.water');
-  const cg = profiler.stats('chunk.generate');
-  const cgCell = profiler.stats('chunk.gen.cell');
-  const cgMatrix = profiler.stats('chunk.gen.matrix');
-  const cgColor = profiler.stats('chunk.gen.color');
-      if (cpu) lines.push(`cpu ${fmt(cpu.avg)} (last ${fmt(cpu.last)})`);
-      if (gpu) lines.push(`gpu ${fmt(gpu.avg)} (last ${fmt(gpu.last)})`);
-      if (rnd) lines.push(`render ${fmt(rnd.avg)}`);
-      if (fdu) lines.push(`fadeU ${fmt(fdu.avg)}`);
-      if (tw) lines.push(`tween ${fmt(tw.avg)}`);
-      if (wu) lines.push(`waterU ${fmt(wu.avg)}`);
-      if (st) lines.push(`stream ${fmt(st.avg)}`);
-      if (sfs) lines.push(`slice ${fmt(sfs.avg)}`);
-      if (cl) lines.push(`clutter ${fmt(cl.avg)}`);
-  if (wb) lines.push(`water ${fmt(wb.avg)}`);
-  const qtot = profiler.stats('stream.queue.total');
-  if (qtot) lines.push(`queue.total ${fmt(qtot.last ?? qtot.avg)}`);
-  const qrate = profiler.stats('stream.queue.rate');
-  const qdone = profiler.stats('stream.queue.done');
-  const qtasks = profiler.stats('stream.queue.totalTasks');
-  const qeta = profiler.stats('stream.queue.eta');
-  if (qrate || qdone || qtasks || qeta) {
-    const parts = [];
-    if (qdone && qtasks) parts.push(`${Math.round(qdone.last||0)}/${Math.round(qtasks.last||0)}`);
-    if (qrate) parts.push(`${(qrate.last||0).toFixed(1)}t/s`);
-    if (qeta) parts.push(`eta ${fmt(qeta.last||qeta.avg)}`);
-    if (parts.length) lines.push('  ' + parts.join('  '));
-  }
-  if (cg) lines.push(`chunk ${fmt(cg.avg)} (last ${fmt(cg.last)})`);
-      if (cgCell || cgMatrix || cgColor) {
-        const parts = [];
-        if (cgCell) parts.push(`cell ${fmt(cgCell.avg)}`);
-        if (cgMatrix) parts.push(`matrix ${fmt(cgMatrix.avg)}`);
-        if (cgColor) parts.push(`color ${fmt(cgColor.avg)}`);
-        if (parts.length) lines.push('  ' + parts.join('  '));
-      }
-      // Lightweight renderer stats
-      if (this.renderer && this.renderer.info && this.renderer.info.render) {
-        const ri = this.renderer.info;
-        const tris = (ri.render.triangles != null) ? ri.render.triangles : 0;
-        const calls = (ri.render.calls != null) ? ri.render.calls : 0;
-        lines.push(`dc ${calls}  tris ${(tris >= 1000) ? Math.round(tris / 1000) + 'k' : tris}`);
-      }
-  // Show startup timings briefly
-  const s0 = profiler.stats('startup.app.mounted');
-  const s1 = profiler.stats('startup.router.ready');
-  const s2 = profiler.stats('startup.world.init.begin');
-  const s3 = profiler.stats('startup.world.init.end');
-  const s4 = profiler.stats('startup.asset.hex.load');
-  const s5 = profiler.stats('startup.chunk.build.start');
-  const s6 = profiler.stats('startup.first.frame');
-  const s7 = profiler.stats('startup.first.content');
-  const sFmt = (s) => s ? (s.last ?? s.avg) : null;
-  const sParts = [];
-  const sPush = (lab, s) => { const v = sFmt(s); if (v != null) sParts.push(`${lab} ${(v < 0.095 ? (v * 1000).toFixed(1)+'µs' : v.toFixed(1)+'ms')}`); };
-  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('hex', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
-  if (sParts.length) {
-    // Split into short groups so the line doesn't get too long
-    const chunk = (arr, n) => {
-      const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out;
-    };
-    const groups = chunk(sParts, 4);
-    lines.push('startup ' + groups[0].join('  '));
-    for (let gi = 1; gi < groups.length; gi++) {
-      lines.push('        ' + groups[gi].join('  '));
-    }
-  }
-  // Streaming queue and instance progress
+      stats.cpu = profiler.stats('frame.cpu');
+      stats.gpu = profiler.stats('frame.gpu');
+      stats.render = profiler.stats('frame.render');
+      stats.fadeU = profiler.stats('frame.fadeUniforms');
+      stats.tween = profiler.stats('frame.tween');
+      stats.waterU = profiler.stats('frame.waterUniform');
+      stats.stream = profiler.stats('stream.tick');
+      stats.slice = profiler.stats('stream.fillSlice');
+      stats.clutter = profiler.stats('clutter.tick');
+      stats.water = profiler.stats('build.water');
+      stats.chunk = profiler.stats('chunk.generate');
+      stats.chunkCell = profiler.stats('chunk.gen.cell');
+      stats.chunkMatrix = profiler.stats('chunk.gen.matrix');
+      stats.chunkColor = profiler.stats('chunk.gen.color');
+      stats.queueTotal = profiler.stats('stream.queue.total');
+      stats.queueRate = profiler.stats('stream.queue.rate');
+      stats.queueDone = profiler.stats('stream.queue.done');
+      stats.queueTasks = profiler.stats('stream.queue.totalTasks');
+      stats.queueEta = profiler.stats('stream.queue.eta');
+      stats.dc = this.renderer?.info?.render?.calls ?? 0;
+      stats.tris = this.renderer?.info?.render?.triangles ?? 0;
+      // Startup timings
+      stats.startup = {
+        mount: profiler.stats('startup.app.mounted'),
+        router: profiler.stats('startup.router.ready'),
+        init0: profiler.stats('startup.world.init.begin'),
+        init1: profiler.stats('startup.world.init.end'),
+        hex: profiler.stats('startup.asset.hex.load'),
+        chunk: profiler.stats('startup.chunk.build.start'),
+        frame: profiler.stats('startup.first.frame'),
+        content: profiler.stats('startup.first.content'),
+      };
+      // Streaming queue and instance progress
       if (this.chunkManager && this.chunkManager.neighborhood) {
         const nb = this.chunkManager.neighborhood;
-        const qLen = nb._buildQueue ? nb._buildQueue.length : 0;
-        const cur = nb._buildCursor || 0;
-  if (qLen > 0) { lines.push(`queue ${cur}/${qLen}`); }
-        const vis = nb.topIM ? (nb.topIM.count | 0) : 0;
-        const tgt = nb._targetCount || 0;
-        if (tgt > 0) lines.push(`inst ${vis}/${tgt}`);
+        stats.queueLen = nb._buildQueue ? nb._buildQueue.length : 0;
+        stats.queueCursor = nb._buildCursor || 0;
+        stats.instCount = nb.topIM ? (nb.topIM.count | 0) : 0;
+        stats.instTarget = nb._targetCount || 0;
       }
-      this.profEl.textContent = lines.join('\n');
-      this.profEl.style.display = lines.length ? 'block' : 'none';
+      // Pass live stats to WorldBenchmarkPanel via reactive property
+      this.$refs.worldBenchmarkPanel?.setStats?.(stats);
     }
   }
 
@@ -2441,7 +2410,7 @@ export default {
         if (!coord) continue;
         if (!landOnly || !this.world) return idx;
         const cell = this.world.getCell(coord.q, coord.r);
-        if (cell && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater') return idx;
+        if (cell && cell.biome !== 'deepWater' && cell.biome !== 'shallowWater' ) return idx;
       }
       // Fallback
       return Math.floor(Math.random() * this.indexToQR.length);

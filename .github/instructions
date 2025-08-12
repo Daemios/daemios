@@ -1,0 +1,11 @@
+### Repository Summary
+
+This repository contains the source code and configuration for the "daemios" project. The project is a the client side of a fantasy web game, primarily focused on turn based combat, economic competition and exploration. The repository is actively maintained and uses modern development practices.
+
+### Agent Guidance
+
+- When it is unclear whether a message from the user is a command or a question, always assume it is a command to do something unless otherwise instructed
+- Act autonomously as possible; when a task requires a follow-up task, complete it without returning to the user for permission
+- Only perform additional searches if information is incomplete or errors are encountered.
+- Prioritize using documented commands and workflows.
+- Avoid unnecessary exploration; follow the documented project layout and validation steps.
