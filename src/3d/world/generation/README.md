@@ -12,6 +12,19 @@ const h = gen.get(10, -3);
 console.log(h.biomeMajor, h.elevationBand);
 ```
 
+### Layered passes
+
+The generator is organized into five passes mirroring the `world_generation_2.0`
+design spec. Each pass is implemented as a dedicated function and invoked in
+sequence so that behaviour matches the original monolithic generator while
+allowing future tuning of individual layers.
+
+1. **Layer 1 – Continents & Oceans**
+2. **Layer 2 – Mesoscale & Regional Identity**
+3. **Layer 3 – Biome Blending & Palette**
+4. **Layer 4 – Special & Rare Regions**
+5. **Layer 5 – Visual Cohesion & Style**
+
 Noise budget per hex (typical):
 
 - Domain warp: 2 samples (warpX, warpY)
