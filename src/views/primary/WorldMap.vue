@@ -1807,7 +1807,6 @@ export default {
   const qOrigin = nbBaseCol;
   const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
   const data = new Uint8Array(N * N * 4);
-  const coverage = new Uint8Array(N * N * 4);
       const seabed = new Uint8Array(N * N * 4);
       let i = 0;
       for (let r = -S; r <= S; r += 1) {
@@ -1827,24 +1826,6 @@ export default {
           seabed[i + 1] = 0;
           seabed[i + 2] = 0;
           seabed[i + 3] = 255;
-          // Coverage: 1 inside the currently rendered hex footprint (union with trail when active), else 0
-          let inRect = false;
-          if (this.centerChunk) {
-            const rads = this._neighborRadius != null ? this._neighborRadius : 1;
-            const baseCol = (this.centerChunk.x - rads) * this.chunkCols;
-            const baseRow = (this.centerChunk.y - rads) * this.chunkRows;
-            const endCol = (this.centerChunk.x + rads) * this.chunkCols + (this.chunkCols - 1);
-            const endRow = (this.centerChunk.y + rads) * this.chunkRows + (this.chunkRows - 1);
-            const off = this.axialToOffset(qW, rW);
-            if (off.col >= baseCol && off.col <= endCol && off.row >= baseRow && off.row <= endRow) inRect = true;
-            // Union with previous neighborhood while trail is visible for seamless transitions
-            if (rads === 1 && this._prevNeighborhoodRect && this.trailTopIM && this.trailTopIM.visible) {
-              const c = off.col, rOff = off.row;
-              if (c >= this._prevNeighborhoodRect.colMin && c <= this._prevNeighborhoodRect.colMax && rOff >= this._prevNeighborhoodRect.rowMin && rOff <= this._prevNeighborhoodRect.rowMax) inRect = true;
-            }
-          }
-          const cv = inRect ? 255 : 0;
-          coverage[i] = cv; coverage[i+1] = 0; coverage[i+2] = 0; coverage[i+3] = 255;
           i += 4;
         }
       }
@@ -1909,7 +1890,8 @@ export default {
   distTex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterDistanceTex = distTex;
 
-  const coverageTex = markRaw(new THREE.DataTexture(coverage, N, N, THREE.RGBAFormat));
+  // Coverage texture is now a single white pixel, effectively disabling masking
+  const coverageTex = markRaw(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat));
   coverageTex.needsUpdate = true;
   coverageTex.magFilter = THREE.NearestFilter;
   coverageTex.minFilter = THREE.NearestFilter;
@@ -1919,8 +1901,8 @@ export default {
 
       const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
     seabedTex.needsUpdate = true;
-    seabedTex.magFilter = THREE.NearestFilter;
-    seabedTex.minFilter = THREE.NearestFilter;
+    seabedTex.magFilter = THREE.LinearFilter;
+    seabedTex.minFilter = THREE.LinearFilter;
     seabedTex.wrapS = THREE.ClampToEdgeWrapping;
     seabedTex.wrapT = THREE.ClampToEdgeWrapping;
     this.waterSeabedTex = seabedTex;
