@@ -1,9 +1,10 @@
-import { createHexGenerator } from './HexWorldGenerator';
 import { createHexGenerator2 } from './HexWorldGenerator2';
 
 // Registry of available world generator factories keyed by version name
+// Default registry contains the 2.0 generator but callers may register
+// additional versions for experimentation.  Profile switching is preserved by
+// keeping this registry mechanism.
 const registry = {
-  hex: createHexGenerator,
   '2.0': createHexGenerator2,
 };
 
@@ -16,10 +17,10 @@ export function availableWorldGenerators() {
 
 /**
  * Create a world generator for a given version and seed.
- * Falls back to the default 'hex' generator when the version is unknown.
+ * Falls back to the default '2.0' generator when the version is unknown.
  */
-export function createWorldGenerator(version = 'hex', seed) {
-  const factory = registry[version] || registry.hex;
+export function createWorldGenerator(version = '2.0', seed) {
+  const factory = registry[version] || registry['2.0'];
   return factory(seed);
 }
 

@@ -271,7 +271,7 @@ export default {
   // Directions helper overlay
   _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generation: { version: generatorVersions[0] || '2.0', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
   generatorVersions,
   worldSeed: 1337,
   // Progressive neighborhood expansion control
@@ -2173,7 +2173,7 @@ export default {
   const sFmt = (s) => s ? (s.last ?? s.avg) : null;
   const sParts = [];
   const sPush = (lab, s) => { const v = sFmt(s); if (v != null) sParts.push(`${lab} ${(v < 0.095 ? (v * 1000).toFixed(1)+'µs' : v.toFixed(1)+'ms')}`); };
-  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('hex', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
+  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('tiles', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
   if (sParts.length) {
     // Split into short groups so the line doesn't get too long
     const chunk = (arr, n) => {

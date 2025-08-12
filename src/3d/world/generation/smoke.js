@@ -1,6 +1,6 @@
-import { createHexGenerator } from './HexWorldGenerator.js';
+import { createHexGenerator2 } from './HexWorldGenerator2.js';
 
-const gen = createHexGenerator(1337);
+const gen = createHexGenerator2(1337);
 const samples = [
   { q: 0, r: 0 },
   { q: 50, r: -10 },
