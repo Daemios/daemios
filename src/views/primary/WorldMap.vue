@@ -104,6 +104,8 @@ export default {
   // Always use realistic water
   waterSeabedTex: null,
   waterMaskTex: null,
+  waterCoverageTex: null,
+  waterDistanceTex: null,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
@@ -1803,9 +1805,62 @@ export default {
       tex.needsUpdate = true;
   tex.magFilter = THREE.LinearFilter;
   tex.minFilter = THREE.LinearFilter;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
   this.waterMaskTex = tex;
+
+  // Signed-distance field: land positive, water negative
+  const cellSize = Math.min(hexW_est, hexH_est);
+  const diag = cellSize * Math.SQRT2;
+  const len = N * N;
+  const toWater = new Float32Array(len);
+  const toLand = new Float32Array(len);
+  const INF = 1e9;
+  for (let p = 0, j = 0; p < len; p++, j += 4) {
+    const isLand = data[j] > 0;
+    toLand[p] = isLand ? 0 : INF;
+    toWater[p] = isLand ? INF : 0;
+  }
+  const dt = (dist) => {
+    // forward pass
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const idx = y * N + x;
+        let best = dist[idx];
+        if (x > 0) best = Math.min(best, dist[idx - 1] + cellSize);
+        if (y > 0) best = Math.min(best, dist[idx - N] + cellSize);
+        if (x > 0 && y > 0) best = Math.min(best, dist[idx - N - 1] + diag);
+        if (x < N - 1 && y > 0) best = Math.min(best, dist[idx - N + 1] + diag);
+        dist[idx] = best;
+      }
+    }
+    // backward pass
+    for (let y = N - 1; y >= 0; y--) {
+      for (let x = N - 1; x >= 0; x--) {
+        const idx = y * N + x;
+        let best = dist[idx];
+        if (x < N - 1) best = Math.min(best, dist[idx + 1] + cellSize);
+        if (y < N - 1) best = Math.min(best, dist[idx + N] + cellSize);
+        if (x < N - 1 && y < N - 1) best = Math.min(best, dist[idx + N + 1] + diag);
+        if (x > 0 && y < N - 1) best = Math.min(best, dist[idx + N - 1] + diag);
+        dist[idx] = best;
+      }
+    }
+  };
+  dt(toLand);
+  dt(toWater);
+  const sdfArr = new Float32Array(len);
+  for (let p = 0, j = 0; p < len; p++, j += 4) {
+    const isLand = data[j] > 0;
+    sdfArr[p] = isLand ? toWater[p] : -toLand[p];
+  }
+  const distTex = markRaw(new THREE.DataTexture(sdfArr, N, N, THREE.RedFormat, THREE.FloatType));
+  distTex.needsUpdate = true;
+  distTex.magFilter = THREE.LinearFilter;
+  distTex.minFilter = THREE.LinearFilter;
+  distTex.wrapS = THREE.ClampToEdgeWrapping;
+  distTex.wrapT = THREE.ClampToEdgeWrapping;
+  this.waterDistanceTex = distTex;
 
   const coverageTex = markRaw(new THREE.DataTexture(coverage, N, N, THREE.RGBAFormat));
   coverageTex.needsUpdate = true;
@@ -1875,7 +1930,7 @@ export default {
   const centerR0 = rOrigin;
     const mat = markRaw(factory({
         opacity: 0.96,
-        maskTexture: this.waterMaskTex,
+        distanceTexture: this.waterDistanceTex,
         coverageTexture: this.waterCoverageTex,
         seabedTexture: this.waterSeabedTex,
         hexW,
