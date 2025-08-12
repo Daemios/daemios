@@ -1900,8 +1900,8 @@ export default {
 
       const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
     seabedTex.needsUpdate = true;
-    seabedTex.magFilter = THREE.NearestFilter;
-    seabedTex.minFilter = THREE.NearestFilter;
+    seabedTex.magFilter = THREE.LinearFilter;
+    seabedTex.minFilter = THREE.LinearFilter;
     seabedTex.wrapS = THREE.ClampToEdgeWrapping;
     seabedTex.wrapT = THREE.ClampToEdgeWrapping;
     this.waterSeabedTex = seabedTex;

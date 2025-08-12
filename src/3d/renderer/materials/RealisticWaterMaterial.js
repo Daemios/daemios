@@ -148,6 +148,12 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec2 xz = vWorldPos.xz;
       vec3 V = normalize(-vViewPos);
 
+      // Sample seabed once for depth-based color and transparency
+      float yScale = sampleSeabedXZ(xz);
+      float seabedY = yScale * uHexMaxYScaled;
+      float depth = max(0.0, uSeaLevelY - seabedY);
+      float depthFac = smoothstep(0.0, max(1e-4, uDepthMax), depth);
+
       // Two scrolling normal fields
       float s = 0.06; // scale
       float t1 = uTime * uFlowSpeed1;
@@ -163,8 +169,7 @@ export default function createRealisticWaterMaterial(options = {}) {
       float fresnel = pow(clamp(1.0 - dot(N, V), 0.0, 1.0), 5.0);
       vec3 env = uSky;
 
-      float depthFac = 0.55 + 0.45 * clamp(0.5 + 0.5 * (n1 + n2) * 0.5, 0.0, 1.0);
-      vec3 waterCol = mix(uBase, uShallow, depthFac);
+      vec3 waterCol = mix(uShallow, uBase, depthFac);
       vec3 baseCol = mix(waterCol, env, fresnel * 0.35);
 
       // Simple Phong specular
@@ -198,11 +203,8 @@ export default function createRealisticWaterMaterial(options = {}) {
   // Keep specular off on the white bands
   col += spec * (1.0 - waveMask);
 
-  // Depth-based transparency using seabed height field
-  float yScale = sampleSeabedXZ(xz);
-  float seabedY = yScale * uHexMaxYScaled;
-  float depth = max(0.0, uSeaLevelY - seabedY);
-  float aDepth = mix(uNearAlpha, uFarAlpha, smoothstep(0.0, max(1e-4, uDepthMax), depth));
+  // Depth-based transparency using precomputed depth factor
+  float aDepth = mix(uNearAlpha, uFarAlpha, depthFac);
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
   // Opaque where stripes are; base water alpha elsewhere
   alpha = max(alpha, waveMask);
