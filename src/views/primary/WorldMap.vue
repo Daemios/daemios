@@ -41,6 +41,7 @@
       ref="worldBenchmarkPanel"
       :general-stats="benchmarkPanelGeneral"
       :chunk-stats="benchmarkPanelChunk"
+      :water-stats="benchmarkPanelWater"
     />
   </div>
 </template>
@@ -112,6 +113,11 @@ export default {
   waterMaskTex: null,
   waterCoverageTex: null,
   waterDistanceTex: null,
+  _waterCellCount: 0,
+  _waterTexSize: 0,
+  _waterPlaneW: 0,
+  _waterPlaneH: 0,
+  _waterPlaneTris: 0,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
@@ -266,7 +272,6 @@ export default {
       stats += `render ${this.fmt(b.render, 2)}ms\n`;
       stats += `fadeU ${this.fmt(b.fadeU, 2)}µs\n`;
       stats += `tween ${this.fmt(b.tween, 2)}µs\n`;
-      stats += `waterU ${this.fmt(b.waterU, 2)}µs\n`;
       stats += `stream ${this.fmt(b.stream, 2)}ms\n`;
       stats += `slice ${this.fmt(b.slice, 2)}ms\n`;
       stats += `queue.total ${this.fmt(b.queueTotal, 2)}ms\n`;
@@ -288,6 +293,17 @@ export default {
       stats += `  ${b.queueCount || ''}/${b.queueMax || ''}  ${this.fmt(b.queueRate, 1)}t/s  eta ${this.fmt(b.queueEta, 2)}ms\n`;
       stats += `  done ${b.queueDone || ''}/${b.queueTasks || ''}\n`;
       stats += `inst ${b.inst || ''}/${b.instMax || ''}`;
+      return stats;
+    },
+    benchmarkPanelWater() {
+      const b = this.benchmark || {};
+      let stats = '';
+      stats += `uniform ${this.fmt(b.waterU, 2)}µs\n`;
+      stats += `build ${this.fmt(b.water, 2)}ms\n`;
+      if (b.waterTexSize) stats += `tex ${b.waterTexSize}²\n`;
+      if (b.waterCells) stats += `cells ${b.waterCells}\n`;
+      if (b.waterPlaneW && b.waterPlaneH) stats += `plane ${this.fmt(b.waterPlaneW, 1)}x${this.fmt(b.waterPlaneH, 1)}\n`;
+      if (b.waterTris) stats += `tris ${b.waterTris}\n`;
       return stats;
     },
   },
@@ -2018,6 +2034,16 @@ export default {
       this.scene.add(mesh);
   this.waterMesh = mesh;
 
+  this._waterCellCount = waterCount;
+  this._waterTexSize = N;
+  this._waterPlaneW = planeW;
+  this._waterPlaneH = planeH;
+  this._waterPlaneTris = geom.index ? (geom.index.count / 3) : (geom.attributes.position.count / 3);
+  if (this.profilerEnabled) {
+    const __t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    profiler.push('build.water', __t1 - __t0);
+  }
+
   // No stencil instanced mesh; water draws across the plane and masks via textures
 
   const visible = !!this.features.water;
@@ -2194,6 +2220,11 @@ export default {
       stats.slice = profiler.stats('stream.fillSlice');
       stats.clutter = profiler.stats('clutter.tick');
       stats.water = profiler.stats('build.water');
+      stats.waterTexSize = this._waterTexSize;
+      stats.waterCells = this._waterCellCount;
+      stats.waterPlaneW = this._waterPlaneW;
+      stats.waterPlaneH = this._waterPlaneH;
+      stats.waterTris = this._waterPlaneTris;
       stats.chunk = profiler.stats('chunk.generate');
       stats.chunkCell = profiler.stats('chunk.gen.cell');
       stats.chunkMatrix = profiler.stats('chunk.gen.matrix');
@@ -2224,6 +2255,13 @@ export default {
         stats.instCount = nb.topIM ? (nb.topIM.count | 0) : 0;
         stats.instTarget = nb._targetCount || 0;
       }
+      this.benchmark.waterU = stats.waterU?.avg ?? stats.waterU?.last ?? 0;
+      this.benchmark.water = stats.water?.avg ?? stats.water?.last ?? 0;
+      this.benchmark.waterTexSize = stats.waterTexSize;
+      this.benchmark.waterCells = stats.waterCells;
+      this.benchmark.waterPlaneW = stats.waterPlaneW;
+      this.benchmark.waterPlaneH = stats.waterPlaneH;
+      this.benchmark.waterTris = stats.waterTris;
       // Pass live stats to WorldBenchmarkPanel via reactive property
       this.$refs.worldBenchmarkPanel?.setStats?.(stats);
     }

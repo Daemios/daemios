@@ -26,6 +26,12 @@
       >
         Chunk
       </v-tab>
+      <v-tab
+        value="water"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+      >
+        Water
+      </v-tab>
     </v-tabs>
     <div
       v-if="tab === 'general'"
@@ -39,6 +45,12 @@
     >
       <pre style="white-space: pre-wrap; word-break: break-word;">{{ chunkStatsDisplay }}</pre>
     </div>
+    <div
+      v-else-if="tab === 'water'"
+      class="pa-2"
+    >
+      <pre style="white-space: pre-wrap; word-break: break-word;">{{ waterStatsDisplay }}</pre>
+    </div>
   </div>
 </template>
 
@@ -49,6 +61,7 @@ export default {
   props: {
     generalStats: { type: [String, Object], default: '' },
     chunkStats: { type: [String, Object], default: '' },
+    waterStats: { type: [String, Object], default: '' },
   },
   data() {
     return {
@@ -61,7 +74,7 @@ export default {
     this.settings = useSettingsStore?.() ?? null;
     if (this.settings && this.settings.get) {
       const val = this.settings.get('benchmarkPanelTab', null);
-      if (val === 'chunk' || val === 'general') this.tab = val;
+      if (['chunk', 'general', 'water'].includes(val)) this.tab = val;
     }
   },
   watch: {
@@ -81,11 +94,9 @@ export default {
       lines.push(this.fmtStat(s.render, 'Render'));
       lines.push(this.fmtStat(s.fadeU, 'FadeU'));
       lines.push(this.fmtStat(s.tween, 'Tween'));
-      lines.push(this.fmtStat(s.waterU, 'WaterU'));
       lines.push(this.fmtStat(s.stream, 'Stream'));
       lines.push(this.fmtStat(s.slice, 'Slice'));
       lines.push(this.fmtStat(s.clutter, 'Clutter'));
-      lines.push(this.fmtStat(s.water, 'Water'));
       if (s.queueTotal) lines.push(`Queue Total: ${s.queueTotal.last ?? s.queueTotal.avg}`);
       if (s.queueRate) lines.push(`Queue Rate: ${(s.queueRate.last ?? 0).toFixed(1)}t/s`);
       if (s.queueEta) lines.push(`Queue ETA: ${s.queueEta.last ?? s.queueEta.avg}`);
@@ -108,6 +119,18 @@ export default {
       if (s.queueEta) lines.push(`Queue ETA: ${s.queueEta.last ?? s.queueEta.avg}`);
       if (s.queueLen != null && s.queueCursor != null) lines.push(`Queue: ${s.queueCursor}/${s.queueLen}`);
       if (s.instCount != null && s.instTarget != null) lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
+      return lines.join('\n');
+    },
+    waterStatsDisplay() {
+      if (!this.liveStats) return this.waterStats;
+      const s = this.liveStats;
+      const lines = [];
+      lines.push(this.fmtStat(s.water, 'Build'));
+      lines.push(this.fmtStat(s.waterU, 'Uniform'));
+      if (s.waterTexSize) lines.push(`Texture: ${s.waterTexSize}²`);
+      if (s.waterCells != null) lines.push(`Cells: ${s.waterCells}`);
+      if (s.waterPlaneW != null && s.waterPlaneH != null) lines.push(`Plane: ${s.waterPlaneW.toFixed(0)}x${s.waterPlaneH.toFixed(0)}`);
+      if (s.waterTris != null) lines.push(`Tris: ${s.waterTris}`);
       return lines.join('\n');
     },
   },
