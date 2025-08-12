@@ -1223,6 +1223,20 @@ export default {
       const height = this.$refs.sceneContainer.clientHeight;
 
   this.scene = markRaw(new THREE.Scene());
+    // Add a simple gradient skybox
+    // Create a canvas gradient texture
+    const skyCanvas = document.createElement('canvas');
+    skyCanvas.width = 512;
+    skyCanvas.height = 512;
+    const ctx = skyCanvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, skyCanvas.height);
+    gradient.addColorStop(0, '#6a93ff'); // Top: soft blue
+    gradient.addColorStop(0.7, '#b3e3ff'); // Middle: light blue
+    gradient.addColorStop(1, '#f7f7ff'); // Bottom: near white
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+    const skyTexture = new THREE.CanvasTexture(skyCanvas);
+    this.scene.background = skyTexture;
   this.camera = markRaw(new THREE.PerspectiveCamera(60, width / height, 0.1, 1000));
       this.camera.position.set(0, 20, 20);
       this.camera.lookAt(0, 0, 0);
