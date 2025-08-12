@@ -124,9 +124,9 @@ export default function createRealisticWaterMaterial(options = {}) {
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
-  float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
   float sampleDistXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); return texture2D(uDist, vec2(u,v)).r; }
-  float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
+  // Coverage is ignored; always treat as fully inside
+  float sampleCoverageXZ(vec2 xz){ return 1.0; }
   float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
 
     void main(){
@@ -176,10 +176,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   float insideWater = step(1e-4, d);
   float waveIntensity = clamp(bands * nearFade * insideWater * isActive, 0.0, 1.0);
   // Crisp binary stripes: pure white bands, no gradient; hide outside coverage
-  float cov = sampleCoverageXZ(xz);
-  float covSoft = smoothstep(0.25, 0.75, cov);
-  float inside = insideGridXZ(xz);
-  float waveMask = smoothstep(0.8, 1.0, waveIntensity) * nearFade * covSoft * inside;
+  float waveMask = smoothstep(0.8, 1.0, waveIntensity) * nearFade;
   // Allow toggling waves via strength without affecting opacity/color
   waveMask *= step(1e-4, uShoreWaveStrength);
   vec3 col = mix(baseCol, uFoamCol, waveMask);
