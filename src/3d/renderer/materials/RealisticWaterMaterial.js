@@ -42,6 +42,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   shoreWaveSpacing: 0.42, // in units of min(hexW,hexH)
   shoreWaveWidth: 0.28,   // 0..1 threshold for band width
   shoreWaveSpeed: 0.12,
+  shoreWaveOffset: 0.2,   // start distance from shoreline in units of min(hexW,hexH)
   ...options,
   };
 
@@ -75,6 +76,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
   uShoreWaveWidth: { value: opt.shoreWaveWidth },
   uShoreWaveSpeed: { value: opt.shoreWaveSpeed },
+  uShoreWaveOffset: { value: opt.shoreWaveOffset },
   };
 
   const vertexShader = `
@@ -114,6 +116,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform float uShoreWaveSpacing;
   uniform float uShoreWaveWidth;
   uniform float uShoreWaveSpeed;
+  uniform float uShoreWaveOffset;
 
     // Simple value noise
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -160,13 +163,17 @@ export default function createRealisticWaterMaterial(options = {}) {
 
   // Animated wave bands along the shore (subtle, fades after a few bands)
   float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
-  float pos = (d / max(1e-4, spacing)) + uTime * uShoreWaveSpeed;
+  float offset = uShoreWaveOffset * min(uHexW, uHexH);
+  float bandD = max(0.0, d - offset);
+  float pos = (bandD / max(1e-4, spacing)) + uTime * uShoreWaveSpeed;
   float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
-  float bands = smoothstep(1.0 - uShoreWaveWidth, 1.0, stripe);
-  float nearFade = 1.0 - smoothstep(0.0, 3.0, d / max(1e-4, spacing));
+  float widthFac = 1.0 + (1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing)));
+  float bands = smoothstep(1.0 - clamp(uShoreWaveWidth * widthFac, 0.0, 1.0), 1.0, stripe);
+  float nearFade = 1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing));
+  float active = step(offset, d);
   // Strictly restrict to water side using signed distance
   float insideWater = step(1e-4, d);
-  float waveIntensity = clamp(bands * nearFade * insideWater, 0.0, 1.0);
+  float waveIntensity = clamp(bands * nearFade * insideWater * active, 0.0, 1.0);
   // Crisp binary stripes: pure white bands, no gradient; hide outside coverage
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
