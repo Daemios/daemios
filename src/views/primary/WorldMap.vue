@@ -2269,8 +2269,10 @@ export default {
         if (this.hoverMesh) this.hoverMesh.visible = false;
       }
     },
-    onPointerUp(event) {
-      if (event.button === 2) this.rotating = false;
+    onPointerUp() {
+      // Ensure rotation stops on pointerup or when the pointer leaves the scene
+      // (pointerleave events don't report the original button).
+      this.rotating = false;
     },
     scheduleChunkRecentering(wx, wy, delayMs = 3000) {
       // Currently we spawn new chunks immediately via setCenterChunk.
