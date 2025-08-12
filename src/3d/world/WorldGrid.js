@@ -6,7 +6,6 @@
 // - toIndex(q,r) / fromIndex(i)
 
 import * as THREE from 'three';
-import SimplexNoise from 'simplex-noise';
 import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '../terrain/biomes';
 import { createWorldGenerator } from './generation';
 
@@ -17,10 +16,6 @@ export default class WorldGrid {
     this.elevation = opts.elevation ?? {
       base: 0.08, max: 1.35, curve: 1.35, minLand: 0.30, shorelineBlend: 0.08,
     };
-    this.terrainShape = opts.terrainShape ?? {
-      baseFreq: 0.07, mountainFreq: 0.16, mountainThreshold: 0.78,
-      mountainStrength: 0.6, plainsExponent: 1.6, mountainExponent: 1.25, finalExponent: 1.25,
-    };
     // Configurable vertical exaggeration to make mountains pop
     this.verticalExaggeration = opts.verticalExaggeration ?? {
       highland: 1.25,
@@ -29,18 +24,10 @@ export default class WorldGrid {
       coast: 0.98,
       ridgeBonus: 0.25, // additional up to this factor scaled by ridge (0..1)
     };
-  this.seed = opts.seed ?? 1337;
-  this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
-  this.generatorVersion = opts.generatorVersion || 'hex';
-  this._generatorTuning = opts.generatorTuning || null;
-  // Noise (seeded deterministically by world seed)
-  // Legacy noises remain for minor shaping (e.g., shoreline), but are now tied to the same seed
-  const seedStr = String(this.seed);
-  this.heightNoise = new SimplexNoise('height:' + seedStr);
-  this.foliageNoise = new SimplexNoise('foliage:' + seedStr);
-  this.temperatureNoise = new SimplexNoise('temperature:' + seedStr);
-  this.mountainNoise = new SimplexNoise('mountain:' + seedStr);
-  this.waterMaskNoise = new SimplexNoise('waterMask:' + seedStr);
+    this.seed = opts.seed ?? 1337;
+    this.generationScale = opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
+    this.generatorVersion = opts.generatorVersion || '2.0';
+    this._generatorTuning = opts.generatorTuning || null;
 
     // New stateless world generator (pure per-hex); we keep one instance to reuse internal noise objects
     this.hexGen = createWorldGenerator(this.generatorVersion, this.seed);
@@ -126,21 +113,6 @@ export default class WorldGrid {
     }
   }
 
-  getHeight(q, r) {
-    const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
-    const plains = Math.pow(base, this.terrainShape.plainsExponent);
-    const mRaw = (this.mountainNoise.noise2D(q * this.terrainShape.mountainFreq + 250, r * this.terrainShape.mountainFreq + 250) + 1) / 2;
-    let mountain = 0;
-    if (mRaw > this.terrainShape.mountainThreshold) {
-      const norm = (mRaw - this.terrainShape.mountainThreshold) / (1 - this.terrainShape.mountainThreshold);
-      mountain = Math.pow(norm, this.terrainShape.mountainExponent) * this.terrainShape.mountainStrength;
-    }
-    let h = plains + mountain;
-    h = Math.min(1, Math.max(0, h));
-    h = Math.pow(h, this.terrainShape.finalExponent);
-    return h;
-  }
-
   getCell(q, r) {
   // Fast path: serve from cache when available
   const k = this._packKey(q, r);
@@ -158,13 +130,8 @@ export default class WorldGrid {
     const f = gen.fields?.moisture ?? 0.5; // treat moisture as foliage proxy
     const t = gen.fields?.temp ?? 0.5; // climate temperature 0..1
 
-    // Shoreline floor and lake mask (retain subtle shaping so beaches get a lift)
-    const waterMask = (this.waterMaskNoise.noise2D((q + 250) * 0.035, (r - 120) * 0.035) + 1) / 2;
-    const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
-
     const curved = Math.pow(hRaw, this.elevation.curve);
     let baseScaleY = this.elevation.base + curved * maxHeight;
-    baseScaleY = baseScaleY * (1 - 0.35 * waterCut);
 
     const shoreTop = BIOME_THRESHOLDS.shallowWater;
     const blendRange = this.elevation.shorelineBlend;

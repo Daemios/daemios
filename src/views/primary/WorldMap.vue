@@ -115,6 +115,7 @@ import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 import { profiler, createWebGLTimer } from '@/utils/profiler';
 import { useWorldStore } from '@/stores/worldStore';
 import { availableWorldGenerators } from '@/3d/world/generation';
+import { loadWorldGenConfig } from '@/3d/world/generation/config';
 
 export default {
   name: 'WorldMap',
@@ -231,15 +232,6 @@ export default {
         minLand: 0.32,
         shorelineBlend: 0.08,
       },
-      terrainShape: {
-        baseFreq: 0.07,
-        mountainFreq: 0.16,
-        mountainThreshold: 0.78,
-        mountainStrength: 0.6,
-        plainsExponent: 1.6,
-        mountainExponent: 1.25,
-        finalExponent: 1.25,
-      },
 
       // fps
       fpsFrames: 0,
@@ -271,7 +263,7 @@ export default {
   // Directions helper overlay
   _dirOverlay: null,
   radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+  generation: { version: generatorVersions[0] || '2.0', scale: 1.0, radius: 5, tuning: {} },
   generatorVersions,
   worldSeed: 1337,
   // Progressive neighborhood expansion control
@@ -1354,15 +1346,17 @@ export default {
         layoutRadius: this.layoutRadius,
         gridSize: this.gridSize,
         elevation: this.elevation,
-        terrainShape: this.terrainShape,
-    seed: this.worldSeed,
-    generationScale: this.generation.scale,
-    generatorVersion: this.generation.version,
+        seed: this.worldSeed,
+        generationScale: this.generation.scale,
+        generatorVersion: this.generation.version,
     }));
-  // Apply any saved generator tuning immediately
-  if (this.world && this.world.setGeneratorTuning && this.generation && this.generation.tuning) {
-    this.world.setGeneratorTuning(this.generation.tuning);
-  }
+  // Load default generator config then apply any saved tuning
+  loadWorldGenConfig().then((cfg) => {
+    if (this.world && this.world.setGeneratorTuning) {
+      if (cfg) this.world.setGeneratorTuning(cfg);
+      if (this.generation && this.generation.tuning) this.world.setGeneratorTuning(this.generation.tuning);
+    }
+  });
   this.clutter = markRaw(new ClutterManager({ streamBudgetMs: 6 }));
   // Tie clutter RNG to the same seed for deterministic placement
   if (this.clutter) this.clutter.worldSeed = this.worldSeed;
@@ -1950,20 +1944,6 @@ export default {
   if (this.waterMesh) this.waterMesh.visible = visible;
     },
   // rebuildWaterStencil: removed (no stencil)
-    getHeight(q, r) {
-      const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
-      const plains = Math.pow(base, this.terrainShape.plainsExponent);
-      const mRaw = (this.mountainNoise.noise2D(q * this.terrainShape.mountainFreq + 250, r * this.terrainShape.mountainFreq + 250) + 1) / 2;
-      let mountain = 0;
-      if (mRaw > this.terrainShape.mountainThreshold) {
-        const norm = (mRaw - this.terrainShape.mountainThreshold) / (1 - this.terrainShape.mountainThreshold);
-        mountain = Math.pow(norm, this.terrainShape.mountainExponent) * this.terrainShape.mountainStrength;
-      }
-      let h = plains + mountain;
-      h = Math.min(1, Math.max(0, h));
-      h = Math.pow(h, this.terrainShape.finalExponent);
-      return h;
-    },
     animate() {
       requestAnimationFrame(this.animate);
       // Start frame profiling
@@ -2166,14 +2146,14 @@ export default {
   const s1 = profiler.stats('startup.router.ready');
   const s2 = profiler.stats('startup.world.init.begin');
   const s3 = profiler.stats('startup.world.init.end');
-  const s4 = profiler.stats('startup.asset.hex.load');
+  const s4 = profiler.stats('startup.asset.worldgen.load');
   const s5 = profiler.stats('startup.chunk.build.start');
   const s6 = profiler.stats('startup.first.frame');
   const s7 = profiler.stats('startup.first.content');
   const sFmt = (s) => s ? (s.last ?? s.avg) : null;
   const sParts = [];
   const sPush = (lab, s) => { const v = sFmt(s); if (v != null) sParts.push(`${lab} ${(v < 0.095 ? (v * 1000).toFixed(1)+'µs' : v.toFixed(1)+'ms')}`); };
-  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('hex', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
+  sPush('mount', s0); sPush('router', s1); sPush('init0', s2); sPush('init1', s3); sPush('world', s4); sPush('chunk', s5); sPush('frame', s6); sPush('content', s7);
   if (sParts.length) {
     // Split into short groups so the line doesn't get too long
     const chunk = (arr, n) => {

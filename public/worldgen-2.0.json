@@ -1,0 +1,10 @@
+{
+  "macro": { "ocean_target_pct": 0.62, "sea_level": 0.52 },
+  "warp": {
+    "slow": { "freq": 0.08, "amp": 0.25 },
+    "fast": { "freq": 0.5, "amp": 0.1 }
+  },
+  "plates": { "freq": 0.1, "ridge_amp": 0.45 },
+  "detail": { "freq": 0.6, "amp": 0.15 }
+}
+
