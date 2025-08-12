@@ -42,6 +42,7 @@
       ref="worldBenchmarkPanel"
       :general-stats="benchmarkPanelGeneral"
       :chunk-stats="benchmarkPanelChunk"
+      :water-stats="benchmarkPanelWater"
     />
   </div>
 </template>
@@ -113,6 +114,10 @@ export default {
   waterMaskTex: null,
   waterCoverageTex: null,
   waterDistanceTex: null,
+  _waterTexSize: 0,
+  _waterPlaneW: 0,
+  _waterPlaneH: 0,
+  _waterTileCount: 0,
   // Location marker (GLB)
   locationMarker: null,
   markerDesiredRadius: 0.6, // as fraction of layoutRadius
@@ -267,7 +272,6 @@ export default {
       stats += `render ${this.fmt(b.render, 2)}ms\n`;
       stats += `fadeU ${this.fmt(b.fadeU, 2)}µs\n`;
       stats += `tween ${this.fmt(b.tween, 2)}µs\n`;
-      stats += `waterU ${this.fmt(b.waterU, 2)}µs\n`;
       stats += `stream ${this.fmt(b.stream, 2)}ms\n`;
       stats += `slice ${this.fmt(b.slice, 2)}ms\n`;
       stats += `queue.total ${this.fmt(b.queueTotal, 2)}ms\n`;
@@ -289,6 +293,16 @@ export default {
       stats += `  ${b.queueCount || ''}/${b.queueMax || ''}  ${this.fmt(b.queueRate, 1)}t/s  eta ${this.fmt(b.queueEta, 2)}ms\n`;
       stats += `  done ${b.queueDone || ''}/${b.queueTasks || ''}\n`;
       stats += `inst ${b.inst || ''}/${b.instMax || ''}`;
+      return stats;
+    },
+    benchmarkPanelWater() {
+      const b = this.benchmark || {};
+      let stats = '';
+      stats += `uniform ${this.fmt(b.waterU, 2)}µs\n`;
+      stats += `build ${this.fmt(b.water, 2)}ms\n`;
+      stats += `tex ${this._waterTexSize || ''}²\n`;
+      stats += `plane ${Math.round(this._waterPlaneW || 0)}x${Math.round(this._waterPlaneH || 0)}\n`;
+      stats += `tiles ${this._waterTileCount || ''}`;
       return stats;
     },
   },
@@ -1801,6 +1815,7 @@ export default {
   const pad = Math.max(chunkMargin + 8, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
   const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
   const N = (2 * S + 1);
+  this._waterTexSize = N;
   // Choose a stable integer axial origin aligned to the top-left of the visible neighborhood
   const nbBaseCol = (this.centerChunk.x - radius) * this.chunkCols;
   const nbBaseRow = (this.centerChunk.y - radius) * this.chunkRows;
@@ -1929,6 +1944,7 @@ export default {
       });
   if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
   if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
+  this._waterTileCount = waterCount;
 
   // 3) Single large plane spanning the current visible neighborhood (with generous padding)
   const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
@@ -1939,6 +1955,8 @@ export default {
   const marginRows = 0;
   const planeW = (totalCols + marginCols) * hexW;
   const planeH = (totalRows + marginRows) * hexH;
+  this._waterPlaneW = planeW;
+  this._waterPlaneH = planeH;
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
@@ -2005,6 +2023,8 @@ export default {
 
   const visible = !!this.features.water;
   if (this.waterMesh) this.waterMesh.visible = visible;
+  const __t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (this.profilerEnabled) profiler.push('build.water', __t1 - __t0);
     },
   // rebuildWaterStencil: removed (no stencil)
     getHeight(q, r) {
@@ -2177,6 +2197,10 @@ export default {
       stats.slice = profiler.stats('stream.fillSlice');
       stats.clutter = profiler.stats('clutter.tick');
       stats.water = profiler.stats('build.water');
+      stats.waterTexSize = this._waterTexSize;
+      stats.waterPlaneW = this._waterPlaneW;
+      stats.waterPlaneH = this._waterPlaneH;
+      stats.waterTiles = this._waterTileCount;
       stats.chunk = profiler.stats('chunk.generate');
       stats.chunkCell = profiler.stats('chunk.gen.cell');
       stats.chunkMatrix = profiler.stats('chunk.gen.matrix');
