@@ -1,26 +1,49 @@
 <template>
-  <div class="world-benchmark-panel" style="position: absolute; bottom: 6px; left: 6px; padding: 8px 12px; background: rgba(0,0,0,0.55); color: #fff; border-radius: 6px; min-width: 220px; font-size: 12px; line-height: 1.2; pointer-events: auto; max-width: 420px; z-index: 2; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">
-    <v-tabs v-model="tab" background-color="transparent" grow
-      class="py-0" style="min-height: 28px; height: 28px; font-size: 11px;">
-      <v-tab value="general" style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;">General</v-tab>
-      <v-tab value="chunk" style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;">Chunk</v-tab>
+  <div
+    class="world-benchmark-panel"
+    style="position: absolute; bottom: 6px; left: 6px; width: 440px; height: 320px; padding: 8px 12px; background: rgba(0,0,0,0.55); color: #fff; border-radius: 6px; font-size: 12px; line-height: 1.2; pointer-events: auto; z-index: 20; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.18); overflow-x: auto; overflow-y: auto;"
+    @pointerdown.stop
+    @mousedown.stop
+    @click.stop
+    @touchstart.stop
+  >
+    <v-tabs
+      v-model="tab"
+      background-color="transparent"
+      grow
+      class="py-0"
+      style="min-height: 28px; height: 28px; font-size: 11px;"
+    >
+      <v-tab
+        value="general"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+      >
+        General
+      </v-tab>
+      <v-tab
+        value="chunk"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+      >
+        Chunk
+      </v-tab>
     </v-tabs>
-    <v-tabs-items v-model="tab">
-      <v-tab-item value="general">
-        <div class="pa-2">
-          <pre>{{ generalStatsDisplay }}</pre>
-        </div>
-      </v-tab-item>
-      <v-tab-item value="chunk">
-        <div class="pa-2">
-          <pre>{{ chunkStatsDisplay }}</pre>
-        </div>
-      </v-tab-item>
-    </v-tabs-items>
+    <div
+      v-if="tab === 'general'"
+      class="pa-2"
+    >
+      <pre style="white-space: pre-wrap; word-break: break-word;">{{ generalStatsDisplay }}</pre>
+    </div>
+    <div
+      v-else-if="tab === 'chunk'"
+      class="pa-2"
+    >
+      <pre style="white-space: pre-wrap; word-break: break-word;">{{ chunkStatsDisplay }}</pre>
+    </div>
   </div>
 </template>
 
 <script>
+import { useSettingsStore } from '@/stores/settingsStore';
 export default {
   name: 'WorldBenchmarkPanel',
   props: {
@@ -31,27 +54,21 @@ export default {
     return {
       tab: 'general',
       liveStats: null,
+      settings: null,
     };
   },
-  methods: {
-    setStats(stats) {
-      this.liveStats = stats;
-    },
-    fmtStat(stat, label) {
-      if (!stat) return `${label}: --`;
-      const avg = stat.avg != null ? (stat.avg < 0.095 ? (stat.avg * 1000).toFixed(2) + 'µs' : stat.avg.toFixed(2) + 'ms') : '--';
-      const last = stat.last != null ? (stat.last < 0.095 ? (stat.last * 1000).toFixed(2) + 'µs' : stat.last.toFixed(2) + 'ms') : '--';
-      return `${label}: ${avg} (last ${last})`;
-    },
-    fmtStartup(startup) {
-      if (!startup) return '';
-      const out = [];
-      for (const [k, v] of Object.entries(startup)) {
-        if (v && v.last != null) {
-          out.push(`${k}: ${v.last < 0.095 ? (v.last * 1000).toFixed(1)+'µs' : v.last.toFixed(1)+'ms'}`);
-        }
+  mounted() {
+    this.settings = useSettingsStore?.() ?? null;
+    if (this.settings && this.settings.get) {
+      const val = this.settings.get('benchmarkPanelTab', null);
+      if (val === 'chunk' || val === 'general') this.tab = val;
+    }
+  },
+  watch: {
+    tab(newTab) {
+      if (this.settings && this.settings.setAtPath) {
+        this.settings.setAtPath({ path: 'benchmarkPanelTab', value: newTab });
       }
-      return out.join('  ');
     },
   },
   computed: {
@@ -92,6 +109,27 @@ export default {
       if (s.queueLen != null && s.queueCursor != null) lines.push(`Queue: ${s.queueCursor}/${s.queueLen}`);
       if (s.instCount != null && s.instTarget != null) lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
       return lines.join('\n');
+    },
+  },
+  methods: {
+    setStats(stats) {
+      this.liveStats = stats;
+    },
+    fmtStat(stat, label) {
+      if (!stat) return `${label}: --`;
+      const avg = stat.avg != null ? (stat.avg < 0.095 ? (stat.avg * 1000).toFixed(2) + 'µs' : stat.avg.toFixed(2) + 'ms') : '--';
+      const last = stat.last != null ? (stat.last < 0.095 ? (stat.last * 1000).toFixed(2) + 'µs' : stat.last.toFixed(2) + 'ms') : '--';
+      return `${label}: ${avg} (last ${last})`;
+    },
+    fmtStartup(startup) {
+      if (!startup) return '';
+      const out = [];
+      for (const [k, v] of Object.entries(startup)) {
+        if (v && v.last != null) {
+          out.push(`${k}: ${v.last < 0.095 ? (v.last * 1000).toFixed(1)+'µs' : v.last.toFixed(1)+'ms'}`);
+        }
+      }
+      return out.join('  ');
     },
   },
 };
