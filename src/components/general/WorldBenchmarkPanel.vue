@@ -57,20 +57,6 @@ export default {
       settings: null,
     };
   },
-  mounted() {
-    this.settings = useSettingsStore?.() ?? null;
-    if (this.settings && this.settings.get) {
-      const val = this.settings.get('benchmarkPanelTab', null);
-      if (val === 'chunk' || val === 'general') this.tab = val;
-    }
-  },
-  watch: {
-    tab(newTab) {
-      if (this.settings && this.settings.setAtPath) {
-        this.settings.setAtPath({ path: 'benchmarkPanelTab', value: newTab });
-      }
-    },
-  },
   computed: {
     generalStatsDisplay() {
       if (!this.liveStats) return this.generalStats;
@@ -110,6 +96,20 @@ export default {
       if (s.instCount != null && s.instTarget != null) lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
       return lines.join('\n');
     },
+  },
+  watch: {
+    tab(newTab) {
+      if (this.settings && this.settings.setAtPath) {
+        this.settings.setAtPath({ path: 'benchmarkPanelTab', value: newTab });
+      }
+    },
+  },
+  mounted() {
+    this.settings = useSettingsStore?.() ?? null;
+    if (this.settings && this.settings.get) {
+      const val = this.settings.get('benchmarkPanelTab', null);
+      if (val === 'chunk' || val === 'general') this.tab = val;
+    }
   },
   methods: {
     setStats(stats) {
