@@ -1,7 +1,7 @@
 <template>
   <div
-    style="background: rgba(0,0,0,0.55); color: #fff; padding: 8px 10px; border-radius: 6px; min-width: 240px; max-width: 320px; font-size: 12px; line-height: 1.35;"
-    class="d-flex flex-column"
+    class="d-flex flex-column text-white py-2 px-3 rounded text-caption"
+    style="background: rgba(0,0,0,0.55); min-width: 240px; max-width: 320px; line-height: 1.35;"
   >
     <div class="text-h6 mb-2" style="font-size: 16px; font-weight: 600; letter-spacing: 0.5px;">
       Current Tile

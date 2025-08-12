@@ -1,7 +1,7 @@
 <template>
   <div
-    class="world-benchmark-panel"
-    style="position: absolute; bottom: 6px; left: 6px; width: 440px; height: 320px; padding: 8px 12px; background: rgba(0,0,0,0.55); color: #fff; border-radius: 6px; font-size: 12px; line-height: 1.2; pointer-events: auto; z-index: 20; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.18); overflow-x: auto; overflow-y: auto;"
+    class="world-benchmark-panel position-absolute text-white py-2 px-3 rounded text-caption overflow-auto"
+    style="bottom: 6px; left: 6px; width: 440px; height: 320px; background: rgba(0,0,0,0.55); pointer-events: auto; z-index: 20; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.18); line-height: 1.2;"
     @pointerdown.stop
     @mousedown.stop
     @click.stop
