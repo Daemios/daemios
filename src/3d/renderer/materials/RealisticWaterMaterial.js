@@ -171,7 +171,9 @@ export default function createRealisticWaterMaterial(options = {}) {
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  float waveMask = step(0.5, waveIntensity) * covSoft * inside * uShoreWaveStrength;
+  float waveMask = step(0.5, waveIntensity) * covSoft * inside;
+  // Allow toggling waves via strength without affecting opacity/color
+  waveMask *= step(1e-4, uShoreWaveStrength);
   vec3 col = mix(baseCol, uFoamCol, waveMask);
   // Keep specular off on the white bands
   col += spec * (1.0 - waveMask);
