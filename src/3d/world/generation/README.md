@@ -1,22 +1,18 @@
-HexWorldGenerator
+HexWorldGenerator 2.0
+=====================
 
-- Pure, deterministic per-hex generator matching the mobile-friendly spec.
-- A second generator, `2.0`, applies updated default tuning for the fantasy
-  but plausible world generation design.
-- Usage:
+Minimal, deterministic per‑hex world generator following the goals laid out in
+`docs/world_generation_2.0.md`. The generator is stateless and performs a small
+number of Simplex noise reads to compute elevation, climate and biome data for
+any `(q, r)` coordinate.
 
+Usage:
 ```js
-import { createHexGenerator } from "@/3d/world/generation/HexWorldGenerator.js";
-const gen = createHexGenerator(12345);
-const h = gen.get(10, -3);
-console.log(h.biomeMajor, h.elevationBand);
+import { createWorldGenerator } from '@/3d/world/generation';
+const gen = createWorldGenerator('2.0', 12345);
+const tile = gen.get(10, -3);
+console.log(tile.biomeMajor, tile.elevationBand);
 ```
 
-Noise budget per hex (typical):
-
-- Domain warp: 2 samples (warpX, warpY)
-- Continental base: 1–2 samples + 1 detail
-- Ridge: 1 sample
-- Slope estimates reuse macro calls; 2 more calls for forward differences
-- Climate uses arithmetic + 2 macro samples for rain‑shadow
-  ≈ 9–10 calls
+Profile switching is preserved so alternative generator versions can be
+registered at runtime via `registerWorldGenerator`.
