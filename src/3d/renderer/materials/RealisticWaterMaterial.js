@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // Goals:
 // - Transparent water with subtle physically-inspired Fresnel
 // - Cheap normal animation using 2 moving normal maps (procedural noise in-shader)
-// - Soft shoreline foam using the existing land/water mask
+// - Soft shoreline foam using a land/water distance field
 // - Minimal branching; no geometry displacement
 // - Same public options subset as StylizedWaterMaterial for drop-in use
 
@@ -16,7 +16,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     opacity: 0.7,
     foamColor: new THREE.Color(0xffffff),
     foamShoreStrength: 0.6,
-  maskTexture: null,
+  distanceTexture: null,
   coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
   hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
   gridQ0: 0, gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
@@ -39,9 +39,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   farAlpha: 0.85,     // alpha at/max depth
   // Shoreline wave bands (near-hex waves)
   shoreWaveStrength: 0.45,
-  shoreWaveSpacing: 0.42, // in units of min(hexW,hexH)
-  shoreWaveWidth: 0.28,   // 0..1 threshold for band width
-  shoreWaveSpeed: 0.12,
+  shoreWaveSpacing: .8, // in units of min(hexW,hexH) - much larger spacing
+  shoreWaveWidth: 0.08,   // much thinner foam band
+  shoreWaveSpeed: 0.15,
+  shoreWaveOffset: 0.001,   // extremely close to shore
   ...options,
   };
 
@@ -53,7 +54,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uOpacity: { value: opt.opacity },
     uFoamCol: { value: opt.foamColor },
     uFoamShoreStrength: { value: opt.foamShoreStrength },
-  uMask: { value: opt.maskTexture },
+  uDist: { value: opt.distanceTexture },
   uCoverage: { value: opt.coverageTexture },
   uSeabed: { value: opt.seabedTexture },
   uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
@@ -75,6 +76,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
   uShoreWaveWidth: { value: opt.shoreWaveWidth },
   uShoreWaveSpeed: { value: opt.shoreWaveSpeed },
+  uShoreWaveOffset: { value: opt.shoreWaveOffset },
   };
 
   const vertexShader = `
@@ -99,7 +101,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniform float uOpacity;
     uniform vec3 uFoamCol;
     uniform float uFoamShoreStrength;
-  uniform sampler2D uMask; // R:1 land, 0 water
+  uniform sampler2D uDist; // R: signed distance (land+, water-)
   uniform sampler2D uCoverage; // R:1 inside rendered hex area, 0 outside
   uniform sampler2D uSeabed; // R: normalized yScale for seabed top
   uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
@@ -114,6 +116,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform float uShoreWaveSpacing;
   uniform float uShoreWaveWidth;
   uniform float uShoreWaveSpeed;
+  uniform float uShoreWaveOffset;
 
     // Simple value noise
     float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -122,7 +125,7 @@ export default function createRealisticWaterMaterial(options = {}) {
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
   float insideGridXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float lo=-0.5; float hi=N-0.5; float sx = step(lo, iq) * step(lo, ir) * step(iq, hi) * step(ir, hi); return sx; }
-  float sampleMaskXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr = worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float m = texture2D(uMask, vec2(u,v)).r; float inside = insideGridXZ(xz); return mix(0.0, m, inside); }
+  float sampleDistXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); return texture2D(uDist, vec2(u,v)).r; }
   float sampleCoverageXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float c = texture2D(uCoverage, vec2(u,v)).r; return c * insideGridXZ(xz); }
   float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
 
@@ -154,40 +157,31 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec3 H = normalize(L + V);
       float spec = pow(max(0.0, dot(N, H)), uShininess) * uSpecularStrength;
 
-  // Shoreline detection with circular (isotropic) gradient to avoid diamond artifacts
-  float stepLen = 0.14 * min(uHexW, uHexH);
-  vec2 ex = vec2(stepLen, 0.0);
-  vec2 ey = vec2(0.0, stepLen);
-  float m0 = sampleMaskXZ(xz);
-  float m1 = sampleMaskXZ(xz + ex);
-  float m2 = sampleMaskXZ(xz - ex);
-  float m3 = sampleMaskXZ(xz + ey);
-  float m4 = sampleMaskXZ(xz - ey);
-  float mS = (m0 + m1 + m2 + m3 + m4) / 5.0;
-  vec2 g = vec2((m1 - m2) / max(1e-4, (2.0 * stepLen)), (m3 - m4) / max(1e-4, (2.0 * stepLen)));
-  float gmag = max(1e-4, length(g));
-  // Remove gradient foam to avoid white smearing; keep only banded waves
-  float foam = 0.0;
   // Signed distance into water side
-  float signedDist = (mS - 0.5) / gmag;
-  float d = clamp(-signedDist, 0.0, 1e6);
+  float signedDist = sampleDistXZ(xz);
+  float d = -signedDist;
 
   // Animated wave bands along the shore (subtle, fades after a few bands)
   float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
-  float pos = (d / max(1e-4, spacing)) + uTime * uShoreWaveSpeed;
+  float offset = 0.01 * min(uHexW, uHexH);
+  float bandD = max(0.0, d - offset);
+  float phase = fract((xz.x + xz.y) * 0.37); // pseudo-random phase per location
+  float pos = (bandD / max(1e-4, spacing)) + uTime * uShoreWaveSpeed + phase;
   float stripe = 0.5 + 0.5 * sin(6.2831853 * pos);
-  float bands = smoothstep(1.0 - uShoreWaveWidth, 1.0, stripe);
-  float nearFade = 1.0 - smoothstep(0.0, 3.0, d / max(1e-4, spacing));
+  float widthFac = 1.0 + (1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing)));
+  float bands = smoothstep(1.0 - clamp(uShoreWaveWidth * widthFac, 0.0, 1.0), 1.0, stripe);
+  float nearFade = 1.0 - smoothstep(0.0, 3.0, bandD / max(1e-4, spacing));
+  float isActive = step(offset, d);
   // Strictly restrict to water side using signed distance
   float insideWater = step(1e-4, d);
-  float waveIntensity = clamp(bands * nearFade * insideWater, 0.0, 1.0);
-  float shoreWaves = waveIntensity * uShoreWaveStrength;
-
+  float waveIntensity = clamp(bands * nearFade * insideWater * isActive, 0.0, 1.0);
   // Crisp binary stripes: pure white bands, no gradient; hide outside coverage
   float cov = sampleCoverageXZ(xz);
   float covSoft = smoothstep(0.25, 0.75, cov);
   float inside = insideGridXZ(xz);
-  float waveMask = step(0.5, waveIntensity) * covSoft * inside;
+  float waveMask = smoothstep(0.8, 1.0, waveIntensity) * nearFade * covSoft * inside;
+  // Allow toggling waves via strength without affecting opacity/color
+  waveMask *= step(1e-4, uShoreWaveStrength);
   vec3 col = mix(baseCol, uFoamCol, waveMask);
   // Keep specular off on the white bands
   col += spec * (1.0 - waveMask);
