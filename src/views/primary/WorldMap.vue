@@ -132,6 +132,7 @@ export default {
   hoverTmpPos: markRaw(new THREE.Vector3()),
   hoverTmpQuat: markRaw(new THREE.Quaternion()),
   hoverTmpScale: markRaw(new THREE.Vector3()),
+  playerMarkerPos: markRaw(new THREE.Vector3()),
   _tmpColorTop: markRaw(new THREE.Color()),
   _tmpColorSide: markRaw(new THREE.Color()),
   clutterCommitTimer: null,
@@ -145,6 +146,8 @@ export default {
   mouse: markRaw(new THREE.Vector2()),
       rotating: false,
       dragStart: { x: 0, y: 0 },
+      lastPointer: markRaw({ x: null, y: null }),
+      raycastScheduled: false,
 
       // model/meta
       hexModel: null,
@@ -2302,16 +2305,35 @@ export default {
         if (this.hoverMesh) this.hoverMesh.visible = false;
         return;
       }
+      const lp = this.lastPointer;
+      if (lp.x !== null && lp.y !== null) {
+        const dx = Math.abs(event.clientX - lp.x);
+        const dy = Math.abs(event.clientY - lp.y);
+        if (dx < 1 && dy < 1) return;
+      }
+      lp.x = event.clientX;
+      lp.y = event.clientY;
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      this.raycaster.setFromCamera(this.mouse, this.camera);
+      this.scheduleRaycast();
+    },
+    scheduleRaycast() {
+      if (this.raycastScheduled) return;
+      this.raycastScheduled = true;
+      requestAnimationFrame(() => {
+        this.raycastScheduled = false;
+        this.performRaycast();
+      });
+    },
+    performRaycast() {
       const targets = (this.pickMeshes || []).filter(Boolean);
       if (targets.length === 0) {
         this.hoverIdx = null;
         if (this.hoverMesh) this.hoverMesh.visible = false;
         return;
       }
+      this.raycaster.setFromCamera(this.mouse, this.camera);
       const intersects = this.raycaster.intersectObjects(targets, true);
       if (intersects.length > 0) {
         const hit = intersects[0];
@@ -2323,10 +2345,10 @@ export default {
             this.hoverMesh.visible = true;
           }
           this.hoverIdx = idx;
-          // Update player marker preview to current hover using world position
           if (this.playerMarker) {
             const ps = this.computeTilePosScale(idx, 'top');
-            const pos = new THREE.Vector3(ps.x, this.hexMaxY * ps.scaleY + 0.01, ps.z);
+            const pos = this.playerMarkerPos;
+            pos.set(ps.x, this.hexMaxY * ps.scaleY + 0.01, ps.z);
             this.playerMarker.setWorldPosition(pos);
           }
         }
