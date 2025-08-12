@@ -124,7 +124,14 @@ export default function createRealisticWaterMaterial(options = {}) {
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
-  float sampleDistXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); return texture2D(uDist, vec2(u,v)).r; }
+  float sampleDistXZ(vec2 xz){
+    float N=uGridN; float S=uGridOffset; if(N<=0.5) return 1.0;
+    vec2 qr=worldToAxial(xz);
+    float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S;
+    float u=(iq+0.5)/N; float v=(ir+0.5)/N;
+    if(u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return -100.0;
+    return texture2D(uDist, vec2(u,v)).r;
+  }
   // Coverage is ignored; always treat as fully inside
   float sampleCoverageXZ(vec2 xz){ return 1.0; }
   float sampleSeabedXZ(vec2 xz){ float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0; vec2 qr=worldToAxial(xz); float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S; float u=clamp((iq+0.5)/N, 0.0, 1.0); float v=clamp((ir+0.5)/N, 0.0, 1.0); float sb = texture2D(uSeabed, vec2(u,v)).r; return sb; }
