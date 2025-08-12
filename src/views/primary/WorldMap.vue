@@ -303,9 +303,30 @@ export default {
       this.scheduleClutterCommit(120);
     }, { deep: true });
 
-  this.init();
-  // Load towns list on map load
-  try { if (this.worldStore && this.worldStore.fetchTowns) this.worldStore.fetchTowns(); } catch (e) { /* noop */ }
+    // Rebuild world if the seed changes after initialization
+    this.$watch(
+      () => this.worldSeed,
+      (seed, prev) => {
+        if (typeof seed === 'number' && seed !== prev && this.world) {
+          this.world = markRaw(new WorldGrid({
+            layoutRadius: this.layoutRadius,
+            gridSize: this.gridSize,
+            elevation: this.elevation,
+            terrainShape: this.terrainShape,
+            seed,
+            generationScale: this.generation.scale,
+            generatorVersion: this.generation.version,
+          }));
+          if (this.clutter) this.clutter.worldSeed = seed;
+          this.playerSpawnSeeded = false;
+          this.rebuildChunkGrid();
+        }
+      },
+    );
+
+    this.init();
+    // Load towns list on map load
+    try { if (this.worldStore && this.worldStore.fetchTowns) this.worldStore.fetchTowns(); } catch (e) { /* noop */ }
     window.addEventListener('resize', this.onResize);
     this.$refs.sceneContainer.addEventListener('pointerdown', this.onPointerDown);
     this.$refs.sceneContainer.addEventListener('pointermove', this.onPointerMove);
