@@ -1,14 +1,14 @@
 <template>
   <div
     ref="sceneContainer"
-    class="world-map"
-    style="position: relative; width: 100%; height: 100vh;"
+    class="world-map position-relative w-100 h-screen"
   >
     <!-- Current tile panel (left) -->
     <TileInfoPanel
       :tile="currentTileInfo"
       :seed="worldSeed"
-      style="position: absolute; left: 6px; top: 28px; z-index: 3; min-width: 240px; max-width: 320px;"
+      class="position-absolute"
+      style="left: 6px; top: 28px; z-index: 3; min-width: 240px; max-width: 320px;"
     />
     <!-- Debug overlay -->
     <WorldDebugPanel
@@ -19,7 +19,8 @@
       :benchmark="benchmark"
       :stats-visible="profilerEnabled"
       :generator-versions="generatorVersions"
-      style="position: absolute; right: 6px; top: 28px;"
+      class="position-absolute"
+      style="right: 6px; top: 28px;"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
       @update:generation="generation = $event"

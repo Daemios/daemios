@@ -1,7 +1,7 @@
 <template>
   <v-card
-    class="stats-window"
-    style="position: absolute; right: 12px; top: 32px; z-index: 10; min-width: 320px; max-width: 420px;"
+    class="stats-window position-absolute"
+    style="right: 12px; top: 32px; z-index: 10; min-width: 320px; max-width: 420px;"
   >
     <v-tabs
       v-model="tab"
