@@ -425,25 +425,25 @@ export function createHexGenerator(seed) {
     return { bathymetryStep, aridityTint, rockExposure, snowMask };
   }
 
-  function get(q, r) {
-    const { x, y } = axialToPlane(q, r);
+  // --- Layered helpers --------------------------------------------------
+
+  // Layer 1 – Continents & Oceans
+  function layer1(x, y) {
     const elev = elevationAt(x, y);
+    // Shelf depth and slope estimate (use continental base only to keep call budget)
+    const eps = 8;
+    const c1 = n01(noises.base, x + eps, y, baseFreq);
+    const c2 = n01(noises.base, x, y + eps, baseFreq);
+    const dx = c1 - elev.cont;
+    const dy = c2 - elev.cont;
+    const slope = clamp01(Math.hypot(dx, dy) * 3.2);
+    return { elev, slope };
+  }
 
-  // Shelf depth and slope estimate (use continental base only to keep call budget)
-  const eps = 8;
-  const c1 = n01(noises.base, x + eps, y, baseFreq);
-  const c2 = n01(noises.base, x, y + eps, baseFreq);
-  const dx = c1 - elev.cont;
-  const dy = c2 - elev.cont;
-  const slope = clamp01(Math.hypot(dx, dy) * 3.2);
-
-    const elevBand = classifyElevationBand(elev.h);
-    const shelfDepth01 = elevBand === ElevationBand.Shelf ? clamp01((elev.h - ElevationThresholds.deep) / (ElevationThresholds.shelf - ElevationThresholds.deep)) : 0;
-    // Base climate
+  // Layer 2 – Mesoscale & Regional Identity
+  function layer2(x, y, elev) {
     let clim = climateAt(x, y, elev.cont);
-    // Region archetype from plate cell id + latitude
     const archetype = chooseArchetype(elev.cell.id, clim.lat01);
-    // Fade archetype influence near plate boundaries to avoid hard seams between adjacent cells
     const archetypeWeight = smoothstep(0.18, 0.82, elev.edge); // 0 near edge, 1 deep inside plate cell
     const applyDelta = (c, dT, dM, w) => ({
       ...c,
@@ -459,81 +459,100 @@ export function createHexGenerator(seed) {
       case Archetype.BorealPolar: clim = applyDelta(clim, -0.10, 0.0, archetypeWeight); break;
       default: break;
     }
-    // Odd climate pockets by macro cell (also fade at edges so pockets don't create seams)
     const oddRoll = (elev.cell.id >>> 0) % 17;
     if (oddRoll === 0) clim = applyDelta(clim, +0.12, +0.12, archetypeWeight * 0.9); // warm oasis
     else if (oddRoll === 7) clim = applyDelta(clim, -0.12, -0.10, archetypeWeight * 0.9); // cold pocket
+    return { clim, archetype, archetypeWeight };
+  }
 
+  // Layer 3 – Biome Blending & Palette
+  function layer3(elev, slope, clim, archetype) {
+    const elevBand = classifyElevationBand(elev.h);
+    const shelfDepth01 = elevBand === ElevationBand.Shelf
+      ? clamp01((elev.h - ElevationThresholds.deep) / (ElevationThresholds.shelf - ElevationThresholds.deep))
+      : 0;
     const tBand = classifyTemperatureBand(clim.temp);
     const mBand = classifyMoistureBand(clim.moisture);
-
     const isCoast = (elevBand === ElevationBand.Coast);
     const coldness = 1 - clim.temp;
     const shelfKind = elevBand === ElevationBand.Shelf
       ? (tBand === TemperatureBand.Tropical ? 'CoralSea' : (tBand === TemperatureBand.Polar ? 'IceMarginalSea' : 'KelpShelf'))
       : null;
-
     const major = pickBiomeMajor({ elevBand, tBand, mBand, slope, isCoast, shelfKind, coldness, archetype });
-
-    // Special overrides (sparse): volcanic & salt flats via hashed rarity
-  const hashLocal = hash2i(Math.floor(x), Math.floor(y), seedInt) >>> 0;
-  const volcanic = (hashLocal % 1993) === 0 || (elev.ridge > 0.9 && (hashLocal % 11) === 0);
-  const basinness = (slope < 0.22) && (elev.h < Math.max(0.18, elev.cont - 0.02));
-  const inlandSea = basinness && elev.h < 0.14 && ((hashLocal >>> 6) % 73 === 0);
-  const lake = (!inlandSea) && basinness && (mBand !== MoistureBand.Arid) && ((hashLocal >>> 8) % 53 === 0);
-    const karst = (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated) && slope > 0.25 && slope < 0.6;
-  const badlands = (mBand === MoistureBand.SemiArid || mBand === MoistureBand.Arid) && slope > 0.55 && major.indexOf('Desert') >= 0;
-  const saltFlats = basinness && (mBand === MoistureBand.Arid || mBand === MoistureBand.SemiArid) && slope < 0.2;
-  const fjord = (elevBand === ElevationBand.Coast) && (coldness > 0.55) && slope > 0.55;
-  const mangrove = (elevBand === ElevationBand.Coast) && (tBand === TemperatureBand.Tropical) && (mBand !== MoistureBand.Arid) && slope < 0.40;
-    const wetland = (mBand === MoistureBand.Saturated) && (slope < 0.3) && (elevBand === ElevationBand.Lowland || lake);
-  const rift = !!elev.riftEligible && elev.edge > 0.6;
-  const plateau = (elevBand === ElevationBand.Highland || elevBand === ElevationBand.Mountain) && slope < 0.22 && (elev.h > ElevationThresholds.high);
-  const marshRing = lake && (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated);
-
-    // Relief proxy from ridge & detail (no extra calls)
-  const relief = clamp01(elev.ridge * 0.65 + slope * 0.35);
+    const relief = clamp01(elev.ridge * 0.65 + slope * 0.35);
     const sub = pickBiomeSub({ major, slope, relief, archetype, tBand });
+    return { elevBand, shelfDepth01, tBand, mBand, isCoast, coldness, shelfKind, major, relief, sub };
+  }
 
-  const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
-  // Provide archetypeWeight to rendering for smoothing color transitions near cell edges
-  const render = { ...hints, archetypeWeight };
+  // Layer 4 – Special & Rare Regions
+  function layer4(x, y, elev, slope, bio) {
+    const { tBand, mBand, major, elevBand, coldness } = bio;
+    const hashLocal = hash2i(Math.floor(x), Math.floor(y), seedInt) >>> 0;
+    const volcanic = (hashLocal % 1993) === 0 || (elev.ridge > 0.9 && (hashLocal % 11) === 0);
+    const basinness = (slope < 0.22) && (elev.h < Math.max(0.18, elev.cont - 0.02));
+    const inlandSea = basinness && elev.h < 0.14 && ((hashLocal >>> 6) % 73 === 0);
+    const lake = (!inlandSea) && basinness && (mBand !== MoistureBand.Arid) && ((hashLocal >>> 8) % 53 === 0);
+    const karst = (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated) && slope > 0.25 && slope < 0.6;
+    const badlands = (mBand === MoistureBand.SemiArid || mBand === MoistureBand.Arid) && slope > 0.55 && major.indexOf('Desert') >= 0;
+    const saltFlats = basinness && (mBand === MoistureBand.Arid || mBand === MoistureBand.SemiArid) && slope < 0.2;
+    const fjord = (elevBand === ElevationBand.Coast) && (coldness > 0.55) && slope > 0.55;
+    const mangrove = (elevBand === ElevationBand.Coast) && (tBand === TemperatureBand.Tropical) && (mBand !== MoistureBand.Arid) && slope < 0.40;
+    const wetland = (mBand === MoistureBand.Saturated) && (slope < 0.3) && (elevBand === ElevationBand.Lowland || lake);
+    const rift = !!elev.riftEligible && elev.edge > 0.6;
+    const plateau = (elevBand === ElevationBand.Highland || elevBand === ElevationBand.Mountain) && slope < 0.22 && (elev.h > ElevationThresholds.high);
+    const marshRing = lake && (mBand === MoistureBand.Humid || mBand === MoistureBand.Saturated);
+    return {
+      lake: !!lake,
+      inlandSea: !!inlandSea,
+      wetland: !!wetland,
+      volcanic: !!volcanic,
+      karst: !!karst,
+      badlands: !!badlands,
+      saltFlats: !!saltFlats,
+      fjord: !!fjord,
+      mangrove: !!mangrove,
+      plateau: !!plateau,
+      rift: !!rift,
+      marshRing: !!marshRing,
+    };
+  }
+
+  // Layer 5 – Visual Cohesion & Style
+  function layer5(elevBand, elev, clim, slope, shelfDepth01, archetypeWeight) {
+    const hints = renderHints({ elevBand, h: elev.h, moisture: clim.moisture, temp: clim.temp, slope, shelfDepth01 });
+    return { ...hints, archetypeWeight };
+  }
+
+  function get(q, r) {
+    const { x, y } = axialToPlane(q, r);
+    const l1 = layer1(x, y);
+    const l2 = layer2(x, y, l1.elev);
+    const l3 = layer3(l1.elev, l1.slope, l2.clim, l2.archetype);
+    const flags = layer4(x, y, l1.elev, l1.slope, l3);
+    const render = layer5(l3.elevBand, l1.elev, l2.clim, l1.slope, l3.shelfDepth01, l2.archetypeWeight);
 
     return {
       q, r,
-      elevationBand: elevBand,
-      temperatureBand: tBand,
-      moistureBand: mBand,
-      biomeMajor: major,
-      biomeSub: sub,
-      regionArchetype: archetype,
-      flags: {
-        lake: !!lake,
-        inlandSea: !!inlandSea,
-        wetland: !!wetland,
-        volcanic: !!volcanic,
-        karst: !!karst,
-        badlands: !!badlands,
-        saltFlats: !!saltFlats,
-        fjord: !!fjord,
-        mangrove: !!mangrove,
-        plateau: !!plateau,
-        rift: !!rift,
-        marshRing: !!marshRing,
-      },
-  render,
+      elevationBand: l3.elevBand,
+      temperatureBand: l3.tBand,
+      moistureBand: l3.mBand,
+      biomeMajor: l3.major,
+      biomeSub: l3.sub,
+      regionArchetype: l2.archetype,
+      flags,
+      render,
       // Extra raw fields for debugging/tuning
       fields: {
-        h: elev.h,
-        cont: elev.cont,
-        plateEdge: elev.edge,
-        ridge: elev.ridge,
-        slope,
-        lat01: clim.lat01,
-        temp: clim.temp,
-        moisture: clim.moisture,
-        shelfDepth01,
-        cellId: elev.cell.id >>> 0,
+        h: l1.elev.h,
+        cont: l1.elev.cont,
+        plateEdge: l1.elev.edge,
+        ridge: l1.elev.ridge,
+        slope: l1.slope,
+        lat01: l2.clim.lat01,
+        temp: l2.clim.temp,
+        moisture: l2.clim.moisture,
+        shelfDepth01: l3.shelfDepth01,
+        cellId: l1.elev.cell.id >>> 0,
       },
     };
   }
