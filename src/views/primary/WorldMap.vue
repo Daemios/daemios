@@ -1306,6 +1306,11 @@ export default {
       this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
       this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
       this.keyLight.position.set(22, 40, 28);
+      this.keyLight.castShadow = true;
+      this.keyLight.shadow.mapSize.width = 2048;
+      this.keyLight.shadow.mapSize.height = 2048;
+      this.keyLight.shadow.bias = -0.0001;
+      this.keyLight.shadow.normalBias = 0.2;
       this.scene.add(this.ambientLight, this.keyLight);
       // Apply initial feature toggles
       this.applyShadows(this.features.shadows);
@@ -1904,8 +1909,8 @@ export default {
       mesh.position.set(centerX, waterY, centerZ);
       mesh.renderOrder = 1;
       mesh.frustumCulled = false;
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       this.scene.add(mesh);
   this.waterMesh = mesh;
 
@@ -2550,21 +2555,21 @@ export default {
         cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range;
         this.keyLight.shadow.near = 1;
         this.keyLight.shadow.far = 250;
-  this.keyLight.shadow.mapSize.set(1024, 1024);
-  this.keyLight.shadow.bias = -0.0001;
-  this.keyLight.shadow.normalBias = 0.2;
+        this.keyLight.shadow.mapSize.set(2048, 2048);
+        this.keyLight.shadow.bias = -0.0001;
+        this.keyLight.shadow.normalBias = 0.2;
         cam.updateProjectionMatrix();
       }
-  // Clutter instances (prefer ChunkManager's service)
-  const shadowSvc = (this.chunkManager && this.chunkManager.clutter) ? this.chunkManager.clutter : this.clutter;
-  if (shadowSvc && shadowSvc.setShadows) shadowSvc.setShadows(!!enabled);
-      // Location marker: cast only (MeshBasic won't receive)
+      // Clutter instances (prefer ChunkManager's service)
+      const shadowSvc = (this.chunkManager && this.chunkManager.clutter) ? this.chunkManager.clutter : this.clutter;
+      if (shadowSvc && shadowSvc.setShadows) shadowSvc.setShadows(!!enabled);
+      // Location marker: cast and receive
       if (this.locationMarker) {
         const setShadows = (node) => {
           if (node && node.isMesh) {
             const mesh = node;
             mesh.castShadow = !!enabled;
-            mesh.receiveShadow = false;
+            mesh.receiveShadow = !!enabled;
           }
         };
         this.locationMarker.traverse(setShadows);

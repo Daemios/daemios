@@ -71,8 +71,8 @@ export default class ChunkNeighborhood {
 
   build() {
     const total = this.neighborOffsets.length * this.countPerChunk;
-  const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const sideMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0.0 });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0.0 });
     // attach radial fades
     const topRef = attachRadialFade(topMat, { bucketKey: 'top', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
     const sideRef = attachRadialFade(sideMat, { bucketKey: 'side', layoutRadius: this.layoutRadius, contactScale: this.contactScale });
@@ -84,6 +84,11 @@ export default class ChunkNeighborhood {
 
   this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
   this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
+  // Enable shadow casting and receiving
+  this.topIM.castShadow = true;
+  this.topIM.receiveShadow = true;
+  this.sideIM.castShadow = true;
+  this.sideIM.receiveShadow = true;
   // Avoid incorrect whole-mesh frustum culling while instances span a wide area
   this.topIM.frustumCulled = false;
   this.sideIM.frustumCulled = false;
@@ -147,6 +152,11 @@ export default class ChunkNeighborhood {
 
   this.trailTopIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMatTrail, total));
   this.trailSideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMatTrail, total));
+  // Enable shadow casting and receiving for trail meshes
+  this.trailTopIM.castShadow = true;
+  this.trailTopIM.receiveShadow = true;
+  this.trailSideIM.castShadow = true;
+  this.trailSideIM.receiveShadow = true;
   // Avoid incorrect culling of wide-span trails
   this.trailTopIM.frustumCulled = false;
   this.trailSideIM.frustumCulled = false;
