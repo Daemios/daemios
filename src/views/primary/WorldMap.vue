@@ -5,65 +5,11 @@
     style="position: relative; width: 100%; height: 100vh;"
   >
     <!-- Current tile panel (left) -->
-    <div
-      style="position: absolute; left: 6px; top: 28px; z-index: 3; background: rgba(0,0,0,0.55); color: #fff; padding: 8px 10px; border-radius: 6px; min-width: 240px; max-width: 320px;"
-      @pointerdown.stop
-      @pointermove.stop
-      @pointerup.stop
-      @click.stop
-      @wheel.stop.prevent
-      @contextmenu.stop.prevent
-    >
-      <details
-        open
-        style="margin: 0;"
-      >
-        <summary style="cursor: pointer; user-select: none; outline: none;">
-          Current Tile
-        </summary>
-        <div
-          v-if="currentTileInfo"
-          style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;"
-        >
-          <div><span style="opacity: 0.8;">Axial</span>: q={{ currentTileInfo.q }}, r={{ currentTileInfo.r }}</div>
-          <div v-if="currentTileInfo.col != null">
-            <span style="opacity: 0.8;">Offset</span>: col={{ currentTileInfo.col }}, row={{ currentTileInfo.row }}
-          </div>
-          <div v-if="currentTileInfo.wx != null">
-            <span style="opacity: 0.8;">Chunk</span>: ({{ currentTileInfo.wx }}, {{ currentTileInfo.wy }})
-          </div>
-          <div><span style="opacity: 0.8;">World</span>: x={{ fmt(currentTileInfo.world.x) }}, z={{ fmt(currentTileInfo.world.z) }}</div>
-          <div><span style="opacity: 0.8;">Biome</span>: {{ currentTileInfo.cell.biome }}</div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
-            <span style="opacity: 0.8;">Gen</span>: {{ currentTileInfo.cell.gen.biomeMajor }} / {{ currentTileInfo.cell.gen.biomeSub }}
-          </div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
-            <span style="opacity: 0.8;">Bands</span>: E={{ currentTileInfo.cell.gen.elevationBand }}, T={{ currentTileInfo.cell.gen.temperatureBand }}, M={{ currentTileInfo.cell.gen.moistureBand }}
-          </div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen">
-            <span style="opacity: 0.8;">Archetype</span>: {{ currentTileInfo.cell.gen.regionArchetype }}
-          </div>
-          <div v-if="currentTileInfo.cell && currentTileInfo.cell.gen && currentTileInfo.cell.gen.flags">
-            <span style="opacity: 0.8;">Flags</span>: {{ flagsList(currentTileInfo.cell.gen.flags) }}
-          </div>
-          <div><span style="opacity: 0.8;">hRaw</span>: {{ fmt(currentTileInfo.cell.hRaw) }} | <span style="opacity: 0.8;">h</span>: {{ fmt(currentTileInfo.cell.h) }}</div>
-          <div><span style="opacity: 0.8;">yScale</span>: {{ fmt(currentTileInfo.cell.yScale) }}</div>
-          <div><span style="opacity: 0.8;">foliage</span>: {{ fmt(currentTileInfo.cell.f) }} | <span style="opacity: 0.8;">temp</span>: {{ fmt(currentTileInfo.cell.t) }}</div>
-        </div>
-        <div
-          v-else
-          style="opacity: 0.8; margin-top: 6px;"
-        >
-          Click a tile to select it.
-          <div
-            v-if="hoverIdx != null && indexToQR && indexToQR[hoverIdx]"
-            style="margin-top: 6px;"
-          >
-            Hover: q={{ indexToQR[hoverIdx].q }}, r={{ indexToQR[hoverIdx].r }}
-          </div>
-        </div>
-      </details>
-    </div>
+    <TileInfoPanel
+      :tile="currentTileInfo"
+      :seed="worldSeed"
+      style="position: absolute; left: 6px; top: 28px; z-index: 3; min-width: 240px; max-width: 320px;"
+    />
     <!-- Debug overlay -->
     <WorldDebugPanel
       v-if="debug.show"
@@ -115,10 +61,11 @@ import WorldDebugPanel from '@/components/world/WorldDebugPanel.vue';
 import { profiler, createWebGLTimer } from '@/utils/profiler';
 import { useWorldStore } from '@/stores/worldStore';
 import { availableWorldGenerators } from '@/3d/world/generation';
+import TileInfoPanel from '@/components/world/TileInfoPanel.vue';
 
 export default {
   name: 'WorldMap',
-  components: { WorldDebugPanel },
+  components: { TileInfoPanel, WorldDebugPanel },
   data() {
     const generatorVersions = availableWorldGenerators();
     return {
@@ -302,6 +249,10 @@ export default {
       const off = this.axialToOffset ? this.axialToOffset(q, r) : { col: null, row: null };
       const ch = this.chunkForAxial ? this.chunkForAxial(q, r) : { wx: null, wy: null };
       return { q, r, world: { x, z }, col: off.col, row: off.row, wx: ch.wx, wy: ch.wy, cell };
+    },
+    worldSeed() {
+      // Replace with your actual logic for the world seed
+      return this.$store?.state?.worldSeed || null;
     },
   },
   mounted() {
