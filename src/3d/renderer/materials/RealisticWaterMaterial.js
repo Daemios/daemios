@@ -42,7 +42,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   shoreWaveSpacing: .8, // in units of min(hexW,hexH) - much larger spacing
   shoreWaveWidth: 0.08,   // much thinner foam band
   shoreWaveSpeed: 0.15,
-  shoreWaveOffset: 0.001,   // extremely close to shore
+  shoreWaveOffset: 0.01,   // extremely close to shore
   ...options,
   };
 
