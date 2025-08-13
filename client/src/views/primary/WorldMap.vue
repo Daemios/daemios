@@ -11,33 +11,34 @@
       style="left: 6px; top: 28px; z-index: 3; min-width: 240px; max-width: 320px;"
     />
     <!-- Debug overlay -->
-    <WorldDebugPanel
-      v-if="debug.show"
-      :features="features"
-      :radial-fade="radialFade"
-      :generation="generation"
-      :benchmark="benchmark"
-      :stats-visible="profilerEnabled"
-      :generator-versions="generatorVersions"
-      class="position-absolute"
-      style="right: 6px; top: 28px;"
-      @update:features="features = $event"
-      @update:radialFade="radialFade = $event"
-      @update:generation="generation = $event"
-      @toggle-clutter="onToggleClutter"
-      @toggle-shadows="onToggleShadows"
-      @toggle-water="onToggleWater"
-      @toggle-chunk-colors="onToggleChunkColors"
-      @toggle-directions="onToggleDirections"
-      @toggle-radial-fade="onToggleRadialFade"
-      @generation-scale-change="onGenerationScaleChange"
-      @generator-tuning-change="onGeneratorTuningChange"
-      @generator-version-change="onGeneratorVersionChange"
-      @toggle-stats-pane="onToggleStatsPane"
-      @set-neighborhood-radius="onSetNeighborhoodRadius"
-      @run-benchmark="runBenchmark"
-      @create-town="onCreateTown"
-    />
+      <WorldDebugPanel
+        v-if="debug.show"
+        :features="features"
+        :radial-fade="radialFade"
+        :generation="generation"
+        :benchmark="benchmark"
+        :stats-visible="profilerEnabled"
+        :generator-versions="generatorVersions"
+        :player-position="playerPosition"
+        class="position-absolute"
+        style="right: 6px; top: 28px;"
+        @update:features="features = $event"
+        @update:radialFade="radialFade = $event"
+        @update:generation="generation = $event"
+        @toggle-clutter="onToggleClutter"
+        @toggle-shadows="onToggleShadows"
+        @toggle-water="onToggleWater"
+        @toggle-chunk-colors="onToggleChunkColors"
+        @toggle-directions="onToggleDirections"
+        @toggle-radial-fade="onToggleRadialFade"
+        @generation-scale-change="onGenerationScaleChange"
+        @generator-tuning-change="onGeneratorTuningChange"
+        @generator-version-change="onGeneratorVersionChange"
+        @toggle-stats-pane="onToggleStatsPane"
+        @set-neighborhood-radius="onSetNeighborhoodRadius"
+        @run-benchmark="runBenchmark"
+        @create-town="onCreateTown"
+      />
     <WorldBenchmarkPanel
       ref="worldBenchmarkPanel"
       :general-stats="benchmarkPanelGeneral"
@@ -78,6 +79,7 @@ export default {
     const generatorVersions = availableWorldGenerators();
     return {
       // core three
+      _dirLabels: null,
       scene: null,
       camera: null,
       renderer: null,
@@ -88,62 +90,66 @@ export default {
       sideIM: null,
       pickMeshes: [],
       indexToQR: [],
-  topGeom: null,
-  sideGeom: null,
-  hoverIdx: null,
-  hoverPrevColor: null,
-  hoverMesh: null,
-  playerMarker: null,
-  // Track if we've seeded the initial player spawn to avoid re-centering on rebuilds
-  playerSpawnSeeded: false,
-  recenterTimer: null,
-  pendingCenterChunk: null,
-  // Trail layer to keep previous chunk neighborhood visible briefly
-  trailTopIM: null,
-  trailSideIM: null,
-  trailTimer: null,
-  // Keep previous neighborhood bounds for clutter persistence during trail visibility
-  _prevNeighborhoodRect: null,
-  neighborhood: null, // kept for compatibility; managed by chunkManager
-  chunkManager: null,
-  // Water
-  waterMesh: null,
-  waterMaterial: null,
-  // Always use realistic water
-  waterSeabedTex: null,
-  waterMaskTex: null,
-  waterCoverageTex: null,
-  waterDistanceTex: null,
-  _waterTexSize: 0,
-  _waterPlaneW: 0,
-  _waterPlaneH: 0,
-  _waterTileCount: 0,
-  // Location marker (GLB)
-  locationMarker: null,
-  markerDesiredRadius: 0.6, // as fraction of layoutRadius
-  markerTopOffset: 0, // world-space top offset for marker focus
-  hexMaxY: 1, // max Y of a tile in local space after recenter
-  cameraTween: null,
-  tweenSaved: {
-    tilt: { h: null, v: null },
-    pixelRatio: null,
-  },
-  tmpMatrix: markRaw(new THREE.Matrix4()),
-  hoverTmpPos: markRaw(new THREE.Vector3()),
-  hoverTmpQuat: markRaw(new THREE.Quaternion()),
-  hoverTmpScale: markRaw(new THREE.Vector3()),
-  playerMarkerPos: markRaw(new THREE.Vector3()),
-  _tmpColorTop: markRaw(new THREE.Color()),
-  _tmpColorSide: markRaw(new THREE.Color()),
-  clutterCommitTimer: null,
+      topGeom: null,
+      sideGeom: null,
+      hoverIdx: null,
+      hoverPrevColor: null,
+      hoverMesh: null,
+      playerMarker: null,
+      // Track if we've seeded the initial player spawn to avoid re-centering on rebuilds
+      playerSpawnSeeded: false,
+      recenterTimer: null,
+      pendingCenterChunk: null,
+      // Trail layer to keep previous chunk neighborhood visible briefly
+      trailTopIM: null,
+      trailSideIM: null,
+      trailTimer: null,
+      // Keep previous neighborhood bounds for clutter persistence during trail visibility
+      _prevNeighborhoodRect: null,
+      neighborhood: null, // kept for compatibility; managed by chunkManager
+      chunkManager: null,
+      // Water
+      waterMesh: null,
+      waterMaterial: null,
+      // Always use realistic water
+      waterSeabedTex: null,
+      waterMaskTex: null,
+      waterCoverageTex: null,
+      waterDistanceTex: null,
+      _waterTexSize: 0,
+      _waterPlaneW: 0,
+      _waterPlaneH: 0,
+      _waterTileCount: 0,
+      // Location marker (GLB)
+      locationMarker: null,
+      markerDesiredRadius: 0.6, // as fraction of layoutRadius
+      markerTopOffset: 0, // world-space top offset for marker focus
+      hexMaxY: 1, // max Y of a tile in local space after recenter
+      cameraTween: null,
+      tweenSaved: {
+        tilt: { h: null, v: null },
+        pixelRatio: null,
+      },
+      tmpMatrix: markRaw(new THREE.Matrix4()),
+      hoverTmpPos: markRaw(new THREE.Vector3()),
+      hoverTmpQuat: markRaw(new THREE.Quaternion()),
+      hoverTmpScale: markRaw(new THREE.Vector3()),
+      playerMarkerPos: markRaw(new THREE.Vector3()),
+      _tmpColorTop: markRaw(new THREE.Color()),
+      _tmpColorSide: markRaw(new THREE.Color()),
+      clutterCommitTimer: null,
 
-  // world data / systems
-  world: null, // WorldGrid instance
-  clutter: null, // ClutterManager instance
+      // world data / systems
+      world: null, // WorldGrid instance
+      clutter: null, // ClutterManager instance
+
+      // World location markers
+      worldLocationMeshes: [],
+      locationsLoaded: false,
 
       // interaction
-  raycaster: markRaw(new THREE.Raycaster()),
-  mouse: markRaw(new THREE.Vector2()),
+      raycaster: markRaw(new THREE.Raycaster()),
+      mouse: markRaw(new THREE.Vector2()),
       rotating: false,
       dragStart: { x: 0, y: 0 },
       lastPointer: markRaw({ x: null, y: null }),
@@ -152,13 +158,12 @@ export default {
       // model/meta
       hexModel: null,
       fxaaPass: null,
-      
       modelScaleFactor: 1,
-  heightMagnitude: 2.0, // global vertical exaggeration (e.g., 2x)
-  modelCenter: markRaw(new THREE.Vector3(0, 0, 0)),
+      heightMagnitude: 2.0, // global vertical exaggeration (e.g., 2x)
+      modelCenter: markRaw(new THREE.Vector3(0, 0, 0)),
       orientation: 'flat',
       orbit: {
-  target: markRaw(new THREE.Vector3(0, 0, 0)),
+        target: markRaw(new THREE.Vector3(0, 0, 0)),
         radius: 30,
         theta: Math.PI / 4,
         phi: Math.PI / 4,
@@ -170,22 +175,22 @@ export default {
 
       // layout
       layoutRadius: 0.5,
-  gridSize: 20,
-  spacingFactor: 1.0, // exact geometric spacing for hex lattice
-  contactScale: 1.0, // auto-computed after model load to make tiles touch
-  gapFraction: 0.0, // desired gap size as a fraction of layoutRadius (0 = touching)
-  sideInset: 0.996, // shrink side XZ a hair to avoid coplanar overlap between neighbors
+      gridSize: 20,
+      spacingFactor: 1.0, // exact geometric spacing for hex lattice
+      contactScale: 1.0, // auto-computed after model load to make tiles touch
+      gapFraction: 0.0, // desired gap size as a fraction of layoutRadius (0 = touching)
+      sideInset: 0.996, // shrink side XZ a hair to avoid coplanar overlap between neighbors
 
-  // Chunking (rectangular chunks over hex grid using even-q offset)
-  chunkCols: 28,
-  chunkRows: 24,
-  countPerChunk: 0, // computed in init of chunks
-  neighborOffsets: [
-    { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-    { dx: -1, dy:  0 }, { dx: 0, dy:  0 }, { dx: 1, dy:  0 },
-    { dx: -1, dy:  1 }, { dx: 0, dy:  1 }, { dx: 1, dy:  1 },
-  ],
-  centerChunk: { x: 1, y: 1 },
+      // Chunking (rectangular chunks over hex grid using even-q offset)
+      chunkCols: 28,
+      chunkRows: 24,
+      countPerChunk: 0, // computed in init of chunks
+      neighborOffsets: [
+        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+        { dx: -1, dy:  0 }, { dx: 0, dy:  0 }, { dx: 1, dy:  0 },
+        { dx: -1, dy:  1 }, { dx: 0, dy:  1 }, { dx: 1, dy:  1 },
+      ],
+      centerChunk: { x: 1, y: 1 },
 
       // elevation shaping
       elevation: {
@@ -227,37 +232,54 @@ export default {
         result: null,
       },
 
-  // Post FX
-  
-  // Debug / Features (defaults; will be overridden from settings if present)
-  debug: { show: true },
-  features: { shadows: true, water: true, chunkColors: true, clutter: true },
-  // Directions helper overlay
-  _dirOverlay: null,
-  radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
-  generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
-  generatorVersions,
-  worldSeed: 1337,
-  // Progressive neighborhood expansion control
-  _progressiveModeActive: false, // when true, skip progressive start on rebuilds
-  _progressivePlanned: 0,
-  _progressiveCheckId: null,
-  
-  // Rendering toggles
-  // Default chunkColors: true (use per-chunk pastel overrides)
-  // The object above is initialized in data(); extend it here for clarity
+      // Post FX
 
-  // Lights
-  ambientLight: null,
-  keyLight: null,
-  // stores
-  settings: null,
-  worldStore: null,
-  // selection
-  selectedQR: { q: null, r: null },
+      // Debug / Features (defaults; will be overridden from settings if present)
+      debug: { show: true },
+      features: { shadows: true, water: true, chunkColors: true, clutter: true },
+      // Directions helper overlay
+      _dirOverlay: null,
+      radialFade: { enabled: false, color: 0xF3EED9, radius: 0, width: 5.0, minHeightScale: 0.05 },
+      generation: { version: generatorVersions[0] || 'hex', scale: 1.0, radius: 5, tuning: { continentScale: 1.0, warpScale: 1.0, warpStrength: 0.75, plateSize: 1.15, ridgeScale: 0.85, detailScale: 1.0, climateScale: 1.0, oceanEncapsulation: 0.75, seaBias: 0.0 } },
+      generatorVersions,
+      worldSeed: 1337,
+      // Progressive neighborhood expansion control
+      _progressiveModeActive: false, // when true, skip progressive start on rebuilds
+      _progressivePlanned: 0,
+      _progressiveCheckId: null,
+
+      // Rendering toggles
+      // Default chunkColors: true (use per-chunk pastel overrides)
+      // The object above is initialized in data(); extend it here for clarity
+
+      // Lights
+      ambientLight: null,
+      keyLight: null,
+      // stores
+      settings: null,
+      worldStore: null,
+      // selection
+      selectedQR: { q: null, r: null },
     };
   },
   computed: {
+    playerPosition() {
+      // Use selectedQR for hex, and chunkForAxial for chunk
+      const q = this.selectedQR?.q;
+      const r = this.selectedQR?.r;
+      let chunkX = null, chunkY = null;
+      if (typeof this.chunkForAxial === 'function' && q != null && r != null) {
+        const ch = this.chunkForAxial(q, r);
+        chunkX = ch?.wx ?? null;
+        chunkY = ch?.wy ?? null;
+      }
+      return {
+        chunkX: chunkX ?? 0,
+        chunkY: chunkY ?? 0,
+        hexQ: q ?? 0,
+        hexR: r ?? 0,
+      };
+    },
     currentTileInfo() {
       const q = this.selectedQR?.q; const r = this.selectedQR?.r;
       if (q == null || r == null || !this.world) return null;
@@ -400,6 +422,7 @@ export default {
     this.$refs.sceneContainer.removeEventListener('pointerleave', this.onPointerUp);
     this.$refs.sceneContainer.removeEventListener('wheel', this.onWheel);
     this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
+    this.clearWorldLocationMeshes();
   },
   methods: {
     // Small number formatter for panel
@@ -1134,6 +1157,10 @@ export default {
         this._progressivePlanned = desiredRadius;
         this._scheduleProgressiveExpand();
       }
+      if (!this.locationsLoaded) {
+        this.locationsLoaded = true;
+        this.loadWorldLocations();
+      }
     },
     ensurePlayerMarker() {
       if (!this.playerMarker) {
@@ -1149,6 +1176,41 @@ export default {
         this.locationMarker.matrix.compose(pos.clone(), markerQuat, markerScale);
         this.locationMarker.visible = true;
       });
+    },
+    async loadWorldLocations() {
+      try {
+        const locations = await api.get('world/locations');
+        (Array.isArray(locations) ? locations : []).forEach((loc) => {
+          this.addWorldLocationOrb(loc);
+        });
+      } catch (e) {
+        console.error('[WorldMap] Failed to load world locations', e);
+      }
+    },
+    addWorldLocationOrb(loc) {
+      if (!loc || !this.scene) return;
+      const q = loc.hexQ;
+      const r = loc.hexR;
+      const pos2D = this.getTileWorldPos(q, r);
+      const cell = this.world ? this.world.getCell(q, r) : null;
+      const scaleY = this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
+      const yTop = this.hexMaxY * scaleY;
+      const pos = new THREE.Vector3(pos2D.x, yTop + 0.01, pos2D.z);
+      const geom = markRaw(new THREE.SphereGeometry(this.layoutRadius * 0.3, 16, 16));
+      const mat = markRaw(new THREE.MeshBasicMaterial({ color: 0xff69b4 }));
+      const mesh = markRaw(new THREE.Mesh(geom, mat));
+      mesh.position.copy(pos);
+      this.scene.add(mesh);
+      this.worldLocationMeshes.push(mesh);
+    },
+    clearWorldLocationMeshes() {
+      if (!this.worldLocationMeshes) return;
+      this.worldLocationMeshes.forEach((m) => {
+        try { this.scene.remove(m); } catch (e) {}
+        try { m.geometry && m.geometry.dispose(); } catch (e) {}
+        try { m.material && m.material.dispose(); } catch (e) {}
+      });
+      this.worldLocationMeshes = [];
     },
     onSetNeighborhoodRadius(radius) {
       const r = Math.max(1, Number(radius) || 1);

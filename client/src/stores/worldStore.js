@@ -34,7 +34,7 @@ export const useWorldStore = defineStore('world', {
       try {
         this.locationsLoading = true;
         this.lastError = null;
-        const res = await api.get('location/list');
+        const res = await api.get('world/locations');
         // Accept either array or { locations: [...] }
         this.locations = Array.isArray(res) ? res : (res?.locations ?? []);
       } catch (e) {
@@ -47,7 +47,7 @@ export const useWorldStore = defineStore('world', {
     async createLocation(payload = null) {
       try {
         this.lastError = null;
-        await api.post('location/create/', payload ?? {});
+        await api.post('world/locations', payload ?? {});
         // Refresh after creating
         await this.fetchLocations();
       } catch (e) {
