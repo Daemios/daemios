@@ -1,3 +1,6 @@
+<script setup>
+import AddLocationButton from './AddLocationButton.vue';
+</script>
 <template>
   <div
     class="position-absolute text-white py-2 px-3 rounded text-caption"
@@ -26,7 +29,10 @@
           {{ statsVisible ? 'Hide Stats' : 'Show Stats' }}
         </button>
       </summary>
-        <div class="d-flex flex-column align-stretch" style="gap: 6px; margin-top: 6px;">
+      <div
+        class="d-flex flex-column align-stretch"
+        style="gap: 6px; margin-top: 6px;"
+      >
         <div
           v-if="benchmark?.running"
           class="opacity-80 text-mono"
@@ -42,32 +48,50 @@
 
         <!-- Feature toggles in compact grid -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px;">
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="featuresLocal.clutter"
             @change="onToggleFeature('clutter', $event)"
           > Clutter</label>
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="featuresLocal.shadows"
             @change="onToggleFeature('shadows', $event)"
           > Shadows</label>
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="featuresLocal.water"
             @change="onToggleFeature('water', $event)"
           > Water</label>
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="featuresLocal.chunkColors"
             @change="onToggleFeature('chunkColors', $event)"
           > Chunk colors</label>
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="radialLocal.enabled"
             @change="onToggleRadialFade($event)"
           > Radial fade</label>
-            <label class="d-flex align-center cursor-pointer" style="gap: 6px;"><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px;"
+          ><input
             type="checkbox"
             :checked="featuresLocal.directions"
             @change="onToggleFeature('directions', $event)"
@@ -76,35 +100,35 @@
 
         <!-- Radial fade controls (compact grid) -->
         <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center; margin-top: 6px;">
-            <span class="opacity-80 text-right">Fade radius</span>
-            <input
-              :value="radialLocal.radius"
-              type="number"
-              step="0.5"
-              :disabled="!radialLocal.enabled"
-              class="w-100"
-              @input="onSetRadial('radius', $event)"
-            >
-            <span class="opacity-80 text-right">Fade width</span>
-            <input
-              :value="radialLocal.width"
-              type="number"
-              step="0.25"
-              :disabled="!radialLocal.enabled"
-              class="w-100"
-              @input="onSetRadial('width', $event)"
-            >
-            <span class="opacity-80 text-right">Min height</span>
-            <input
-              :value="radialLocal.minHeightScale"
-              type="number"
-              min="0"
-              max="0.5"
-              step="0.01"
-              :disabled="!radialLocal.enabled"
-              class="w-100"
-              @input="onSetRadial('minHeightScale', $event)"
-            >
+          <span class="opacity-80 text-right">Fade radius</span>
+          <input
+            :value="radialLocal.radius"
+            type="number"
+            step="0.5"
+            :disabled="!radialLocal.enabled"
+            class="w-100"
+            @input="onSetRadial('radius', $event)"
+          >
+          <span class="opacity-80 text-right">Fade width</span>
+          <input
+            :value="radialLocal.width"
+            type="number"
+            step="0.25"
+            :disabled="!radialLocal.enabled"
+            class="w-100"
+            @input="onSetRadial('width', $event)"
+          >
+          <span class="opacity-80 text-right">Min height</span>
+          <input
+            :value="radialLocal.minHeightScale"
+            type="number"
+            min="0"
+            max="0.5"
+            step="0.01"
+            :disabled="!radialLocal.enabled"
+            class="w-100"
+            @input="onSetRadial('minHeightScale', $event)"
+          >
         </div>
       </div>
     </details>
@@ -121,31 +145,40 @@
         <span>Generation</span>
         <span class="opacity-80">{{ Number(genLocal.scale).toFixed(2) }}×</span>
       </summary>
-      <div class="d-flex flex-column" style="gap: 6px; margin-top: 6px;">
+      <div
+        class="d-flex flex-column"
+        style="gap: 6px; margin-top: 6px;"
+      >
         <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center;">
-            <span class="opacity-80 text-right">Version</span>
-            <select
-              :value="genLocal.version"
-              class="w-100"
-              @change="onSetGeneratorVersion($event)"
+          <span class="opacity-80 text-right">Version</span>
+          <select
+            :value="genLocal.version"
+            class="w-100"
+            @change="onSetGeneratorVersion($event)"
+          >
+            <option
+              v-for="v in generatorVersions"
+              :key="v"
+              :value="v"
             >
-            <option v-for="v in generatorVersions" :key="v" :value="v">{{ v }}</option>
+              {{ v }}
+            </option>
           </select>
         </div>
         <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center;">
-            <span class="opacity-80 text-right">Scale</span>
-            <input
-              :value="genLocal.scale"
-              type="number"
-              step="0.01"
-              class="w-100"
-              @input="onSetGenerationScale($event)"
-            >
+          <span class="opacity-80 text-right">Scale</span>
+          <input
+            :value="genLocal.scale"
+            type="number"
+            step="0.01"
+            class="w-100"
+            @input="onSetGenerationScale($event)"
+          >
         </div>
 
         <!-- Map size (absolute radius) -->
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;">
-            <span class="opacity-80 text-right">Map size</span>
+          <span class="opacity-80 text-right">Map size</span>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button
               :disabled="genLocal.radius === 1"
@@ -178,23 +211,29 @@
           </div>
         </div>
         <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center;">
-            <span class="opacity-80 text-right">Neighborhood radius</span>
-            <input
-              :value="genLocal.radius ?? 1"
-              type="number"
-              min="1"
-              step="1"
-              class="w-100"
-              @change="onSetNeighborhoodRadius($event)"
-            >
-            <div class="opacity-80" style="grid-column: 1 / span 2;">
-              <span>Renders {{ (2 * (genLocal.radius ?? 1) + 1) }}×{{ (2 * (genLocal.radius ?? 1) + 1) }} chunks</span>
-            </div>
+          <span class="opacity-80 text-right">Neighborhood radius</span>
+          <input
+            :value="genLocal.radius ?? 1"
+            type="number"
+            min="1"
+            step="1"
+            class="w-100"
+            @change="onSetNeighborhoodRadius($event)"
+          >
+          <div
+            class="opacity-80"
+            style="grid-column: 1 / span 2;"
+          >
+            <span>Renders {{ (2 * (genLocal.radius ?? 1) + 1) }}×{{ (2 * (genLocal.radius ?? 1) + 1) }} chunks</span>
+          </div>
         </div>
 
         <!-- Collapse advanced tuning for compactness -->
         <details style="margin-top: 2px;">
-          <summary class="cursor-pointer user-select-none" style="outline: none; opacity: 0.85;">
+          <summary
+            class="cursor-pointer user-select-none"
+            style="outline: none; opacity: 0.85;"
+          >
             Noise tuning (debug)
           </summary>
           <div style="display: grid; grid-template-columns: auto 90px; gap: 4px 8px; align-items: center; margin-top: 6px;">
@@ -284,16 +323,17 @@
       open
       style="margin: 8px 0 0 0;"
     >
-        <summary class="cursor-pointer user-select-none" style="outline: none;">
-          Actions
-        </summary>
-        <div class="d-flex flex-wrap" style="gap: 6px; margin-top: 6px;">
-        <button
-          style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;"
-          @click.stop.prevent="$emit('create-town')"
-        >
-          Add Town
-        </button>
+      <summary
+        class="cursor-pointer user-select-none"
+        style="outline: none;"
+      >
+        Actions
+      </summary>
+      <div
+        class="d-flex flex-wrap"
+        style="gap: 6px; margin-top: 6px;"
+      >
+  <AddLocationButton />
       </div>
     </details>
   </div>
@@ -306,7 +346,7 @@ export default {
     features: { type: Object, required: true },
     radialFade: { type: Object, required: true },
     generation: { type: Object, required: true },
-    benchmark: { type: Object, required: false },
+  benchmark: { type: Object, required: false, default: null },
   statsVisible: { type: Boolean, required: false, default: true },
   generatorVersions: { type: Array, required: false, default: () => [] },
   },
@@ -319,6 +359,7 @@ export default {
     'toggle-water',
     'toggle-chunk-colors',
   'toggle-directions',
+  'create-location',
     'toggle-radial-fade',
     'generation-scale-change',
     'generator-tuning-change',
