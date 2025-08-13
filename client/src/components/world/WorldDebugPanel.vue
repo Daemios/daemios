@@ -1,5 +1,11 @@
 <script setup>
 import AddLocationButton from './AddLocationButton.vue';
+defineProps({
+  playerPosition: {
+    type: Object,
+    default: () => ({ chunkX: 0, chunkY: 0, hexQ: 0, hexR: 0 })
+  }
+});
 </script>
 <template>
   <div
@@ -333,7 +339,7 @@ import AddLocationButton from './AddLocationButton.vue';
         class="d-flex flex-wrap"
         style="gap: 6px; margin-top: 6px;"
       >
-  <AddLocationButton />
+  <AddLocationButton :player-position="playerPosition" />
       </div>
     </details>
   </div>
