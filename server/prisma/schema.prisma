@@ -1,0 +1,405 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Elemental modifier for abilities
+model AbilityElement {
+  id             Int             @id @default(autoincrement())
+  name           String?
+  icon           String?
+  effect         String?
+  tag            String?
+  damage         Decimal?
+  healing        Decimal?
+  debuff         Decimal?
+  buff           Decimal?
+  color          String?
+  abilityPresets AbilityPreset[]
+}
+
+// Ability presets are fully assembled abilities that can be used by a character.
+model AbilityPreset {
+  id             Int            @id @default(autoincrement())
+  presetCoreId   Int
+  elementId      Int
+  abilityRangeId Int
+  abilityShapeId Int
+  abilityTypeId  Int
+  range          AbilityRange   @relation(fields: [abilityRangeId], references: [id])
+  shape          AbilityShape   @relation(fields: [abilityShapeId], references: [id])
+  type           AbilityType    @relation(fields: [abilityTypeId], references: [id])
+  power          Boolean?       @default(true)
+  cost           Boolean?       @default(true)
+  cooldown       Boolean?       @default(true)
+  duration       Boolean?       @default(true)
+  description    String?
+  element        AbilityElement @relation(fields: [elementId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([elementId])
+  @@index([presetCoreId])
+  @@index([abilityRangeId])
+  @@index([abilityShapeId])
+  @@index([abilityTypeId])
+}
+
+// Defines a 'range' that associates a tag and whether range modifiers can be applied.
+model AbilityRange {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  tag             String?
+  additionalRange Boolean?
+  abilityPreset   AbilityPreset[]
+}
+
+// Defines a 'shape' that associates a tag and whether area modifiers can be applied.
+model AbilityShape {
+  id             Int             @id @default(autoincrement())
+  name           String?
+  description    String?
+  tag            String?
+  additionalArea Boolean?
+  abilityPresets AbilityPreset[]
+}
+
+// Defines a 'type' that associates a tag with the ability.
+// These tags are usually associated with an ability through an effect's tags.
+// For example, an effect that restores health would associated with a 'heal' AbilityType.
+model AbilityType {
+  id             Int             @id @default(autoincrement())
+  name           String?
+  description    String?
+  tag            String?
+  abilityPresets AbilityPreset[]
+}
+
+// Defines a range specialization (or lack thereof) that confers certain benefits to the character
+model ArchetypeRange {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  effects     Effect[]
+}
+
+// Defines a role specialization that confers certain benefits to the character
+model ArchetypeRole {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  effects     Effect[]
+}
+
+// Inventory items that are associated with a character
+model Item {
+  id           Int        @id @default(autoincrement())
+  quantity     Int?
+  name         String
+  description  String?
+  image        String?
+  itemTypeId   Int?
+  itemType     ItemType?  @relation(fields: [itemTypeId], references: [id])
+  itemEffectId Int?
+  itemEffect   Effect?    @relation(fields: [itemEffectId], references: [id])
+  createdOn    DateTime?  @default(now())
+  createdBy    Int?
+  lastUpdate   Int?
+  characterId  Int
+  character    Character  @relation(fields: [characterId], references: [id])
+  Reward       Reward[]
+  Location     Location?  @relation(fields: [locationId], references: [id])
+  locationId   Int?
+  Structure    Structure? @relation(fields: [structureId], references: [id])
+  structureId  Int?
+  Container    Container? @relation(fields: [containerId], references: [id])
+  containerId  Int?
+}
+
+// Defines a type of item
+model ItemType {
+  id          Int     @id @default(autoincrement())
+  slot        Int?
+  name        String
+  description String?
+  items       Item[]
+}
+
+// Defines a variation of creature that can be encountered in the world
+model Creature {
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  description             String?
+  creatureTypes           CreatureType[]
+  creatureToCreatureTypes CreatureToCreatureType[]
+}
+
+// Defines one or more types that a creature can be (dragon+human for Draconian)
+model CreatureType {
+  id                      Int                      @id @default(autoincrement())
+  name                    String                   @unique
+  tag                     String
+  description             String?
+  creatures               Creature[]
+  creatureToCreatureTypes CreatureToCreatureType[]
+}
+
+// Who the fuck knows
+model CreatureToCreatureType {
+  creatureId     Int
+  creatureTypeId Int
+  creature       Creature     @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+  creatureType   CreatureType @relation(fields: [creatureTypeId], references: [id], onDelete: Cascade)
+
+  @@id([creatureId, creatureTypeId])
+}
+
+// Effects present on abilities and items
+model Effect {
+  id               Int             @id @default(autoincrement())
+  description      String?
+  operation        String?
+  tags             String?
+  ArchetypeRange   ArchetypeRange? @relation(fields: [archetypeRangeId], references: [id])
+  archetypeRangeId Int?
+  ArchetypeRole    ArchetypeRole?  @relation(fields: [archetypeRoleId], references: [id])
+  archetypeRoleId  Int?
+  Item             Item[]
+}
+
+// Playable races
+model Race {
+  id          Int         @id @default(autoincrement())
+  name        String?
+  description String?
+  color       String?
+  raceFolder  String?
+  characters  Character[]
+}
+
+// RP Skills -- Not used currently
+model Skill {
+  id          Int        @id @default(autoincrement())
+  name        String?
+  descShort   String?
+  descLong    String?
+  Character   Character? @relation(fields: [characterId], references: [id])
+  characterId Int?
+}
+
+// Users
+model User {
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  password       String
+  displayName    String
+  active         Boolean?        @default(true)
+  subscribed     Boolean         @default(false)
+  admin          Boolean         @default(false)
+  characters     Character[]
+  worldLocations WorldLocation[]
+}
+
+// A users characters
+model Character {
+  id                Int        @id @default(autoincrement())
+  userId            Int
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raceId            Int
+  race              Race?      @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  active            Boolean    @default(false)
+  name              String
+  image             String?
+  archetypeDistance Int?
+  archetypeRole     Int?
+  level             Int        @default(1)
+  experience        Int        @default(0)
+  adventureId       Int?
+  adventure         Adventure? @relation(fields: [adventureId], references: [id])
+  factions          Faction[]
+  skills            Skill[]
+  inventory         Item[]
+
+  @@index([raceId])
+  @@index([userId])
+}
+
+// Express/Passport session
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.MediumText // MediumText may be needed for MySql
+  expiresAt DateTime
+}
+
+// Adventures are the meta container for an outing into the world
+// They contain a link
+model Adventure {
+  id          Int         @id @default(autoincrement())
+  description String?
+  seed        String
+  startDate   DateTime?
+  endDate     DateTime?
+  locations   Location[]
+  npcs        NPC[]
+  factions    Faction[]
+  Character   Character[]
+  Reward      Reward[]
+}
+
+// Rewards at the end of an adventure
+model Reward {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  item        Item      @relation(fields: [itemId], references: [id])
+  adventureId Int
+  adventure   Adventure @relation(fields: [adventureId], references: [id])
+  itemId      Int
+}
+
+// Locations are the primary container places in the world
+model Location {
+  id          Int         @id @default(autoincrement())
+  name        String
+  type        String
+  description String?
+  coordinates String?
+  adventureId Int
+  adventure   Adventure   @relation(fields: [adventureId], references: [id])
+  structures  Structure[]
+  entities    Entity[]
+  items       Item[]
+  containers  Container[]
+}
+
+// Structures can exist inside locations
+model Structure {
+  id          Int         @id @default(autoincrement())
+  name        String
+  type        String // Types like "House", "Shop", "Dungeon", etc.
+  description String?
+  locationId  Int
+  location    Location    @relation(fields: [locationId], references: [id])
+  items       Item[]
+  containers  Container[]
+  entities    Entity[]
+}
+
+// Entities are instances of creatures that exist in an encounter
+model Entity {
+  id          Int        @id @default(autoincrement())
+  name        String
+  type        String
+  health      Int
+  strength    Int
+  locationId  Int?
+  location    Location?  @relation(fields: [locationId], references: [id])
+  structureId Int?
+  structure   Structure? @relation(fields: [structureId], references: [id])
+}
+
+// Containers are found in locations and structures and can contain items
+model Container {
+  id          Int        @id @default(autoincrement())
+  name        String
+  capacity    Int
+  lockType    String?
+  locationId  Int?
+  location    Location?  @relation(fields: [locationId], references: [id])
+  structureId Int?
+  structure   Structure? @relation(fields: [structureId], references: [id])
+  items       Item[]
+}
+
+// NPCs are records of non-combat characters that can be interacted with
+model NPC {
+  id          Int       @id @default(autoincrement())
+  name        String
+  role        String
+  dialogue    String?
+  adventureId Int
+  adventure   Adventure @relation(fields: [adventureId], references: [id])
+  factionId   Int?
+  faction     Faction?  @relation(fields: [factionId], references: [id])
+}
+
+// Factions are groups of NPCs that effect their disposition and objectives
+model Faction {
+  id          Int        @id @default(autoincrement())
+  name        String
+  reputation  String
+  objectives  String?
+  adventureId Int
+  adventure   Adventure  @relation(fields: [adventureId], references: [id])
+  npcs        NPC[]
+  Character   Character? @relation(fields: [characterId], references: [id])
+  characterId Int?
+  towns       Town[]
+}
+
+// Stores saved/generated arena states for the tactical arena feature
+model ArenaHistory {
+  arena_history_id Int       @id @default(autoincrement())
+  name             String
+  seed             String
+  size             Int
+  created_on       DateTime  @default(now())
+  last_updated     DateTime  @updatedAt
+  last_active      DateTime?
+
+  @@map("arena_history") // Underlying table name (snake_case) if using existing DB naming convention
+}
+
+// World map locations managed by the server
+model WorldLocation {
+  id          Int               @id @default(autoincrement())
+  name        String
+  description String?
+  // World coordinates
+  chunkX      Int
+  chunkY      Int
+  hexQ        Int
+  hexR        Int
+  type        WorldLocationType
+  visible     Boolean           @default(true)
+  ownerUserId Int?
+  owner       User?             @relation(fields: [ownerUserId], references: [id])
+  createdOn   DateTime          @default(now())
+  updatedOn   DateTime          @updatedAt
+
+  // Specializations (1-1)
+  town    Town?
+  dungeon Dungeon?
+
+  @@unique([chunkX, chunkY, hexQ, hexR])
+}
+
+enum WorldLocationType {
+  TOWN
+  DUNGEON
+  LANDMARK
+  QUEST
+}
+
+// Town specialization for a world location
+model Town {
+  id              Int           @id @default(autoincrement())
+  worldLocationId Int           @unique
+  worldLocation   WorldLocation @relation(fields: [worldLocationId], references: [id], onDelete: Cascade)
+  population      Int?
+  factionId       Int?
+  faction         Faction?      @relation(fields: [factionId], references: [id])
+}
+
+// Dungeon specialization for a world location
+model Dungeon {
+  id              Int           @id @default(autoincrement())
+  worldLocationId Int           @unique
+  worldLocation   WorldLocation @relation(fields: [worldLocationId], references: [id], onDelete: Cascade)
+  difficulty      Int?
+  maxDepth        Int?
+}

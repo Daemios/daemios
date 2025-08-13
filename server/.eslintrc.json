@@ -1,0 +1,26 @@
+{
+  "env": {
+    "browser": true,
+    "commonjs": true,
+    "es2021": true,
+    "es6": true
+  },
+  "extends": [
+    "plugin:import/recommended",
+    "airbnb-base"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module" // allows the use of imports
+  },
+  "rules": {
+    "consistent-return": "off",
+    "no-console": "off",
+    "import/extensions": ["off", "always", {
+      "js": "never",
+      "jsx": "never",
+      "ts": "never",
+      "tsx": "never"
+    }]
+  }
+}

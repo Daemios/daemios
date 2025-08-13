@@ -1,9 +1,0 @@
-<template>
-  <v-layout
-    column
-    align-center
-    justify-center
-  >
-    Craft
-  </v-layout>
-</template>
