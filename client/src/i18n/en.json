@@ -1,0 +1,7 @@
+{
+  "locationType": {
+    "TOWN": "Town",
+    "DUNGEON": "Dungeon",
+    "QUEST": "Quest"
+  }
+}
