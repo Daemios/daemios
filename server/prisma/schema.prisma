@@ -338,7 +338,6 @@ model Faction {
   npcs        NPC[]
   Character   Character? @relation(fields: [characterId], references: [id])
   characterId Int?
-  towns       Town[]
 }
 
 // Stores saved/generated arena states for the tactical arena feature
@@ -371,35 +370,11 @@ model WorldLocation {
   createdOn   DateTime          @default(now())
   updatedOn   DateTime          @updatedAt
 
-  // Specializations (1-1)
-  town    Town?
-  dungeon Dungeon?
-
   @@unique([chunkX, chunkY, hexQ, hexR])
 }
 
 enum WorldLocationType {
   TOWN
   DUNGEON
-  LANDMARK
   QUEST
-}
-
-// Town specialization for a world location
-model Town {
-  id              Int           @id @default(autoincrement())
-  worldLocationId Int           @unique
-  worldLocation   WorldLocation @relation(fields: [worldLocationId], references: [id], onDelete: Cascade)
-  population      Int?
-  factionId       Int?
-  faction         Faction?      @relation(fields: [factionId], references: [id])
-}
-
-// Dungeon specialization for a world location
-model Dungeon {
-  id              Int           @id @default(autoincrement())
-  worldLocationId Int           @unique
-  worldLocation   WorldLocation @relation(fields: [worldLocationId], references: [id], onDelete: Cascade)
-  difficulty      Int?
-  maxDepth        Int?
 }
