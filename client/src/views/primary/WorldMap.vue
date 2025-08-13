@@ -141,6 +141,10 @@ export default {
   world: null, // WorldGrid instance
   clutter: null, // ClutterManager instance
 
+      // World location markers
+      worldLocationMeshes: [],
+      locationsLoaded: false,
+
       // interaction
   raycaster: markRaw(new THREE.Raycaster()),
   mouse: markRaw(new THREE.Vector2()),
@@ -400,6 +404,7 @@ export default {
     this.$refs.sceneContainer.removeEventListener('pointerleave', this.onPointerUp);
     this.$refs.sceneContainer.removeEventListener('wheel', this.onWheel);
     this.$refs.sceneContainer.removeEventListener('contextmenu', this.blockContext);
+    this.clearWorldLocationMeshes();
   },
   methods: {
     // Small number formatter for panel
@@ -1134,6 +1139,10 @@ export default {
         this._progressivePlanned = desiredRadius;
         this._scheduleProgressiveExpand();
       }
+      if (!this.locationsLoaded) {
+        this.locationsLoaded = true;
+        this.loadWorldLocations();
+      }
     },
     ensurePlayerMarker() {
       if (!this.playerMarker) {
@@ -1149,6 +1158,41 @@ export default {
         this.locationMarker.matrix.compose(pos.clone(), markerQuat, markerScale);
         this.locationMarker.visible = true;
       });
+    },
+    async loadWorldLocations() {
+      try {
+        const locations = await api.get('world/locations');
+        (Array.isArray(locations) ? locations : []).forEach((loc) => {
+          this.addWorldLocationOrb(loc);
+        });
+      } catch (e) {
+        console.error('[WorldMap] Failed to load world locations', e);
+      }
+    },
+    addWorldLocationOrb(loc) {
+      if (!loc || !this.scene) return;
+      const q = loc.hexQ;
+      const r = loc.hexR;
+      const pos2D = this.getTileWorldPos(q, r);
+      const cell = this.world ? this.world.getCell(q, r) : null;
+      const scaleY = this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
+      const yTop = this.hexMaxY * scaleY;
+      const pos = new THREE.Vector3(pos2D.x, yTop + 0.01, pos2D.z);
+      const geom = markRaw(new THREE.SphereGeometry(this.layoutRadius * 0.3, 16, 16));
+      const mat = markRaw(new THREE.MeshBasicMaterial({ color: 0xff69b4 }));
+      const mesh = markRaw(new THREE.Mesh(geom, mat));
+      mesh.position.copy(pos);
+      this.scene.add(mesh);
+      this.worldLocationMeshes.push(mesh);
+    },
+    clearWorldLocationMeshes() {
+      if (!this.worldLocationMeshes) return;
+      this.worldLocationMeshes.forEach((m) => {
+        try { this.scene.remove(m); } catch (e) {}
+        try { m.geometry && m.geometry.dispose(); } catch (e) {}
+        try { m.material && m.material.dispose(); } catch (e) {}
+      });
+      this.worldLocationMeshes = [];
     },
     onSetNeighborhoodRadius(radius) {
       const r = Math.max(1, Number(radius) || 1);
