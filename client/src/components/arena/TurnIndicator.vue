@@ -29,23 +29,18 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { computed } from 'vue';
 import { useArenaStore } from '@/stores/arenaStore';
 
-export default {
-  computed: {
-    entities() { return useArenaStore().entities; },
-    active() { return useArenaStore().activeRegister; },
-    entityRegistry() { return useArenaStore().entityRegistry; },
-  },
-  methods: {
-    nextEntity(offset = 1) {
-      const store = useArenaStore();
-      const registry_entry = store.entityRegistry[(store.activeRegister.index + offset) % store.entityRegistry.length];
-      return store.entities[registry_entry.x][registry_entry.y];
-    },
-  },
-};
+const store = useArenaStore();
+const entities = computed(() => store.entities);
+const active = computed(() => store.activeRegister);
+
+function nextEntity(offset = 1) {
+  const registryEntry = store.entityRegistry[(store.activeRegister.index + offset) % store.entityRegistry.length];
+  return store.entities[registryEntry.x][registryEntry.y];
+}
 </script>
 
 <style>

@@ -2,15 +2,6 @@
   <Map />
 </template>
 
-<script>
+<script setup>
 import Map from '@/components/dialogs/Map.vue'
-
-export default {
-  components: {
-    Map
-  },
-  mounted() {
-
-  },
-};
 </script>

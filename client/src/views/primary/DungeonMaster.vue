@@ -172,96 +172,84 @@
   </v-container>
 </template>
 
-<script>
+<script setup>
+import { ref, reactive, onMounted } from 'vue';
 import api from '@/functions/api';
-import { mdiTrashCan, mdiPlus } from '@mdi/js'
+import { mdiTrashCan, mdiPlus } from '@mdi/js';
 
-export default {
-  data: () => ({
-    mdiTrashCan,
-    mdiPlus,
-    delete_dialog: false,
-    active_arena_history_id: null,
-    headers: [
-      {text: 'Name', value: 'name'},
-      {text: 'Size', value: 'size'},
-      {text: 'Date', value: 'last_active', format: true},
-      {text: 'Actions', value: 'actions'},
-    ],
-    saved_arenas: [],
-    create: {
-      show: false,
-      name: null,
-      size: 16,
-      status: null,
-      calling: false,
-    },
-  }),
-  mounted() {
-    api.get('arena/list')
-      .then(response => {
-        this.active_arena_history_id = response.active_arena_history_id;
-        this.saved_arenas = response.saved_arenas;
-      })
-  },
-  methods: {
-    createArena() {
-      const body = {
-        name: this.create.name,
-        size: this.create.size,
-      }
-      if (this.create.calling) {
-        return;
-      }
-      this.create.calling = true;
-      api.post('arena/create', body)
-        .then(response => {
-          if (response) {
-            this.create.status = 'Created';
-            setTimeout(() => {
-              this.saved_arenas = response;
-              this.create.calling = false;
-              this.create.show = false;
-              this.create.name = null;
-              this.create.size = 16;
-              this.create.status = null;
-            }, 1000)
-          } else {
-            this.create.status = 'Error';
-          }
-        })
-    },
-    startCombat() {
-      api.post('dm/combat/start')
-        .then(response => {
-          if (response) {
-            console.log(response);
-          }
-        })
-    },
-    endCombat() {
-      api.post('dm/combat/end')
-        .then(response => {
-          if (response) {
-            console.log(response);
-          }
-        })
-    },
-    loadArena(arena_history_id) {
-      api.post(`arena/load/${arena_history_id}`)
-      .then(response => {
-        this.active_arena_history_id = response.active_arena_history_id;
-        this.saved_arenas = response.saved_arenas;
-      })
-    },
-    deleteArena(arena_history_id) {
-      api.delete(`arena/single/${arena_history_id}`)
-        .then(response => {
-          if (response) {
-            this.saved_arenas = response;
-          }
-        })
+const delete_dialog = ref(false);
+const active_arena_history_id = ref(null);
+const headers = [
+  { text: 'Name', value: 'name' },
+  { text: 'Size', value: 'size' },
+  { text: 'Date', value: 'last_active', format: true },
+  { text: 'Actions', value: 'actions' },
+];
+const saved_arenas = ref([]);
+const create = reactive({
+  show: false,
+  name: null,
+  size: 16,
+  status: null,
+  calling: false,
+});
+
+onMounted(() => {
+  api.get('arena/list').then((response) => {
+    active_arena_history_id.value = response.active_arena_history_id;
+    saved_arenas.value = response.saved_arenas;
+  });
+});
+
+function createArena() {
+  const body = { name: create.name, size: create.size };
+  if (create.calling) return;
+  create.calling = true;
+  api.post('arena/create', body).then((response) => {
+    if (response) {
+      create.status = 'Created';
+      setTimeout(() => {
+        saved_arenas.value = response;
+        create.calling = false;
+        create.show = false;
+        create.name = null;
+        create.size = 16;
+        create.status = null;
+      }, 1000);
+    } else {
+      create.status = 'Error';
     }
-  }
+  });
+}
+
+function startCombat() {
+  api.post('dm/combat/start').then((response) => {
+    if (response) {
+      console.log(response);
+    }
+  });
+}
+
+function endCombat() {
+  api.post('dm/combat/end').then((response) => {
+    if (response) {
+      console.log(response);
+    }
+  });
+}
+
+function loadArena(arena_history_id) {
+  api.post(`arena/load/${arena_history_id}`).then((response) => {
+    active_arena_history_id.value = response.active_arena_history_id;
+    saved_arenas.value = response.saved_arenas;
+  });
+}
+
+function deleteArena(arena_history_id) {
+  api.delete(`arena/single/${arena_history_id}`).then((response) => {
+    if (response) {
+      saved_arenas.value = response;
+    }
+  });
 }
 </script>

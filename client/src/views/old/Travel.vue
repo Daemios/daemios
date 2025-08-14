@@ -8,13 +8,10 @@
     <!-- Choice Web -->
     <v-layout>
 
-    </v-layout>
-    <!-- Animation (NYI) -->
+  </v-layout>
+  <!-- Animation (NYI) -->
   </v-layout>
 </template>
 
-<script>
-export default {
-
-}
+<script setup>
 </script>

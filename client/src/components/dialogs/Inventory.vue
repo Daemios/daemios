@@ -123,7 +123,8 @@
   </v-dialog>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, watch } from 'vue';
 import {
   mdiClose, mdiChevronLeft, mdiChevronRight, mdiMagnify, mdiArrowUp, mdiArrowDown,
 } from '@mdi/js';
@@ -132,78 +133,55 @@ import ItemDialog from '@/components/inventory/ItemDialog.vue';
 import { useDialogsStore } from '@/stores/dialogsStore';
 import { useUserStore } from '@/stores/userStore';
 import { useDisplay } from 'vuetify';
+import { storeToRefs } from 'pinia';
 
-export default {
-  components: {
-    Item,
-    ItemDialog,
-  },
-  setup() {
-    const { mdAndUp } = useDisplay();
-    return { mdAndUp };
-  },
-  data: () => ({
-      // Icons
-      mdiClose,
-      mdiChevronLeft,
-      mdiChevronRight,
-      mdiMagnify,
-      mdiArrowUp,
-      mdiArrowDown,
+const { mdAndUp } = useDisplay();
 
-      // Item dialog data
-      selected: null,
+// Icons and iterator state
+const selected = ref(null);
+const itemsPerPage = ref(20);
+const itemsPerPageArray = [20, 40, 60];
+const search = ref('');
+const filter = ref({});
+const sortDesc = ref(false);
+const page = ref(1);
+const sortBy = ref('name');
+const keys = ['Label', 'Rarity', 'Quantity'];
 
-      // Iterator Data
-      itemsPerPage: 20,
-      itemsPerPageArray: [20, 40, 60],
-      search: '',
-      filter: {},
-      sortDesc: false,
-      page: 1,
-      sortBy: 'name',
-      keys: [
-        'Label',
-        'Rarity',
-        'Quantity',
-      ],
-  }),
-  computed: {
-    numberOfPages() { return Math.max(1, Math.ceil(this.inventory.length / this.itemsPerPage)); },
-    filteredKeys() { return this.keys.filter((key) => key !== 'Name'); },
-    isInventoryOpen: {
-      get() { return useDialogsStore().isInventoryOpen; },
-      set(v) { useDialogsStore().isInventoryOpen = v; },
-    },
-    inventory() { return useUserStore().inventory || []; },
-  },
-  watch: {
-    inventory: {
-      handler() {
-        const pages = this.numberOfPages;
-        if (this.page > pages) this.page = pages;
-      },
-      deep: true,
-    },
-    itemsPerPage() {
-      const pages = this.numberOfPages;
-      if (this.page > pages) this.page = pages;
-    },
-  },
-  methods: {
-  toggleInventory() { useDialogsStore().toggleInventory(); },
-    nextPage() {
-      if (this.page + 1 <= this.numberOfPages) this.page += 1;
-    },
-    formerPage() {
-      if (this.page - 1 >= 1) this.page -= 1;
-    },
-    updateItemsPerPage(number) {
-      this.itemsPerPage = number;
-    },
-  },
-  
-};
+// Stores
+const dialogsStore = useDialogsStore();
+const userStore = useUserStore();
+const { isInventoryOpen } = storeToRefs(dialogsStore);
+const { inventory } = storeToRefs(userStore);
+
+const numberOfPages = computed(() => Math.max(1, Math.ceil(inventory.value.length / itemsPerPage.value)));
+const filteredKeys = computed(() => keys.filter((key) => key !== 'Name'));
+
+function toggleInventory() {
+  dialogsStore.toggleInventory();
+}
+
+function nextPage() {
+  if (page.value + 1 <= numberOfPages.value) page.value += 1;
+}
+
+function formerPage() {
+  if (page.value - 1 >= 1) page.value -= 1;
+}
+
+function updateItemsPerPage(number) {
+  itemsPerPage.value = number;
+}
+
+watch(inventory, () => {
+  const pages = numberOfPages.value;
+  if (page.value > pages) page.value = pages;
+}, { deep: true });
+
+watch(itemsPerPage, () => {
+  const pages = numberOfPages.value;
+  if (page.value > pages) page.value = pages;
+});
 </script>
 
 <style>

@@ -138,66 +138,66 @@
   </v-layout>
 </template>
 
-<script>
-import mixin_audio from '@/mixins/audio';
-import api from "@/functions/api";
+<script setup>
+import { reactive, ref, computed } from 'vue';
+import { mdiVolumeSource } from '@mdi/js';
+import api from '@/functions/api';
 import { useAudioStore } from '@/stores/audioStore';
 
-export default {
-  mixins: [mixin_audio],
-  data: () => ({
-    showRegister: false,
-    form: {
-      new_email: '',
-      new_password: '',
-      confirm_password: '',
-      displayName: '',
-      email: '',
-      password: '',
-    },
-  }),
-  methods: {
-    toggleMute() {
-      useAudioStore().toggleMute();
-    },
-    onVolumeChange(v) {
-      const n = Math.max(0, Math.min(100, Number(v)));
-      useAudioStore().volume = n;
-    },
-    login() {
-      api.post('open/login', {
-        email: this.form.email,
-        password: this.form.password,
-      })
-        .then(res => {
-          if (res.success) {
-            console.log(res)
-            document.location.href = '/characters';
-          }
-        })
-        .catch(err => {
-          console.log(err);
-        });
-    },
-    registerUser() {
-      api.post('open/register', {
-        email: this.form.new_email,
-        password: this.form.new_password,
-        passwordConfirm: this.form.confirm_password,
-        displayName: this.form.displayName,
-      })
-        .then(res => {
-          if (res.success) {
-            this.showRegister = false;
-            this.login();
-          }
-        })
-        .catch(err => {
-          console.log(err);
-        });
-    },
-  },
-};
+const showRegister = ref(false);
+const form = reactive({
+  new_email: '',
+  new_password: '',
+  confirm_password: '',
+  displayName: '',
+  email: '',
+  password: '',
+});
+
+const audioStore = useAudioStore();
+const volume = computed(() => audioStore.volume);
+
+function toggleMute() {
+  audioStore.toggleMute();
+}
+
+function onVolumeChange(v) {
+  const n = Math.max(0, Math.min(100, Number(v)));
+  audioStore.volume = n;
+}
+
+function login() {
+  api.post('open/login', {
+    email: form.email,
+    password: form.password,
+  })
+    .then(res => {
+      if (res.success) {
+        document.location.href = '/characters';
+      }
+    })
+    .catch(err => {
+      console.log(err);
+    });
+}
+
+function registerUser() {
+  api.post('open/register', {
+    email: form.new_email,
+    password: form.new_password,
+    passwordConfirm: form.confirm_password,
+    displayName: form.displayName,
+  })
+    .then(res => {
+      if (res.success) {
+        showRegister.value = false;
+        login();
+      }
+    })
+    .catch(err => {
+      console.log(err);
+    });
+}
 </script>
 
 <style>

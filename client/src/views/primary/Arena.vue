@@ -4,13 +4,6 @@
   </v-container>
 </template>
 
-<script>
+<script setup>
 import Arena from '@/components/arena/Arena.vue';
-
-export default {
-  name: 'ArenaView',
-  components: {
-    Arena,
-  },
-};
 </script>
