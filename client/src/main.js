@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 
 import router from '@/router/index.js';
-import pinia from '@/store';
+import { createPinia } from 'pinia';
 import vuetify from '@/vuetify';
 import { profiler } from '@/utils/profiler';
 
@@ -19,9 +19,10 @@ if (typeof window !== 'undefined') {
 
 const app = createApp(App);
 
+
 app
   .use(router)
-  .use(pinia)
+  .use(createPinia())
   .use(vuetify);
 
 app.mount('#app');

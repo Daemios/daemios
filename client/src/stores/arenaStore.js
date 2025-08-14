@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia';
-import { cartesian } from '@/utils/cartesian';
 import WorldGrid from '@/3d/world/WorldGrid';
 
 export const useArenaStore = defineStore('arena', {
@@ -70,10 +69,7 @@ export const useArenaStore = defineStore('arena', {
     entityMouseOver(args) { if (this.entities?.[args.x]?.[args.y]) this.entities[args.x][args.y].hover = true; },
     entityMouseOut(args) { if (this.entities?.[args.x]?.[args.y]) this.entities[args.x][args.y].hover = false; },
     buildOverlays(arena) {
-      cartesian.iterate(arena, (x, y) => {
-        if (!(x in this.overlays)) this.overlays[x] = [];
-        this.overlays[x][y] = [];
-      });
+
     },
     setOverlay(args) {
       if (args.overlay) {
