@@ -169,3 +169,4 @@ export function createWebGLTimer(renderer) {
 
 // Global profiler instance for convenience
 export const profiler = new FrameProfiler({ maxSamples: 240 });
+

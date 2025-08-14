@@ -4,7 +4,7 @@ import App from './App.vue';
 import router from '@/router/index.js';
 import pinia from '@/store';
 import vuetify from '@/vuetify';
-import { profiler } from '@/utils/profiler';
+import { profiler } from '@/lib/profiler';
 
 // Startup timing bootstrap
 if (typeof window !== 'undefined') {

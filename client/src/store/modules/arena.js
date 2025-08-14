@@ -1,5 +1,5 @@
 import api from '@/functions/api';
-import { cartesian } from '@/mixins/cartesian';
+import { cartesian } from '@/lib/cartesian';
 
 export default {
   namespaced: true,
