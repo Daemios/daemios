@@ -18,22 +18,14 @@
   </v-layout>
 </template>
 
-<script>
+<script setup>
 import Arena from '@/components/arena/Arena.vue';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
 import { useUserStore } from '@/stores/userStore';
+import { storeToRefs } from 'pinia';
 
-export default {
-  components: {
-    CharacterSlide,
-    Arena,
-  },
-  computed: {
-    character() {
-      return useUserStore().character;
-    },
-  },
-};
+const userStore = useUserStore();
+const { character } = storeToRefs(userStore);
 </script>
 
 <style>

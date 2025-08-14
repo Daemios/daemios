@@ -8,23 +8,14 @@
   </BasicDialog>
 </template>
 
-<script>
-import { mdiClose } from '@mdi/js';
+<script setup>
 import BasicDialog from '@/components/dialogs/BasicDialog.vue';
 import { useDialogsStore } from '@/stores/dialogsStore';
+import { computed } from 'vue';
 
-export default {
-  components: {
-    BasicDialog
-  },
-  data: () => ({
-      mdiClose,
-  }),
-  computed: {
-    isOptionsOpen: {
-      get() { return useDialogsStore().isOptionsOpen; },
-      set(v) { useDialogsStore().isOptionsOpen = v; },
-    },
-  },
-};
+const dialogsStore = useDialogsStore();
+const isOptionsOpen = computed({
+  get: () => dialogsStore.isOptionsOpen,
+  set: (v) => (dialogsStore.isOptionsOpen = v),
+});
 </script>

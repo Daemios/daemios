@@ -9,18 +9,13 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { storeToRefs } from 'pinia';
 import { useArenaStore } from '@/stores/arenaStore';
 import ListEntity from '@/components/arena/ListEntity.vue';
 
-export default {
-  components: {
-    ListEntity,
-  },
-  computed: {
-    entityRegistry() { return useArenaStore().entityRegistry; },
-  },
-};
+const arenaStore = useArenaStore();
+const { entityRegistry } = storeToRefs(arenaStore);
 </script>
 
 <style>

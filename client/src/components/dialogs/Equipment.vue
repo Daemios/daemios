@@ -8,25 +8,15 @@
   </BasicDialog>
 </template>
 
-<script>
-import { mdiClose } from '@mdi/js';
+<script setup>
 import PaperDoll from '@/components/character/PaperDoll.vue';
 import BasicDialog from '@/components/dialogs/BasicDialog.vue';
 import { useDialogsStore } from '@/stores/dialogsStore';
+import { computed } from 'vue';
 
-export default {
-  components: {
-    BasicDialog,
-    PaperDoll,
-  },
-  data: () => ({
-      mdiClose,
-  }),
-  computed: {
-    isEquipmentOpen: {
-      get() { return useDialogsStore().isEquipmentOpen; },
-      set(val) { useDialogsStore().isEquipmentOpen = val; },
-    },
-  },
-};
+const dialogsStore = useDialogsStore();
+const isEquipmentOpen = computed({
+  get: () => dialogsStore.isEquipmentOpen,
+  set: (val) => (dialogsStore.isEquipmentOpen = val),
+});
 </script>

@@ -81,50 +81,45 @@
         </v-row>
 
       </v-card-text>
-    </v-card>
+  </v-card>
   </v-dialog>
 </template>
 
-<script>
+<script setup>
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useArenaStore } from '@/stores/arenaStore';
 
-export default {
-  props: {
-    x: {
-      type: Number,
-      required: true,
-    },
-    y: {
-      type: Number,
-      required: true,
-    },
-  },
-  computed: {
-    entityClasses() {
-      return {
-        active: this.entities[this.x][this.y].active,
-        hover: this.entities[this.x][this.y].hover,
-      };
-    },
-    controlClasses() {
-      return {
-        enemy: this.entities[this.x][this.y].faction === 'enemy',
-        ally: this.entities[this.x][this.y].faction === 'ally',
-        player: this.entities[this.x][this.y].faction === 'player',
-      };
-    },
-    turnActiveClasses() {
-      return {
-        'turn-active': this.entities[this.x][this.y].active,
-      };
-    },
-  entities() { return useArenaStore().entities; },
-  },
-  methods: {
-    entityMouseOver() { useArenaStore().entityMouseOver({ x: this.x, y: this.y }); },
-    entityMouseOut() { useArenaStore().entityMouseOut({ x: this.x, y: this.y }); },
-  },
-};
+const props = defineProps({
+  x: { type: Number, required: true },
+  y: { type: Number, required: true },
+});
+
+const arenaStore = useArenaStore();
+const { entities } = storeToRefs(arenaStore);
+
+const entityClasses = computed(() => ({
+  active: entities.value[props.x][props.y].active,
+  hover: entities.value[props.x][props.y].hover,
+}));
+
+const controlClasses = computed(() => ({
+  enemy: entities.value[props.x][props.y].faction === 'enemy',
+  ally: entities.value[props.x][props.y].faction === 'ally',
+  player: entities.value[props.x][props.y].faction === 'player',
+}));
+
+const turnActiveClasses = computed(() => ({
+  'turn-active': entities.value[props.x][props.y].active,
+}));
+
+function entityMouseOver() {
+  arenaStore.entityMouseOver({ x: props.x, y: props.y });
+}
+
+function entityMouseOut() {
+  arenaStore.entityMouseOut({ x: props.x, y: props.y });
+}
 </script>
 
 <style>

@@ -133,72 +133,67 @@
       </div>
     </teleport>
   </div>
+
 </template>
 
-<script>
+<script setup>
 import { useWorldStore } from '@/stores/worldStore';
-export default {
-  name: 'AddLocationButton',
-  props: {
-    playerPosition: {
-      type: Object,
-      default: () => ({ chunkX: 0, chunkY: 0, hexQ: 0, hexR: 0 })
-    }
+import { ref, reactive, watch } from 'vue';
+
+const props = defineProps({
+  playerPosition: {
+    type: Object,
+    default: () => ({ chunkX: 0, chunkY: 0, hexQ: 0, hexR: 0 }),
   },
-  data() {
-    return {
-      showModal: false,
-      form: {
-        name: '',
-        description: '',
-        type: 'TOWN',
-        chunkX: 0,
-        chunkY: 0,
-        hexQ: 0,
-        hexR: 0,
-        visible: true,
-      },
-      typeOptions: [
-        { text: 'Town', value: 'TOWN' },
-        { text: 'Dungeon', value: 'DUNGEON' },
-        { text: 'Quest', value: 'QUEST' },
-      ],
-    };
-  },
-  watch: {
-    showModal(val) {
-      if (val) {
-        // When opening, set form position to current player position
-        this.form.chunkX = this.playerPosition.chunkX;
-        this.form.chunkY = this.playerPosition.chunkY;
-        this.form.hexQ = this.playerPosition.hexQ;
-        this.form.hexR = this.playerPosition.hexR;
-      }
-    }
-  },
-  methods: {
-    closeModal() {
-      this.showModal = false;
-    },
-    async submit() {
-      try {
-        const worldStore = useWorldStore();
-        await worldStore.createLocation({ ...this.form });
-        this.closeModal();
-        this.form = {
-          name: '',
-          description: '',
-          type: 'TOWN',
-          chunkX: this.playerPosition.chunkX,
-          chunkY: this.playerPosition.chunkY,
-          hexQ: this.playerPosition.hexQ,
-          hexR: this.playerPosition.hexR,
-          visible: true,
-        };
-      } catch (e) {
-        alert('Failed to create location: ' + (e?.message || e));
-      }
-    },
-  },
-};
+});
+
+const showModal = ref(false);
+const form = reactive({
+  name: '',
+  description: '',
+  type: 'TOWN',
+  chunkX: 0,
+  chunkY: 0,
+  hexQ: 0,
+  hexR: 0,
+  visible: true,
+});
+const typeOptions = [
+  { text: 'Town', value: 'TOWN' },
+  { text: 'Dungeon', value: 'DUNGEON' },
+  { text: 'Quest', value: 'QUEST' },
+];
+
+watch(showModal, (val) => {
+  if (val) {
+    form.chunkX = props.playerPosition.chunkX;
+    form.chunkY = props.playerPosition.chunkY;
+    form.hexQ = props.playerPosition.hexQ;
+    form.hexR = props.playerPosition.hexR;
+  }
+});
+
+function closeModal() {
+  showModal.value = false;
+}
+
+async function submit() {
+  try {
+    const worldStore = useWorldStore();
+    await worldStore.createLocation({ ...form });
+    closeModal();
+    Object.assign(form, {
+      name: '',
+      description: '',
+      type: 'TOWN',
+      chunkX: props.playerPosition.chunkX,
+      chunkY: props.playerPosition.chunkY,
+      hexQ: props.playerPosition.hexQ,
+      hexR: props.playerPosition.hexR,
+      visible: true,
+    });
+  } catch (e) {
+    alert('Failed to create location: ' + (e?.message || e));
+  }
+}
 </script>

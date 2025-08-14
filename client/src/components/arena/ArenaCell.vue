@@ -47,77 +47,53 @@
     </div>
   </div>
 </template>
-<script>
+<script setup>
 import { useArenaStore } from '@/stores/arenaStore';
 import ArenaEntity from '@/components/arena/ArenaEntity.vue';
 import cell_colors from '@/mixins/cell_colors';
+import { ref, computed } from 'vue';
 
-export default {
-  components: {
-    ArenaEntity,
-  },
-  props: {
-    cell: {
-      type: Object,
-      required: true,
-    },
-    x: {
-      type: Number,
-      required: true,
-    },
-    y: {
-      type: Number,
-      required: true,
-    },
-  },
-  data: () => ({
-    hovered: false,
-  }),
-  computed: {
-    entities() { return useArenaStore().entities; },
-  overlays() { return useArenaStore().overlays; },
-  debug() { return useArenaStore().debug; },
-    cellClasses() {
+const props = defineProps({
+  cell: { type: Object, required: true },
+  x: { type: Number, required: true },
+  y: { type: Number, required: true },
+});
 
-      const classes = {
-        impassable: !this.cell.terrain.passable,
-      };
+const hovered = ref(false);
+const arenaStore = useArenaStore();
+const entities = computed(() => arenaStore.entities);
+const overlays = computed(() => arenaStore.overlays);
+const debug = computed(() => arenaStore.debug);
 
-      // efficient way to assign variable terrain types but still
-      // take the impassable property into account to avoid rendering
-      // impassable cell backgrounds
-      classes['grass'] = this.cell.terrain.passable;
+const cellClasses = computed(() => {
+  const classes = {
+    impassable: !props.cell.terrain.passable,
+  };
+  classes['grass'] = props.cell.terrain.passable;
+  return classes;
+});
 
-      return classes;
-    },
-    cellColor() {
-      // variance adds pleasing variation
-      const variance = Math.floor(Math.random() * 10) - 5
+const cellColor = computed(() => {
+  if (!props.cell.terrain.passable) {
+    return null;
+  }
 
-      // !passable returns null
-      if (!this.cell.terrain.passable) {
-        return null;
-      }
+  let hue;
+  let sat;
+  let light;
 
-      let hue;
-      let sat;
-      let light;
+  if (props.cell.terrain.moisture > 0.7) {
+    hue = 205;
+    sat = 100;
+    light = 40;
+  } else {
+    hue = 95;
+    sat = 100 * props.cell.terrain.flora;
+    light = 30;
+  }
 
-      // moisture determines grass or water
-      if (this.cell.terrain.moisture > .7) {
-        hue = 205;
-        sat = 100;
-        light = 40;
-      } else {
-        hue = 95;
-        sat = 100 * this.cell.terrain.flora;
-        light = 30;
-      }
-
-      return cell_colors.hslToHex(hue, sat, light)
-    }
-  },
-};
+  return cell_colors.hslToHex(hue, sat, light);
+});
 </script>
 
 <style>

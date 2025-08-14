@@ -24,12 +24,6 @@
   </v-container>
 </template>
 
-<script>
+<script setup>
 import { mdiAlertCircleOutline } from '@mdi/js';
-
-export default {
-  data: () => ({
-    mdiAlertCircleOutline,
-  }),
-};
 </script>

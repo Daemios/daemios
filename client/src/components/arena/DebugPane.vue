@@ -12,33 +12,39 @@
   </v-card>
 </template>
 
-<script>
+<script setup>
+import { storeToRefs } from 'pinia';
 import { useArenaStore } from '@/stores/arenaStore';
 
-export default {
-  computed: {
-    terrain() { return useArenaStore().terrain; },
-    entities() { return useArenaStore().entities; },
-    entityRegistry() { return useArenaStore().entityRegistry; },
-    active() { return useArenaStore().activeRegister; },
-    plannedPath() { return useArenaStore().plannedPath; },
-    shapeOnMouse() { return useArenaStore().shapeOnMouse; },
-    playerActive() { return useArenaStore().playerActive; },
-  },
-  methods: {
-    cycleActive() {
-      const store = useArenaStore();
-      let newActive = {};
-      const index = store.activeRegister.index + 1;
-      if (index < store.entityRegistry.length) {
-        newActive = { x: store.entityRegistry[index].x, y: store.entityRegistry[index].y, index };
-      } else {
-        newActive = { x: store.entityRegistry[0].x, y: store.entityRegistry[0].y, index: 0 };
-      }
-      store.setActive(newActive);
-    },
-  },
-};
+const arenaStore = useArenaStore();
+const {
+  terrain,
+  entities,
+  entityRegistry,
+  activeRegister: active,
+  plannedPath,
+  shapeOnMouse,
+  playerActive,
+} = storeToRefs(arenaStore);
+
+function cycleActive() {
+  const index = active.value.index + 1;
+  let newActive = {};
+  if (index < entityRegistry.value.length) {
+    newActive = {
+      x: entityRegistry.value[index].x,
+      y: entityRegistry.value[index].y,
+      index,
+    };
+  } else {
+    newActive = {
+      x: entityRegistry.value[0].x,
+      y: entityRegistry.value[0].y,
+      index: 0,
+    };
+  }
+  arenaStore.setActive(newActive);
+}
 </script>
 
 <style>
