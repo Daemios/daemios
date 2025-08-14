@@ -113,45 +113,37 @@
   </v-container>
 </template>
 
-<script>
-import { mdiClose } from '@mdi/js';
+<script setup>
 import { useAbilityStore } from '@/stores/abilityStore';
 import VesselMini from '@/components/ability/VesselMini.vue';
 import AbilityMockup from '@/components/ability/AbilityMockup.vue';
+import { ref, computed } from 'vue';
 
-export default {
-  components: { VesselMini, AbilityMockup },
-  props: {
-    ability: {
-      type: Object,
-      required: true,
-    },
-    presets: {
-      type: Object,
-      required: true,
-    },
-    core_options: {
-      type: Array,
-      required: true,
-    },
+const props = defineProps({
+  ability: {
+    type: Object,
+    required: true,
   },
-  data: () => ({
-    mdiClose,
-    selected_element: null,
-  }),
-  computed: {
-    elements() { return useAbilityStore().elements || {}; },
+  presets: {
+    type: Object,
+    required: true,
   },
-  methods: {
-    abilitySubtext(preset_core_id, selected_element) {
-      if (!selected_element) {
-        return '';
-      }
-      const preset = this.presets[preset_core_id][selected_element];
-      return `${preset.type_name} - ${this.elements[selected_element].name}`;
-    },
+  core_options: {
+    type: Array,
+    required: true,
   },
-};
+});
+
+const selected_element = ref(null);
+const elements = computed(() => useAbilityStore().elements || {});
+
+function abilitySubtext(preset_core_id, selectedElement) {
+  if (!selectedElement) {
+    return '';
+  }
+  const preset = props.presets[preset_core_id][selectedElement];
+  return `${preset.type_name} - ${elements.value[selectedElement].name}`;
+}
 </script>
 
 <style>

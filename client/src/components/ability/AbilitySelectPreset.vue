@@ -19,23 +19,18 @@
   </v-layout>
 </template>
 
-<script>
+<script setup>
 import AbilityMockup from '@/components/ability/AbilityMockup.vue';
 import VesselMini from '@/components/ability/VesselMini.vue';
 
-export default {
-  components: {
-    AbilityMockup,
-    VesselMini,
+defineProps({
+  ability: {
+    type: Object,
+    required: true,
   },
-  data: () => ({
-
-  }),
-  computed: {
-
+  color: {
+    type: String,
+    required: true,
   },
-  methods: {
-
-  },
-};
+});
 </script>

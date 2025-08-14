@@ -19,17 +19,13 @@
   </v-row>
 </template>
 
-<script>
-export default {
-  props: {
-    element: {
-      type: Object,
-      required: true,
-    },
+<script setup>
+defineProps({
+  element: {
+    type: Object,
+    required: true,
   },
-  data: () => ({
-  }),
-};
+});
 </script>
 
 <style>

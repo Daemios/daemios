@@ -78,35 +78,30 @@
   </v-dialog>
 </template>
 
-<script>
-export default {
-  props: {
-    item: {
-      type: Object,
-      default: null,
-    },
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+  item: {
+    type: Object,
+    default: null,
   },
-  computed: {
-    show: {
-      get() {
-        return this.item;
-      },
-      // setter
-      set() {
-        this.$emit('close');
-      },
-    },
-    dialogBackground() {
-      return {
-        'grey lighten-1 black--text': this.show.rarity.toLowerCase() === 'common',
-        'green darken-3 white--text': this.show.rarity.toLowerCase() === 'uncommon',
-        'blue accent-3 white--text': this.show.rarity.toLowerCase() === 'rare',
-        'deep-purple accent-4 white--text': this.show.rarity.toLowerCase() === 'epic',
-        'orange darken-2 white--text': this.show.rarity.toLowerCase() === 'legendary',
-      };
-    },
-  },
-};
+});
+
+const emit = defineEmits(['close']);
+
+const show = computed({
+  get: () => props.item,
+  set: () => emit('close'),
+});
+
+const dialogBackground = computed(() => ({
+  'grey lighten-1 black--text': show.value.rarity.toLowerCase() === 'common',
+  'green darken-3 white--text': show.value.rarity.toLowerCase() === 'uncommon',
+  'blue accent-3 white--text': show.value.rarity.toLowerCase() === 'rare',
+  'deep-purple accent-4 white--text': show.value.rarity.toLowerCase() === 'epic',
+  'orange darken-2 white--text': show.value.rarity.toLowerCase() === 'legendary',
+}));
 </script>
 
 <style>

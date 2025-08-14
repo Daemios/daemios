@@ -7,34 +7,31 @@
   />
 </template>
 
-<script>
+<script setup>
+import { computed } from 'vue';
 import Item from '@/components/inventory/Item.vue';
 
-export default {
-  components: { Item },
-  props: {
-    item: {
-      type: Object,
-      default: null,
-    },
-    left: {
-      type: Boolean,
-      default: false,
-    },
-    right: {
-      type: Boolean,
-      default: false,
-    },
+const props = defineProps({
+  item: {
+    type: Object,
+    default: null,
   },
-  computed: {
-    dollSlotClasses() {
-      return {
-        'doll-left': this.left,
-        'doll-right': this.right,
-      };
-    },
+  left: {
+    type: Boolean,
+    default: false,
   },
-};
+  right: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+defineEmits(['click']);
+
+const dollSlotClasses = computed(() => ({
+  'doll-left': props.left,
+  'doll-right': props.right,
+}));
 </script>
 
 <style>
