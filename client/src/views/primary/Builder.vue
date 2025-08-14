@@ -1,20 +1,10 @@
 <template>
-  <v-layout
-    align-center
-    column
-    class="pa-4"
-  >
+  <v-layout align-center column class="pa-4">
     <!-- Stage Selector -->
-    <v-row
-      class="mt-12"
-    >
-      <v-col
-        cols="auto"
-        class="d-flex flex-column"
-        style="padding-top: 224px"
-      >
+    <v-row class="mt-12">
+      <v-col cols="auto" class="d-flex flex-column" style="padding-top: 224px">
         <v-btn
-          v-for="(stage) in stages"
+          v-for="stage in stages"
           :key="stage"
           :value="stage"
           :input-value="currentStage === stage"
@@ -29,13 +19,8 @@
           {{ stage }}
         </v-btn>
       </v-col>
-      <v-col
-        cols="auto"
-        class="d-flex flex-column align-center"
-      >
-        <h1 class="mb-12">
-          Character Creator
-        </h1>
+      <v-col cols="auto" class="d-flex flex-column align-center">
+        <h1 class="mb-12">Character Creator</h1>
         <CharacterSlide
           :name="name"
           :color="race.color"
@@ -43,10 +28,7 @@
           :avatar_url="avatar"
           class="mb-4"
         />
-        <v-card
-          tile
-          :width="currentStage === 'avatar' ? '800' : '500'"
-        >
+        <v-card tile :width="currentStage === 'avatar' ? '800' : '500'">
           <v-card-text>
             <!-- Name -->
             <v-row v-if="currentStage === 'name'">
@@ -63,10 +45,7 @@
             </v-row>
 
             <!-- Race -->
-            <v-layout
-              v-else-if="currentStage === 'race'"
-              column
-            >
+            <v-layout v-else-if="currentStage === 'race'" column>
               <!-- Image selector to pick from races -->
               <v-select
                 v-model="race_id"
@@ -86,11 +65,7 @@
                 v-for="image_index in hardcoded_races[race_id]"
                 :key="image_index"
               >
-                <v-btn
-                  height="300"
-                  width="200"
-                  @click="setAvatar(image_index)"
-                >
+                <v-btn height="300" width="200" @click="setAvatar(image_index)">
                   <v-img
                     height="300"
                     width="200"
@@ -104,7 +79,8 @@
 
             <!-- Finish -->
             <div v-if="currentStage === 'finish'">
-              Review the character slide above and click "Create Character" to begin your adventure!
+              Review the character slide above and click "Create Character" to
+              begin your adventure!
             </div>
           </v-card-text>
           <v-card-actions>
@@ -141,20 +117,20 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { mdiCheck, mdiCircleMedium, mdiCircleSmall } from '@mdi/js';
-import api from '@/functions/api';
-import CharacterSlide from '@/components/character/CharacterSlide.vue';
-import { useDataStore } from '@/stores/dataStore';
-import { useUserStore } from '@/stores/userStore';
+import { ref, computed, watch, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { mdiCheck, mdiCircleMedium, mdiCircleSmall } from "@mdi/js";
+import api from "@/utils/api";
+import CharacterSlide from "@/components/character/CharacterSlide.vue";
+import { useDataStore } from "@/stores/dataStore";
+import { useUserStore } from "@/stores/userStore";
 
 const router = useRouter();
 const dataStore = useDataStore();
 useUserStore();
 
-const currentStage = ref('name');
-const stages = ['name', 'race', 'avatar', 'finish'];
+const currentStage = ref("name");
+const stages = ["name", "race", "avatar", "finish"];
 const name = ref(null);
 const race_id = ref(null);
 const avatar = ref(null);
@@ -174,7 +150,9 @@ const hardcoded_races = {
 };
 
 const races = computed(() => dataStore.races || []);
-const race = computed(() => (race_id.value ? races.value.find(r => r.id === race_id.value) : {}));
+const race = computed(() =>
+  race_id.value ? races.value.find((r) => r.id === race_id.value) : {}
+);
 
 watch(race_id, () => {
   avatar.value = null;
@@ -202,11 +180,13 @@ function stepBackward() {
 }
 
 function disableByStage(stage) {
-  if (stage === 'name' || stage === 'race') {
+  if (stage === "name" || stage === "race") {
     return !name.value;
-  } if (stage === 'avatar') {
+  }
+  if (stage === "avatar") {
     return !race_id.value;
-  } if (stage === 'finish') {
+  }
+  if (stage === "finish") {
     return !avatar.value;
   }
   return false;
@@ -215,28 +195,29 @@ function disableByStage(stage) {
 function navButtonIcon(stage) {
   if (stage === currentStage.value) {
     return mdiCircleMedium;
-  } if (stages.indexOf(stage) < stages.indexOf(currentStage.value)) {
+  }
+  if (stages.indexOf(stage) < stages.indexOf(currentStage.value)) {
     return mdiCheck;
   }
   return mdiCircleSmall;
 }
 
 function buildAvatarUrl(image_index) {
-  return `/img/avatars/${race.value['raceFolder']}/${image_index}.png`;
+  return `/img/avatars/${race.value["raceFolder"]}/${image_index}.png`;
 }
 
 function setAvatar(image_index) {
   avatar.value = buildAvatarUrl(image_index);
-  currentStage.value = 'finish';
+  currentStage.value = "finish";
 }
 
 function createCharacter() {
   const req = { name: name.value, raceId: race_id.value, image: avatar.value };
-  api.post('user/character/create', req).then((response) => {
+  api.post("user/character/create", req).then((response) => {
     if (response.success) {
-      router.push('/characters');
+      router.push("/characters");
     } else {
-      console.log('Character creation failed!');
+      console.log("Character creation failed!");
       console.log(response.status);
       console.log(typeof response.status);
     }
@@ -244,6 +225,4 @@ function createCharacter() {
 }
 </script>
 
-<style>
-
-</style>
+<style></style>

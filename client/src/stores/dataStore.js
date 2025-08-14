@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import api from '@/functions/api';
+import api from '@/utils/api';
 
 export const useDataStore = defineStore('data', {
   state: () => ({

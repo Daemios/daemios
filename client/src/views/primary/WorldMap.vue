@@ -4,14 +4,7 @@
     <TileInfoPanel
       :tile="currentTileInfo"
       :seed="worldSeed"
-      class="position-absolute"
-      style="
-        left: 6px;
-        top: 28px;
-        z-index: 3;
-        min-width: 240px;
-        max-width: 320px;
-      "
+      class="position-absolute tile-info-panel"
     />
     <!-- Debug overlay -->
     <WorldDebugPanel
@@ -23,8 +16,7 @@
       :stats-visible="profilerEnabled"
       :generator-versions="generatorVersions"
       :player-position="playerPosition"
-      class="position-absolute"
-      style="right: 6px; top: 28px"
+      class="position-absolute world-debug-panel"
       @update:features="features = $event"
       @update:radialFade="radialFade = $event"
       @update:generation="generation = $event"
@@ -59,7 +51,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import api from "@/functions/api";
+import api from "@/utils/api";
 import { BIOME_THRESHOLDS } from "@/3d/terrain/biomes";
 import WorldGrid from "@/3d/world/WorldGrid";
 import PlayerMarker from "@/3d/renderer/PlayerMarker";
@@ -3463,5 +3455,16 @@ export default {
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+.tile-info-panel {
+  left: 6px;
+  top: 28px;
+  z-index: 3;
+  min-width: 240px;
+  max-width: 320px;
+}
+.world-debug-panel {
+  right: 6px;
+  top: 28px;
 }
 </style>

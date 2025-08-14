@@ -7,8 +7,8 @@
             Arena
             <v-spacer />
             <v-dialog
-              max-width="800"
               v-model="create.show"
+              max-width="800"
             >
               <template #activator="{ props }">
                 <v-btn
@@ -62,73 +62,78 @@
                       color="primary"
                       @click="createArena()"
                     >
-              <template
-                v-for="header in headers.filter((header) => header.format)"
-                #[`item.${header.value}`]="{ value }"
-              >
-                {{ new Date(value).toLocaleDateString('en-us', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute:'2-digit'
-                }) }}
-              </template>
-              <template #item.actions="{ item }">
-                <v-btn
-                  x-small
-                  min-width="66"
-                  color="primary"
-                  class="mr-1"
-                  :disabled="item.arena_history_id === active_arena_history_id"
-                  @click="loadArena(item.arena_history_id)"
-                >
-                  {{ item.arena_history_id === active_arena_history_id ? 'Loaded' : 'Load' }}
-                </v-btn>
-                <v-dialog
-                  v-model="delete_dialog"
-                  max-width="400"
-                >
-                  <template #activator="{ props }">
-                    <v-btn
-                      x-small
-                      color="failure"
-                      v-bind="props"
-                      @click="delete_dialog = true"
-                    >
-                      <v-icon small>
-                        {{ mdiTrashCan }}
-                      </v-icon>
+                      <template
+                        v-for="header in headers.filter((header) => header.format)"
+                        #[`item.${header.value}`]="{ value }"
+                      >
+                        {{ new Date(value).toLocaleDateString('en-us', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute:'2-digit'
+                        }) }}
+                      </template>
+                      <template #item.actions="{ item }">
+                        <v-btn
+                          x-small
+                          min-width="66"
+                          color="primary"
+                          class="mr-1"
+                          :disabled="item.arena_history_id === active_arena_history_id"
+                          @click="loadArena(item.arena_history_id)"
+                        >
+                          {{ item.arena_history_id === active_arena_history_id ? 'Loaded' : 'Load' }}
+                        </v-btn>
+                        <v-dialog
+                          v-model="delete_dialog"
+                          max-width="400"
+                        >
+                          <template #activator="{ props }">
+                            <v-btn
+                              x-small
+                              color="failure"
+                              v-bind="props"
+                              @click="delete_dialog = true"
+                            >
+                              <v-icon small>
+                                {{ mdiTrashCan }}
+                              </v-icon>
+                            </v-btn>
+                          </template>
+                          <v-card>
+                            <v-card-title>
+                              Delete Arena
+                            </v-card-title>
+                            <v-card-text>
+                              Are you sure you want to delete this arena?
+                            </v-card-text>
+                            <v-card-actions>
+                              <v-spacer />
+                              <v-btn
+                                x-small
+                                color="secondary"
+                                @click="delete_dialog = false"
+                              >
+                                Cancel
+                              </v-btn>
+                              <v-btn
+                                x-small
+                                color="error"
+                                @click="deleteArena(item.arena_history_id)"
+                              >
+                                Delete
+                              </v-btn>
+                            </v-card-actions>
+                          </v-card>
+                        </v-dialog>
+                      </template>
+                      </v-data-table>
                     </v-btn>
-                  </template>
-                  <v-card>
-                    <v-card-title>
-                      Delete Arena
-                    </v-card-title>
-                    <v-card-text>
-                      Are you sure you want to delete this arena?
-                    </v-card-text>
-                    <v-card-actions>
-                      <v-spacer />
-                      <v-btn
-                        x-small
-                        color="secondary"
-                        @click="delete_dialog = false"
-                      >
-                        Cancel
-                      </v-btn>
-                      <v-btn
-                        x-small
-                        color="error"
-                        @click="deleteArena(item.arena_history_id)"
-                      >
-                        Delete
-                      </v-btn>
-                    </v-card-actions>
-                  </v-card>
-                </v-dialog>
-              </template>
-            </v-data-table>
-          </v-card-text>
+                  </v-layout>
+                </v-card-text>
+              </v-card>
+            </v-dialog>
+          </v-card-title>
         </v-card>
       </v-col>
       <v-col>
@@ -161,7 +166,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import api from '@/functions/api';
+import api from '@/utils/api';
 import { mdiTrashCan, mdiPlus } from '@mdi/js';
 
 const delete_dialog = ref(false);
