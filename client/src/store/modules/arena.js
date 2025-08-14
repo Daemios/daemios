@@ -1,5 +1,5 @@
 import api from '@/functions/api';
-import { cartesian } from '@/lib/cartesian';
+import { cartesian } from '@/utils/cartesian';
 
 export default {
   namespaced: true,

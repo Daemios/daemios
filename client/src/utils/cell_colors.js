@@ -15,4 +15,3 @@ const cell_colors = {
 
 
 export default cell_colors;
-

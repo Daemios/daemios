@@ -50,7 +50,7 @@
 <script setup>
 import { useArenaStore } from '@/stores/arenaStore';
 import ArenaEntity from '@/components/arena/ArenaEntity.vue';
-import cell_colors from '@/lib/cell_colors';
+import cell_colors from '@/utils/cell_colors';
 import { ref, computed } from 'vue';
 
 const props = defineProps({

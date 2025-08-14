@@ -17,4 +17,3 @@ export const cartesian = {
   },
 };
 export default cartesian;
-

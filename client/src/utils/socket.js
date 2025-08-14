@@ -48,4 +48,3 @@ export default {
   },
   created() { this.connect(); },
 };
-
