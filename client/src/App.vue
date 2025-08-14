@@ -89,54 +89,129 @@
   </v-app>
 </template>
 
-<script>
-import { defineAsyncComponent } from 'vue';
+<script setup>
+import { defineAsyncComponent, onMounted, onBeforeUnmount, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from '@mdi/js';
 import { useDialogsStore } from '@/stores/dialogsStore';
 import { useSocketStore } from '@/stores/socketStore';
 import { useUserStore } from '@/stores/userStore';
+import { useChatStore } from '@/stores/chatStore';
+import { useArenaStore } from '@/stores/arenaStore';
+const Equipment = defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue'));
+const Inventory = defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue'));
+const Abilities = defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue'));
+const Options = defineAsyncComponent(() => import('@/components/dialogs/Options.vue'));
 
-import mixin_keybinds from '@/mixins/keybinds';
-import mixin_socket from '@/mixins/socket';
+const dialogs = useDialogsStore();
+const socket = useSocketStore();
+const user = useUserStore();
+const chatStore = useChatStore();
+const arenaStore = useArenaStore();
 
-export default {
-  components: {
-    Background: defineAsyncComponent(() => import('@/3d/background/Background.vue')),
-    Equipment: defineAsyncComponent(() => import('@/components/dialogs/Equipment.vue')),
-    Inventory: defineAsyncComponent(() => import('@/components/dialogs/Inventory.vue')),
-    Abilities: defineAsyncComponent(() => import('@/components/dialogs/Abilities.vue')),
-    Options: defineAsyncComponent(() => import('@/components/dialogs/Options.vue')),
-  },
-  mixins: [
-    mixin_keybinds,
-    mixin_socket
-  ],
-  data: () => ({
-    mdiHumanMale,
-    mdiTreasureChest,
-    mdiSword,
-    mdiCog,
-    dialogs: null,
-    socket: null,
-    user: null,
-  }),
-  created() {
-    this.dialogs = useDialogsStore();
-    this.socket = useSocketStore();
-    this.user = useUserStore();
-  },
-  mounted() {
-    const uri = this.$route.path;
-    if (
-      uri !== '/login' &&
-      uri !== '/register' &&
-      uri !== '/characters' &&
-      uri !== '/builder'
-    ) {
-      this.user.getUser();
+const keybindsEnabled = ref(true);
+let ws = null;
+
+function handleKeypress(event) {
+  if (!keybindsEnabled.value) return;
+  switch (event.code) {
+    case 'Escape':
+      if (
+        dialogs.isEquipmentOpen ||
+        dialogs.isInventoryOpen ||
+        dialogs.isAbilitiesOpen ||
+        dialogs.isOptionsOpen
+      ) {
+        dialogs.closeEquipment();
+        dialogs.closeInventory();
+        dialogs.closeAbilities();
+        dialogs.closeOptions();
+      } else {
+        dialogs.toggleOptions();
+      }
+      break;
+    case 'KeyC':
+      dialogs.toggleEquipment();
+      break;
+    case 'KeyA':
+      dialogs.toggleAbilities();
+      break;
+    case 'KeyI':
+      dialogs.toggleInventory();
+      break;
+    default:
+      break;
+  }
+}
+
+function keybindDisable(event) {
+  if (event.target.tagName.toUpperCase() === 'INPUT') {
+    keybindsEnabled.value = false;
+  }
+}
+
+function keybindEnable() {
+  keybindsEnabled.value = true;
+}
+
+function connect() {
+  ws = new WebSocket('ws://localhost:3001/');
+  ws.onopen = () => {
+    socket.setConnection(true);
+  };
+  ws.onclose = () => {
+    socket.setConnection(false);
+    setTimeout(connect, 1000);
+  };
+  ws.onmessage = (event) => {
+    let data;
+    if (event.data) data = JSON.parse(event.data);
+    switch (data?.type) {
+      case 'movement':
+        if (data.body?.entities) arenaStore.setEntities(data.body.entities);
+        if (data.body?.active) arenaStore.setActive(data.body.active);
+        break;
+      case 'chat':
+        if (data.body) {
+          const message = data.body.message || data.body;
+          if (message) chatStore.ADD_MESSAGE(message);
+        }
+        break;
+      case 'arena':
+        if (data.body?.terrain) arenaStore.setTerrain(data.body.terrain);
+        break;
+      case 'combat_start':
+        arenaStore.setCombat(true);
+        break;
+      case 'combat_end':
+        arenaStore.setCombat(false);
+        break;
+      default:
+        console.log(data);
+        break;
     }
-  },
-};
+  };
+}
+
+const route = useRoute();
+
+onMounted(() => {
+  connect();
+  document.addEventListener('keyup', handleKeypress);
+  document.addEventListener('focusin', keybindDisable);
+  document.addEventListener('focusout', keybindEnable);
+
+  const uri = route.path;
+  if (uri !== '/login' && uri !== '/register' && uri !== '/characters' && uri !== '/builder') {
+    user.getUser();
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keyup', handleKeypress);
+  document.removeEventListener('focusin', keybindDisable);
+  document.removeEventListener('focusout', keybindEnable);
+});
 </script>
 
 <style>

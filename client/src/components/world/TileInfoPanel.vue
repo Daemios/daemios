@@ -39,14 +39,11 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'TileInfoPanel',
-  props: {
-    tile: { type: Object, default: () => ({}) },
-    seed: { type: [String, Number], default: null },
-  },
-};
+<script setup>
+defineProps({
+  tile: { type: Object, default: () => ({}) },
+  seed: { type: [String, Number], default: null },
+});
 </script>
 
 <!--

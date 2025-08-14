@@ -1,106 +1,86 @@
 <template>
-
+  <div class="game-background"></div>
 </template>
 
-<script>
+<script setup>
+import { onMounted, onBeforeUnmount } from 'vue';
 import { markRaw } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Noise } from 'noisejs';
-// TODO remove all variables for the login scene and move that into a mixin
-export default {
-  data: () => ({
-    scene: null,
-    camera: null,
-    renderer: null,
-    plane: null,
-    plane_segments: 10,
-    animationFrameId: null,
-  }),
-  mounted() {
-    this.initThreeJS();
-    this.animate();
-  },
-  beforeUnmount() {
-    cancelAnimationFrame(this.animationFrameId);
-    this.plane.material.dispose();
-    this.plane.geometry.dispose();
-  },
-  methods: {
-    initThreeJS() {
-      // Initialize renderer
-  this.renderer = markRaw(new THREE.WebGLRenderer());
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.$el.appendChild(this.renderer.domElement);
 
-      // Initialize scene
-  this.scene = markRaw(new THREE.Scene());
+let scene;
+let camera;
+let renderer;
+let plane;
+let controls;
+const planeSegments = 10;
+let animationFrameId;
 
-      // Initialize camera
-  this.camera = markRaw(new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-  ));
-      this.camera.position.z = 50;
-  this.controls = markRaw(new OrbitControls(this.camera, this.renderer.domElement));
+function initThreeJS(root) {
+  renderer = markRaw(new THREE.WebGLRenderer());
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  root.appendChild(renderer.domElement);
 
-      // todo move this eventually when we have other scene content
-    this.addLoginContent();
+  scene = markRaw(new THREE.Scene());
 
-      // Keep canvas size in sync with window size
-      window.addEventListener('resize', this.resize);
-    },
-    addLoginContent() {
-      // Initialize plane
-  const geometry = markRaw(new THREE.PlaneGeometry(50, 50, this.plane_segments, this.plane_segments));
+  camera = markRaw(
+    new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000),
+  );
+  camera.position.z = 50;
+  controls = markRaw(new OrbitControls(camera, renderer.domElement));
 
-      // Initialize noise
-      const noise = new Noise(Math.random());
+  addLoginContent();
 
-      // Get the positions attribute from geometry
-      const positions = geometry.attributes.position.array;
+  window.addEventListener('resize', resize);
+}
 
-      // Manipulate vertex positions using simplex noise
-      // Scale coordinates to keep deformations subtle
-      for (let i = 0; i < positions.length; i += 3) {
-        const x = positions[i] * 0.05;
-        const y = positions[i + 1] * 0.05;
-        const n = noise.simplex2(x, y);
-        positions[i + 2] = n * 2;
-      }
+function addLoginContent() {
+  const geometry = markRaw(new THREE.PlaneGeometry(50, 50, planeSegments, planeSegments));
+  const noise = new Noise(Math.random());
+  const positions = geometry.attributes.position.array;
 
-      // Update geometry after modifying vertices
-      geometry.attributes.position.needsUpdate = true;
-      geometry.computeVertexNormals();
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i] * 0.05;
+    const y = positions[i + 1] * 0.05;
+    const n = noise.simplex2(x, y);
+    positions[i + 2] = n * 2;
+  }
 
-      // Create material
-  const material = markRaw(new THREE.MeshBasicMaterial({
-        color: 0x00ff00,
-        wireframe: true
-  }));
+  geometry.attributes.position.needsUpdate = true;
+  geometry.computeVertexNormals();
 
-      // Create mesh and add to scene
-  this.plane = markRaw(new THREE.Mesh(geometry, material));
-      //this.plane.rotation.x = -Math.PI / 6;  // Tilt by 30 degrees
-      this.scene.add(this.plane);
-    },
-    animate() {
-      requestAnimationFrame(this.animate.bind(this));
+  const material = markRaw(
+    new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }),
+  );
 
-      // Update controls
-      this.controls.update();
+  plane = markRaw(new THREE.Mesh(geometry, material));
+  scene.add(plane);
+}
 
-      this.renderer.render(this.scene, this.camera);
-    },
-    resize() {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-  },
-};
+function animate() {
+  animationFrameId = requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+onMounted(() => {
+  initThreeJS(document.querySelector('.game-background'));
+  animate();
+});
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(animationFrameId);
+  plane.material.dispose();
+  plane.geometry.dispose();
+  window.removeEventListener('resize', resize);
+});
 </script>
 
 <style>

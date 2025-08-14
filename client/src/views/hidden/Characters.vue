@@ -117,55 +117,53 @@
   </v-layout>
 </template>
 
-<script>
-import mixin_audio from '@/mixins/audio';
-import mixin_locations from '@/mixins/locations';
+<script setup>
+import { ref, computed, onMounted } from 'vue';
 import VesselMini from '@/components/ability/VesselMini.vue';
-import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout } from '@mdi/js';
+import { mdiPlus, mdiChevronUp, mdiChevronDown, mdiLogout, mdiSkull, mdiShield } from '@mdi/js';
 import { useUserStore } from '@/stores/userStore';
 
-export default {
-  components: { VesselMini },
-  mixins: [mixin_audio, mixin_locations],
-  data: () => ({
-      character_index: 0, // shows i+5 characters
-      mdiPlus,
-      mdiChevronUp,
-      mdiChevronDown,
-      mdiLogout,
-  }),
-  setup() {
-    const userStore = useUserStore();
-    return { userStore };
-  },
-  computed: {
-    characters() { return this.userStore.characters || []; },
-    disableUp() {
-      return this.characters.length < 1 || this.character_index === 0;
-    },
-    disableDown() {
-      return this.characters.length < 1 || this.character_index + 5 >= this.characters.length;
-    },
-  },
-  mounted() {
-    this.userStore.getCharacters();
-  },
-  methods: {
-    characterUp() {
-      if (this.character_index > 0) {
-        this.character_index -= 5;
-      }
-    },
-    characterDown() {
-      if (this.character_index + 5 < this.characters.length) {
-        this.character_index += 5;
-      }
-    },
-    characterSelect(id) { this.userStore.selectCharacter(id); },
-    characterCreate() {
-      window.location.href = '/builder';
-    },
-    logout() { this.userStore.logout(); },
-  },
+const userStore = useUserStore();
+
+const character_index = ref(0);
+
+const characters = computed(() => userStore.characters || []);
+const disableUp = computed(() => characters.value.length < 1 || character_index.value === 0);
+const disableDown = computed(() => characters.value.length < 1 || character_index.value + 5 >= characters.value.length);
+
+function isDangerousIcon(loc) {
+  return loc.dangerous ? mdiSkull : mdiShield;
 }
+
+function isDangerousText(loc) {
+  return loc.dangerous ? 'red--text' : 'green--text';
+}
+
+function characterUp() {
+  if (character_index.value > 0) {
+    character_index.value -= 5;
+  }
+}
+
+function characterDown() {
+  if (character_index.value + 5 < characters.value.length) {
+    character_index.value += 5;
+  }
+}
+
+function characterSelect(id) {
+  userStore.selectCharacter(id);
+}
+
+function characterCreate() {
+  window.location.href = '/builder';
+}
+
+function logout() {
+  userStore.logout();
+}
+
+onMounted(() => {
+  userStore.getCharacters();
+});
 </script>

@@ -1,11 +1,119 @@
 <script setup>
+import { computed } from 'vue';
 import AddLocationButton from './AddLocationButton.vue';
-defineProps({
+
+const props = defineProps({
+  features: { type: Object, required: true },
+  radialFade: { type: Object, required: true },
+  generation: { type: Object, required: true },
+  benchmark: { type: Object, required: false, default: null },
+  statsVisible: { type: Boolean, required: false, default: true },
+  generatorVersions: { type: Array, required: false, default: () => [] },
   playerPosition: {
     type: Object,
-    default: () => ({ chunkX: 0, chunkY: 0, hexQ: 0, hexR: 0 })
-  }
+    default: () => ({ chunkX: 0, chunkY: 0, hexQ: 0, hexR: 0 }),
+  },
 });
+
+const emit = defineEmits([
+  'update:features',
+  'update:radialFade',
+  'update:generation',
+  'toggle-clutter',
+  'toggle-shadows',
+  'toggle-water',
+  'toggle-chunk-colors',
+  'toggle-directions',
+  'create-location',
+  'toggle-radial-fade',
+  'generation-scale-change',
+  'generator-tuning-change',
+  'toggle-stats-pane',
+  'set-neighborhood-radius',
+  'run-benchmark',
+  'create-town',
+  'generator-version-change',
+]);
+
+const featuresLocal = computed(() => props.features || {});
+const radialLocal = computed(() => props.radialFade || {});
+const genLocal = computed(
+  () => props.generation || { scale: 1, tuning: {}, version: props.generatorVersions?.[0] },
+);
+
+function fmt(v, n = 1) {
+  if (v == null || Number.isNaN(v)) return '—';
+  const x = Number(v);
+  return Math.abs(x) < 1e-6 ? '0' : x.toFixed(n);
+}
+
+function onToggleFeature(key, e) {
+  const next = { ...(featuresLocal.value || {}), [key]: !!e.target.checked };
+  emit('update:features', next);
+  const map = {
+    clutter: 'toggle-clutter',
+    shadows: 'toggle-shadows',
+    water: 'toggle-water',
+    chunkColors: 'toggle-chunk-colors',
+    directions: 'toggle-directions',
+  };
+  const ev = map[key];
+  if (ev) emit(ev);
+}
+
+function onToggleRadialFade(e) {
+  const next = { ...(radialLocal.value || {}), enabled: !!e.target.checked };
+  emit('update:radialFade', next);
+  emit('toggle-radial-fade');
+}
+
+function onSetRadial(key, e) {
+  const val = Number(e.target.value);
+  const next = { ...(radialLocal.value || {}) };
+  next[key] = val;
+  emit('update:radialFade', next);
+}
+
+function onSetGenerationScale(e) {
+  const scale = Number(e.target.value);
+  const next = { ...(genLocal.value || {}), scale };
+  emit('update:generation', next);
+  emit('generation-scale-change');
+}
+
+function onSetTuning(key, e) {
+  const val = Number(e.target.value);
+  const cur = genLocal.value || { tuning: {} };
+  const tuning = { ...(cur.tuning || {}), [key]: val };
+  const next = { ...cur, tuning };
+  emit('update:generation', next);
+  emit('generator-tuning-change');
+}
+
+function onToggleStatsPane() {
+  emit('toggle-stats-pane');
+}
+
+function onSetNeighborhoodRadius(e) {
+  const radius = Math.max(1, Number(e.target.value) || 1);
+  const next = { ...(genLocal.value || {}), radius };
+  emit('update:generation', next);
+  emit('set-neighborhood-radius', radius);
+}
+
+function onSelectRadiusPreset(radius) {
+  const r = Math.max(1, Number(radius) || 1);
+  const next = { ...(genLocal.value || {}), radius: r };
+  emit('update:generation', next);
+  emit('set-neighborhood-radius', r);
+}
+
+function onSetGeneratorVersion(e) {
+  const version = e.target.value;
+  const next = { ...(genLocal.value || {}), version };
+  emit('update:generation', next);
+  emit('generator-version-change');
+}
 </script>
 <template>
   <div
@@ -344,102 +452,3 @@ defineProps({
     </details>
   </div>
 </template>
-
-<script>
-export default {
-  name: 'WorldDebugPanel',
-  props: {
-    features: { type: Object, required: true },
-    radialFade: { type: Object, required: true },
-    generation: { type: Object, required: true },
-  benchmark: { type: Object, required: false, default: null },
-  statsVisible: { type: Boolean, required: false, default: true },
-  generatorVersions: { type: Array, required: false, default: () => [] },
-  },
-  emits: [
-    'update:features',
-    'update:radialFade',
-    'update:generation',
-    'toggle-clutter',
-    'toggle-shadows',
-    'toggle-water',
-    'toggle-chunk-colors',
-  'toggle-directions',
-  'create-location',
-    'toggle-radial-fade',
-    'generation-scale-change',
-    'generator-tuning-change',
-  'toggle-stats-pane',
-  'set-neighborhood-radius',
-    'run-benchmark',
-  // Gameplay actions
-  'create-town',
-  'generator-version-change',
-  ],
-  computed: {
-    featuresLocal() { return this.features || {}; },
-    radialLocal() { return this.radialFade || {}; },
-  genLocal() {
-      return this.generation || { scale: 1, tuning: {}, version: this.generatorVersions?.[0] };
-    },
-  },
-  methods: {
-    fmt(v, n = 1) { if (v == null || Number.isNaN(v)) return '—'; const x = Number(v); return Math.abs(x) < 1e-6 ? '0' : x.toFixed(n); },
-    onToggleFeature(key, e) {
-      const next = { ...(this.featuresLocal || {}), [key]: !!e.target.checked };
-      this.$emit('update:features', next);
-      // Fire specific hooks for parent side-effects
-      const map = {
-  clutter: 'toggle-clutter', shadows: 'toggle-shadows', water: 'toggle-water', chunkColors: 'toggle-chunk-colors', directions: 'toggle-directions',
-      };
-      const ev = map[key]; if (ev) this.$emit(ev);
-    },
-    onToggleRadialFade(e) {
-      const next = { ...(this.radialLocal || {}), enabled: !!e.target.checked };
-      this.$emit('update:radialFade', next);
-      this.$emit('toggle-radial-fade');
-    },
-    onSetRadial(key, e) {
-      const val = Number(e.target.value);
-      const next = { ...(this.radialLocal || {}) };
-      next[key] = val;
-      this.$emit('update:radialFade', next);
-      // Parent watches radialFade deeply for side-effects
-    },
-    onSetGenerationScale(e) {
-      const scale = Number(e.target.value);
-      const next = { ...(this.genLocal || {}), scale };
-      this.$emit('update:generation', next);
-      this.$emit('generation-scale-change');
-    },
-    onSetTuning(key, e) {
-      const val = Number(e.target.value);
-      const cur = this.genLocal || { tuning: {} };
-      const tuning = { ...(cur.tuning || {}), [key]: val };
-      const next = { ...cur, tuning };
-      this.$emit('update:generation', next);
-      this.$emit('generator-tuning-change');
-    },
-  onToggleStatsPane() { this.$emit('toggle-stats-pane'); },
-    onSetNeighborhoodRadius(e) {
-      const radius = Math.max(1, Number(e.target.value) || 1);
-      const next = { ...(this.genLocal || {}), radius };
-      this.$emit('update:generation', next);
-      this.$emit('set-neighborhood-radius', radius);
-    },
-    onSelectRadiusPreset(radius) {
-      const r = Math.max(1, Number(radius) || 1);
-      const next = { ...(this.genLocal || {}), radius: r };
-      this.$emit('update:generation', next);
-      this.$emit('set-neighborhood-radius', r);
-    },
-  // Removed legacy neighborhood expansion toggle
-    onSetGeneratorVersion(e) {
-      const version = e.target.value;
-      const next = { ...(this.genLocal || {}), version };
-      this.$emit('update:generation', next);
-      this.$emit('generator-version-change');
-    },
-  },
-};
-</script>

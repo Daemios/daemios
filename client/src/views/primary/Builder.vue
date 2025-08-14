@@ -140,127 +140,108 @@
   </v-layout>
 </template>
 
-<script>
-
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { mdiCheck, mdiCircleMedium, mdiCircleSmall } from '@mdi/js';
 import api from '@/functions/api';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
 import { useDataStore } from '@/stores/dataStore';
 import { useUserStore } from '@/stores/userStore';
 
-export default {
-  components: {CharacterSlide},
-  data: () => ({
-    currentStage: 'name',
-    stages: [
-      'name',
-      'race',
-      'avatar',
-      'finish'
-    ],
-    name: null,
-    race_id: null,
-    avatar: null,
-    hardcoded_races: {
-      // TODO improve with a image/race manager on backend
-      // The key is the race_id, the value is the # of images in folder
-      1: 11, // elf
-      2: 11, // elf
-      3: 11, // elf
-      4: 0, // orc
-      5: 19, // dwarf
-      6: 19, // dwarf
-      7: 16, // critter
-      8: 54, // human
-      9: 0, // mantii
-      10: 8, // savrian
-      11: 1, // etter
-      12: 3, // tyrak
-    }
-  }),
-  computed: {
-    races() { return useDataStore().races || []; },
-    // Find the race in races that has a race_id prop that matches the value in this.race
-    race() {
-      if (this.race_id) {
-        return this.races.find(race => race.id === this.race_id);
-      } else {
-        return {};
-      }
-    },
-  },
-  watch: {
-    race_id() {
-      this.avatar = null;
-    }
-  },
-  mounted() {
-    useDataStore().getRaces();
-    //api.get('user/character/builder/presets').then(response => {
-    //  this.presets = response;
-    //});
-  },
-  methods: {
-    stepForward() {
-      const index = this.stages.indexOf(this.currentStage);
-      if (index < this.stages.length - 1) {
-        this.currentStage = this.stages[index + 1];
-      }
-    },
-    stepBackward() {
-      const index = this.stages.indexOf(this.currentStage);
-      if (index > 0) {
-        this.currentStage = this.stages[index - 1];
-      }
-    },
-    disableByStage(stage) {
-      if (stage === 'name' || stage === 'race') {
-        return !this.name;
-      } else if (stage === 'avatar') {
-        return !this.race_id;
-      } else if (stage === 'finish') {
-        return !this.avatar;
-      }
-      return false;
-    },
-    navButtonIcon(stage) {
-      // return a medium circle if the stage is the current stage
-      // return a check mark if the stage is complete
-      // return a small circle if the stage is not yet reached
-      if (stage === this.currentStage) {
-        return mdiCircleMedium;
-      } else if (this.stages.indexOf(stage) < this.stages.indexOf(this.currentStage)) {
-        return mdiCheck;
-      } else {
-        return mdiCircleSmall;
-      }
-    },
-    buildAvatarUrl(image_index) {
-      return `/img/avatars/${this.race['raceFolder']}/${image_index}.png`;
-    },
-    setAvatar(image_index) {
-      this.avatar = this.buildAvatarUrl(image_index);
-      this.currentStage = 'finish';
-    },
-    createCharacter() {
-      const req = {
-        name: this.name,
-        raceId: this.race_id,
-        image: this.avatar,
-      }
-      api.post('user/character/create', req)
-        .then(response => {
-          if (response.success) {
-            this.$router.push('/characters');
-          } else {
-            console.log('Character creation failed!');
-            console.log(response.status)
-            console.log(typeof response.status)
-          }
-        });
-    },
-  },
+const router = useRouter();
+const dataStore = useDataStore();
+useUserStore();
+
+const currentStage = ref('name');
+const stages = ['name', 'race', 'avatar', 'finish'];
+const name = ref(null);
+const race_id = ref(null);
+const avatar = ref(null);
+const hardcoded_races = {
+  1: 11,
+  2: 11,
+  3: 11,
+  4: 0,
+  5: 19,
+  6: 19,
+  7: 16,
+  8: 54,
+  9: 0,
+  10: 8,
+  11: 1,
+  12: 3,
 };
+
+const races = computed(() => dataStore.races || []);
+const race = computed(() => (race_id.value ? races.value.find(r => r.id === race_id.value) : {}));
+
+watch(race_id, () => {
+  avatar.value = null;
+});
+
+onMounted(() => {
+  dataStore.getRaces();
+  // api.get('user/character/builder/presets').then(response => {
+  //   presets.value = response;
+  // });
+});
+
+function stepForward() {
+  const index = stages.indexOf(currentStage.value);
+  if (index < stages.length - 1) {
+    currentStage.value = stages[index + 1];
+  }
+}
+
+function stepBackward() {
+  const index = stages.indexOf(currentStage.value);
+  if (index > 0) {
+    currentStage.value = stages[index - 1];
+  }
+}
+
+function disableByStage(stage) {
+  if (stage === 'name' || stage === 'race') {
+    return !name.value;
+  } if (stage === 'avatar') {
+    return !race_id.value;
+  } if (stage === 'finish') {
+    return !avatar.value;
+  }
+  return false;
+}
+
+function navButtonIcon(stage) {
+  if (stage === currentStage.value) {
+    return mdiCircleMedium;
+  } if (stages.indexOf(stage) < stages.indexOf(currentStage.value)) {
+    return mdiCheck;
+  }
+  return mdiCircleSmall;
+}
+
+function buildAvatarUrl(image_index) {
+  return `/img/avatars/${race.value['raceFolder']}/${image_index}.png`;
+}
+
+function setAvatar(image_index) {
+  avatar.value = buildAvatarUrl(image_index);
+  currentStage.value = 'finish';
+}
+
+function createCharacter() {
+  const req = { name: name.value, raceId: race_id.value, image: avatar.value };
+  api.post('user/character/create', req).then((response) => {
+    if (response.success) {
+      router.push('/characters');
+    } else {
+      console.log('Character creation failed!');
+      console.log(response.status);
+      console.log(typeof response.status);
+    }
+  });
+}
 </script>
 
 <style>

@@ -22,16 +22,11 @@
   </v-container>
 </template>
 
-<script>
+<script setup>
+import { ref } from 'vue';
 import Core from '@/components/ability/Vessel';
 
-export default {
-  components: {
-    Core,
-  },
-  data: () => ({
-      editing: null,
-      selected: null,
-  }),
-};
+const editing = ref(null);
+const selected = ref(null);
+const character = { cores: [] };
 </script>

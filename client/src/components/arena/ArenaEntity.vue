@@ -20,37 +20,34 @@
     </div>
   </div>
 </template>
-<script>
+<script setup>
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useArenaStore } from '@/stores/arenaStore';
 
-export default {
-  props: {
-    x: {
-      type: Number,
-      required: true,
-    },
-    y: {
-      type: Number,
-      required: true,
-    },
-  },
-  computed: {
-    entities() { return useArenaStore().entities; },
-    classes() {
-      return {
-        active: this.entities[this.x][this.y].active,
-        hover: this.entities[this.x][this.y].hover,
-        enemy: this.entities[this.x][this.y].faction === 'enemy',
-        ally: this.entities[this.x][this.y].faction === 'ally',
-        player: this.entities[this.x][this.y].faction === 'player',
-      };
-    },
-  },
-  methods: {
-    entityMouseOver() { useArenaStore().entityMouseOver({ x: this.x, y: this.y }); },
-    entityMouseOut() { useArenaStore().entityMouseOut({ x: this.x, y: this.y }); },
-  },
-};
+const props = defineProps({
+  x: { type: Number, required: true },
+  y: { type: Number, required: true },
+});
+
+const arenaStore = useArenaStore();
+const { entities } = storeToRefs(arenaStore);
+
+const classes = computed(() => ({
+  active: entities.value[props.x][props.y].active,
+  hover: entities.value[props.x][props.y].hover,
+  enemy: entities.value[props.x][props.y].faction === 'enemy',
+  ally: entities.value[props.x][props.y].faction === 'ally',
+  player: entities.value[props.x][props.y].faction === 'player',
+}));
+
+function entityMouseOver() {
+  arenaStore.entityMouseOver({ x: props.x, y: props.y });
+}
+
+function entityMouseOut() {
+  arenaStore.entityMouseOut({ x: props.x, y: props.y });
+}
 </script>
 
 <style>
