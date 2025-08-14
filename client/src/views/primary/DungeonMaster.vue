@@ -62,19 +62,6 @@
                       color="primary"
                       @click="createArena()"
                     >
-                      Create
-                    </v-btn>
-                  </v-layout>
-                </v-card-text>
-              </v-card>
-            </v-dialog>
-          </v-card-title>
-          <v-card-text>
-            <v-data-table
-              dark
-              :headers="headers"
-              :items="saved_arenas"
-            >
               <template
                 v-for="header in headers.filter((header) => header.format)"
                 #[`item.${header.value}`]="{ value }"

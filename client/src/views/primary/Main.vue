@@ -11,7 +11,6 @@
         class="mt-8 ml-8"
       />
     </div>
-    <Arena />
     <div class="right-drawer">
       <!-- Turn Order (last) -->
     </div>
@@ -19,7 +18,6 @@
 </template>
 
 <script setup>
-import Arena from '@/components/arena/Arena.vue';
 import CharacterSlide from '@/components/character/CharacterSlide.vue';
 import { useUserStore } from '@/stores/userStore';
 import { storeToRefs } from 'pinia';

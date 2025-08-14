@@ -6,6 +6,7 @@
         :key="i"
       >
         <div class="card">
+          <!-- Removed Arena-related images -->
           <img
             class="background-1"
             :src="data.background"

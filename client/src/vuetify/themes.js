@@ -8,7 +8,6 @@ export default {
         primary: '#49b69d',
         tertiary: '#49a9b6',
 
-        // Arena specific
         'turn-inactive': '#AAAAAA',
         'turn-active': '#FFD700',
         'enemy': '#cc0000',

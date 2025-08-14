@@ -2,8 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import express from 'express';
 import crypto from 'crypto';
 import wss from '../lib/socket.js';
-
-
 const router = express.Router();
 const prisma = new PrismaClient();
 

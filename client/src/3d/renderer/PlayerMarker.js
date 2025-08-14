@@ -11,16 +11,16 @@ export default class PlayerMarker {
     const mat = new THREE.MeshBasicMaterial({ color: 0xb53a3a, transparent: true, opacity: 1.0, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.mesh = new THREE.Mesh(geom, mat);
     this.mesh.renderOrder = 3; // draw after water to ensure visibility on water
-  // Note: matrixAutoUpdate=false; orientation is driven by composed matrix below
+    // Note: matrixAutoUpdate=false; orientation is driven by composed matrix below
     this.mesh.visible = false;
     this.mesh.matrixAutoUpdate = false;
-  // Internal state for placement and yaw-only facing
-  this._pos = new THREE.Vector3();
-  this._scale = new THREE.Vector3(1, 1, 1);
-  this._yaw = 0;
-  this._tmpQuat = new THREE.Quaternion();
-  this._tmpPos = new THREE.Vector3();
-  this._tmpScale = new THREE.Vector3();
+    // Internal state for placement and yaw-only facing
+    this._pos = new THREE.Vector3();
+    this._scale = new THREE.Vector3(1, 1, 1);
+    this._yaw = 0;
+    this._tmpQuat = new THREE.Quaternion();
+    this._tmpPos = new THREE.Vector3();
+    this._tmpScale = new THREE.Vector3();
   }
 
   addTo(scene) { scene.add(this.mesh); }

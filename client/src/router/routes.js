@@ -44,9 +44,6 @@ export default [
     },
   },
   {
-    path: '/arena',
-    name: 'Arena',
-  component: () => import('@/views/primary/Arena.vue'),
     meta: {
       overlay: false,
       combat_lock: false,
