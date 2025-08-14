@@ -19,7 +19,7 @@
         style="border-radius: 8px"
       />
       <v-icon v-else>
-        {{ mdiHelp() }}
+        {{ mdiHelp }}
       </v-icon>
     </v-sheet>
     <!-- Name  -->
@@ -39,51 +39,29 @@
   </v-layout>
 </template>
 
-<script>
-import {mdiAccountQuestionOutline, mdiHelp} from '@mdi/js';
+<script setup>
+import { computed } from 'vue';
+import { mdiHelp } from '@mdi/js';
 
-export default {
-  props: {
-    avatar_url: {
-      type: String,
-      default: null,
-    },
-    name: {
-      type: String,
-      default: null,
-    },
-    color: {
-      type: String,
-      default: null,
-    },
-    title: {
-      type: String,
-      default: null,
-    }
+const props = defineProps({
+  avatar_url: {
+    type: String,
+    default: null,
   },
-  computed: {
-    nameDisplay() {
-      // Return full name if both first and last name are present
-      // else return first if present
-      // else return 'Enter Name' if neither are present
-      if (this.name) {
-        return this.name
-      } else {
-        return 'Enter Name'
-      }
-    },
-    leftBorder() {
-      // Add a styled border to the left of the card
-      return this.color ? `4px solid ${this.color}` : 'none'
-    }
+  name: {
+    type: String,
+    default: null,
   },
-  methods: {
-    mdiHelp() {
-      return mdiHelp
-    },
-    mdiAccountQuestionOutline() {
-      return mdiAccountQuestionOutline
-    }
+  color: {
+    type: String,
+    default: null,
   },
-};
+  title: {
+    type: String,
+    default: null,
+  },
+});
+
+const nameDisplay = computed(() => (props.name ? props.name : 'Enter Name'));
+const leftBorder = computed(() => (props.color ? `4px solid ${props.color}` : 'none'));
 </script>

@@ -106,26 +106,18 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed } from 'vue';
 import { mdiClose } from '@mdi/js';
 import DollSlot from '@/components/character/DollSlot.vue';
 import ItemDialog from '@/components/inventory/ItemDialog.vue';
 import { useUserStore } from '@/stores/userStore';
 
-export default {
-  components: {
-    DollSlot,
-    ItemDialog,
-  },
-  data: () => ({
-      mdiClose,
-      selected: null,
-  }),
-  computed: {
-    character() { return useUserStore().character || { equipped: {} }; },
-    equipped() { return this.character.equipped || {}; },
-  }
-};
+const selected = ref(null);
+const userStore = useUserStore();
+
+const character = computed(() => userStore.character || { equipped: {} });
+const equipped = computed(() => character.value.equipped || {});
 </script>
 
 <style>

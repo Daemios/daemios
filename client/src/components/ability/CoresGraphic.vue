@@ -18,23 +18,19 @@
   </v-row>
 </template>
 
-<script>
-export default {
-  props: {
-    count: {
-      type: Number,
-      default: 1,
-    },
+<script setup>
+const props = defineProps({
+  count: {
+    type: Number,
+    default: 1,
   },
-  data: () => ({
-    colors: ['#1E88E5', '#B2FF59', '#E65100', '#004D40', '#827717'],
-  }),
-  methods: {
-    coreStyle(index) {
-      return `background: radial-gradient(circle at ${10 * (this.count - (Math.floor(index / 1.5)) + 1) + 20}px 30px, ${this.colors[index - 1]}, #000)`;
-    },
-  },
-};
+});
+
+const colors = ['#1E88E5', '#B2FF59', '#E65100', '#004D40', '#827717'];
+
+function coreStyle(index) {
+  return `background: radial-gradient(circle at ${10 * (props.count - (Math.floor(index / 1.5)) + 1) + 20}px 30px, ${colors[index - 1]}, #000)`;
+}
 </script>
 
 <style>

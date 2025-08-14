@@ -42,63 +42,58 @@
     </div>
   </div>
 </template>
-<script>
+<script setup>
 import { mdiPlus, mdiMinus } from '@mdi/js';
+import { ref, onMounted } from 'vue';
 
-export default {
-  props: {
-    title: {
-      type: String,
-      required: true,
-    },
-    limit: {
-      type: Number,
-      required: true,
-    },
-    start: {
-      type: Number,
-      required: true,
-    },
-    positiveOnly: {
-      type: Boolean,
-      default: false,
-    },
+const props = defineProps({
+  title: {
+    type: String,
+    required: true,
   },
-  data: () => ({
-      mdiPlus,
-      mdiMinus,
-      current: null,
-  }),
-  computed: {
-    divisions() {
-      return Math.floor(this.current / 9);
-    },
+  limit: {
+    type: Number,
+    required: true,
   },
-  mounted() {
-    this.current = this.start;
+  start: {
+    type: Number,
+    required: true,
   },
-  methods: {
-    increment() {
-      this.current += 1;
-      this.$emit('input', this.current);
-    },
-    decrement() {
-      this.current -= 1;
-      this.$emit('input', this.current);
-    },
-    classes(n) {
-      return {
-        black: (this.start >= n),
-        'green lighten-2': (this.current >= n && n > this.start),
-        'red lighten-2': (
-          this.current < this.start // are we going negative
-          && n > this.current // cell is higher than the current aka its point is removed
-          && n <= this.start // cell is part of the existing points
-        ),
-      };
-    },
+  positiveOnly: {
+    type: Boolean,
+    default: false,
   },
-};
+});
+
+const emit = defineEmits(['input']);
+
+const current = ref(null);
+
+onMounted(() => {
+  current.value = props.start;
+});
+
+function increment() {
+  current.value += 1;
+  emit('input', current.value);
+}
+
+function decrement() {
+  current.value -= 1;
+  emit('input', current.value);
+}
+
+function classes(n) {
+  return {
+    black: props.start >= n,
+    'green lighten-2': current.value >= n && n > props.start,
+    'red lighten-2': (
+      current.value < props.start
+      && n > current.value
+      && n <= props.start
+    ),
+  };
+}
 </script>
 <style>
 .block-counter { display: grid; grid-template-columns: 1fr auto; }
@@ -107,3 +102,4 @@ export default {
 .block-counter .blocks .block.temporary { background: rgba(255,255,255,.4); }
 .block-counter .blocks .block.active { background: rgba(255,255,255,.8); }
 </style>
+

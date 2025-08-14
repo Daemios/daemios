@@ -28,14 +28,18 @@
   </v-card>
 </template>
 
-<script>
+<script setup>
 // build basic vue script tag
-export default {
-  props: {
-    role: {
-      type: Object,
-      required: true,
-    },
+const props = defineProps({
+  role: {
+    type: Object,
+    required: true,
   },
-};
+});
+
+const emit = defineEmits(['selectRole']);
+
+function selectRole(role) {
+  emit('selectRole', role);
+}
 </script>

@@ -17,29 +17,29 @@
   </div>
 </template>
 
-<script>
-export default {
-  props: {
-    height: {
-      type: Number,
-      required: true,
-    },
-    width: {
-      type: Number,
-      required: true,
-    },
-    key_prefix: {
-      type: Number,
-      required: true,
-    },
+<script setup>
+import { ref, onMounted } from 'vue';
+
+const props = defineProps({
+  height: {
+    type: Number,
+    required: true,
   },
-  data: () => ({
-     grid: null,
-  }),
-  mounted() {
-    this.grid = Array(this.height).fill(0).map(() => Array(this.width).fill(0));
+  width: {
+    type: Number,
+    required: true,
   },
-}
+  key_prefix: {
+    type: [String, Number],
+    required: true,
+  },
+});
+
+const grid = ref(null);
+
+onMounted(() => {
+  grid.value = Array(props.height).fill(0).map(() => Array(props.width).fill(0));
+});
 </script>
 
 <style>

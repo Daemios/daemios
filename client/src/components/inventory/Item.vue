@@ -37,42 +37,32 @@
   </v-card>
 </template>
 
-<script>
+<script setup>
+import { computed } from 'vue';
 import { mdiClose, mdiMinus, mdiAlertCircleOutline } from '@mdi/js';
 
-export default {
-  props: {
-    label: {
-      type: String,
-      required: true,
-    },
-    item: {
-      type: Object,
-      default: null,
-    },
+const props = defineProps({
+  label: {
+    type: String,
+    required: true,
   },
-  data: () => ({
-      mdiClose,
-      mdiMinus,
-      mdiAlertCircleOutline,
-  }),
-  computed: {
-    itemClasses() {
-      return {
-        white: true,
-        'green accent-4': this.item.rarity.toLowerCase() === 'uncommon',
-        'blue accent-3': this.item.rarity.toLowerCase() === 'rare',
-        'deep-purple accent-4': this.item.rarity.toLowerCase() === 'epic',
-        'orange darken-1': this.item.rarity.toLowerCase() === 'legendary',
-      };
-    },
-    itemLabelClasses() {
-      return {
-        'has-img': this.item.img,
-      };
-    },
+  item: {
+    type: Object,
+    default: null,
   },
-};
+});
+
+const itemClasses = computed(() => ({
+  white: true,
+  'green accent-4': props.item.rarity.toLowerCase() === 'uncommon',
+  'blue accent-3': props.item.rarity.toLowerCase() === 'rare',
+  'deep-purple accent-4': props.item.rarity.toLowerCase() === 'epic',
+  'orange darken-1': props.item.rarity.toLowerCase() === 'legendary',
+}));
+
+const itemLabelClasses = computed(() => ({
+  'has-img': props.item.img,
+}));
 </script>
 
 <style>

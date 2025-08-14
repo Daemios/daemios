@@ -51,44 +51,43 @@
   </v-card>
 </template>
 
-<script>
-import { mdiChevronLeft, mdiLock } from '@mdi/js';
+<script setup>
+import { computed } from 'vue';
+import { mdiLock } from '@mdi/js';
+import { useRouter } from 'vue-router';
 import { useArenaStore } from '@/stores/arenaStore';
 import { useUserStore } from '@/stores/userStore';
 import { useUiStore } from '@/stores/uiStore';
 
-export default {
-  data: () => ({
-      mdiChevronLeft,
-      mdiLock,
-  }),
-  computed: {
-    routes() {
-      const routes = [];
-      this.$router.getRoutes().forEach((route) => {
-        if (route.meta.render) {
-          routes.push({
-            path: route.path.length ? route.path : '/',
-            name: route.name,
-            ...route.meta,
-          });
-        }
+const router = useRouter();
+const arenaStore = useArenaStore();
+const userStore = useUserStore();
+const uiStore = useUiStore();
+
+const routes = computed(() => {
+  const routes = [];
+  router.getRoutes().forEach((route) => {
+    if (route.meta.render) {
+      routes.push({
+        path: route.path.length ? route.path : '/',
+        name: route.name,
+        ...route.meta,
       });
-      return routes;
-    },
-    combat() { return useArenaStore().combat; },
-    navigation: {
-      get() { return useUiStore().navigation; },
-      set(v) { useUiStore().navigation = v; }
-    },
-    character() { return useUserStore().character || {}; },
-  },
-  methods: {
-    showLock(route) {
-      return route.combat_lock && this.combat;
-    },
-  },
-};
+    }
+  });
+  return routes;
+});
+
+const combat = computed(() => arenaStore.combat);
+const navigation = computed({
+  get: () => uiStore.navigation,
+  set: (v) => { uiStore.navigation = v; },
+});
+const character = computed(() => userStore.character || {});
+
+function showLock(route) {
+  return route.combat_lock && combat.value;
+}
 </script>
 
 <style>

@@ -20,24 +20,23 @@
   </v-layout>
 </template>
 
-<script>
+<script setup>
 import AbilityMockup from '@/components/ability/AbilityMockup.vue';
 import VesselMini from '@/components/ability/VesselMini.vue';
 import { useAbilityStore } from '@/stores/abilityStore';
+import { reactive, computed } from 'vue';
 
-export default {
-  components: {
-    AbilityMockup,
-    VesselMini,
+defineProps({
+  color: {
+    type: String,
+    required: true,
   },
-  data: () => ({
-      ability: {
-        name: 'Ability Name',
-        element: 'fire',
-      },
-  }),
-  computed: {
-    elements() { return useAbilityStore().elements || {}; },
-  },
-}
+});
+
+const ability = reactive({
+  name: 'Ability Name',
+  element: { name: 'fire' },
+});
+
+const elements = computed(() => useAbilityStore().elements || {});
 </script>

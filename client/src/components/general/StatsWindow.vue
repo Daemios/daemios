@@ -38,17 +38,15 @@
   </v-card>
 </template>
 
-<script>
-export default {
-  name: 'StatsWindow',
-  props: {
-    generalStats: { type: [String, Object], default: '' },
-    chunkStats: { type: [String, Object], default: '' },
-  },
-  data() {
-    return {
-      tab: 'general',
-    };
-  },
-};
+<script setup>
+import { ref } from 'vue';
+
+defineOptions({ name: 'StatsWindow' });
+
+const { generalStats, chunkStats } = defineProps({
+  generalStats: { type: [String, Object], default: '' },
+  chunkStats: { type: [String, Object], default: '' },
+});
+
+const tab = ref('general');
 </script>

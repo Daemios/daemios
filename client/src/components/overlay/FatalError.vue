@@ -4,11 +4,11 @@
     justify-center
     class="fill-height background"
   >
-    <v-alert
-      prominent
-      type="error"
-      icon="mdiCloudAlert"
-    >
+  <v-alert
+    prominent
+    type="error"
+    :icon="mdiCloudAlert"
+  >
       <h3>Oops!</h3>
       <div>
         A server error has occurred.
@@ -20,17 +20,10 @@
   </v-layout>
 </template>
 
-<script>
+<script setup>
 import { mdiCloudAlert } from '@mdi/js';
 
-export default {
-  data: () => ({
-    mdiCloudAlert,
-  }),
-  methods: {
-    reload() {
-      document.location.reload();
-    },
-  },
-};
+function reload() {
+  document.location.reload();
+}
 </script>

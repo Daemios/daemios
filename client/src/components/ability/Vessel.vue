@@ -14,22 +14,18 @@
     </span>
   </div>
 </template>
-<script>
+<script setup>
 import { mdiDiamondStone } from '@mdi/js';
 
-export default {
-  props: {
-    core: {
-      type: Object,
-      required: true,
-    },
+defineProps({
+  core: {
+    type: Object,
+    required: true,
   },
-  data: () => ({
-      mdiDiamondStone,
-  }),
-};
+});
 </script>
 
 <style>
 .core { white-space: nowrap; }
 </style>
+
