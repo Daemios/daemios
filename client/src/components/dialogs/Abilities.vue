@@ -1,5 +1,9 @@
 <template>
-  <BasicDialog v-model="isAbilitiesOpen" title="Abilities" keybind="A">
+  <BasicDialog
+    v-model="isAbilitiesOpen"
+    title="Abilities"
+    keybind="A"
+  >
     Ability Test
   </BasicDialog>
 </template>

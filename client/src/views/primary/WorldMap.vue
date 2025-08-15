@@ -1,5 +1,8 @@
 <template>
-  <div ref="sceneContainer" class="world-map position-relative w-100 h-screen">
+  <div
+    ref="sceneContainer"
+    class="world-map position-relative w-100 h-screen"
+  >
     <!-- Current tile panel (left) -->
     <TileInfoPanel
       :tile="currentTileInfo"
@@ -18,7 +21,7 @@
       :player-position="playerPosition"
       class="position-absolute world-debug-panel"
       @update:features="features = $event"
-      @update:radialFade="radialFade = $event"
+      @update:radial-fade="radialFade = $event"
       @update:generation="generation = $event"
       @toggle-clutter="onToggleClutter"
       @toggle-shadows="onToggleShadows"

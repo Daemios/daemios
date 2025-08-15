@@ -1,5 +1,9 @@
 <template>
-  <BasicDialog v-model="isEquipmentOpen" title="Equipment" keybind="C">
+  <BasicDialog
+    v-model="isEquipmentOpen"
+    title="Equipment"
+    keybind="C"
+  >
     <PaperDoll />
   </BasicDialog>
 </template>

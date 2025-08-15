@@ -2,21 +2,12 @@
   "root": true,
   "parser": "vue-eslint-parser",
   "parserOptions": {
-    "parser": {
-      "js": "espree"
-    },
+    "parser": { "js": "espree" },
     "ecmaVersion": 2022,
     "sourceType": "module"
   },
-  "env": {
-    "browser": true,
-    "node": true,
-    "es2022": true
-  },
-  "extends": [
-    "plugin:vue/vue3-recommended",
-    "eslint:recommended"
-  ],
+  "env": { "browser": true, "node": true, "es2022": true },
+  "extends": ["plugin:vue/vue3-recommended", "eslint:recommended"],
   "rules": {
     "camelcase": "off",
     "import/no-unresolved": 0,
@@ -25,22 +16,14 @@
       "error",
       {
         "props": true,
-        "ignorePropertyModificationsFor": [
-          "state"
-        ]
+        "ignorePropertyModificationsFor": ["state"]
       }
     ],
-    "vue/multiline-html-element-content-newline": ["error", {
-      "allowEmptyLines": true
-    }],
+    "vue/multiline-html-element-content-newline": [
+      "error",
+      { "allowEmptyLines": true }
+    ],
     "vue/prop-name-casing": "off",
-    "vue/multi-word-component-names": "off",
-    "vue/max-attributes-per-line": "off",
-    "vue/singleline-html-element-content-newline": "off",
-    "vue/html-indent": "off",
-    "vue/html-self-closing": "off",
-    "vue/html-closing-bracket-newline": "off",
-    "vue/v-on-event-hyphenation": "off",
-    "vue/no-template-shadow": "off"
+    "vue/multi-word-component-names": "off"
   }
 }

@@ -73,7 +73,11 @@
         right
         @click="selected = equipped.legs"
       />
-      <DollSlot label="Feet" :item="equipped.feet" right />
+      <DollSlot
+        label="Feet"
+        :item="equipped.feet"
+        right
+      />
 
       <!-- Weapons -->
       <DollSlot
@@ -91,7 +95,10 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog :item="selected" @close="selected = null" />
+    <ItemDialog
+      :item="selected"
+      @close="selected = null"
+    />
   </div>
 </template>
 

@@ -1,12 +1,7 @@
 <template>
   <div
     class="d-flex flex-column text-white py-2 px-3 rounded text-caption"
-    style="
-      background: rgba(0, 0, 0, 0.55);
-      min-width: 240px;
-      max-width: 320px;
-      line-height: 1.35;
-    "
+    style="background: rgba(0, 0, 0, 0.55); min-width: 240px; max-width: 320px; line-height: 1.35;"
   >
     <div
       class="text-h6 mb-2"
@@ -18,7 +13,9 @@
       <strong>Coordinates:</strong> {{ tile?.q ?? "N/A" }},
       {{ tile?.r ?? "N/A" }}
     </div>
-    <div class="mb-2"><strong>Seed:</strong> {{ seed ?? "N/A" }}</div>
+    <div class="mb-2">
+      <strong>Seed:</strong> {{ seed ?? "N/A" }}
+    </div>
     <div class="mb-2">
       <strong>Elevation:</strong> {{ tile?.elevation ?? "N/A" }}
       <span v-if="tile?.elevationBand">({{ tile.elevationBand }})</span>

@@ -1,7 +1,16 @@
 <template>
-  <v-row class="cores-graphic d-flex justify-center align-center flex-grow-0">
-    <v-col v-for="index in count" :key="index" class="d-block">
-      <div class="fragment" :style="coreStyle(index)">
+  <v-row
+    class="cores-graphic d-flex justify-center align-center flex-grow-0"
+  >
+    <v-col
+      v-for="index in count"
+      :key="index"
+      class="d-block"
+    >
+      <div
+        class="fragment"
+        :style="coreStyle(index)"
+      >
         <div class="core-rounding" />
       </div>
       <div class="shadow" />

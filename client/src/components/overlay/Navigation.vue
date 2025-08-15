@@ -8,7 +8,9 @@
     >
       <v-list-item class="px-2">
         <v-list-item-avatar class="my-0">
-          <v-img src="https://randomuser.me/api/portraits/lego/1.jpg" />
+          <v-img
+            src="https://randomuser.me/api/portraits/lego/1.jpg"
+          />
         </v-list-item-avatar>
 
         <v-list-item-title>
@@ -19,7 +21,10 @@
 
       <v-divider />
 
-      <v-list dense class="pa-0">
+      <v-list
+        dense
+        class="pa-0"
+      >
         <v-list-item
           v-for="route in routes"
           :key="route.path"
@@ -30,7 +35,11 @@
             <v-icon>
               {{ route.icon }}
             </v-icon>
-            <v-icon v-if="showLock(route)" class="combat-lock" color="red">
+            <v-icon
+              v-if="showLock(route)"
+              class="combat-lock"
+              color="red"
+            >
               {{ mdiLock }}
             </v-icon>
           </v-list-item-icon>

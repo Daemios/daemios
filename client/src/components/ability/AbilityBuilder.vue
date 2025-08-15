@@ -2,9 +2,15 @@
   <v-container
     class="ability-builder d-flex flex-column align-center justify-center"
   >
-    <v-row class="builder-vessels" align="end">
+    <v-row
+      class="builder-vessels"
+      align="end"
+    >
       <v-col cols="7">
-        <v-card class="glass" height="200">
+        <v-card
+          class="glass"
+          height="200"
+        >
           <v-card-title>
             <h1>
               {{
@@ -23,19 +29,27 @@
               class="ma-2"
               @click="selected_element = el.element_id"
             >
-              <VesselMini :color="el.color" />
+              <VesselMini
+                :color="el.color"
+              />
             </v-btn>
           </v-card-text>
         </v-card>
       </v-col>
       <v-col>
-        <v-card class="glass fill-height" min-height="200">
+        <v-card
+          class="glass fill-height"
+          min-height="200"
+        >
           <v-card-text>
             <h2>About Vessels</h2>
             <div>
               Using multiple types of Elements reduces your overall power.
             </div>
-            <h2 v-if="selected_element" class="mt-4">
+            <h2
+              v-if="selected_element"
+              class="mt-4"
+            >
               <v-layout>
                 {{ elements[selected_element].name }} Effect
                 <VesselMini
@@ -57,9 +71,15 @@
         :key="preset_core_id"
         cols="4"
       >
-        <v-card class="glass" height="300">
+        <v-card
+          class="glass"
+          height="300"
+        >
           <v-card-title class="d-flex justify-space-between align-start">
-            <v-layout column justify-start>
+            <v-layout
+              column
+              justify-start
+            >
               {{
                 selected_element
                   ? presets[preset_core_id][selected_element].preset_core_name
@@ -69,7 +89,11 @@
                 {{ abilitySubtext(preset_core_id, selected_element) }}
               </div>
             </v-layout>
-            <v-btn x-small color="primary" :disabled="!selected_element">
+            <v-btn
+              x-small
+              color="primary"
+              :disabled="!selected_element"
+            >
               {{ selected_element ? "Select" : "Awaiting Element" }}
             </v-btn>
           </v-card-title>

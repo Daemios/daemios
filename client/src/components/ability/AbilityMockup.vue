@@ -3,7 +3,10 @@
     class="ability-grid"
     :style="`grid-template-columns: repeat(${width}, 10px); grid-template-rows: repeat(${height}, 10px);`"
   >
-    <div v-for="(row, x) in grid" :key="x">
+    <div
+      v-for="(row, x) in grid"
+      :key="x"
+    >
       <div
         v-for="(column, y) in row"
         :key="y"

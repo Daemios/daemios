@@ -16,7 +16,10 @@
       v-if="$route.meta['overlay']"
       class="d-flex justify-center position-absolute bottom-0 w-100"
     >
-      <div class="grey pa-1 rounded mb-1 d-flex gap-1" style="z-index: 999999">
+      <div
+        class="grey pa-1 rounded mb-1 d-flex gap-1"
+        style="z-index: 999999"
+      >
         <v-btn
           variant="flat"
           size="x-small"
@@ -65,10 +68,18 @@
     </div>
 
     <!-- Websocket lock -->
-    <v-dialog :model-value="!socket.connection" persistent max-width="400">
+    <v-dialog
+      :model-value="!socket.connection"
+      persistent
+      max-width="400"
+    >
       <v-card class="pa-4">
         <v-card-text class="pa-0 d-flex align-center justify-center">
-          <v-progress-circular size="20" indeterminate class="mr-4" />
+          <v-progress-circular
+            size="20"
+            indeterminate
+            class="mr-4"
+          />
           Attempting to reconnect to Websocket server...
         </v-card-text>
       </v-card>

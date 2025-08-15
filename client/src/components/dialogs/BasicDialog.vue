@@ -1,8 +1,14 @@
 <template>
-  <v-dialog v-model="dialogState" persistent max-width="600px">
+  <v-dialog
+    v-model="dialogState"
+    persistent
+    max-width="600px"
+  >
     <v-card>
       <v-card-title>
-        <span class="headline">{{ title }} ({{ keybind }})</span>
+        <span class="headline">
+          {{ title }} ({{ keybind }})
+        </span>
       </v-card-title>
       <v-card-text>
         <slot />
@@ -10,7 +16,11 @@
       <v-card-actions>
         <slot name="actions" />
         <v-spacer />
-        <v-btn color="green darken-1" variant="text" @click="closeDialog">
+        <v-btn
+          color="green darken-1"
+          variant="text"
+          @click="closeDialog"
+        >
           Close
         </v-btn>
       </v-card-actions>

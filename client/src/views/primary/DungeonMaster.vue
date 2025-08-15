@@ -6,7 +6,10 @@
           <v-card-title>
             Arena
             <v-spacer />
-            <v-dialog v-model="create.show" max-width="800">
+            <v-dialog
+              v-model="create.show"
+              max-width="800"
+            >
               <template #activator="{ props }">
                 <v-btn
                   small
@@ -24,7 +27,10 @@
                 <v-card-text>
                   <v-row>
                     <v-col>
-                      <v-text-field v-model="create.name" label="Arena Name" />
+                      <v-text-field
+                        v-model="create.name"
+                        label="Arena Name"
+                      />
                     </v-col>
                   </v-row>
                   <v-row>
@@ -40,12 +46,20 @@
                     </v-col>
                   </v-row>
                   <v-layout align-center>
-                    <v-btn small elevation="0" @click="create.show = false">
+                    <v-btn
+                      small
+                      elevation="0"
+                      @click="create.show = false"
+                    >
                       Cancel
                     </v-btn>
                     <v-spacer />
                     <span class="success--text mr-2">{{ create.status }}</span>
-                    <v-btn small color="primary" @click="createArena()">
+                    <v-btn
+                      small
+                      color="primary"
+                      @click="createArena()"
+                    >
                       <span>{{ create.status }}</span>
                     </v-btn>
                   </v-layout>
@@ -60,10 +74,20 @@
           <v-card-title>
             Combat
             <v-spacer />
-            <v-btn v-if="!combat" small color="primary" @click="startCombat()">
+            <v-btn
+              v-if="!combat"
+              small
+              color="primary"
+              @click="startCombat()"
+            >
               Start
             </v-btn>
-            <v-btn v-if="combat" small color="primary" @click="endCombat()">
+            <v-btn
+              v-if="combat"
+              small
+              color="primary"
+              @click="endCombat()"
+            >
               End
             </v-btn>
           </v-card-title>

@@ -1,5 +1,5 @@
 <template>
-  <div class="game-background"></div>
+  <div class="game-background" />
 </template>
 
 <script setup>

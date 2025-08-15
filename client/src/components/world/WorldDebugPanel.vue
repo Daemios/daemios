@@ -17,7 +17,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   "update:features",
-  "update:radialFade",
+  "update:radial-fade",
   "update:generation",
   "toggle-clutter",
   "toggle-shadows",
@@ -68,7 +68,7 @@ function onToggleFeature(key, e) {
 
 function onToggleRadialFade(e) {
   const next = { ...(radialLocal.value || {}), enabled: !!e.target.checked };
-  emit("update:radialFade", next);
+  emit("update:radial-fade", next);
   emit("toggle-radial-fade");
 }
 
@@ -76,7 +76,7 @@ function onSetRadial(key, e) {
   const val = Number(e.target.value);
   const next = { ...(radialLocal.value || {}) };
   next[key] = val;
-  emit("update:radialFade", next);
+  emit("update:radial-fade", next);
 }
 
 function onSetGenerationScale(e) {
@@ -139,7 +139,10 @@ function onSetGeneratorVersion(e) {
     @contextmenu.stop.prevent
   >
     <!-- Rendering section -->
-    <details open style="margin: 0 0 6px 0">
+    <details
+      open
+      style="margin: 0 0 6px 0"
+    >
       <summary
         class="cursor-pointer user-select-none d-flex align-center ga-2 justify-space-between"
         style="outline: none"
@@ -164,10 +167,16 @@ function onSetGeneratorVersion(e) {
         class="d-flex flex-column align-stretch"
         style="gap: 6px; margin-top: 6px"
       >
-        <div v-if="benchmark?.running" class="opacity-80 text-mono">
+        <div
+          v-if="benchmark?.running"
+          class="opacity-80 text-mono"
+        >
           Benchmark running… 10s avg
         </div>
-        <div v-else-if="benchmark?.result" class="opacity-90 text-mono">
+        <div
+          v-else-if="benchmark?.result"
+          class="opacity-90 text-mono"
+        >
           10s avg: {{ fmt(benchmark.result.avg, 1) }} FPS (min
           {{ fmt(benchmark.result.min, 1) }}, max
           {{ fmt(benchmark.result.max, 1) }})
@@ -177,54 +186,72 @@ function onSetGeneratorVersion(e) {
         <div
           style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px"
         >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
+          >
+            <input
               type="checkbox"
               :checked="featuresLocal.clutter"
               @change="onToggleFeature('clutter', $event)"
-            />
-            Clutter</label
+            >
+            Clutter
+          </label>
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
           >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+            <input
               type="checkbox"
               :checked="featuresLocal.shadows"
               @change="onToggleFeature('shadows', $event)"
-            />
-            Shadows</label
+            >
+            Shadows
+          </label>
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
           >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+            <input
               type="checkbox"
               :checked="featuresLocal.water"
               @change="onToggleFeature('water', $event)"
-            />
-            Water</label
+            >
+            Water
+          </label>
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
           >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+            <input
               type="checkbox"
               :checked="featuresLocal.chunkColors"
               @change="onToggleFeature('chunkColors', $event)"
-            />
-            Chunk colors</label
+            >
+            Chunk colors
+          </label>
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
           >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+            <input
               type="checkbox"
               :checked="radialLocal.enabled"
               @change="onToggleRadialFade($event)"
-            />
-            Radial fade</label
+            >
+            Radial fade
+          </label>
+          <label
+            class="d-flex align-center cursor-pointer"
+            style="gap: 6px"
           >
-          <label class="d-flex align-center cursor-pointer" style="gap: 6px"
-            ><input
+            <input
               type="checkbox"
               :checked="featuresLocal.directions"
               @change="onToggleFeature('directions', $event)"
-            />
-            Directions</label
-          >
+            >
+            Directions
+          </label>
         </div>
 
         <!-- Radial fade controls (compact grid) -->
@@ -245,7 +272,7 @@ function onSetGeneratorVersion(e) {
             :disabled="!radialLocal.enabled"
             class="w-100"
             @input="onSetRadial('radius', $event)"
-          />
+          >
           <span class="opacity-80 text-right">Fade width</span>
           <input
             :value="radialLocal.width"
@@ -254,7 +281,7 @@ function onSetGeneratorVersion(e) {
             :disabled="!radialLocal.enabled"
             class="w-100"
             @input="onSetRadial('width', $event)"
-          />
+          >
           <span class="opacity-80 text-right">Min height</span>
           <input
             :value="radialLocal.minHeightScale"
@@ -265,13 +292,16 @@ function onSetGeneratorVersion(e) {
             :disabled="!radialLocal.enabled"
             class="w-100"
             @input="onSetRadial('minHeightScale', $event)"
-          />
+          >
         </div>
       </div>
     </details>
 
     <!-- Generation section -->
-    <details open style="margin: 8px 0 0 0">
+    <details
+      open
+      style="margin: 8px 0 0 0"
+    >
       <summary
         class="cursor-pointer user-select-none d-flex align-center ga-2 justify-space-between"
         style="outline: none"
@@ -279,7 +309,10 @@ function onSetGeneratorVersion(e) {
         <span>Generation</span>
         <span class="opacity-80">{{ Number(genLocal.scale).toFixed(2) }}×</span>
       </summary>
-      <div class="d-flex flex-column" style="gap: 6px; margin-top: 6px">
+      <div
+        class="d-flex flex-column"
+        style="gap: 6px; margin-top: 6px"
+      >
         <div
           style="
             display: grid;
@@ -294,7 +327,11 @@ function onSetGeneratorVersion(e) {
             class="w-100"
             @change="onSetGeneratorVersion($event)"
           >
-            <option v-for="v in generatorVersions" :key="v" :value="v">
+            <option
+              v-for="v in generatorVersions"
+              :key="v"
+              :value="v"
+            >
               {{ v }}
             </option>
           </select>
@@ -314,7 +351,7 @@ function onSetGeneratorVersion(e) {
             step="0.01"
             class="w-100"
             @input="onSetGenerationScale($event)"
-          />
+          >
         </div>
 
         <!-- Map size (absolute radius) -->
@@ -406,14 +443,12 @@ function onSetGeneratorVersion(e) {
             step="1"
             class="w-100"
             @change="onSetNeighborhoodRadius($event)"
-          />
-          <div class="opacity-80" style="grid-column: 1 / span 2">
-            <span
-              >Renders {{ 2 * (genLocal.radius ?? 1) + 1 }}×{{
-                2 * (genLocal.radius ?? 1) + 1
-              }}
-              chunks</span
-            >
+          >
+          <div
+            class="opacity-80"
+            style="grid-column: 1 / span 2"
+          >
+            <span>Renders {{ 2 * (genLocal.radius ?? 1) + 1 }}×{{ 2 * (genLocal.radius ?? 1) + 1 }} chunks</span>
           </div>
         </div>
 
@@ -441,7 +476,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('continentScale', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Warp</label>
             <input
               :value="genLocal.tuning.warpScale"
@@ -449,7 +484,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('warpScale', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Warp strength</label>
             <input
               :value="genLocal.tuning.warpStrength"
@@ -457,7 +492,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('warpStrength', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Plate size</label>
             <input
               :value="genLocal.tuning.plateSize"
@@ -465,7 +500,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('plateSize', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Ridge</label>
             <input
               :value="genLocal.tuning.ridgeScale"
@@ -473,7 +508,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('ridgeScale', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Detail</label>
             <input
               :value="genLocal.tuning.detailScale"
@@ -481,7 +516,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('detailScale', $event)"
-            />
+            >
             <label class="opacity-80 text-right">Climate belt</label>
             <input
               :value="genLocal.tuning.climateScale"
@@ -489,7 +524,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('climateScale', $event)"
-            />
+            >
             <span class="opacity-80 text-right">Ocean encaps.</span>
             <input
               :value="genLocal.tuning.oceanEncapsulation"
@@ -499,7 +534,7 @@ function onSetGeneratorVersion(e) {
               max="1"
               class="w-100"
               @input="onSetTuning('oceanEncapsulation', $event)"
-            />
+            >
             <span class="opacity-80 text-right">Sea bias</span>
             <input
               :value="genLocal.tuning.seaBias"
@@ -507,7 +542,7 @@ function onSetGeneratorVersion(e) {
               step="0.01"
               class="w-100"
               @input="onSetTuning('seaBias', $event)"
-            />
+            >
           </div>
         </details>
 
@@ -516,11 +551,20 @@ function onSetGeneratorVersion(e) {
     </details>
 
     <!-- Actions (debug/gameplay) -->
-    <details open style="margin: 8px 0 0 0">
-      <summary class="cursor-pointer user-select-none" style="outline: none">
+    <details
+      open
+      style="margin: 8px 0 0 0"
+    >
+      <summary
+        class="cursor-pointer user-select-none"
+        style="outline: none"
+      >
         Actions
       </summary>
-      <div class="d-flex flex-wrap" style="gap: 6px; margin-top: 6px">
+      <div
+        class="d-flex flex-wrap"
+        style="gap: 6px; margin-top: 6px"
+      >
         <AddLocationButton :player-position="playerPosition" />
       </div>
     </details>

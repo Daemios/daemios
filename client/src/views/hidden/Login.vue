@@ -1,5 +1,10 @@
 <template>
-  <v-layout justify-center align-center column class="login">
+  <v-layout
+    justify-center
+    align-center
+    column
+    class="login"
+  >
     <!-- Register -->
     <v-layout
       v-if="showRegister"
@@ -26,14 +31,27 @@
           type="password"
           autocomplete="new-password"
         />
-        <v-text-field v-model="form.displayName" label="Display Name" />
+        <v-text-field
+          v-model="form.displayName"
+          label="Display Name"
+        />
       </v-form>
       <v-row>
         <v-col>
-          <v-btn text small @click="showRegister = false"> Cancel </v-btn>
+          <v-btn
+            text
+            small
+            @click="showRegister = false"
+          >
+            Cancel
+          </v-btn>
         </v-col>
         <v-col>
-          <v-btn color="primary" small @click="registerUser()">
+          <v-btn
+            color="primary"
+            small
+            @click="registerUser()"
+          >
             Register
           </v-btn>
         </v-col>
@@ -41,7 +59,12 @@
     </v-layout>
 
     <!-- Login -->
-    <v-layout v-else column class="flex-grow-0" align-center>
+    <v-layout
+      v-else
+      column
+      class="flex-grow-0"
+      align-center
+    >
       <v-img
         class="hover-animate"
         height="512"
@@ -67,10 +90,24 @@
         </form>
         <v-row>
           <v-col>
-            <v-btn text small @click="showRegister = true"> Register </v-btn>
+            <v-btn
+              text
+              small
+              @click="showRegister = true"
+            >
+              Register
+            </v-btn>
           </v-col>
-          <v-col class="d-flex justify-end">
-            <v-btn color="primary" small @click="login()"> Login </v-btn>
+          <v-col
+            class="d-flex justify-end"
+          >
+            <v-btn
+              color="primary"
+              small
+              @click="login()"
+            >
+              Login
+            </v-btn>
           </v-col>
         </v-row>
       </div>
@@ -78,7 +115,10 @@
 
     <!-- Sound Control -->
     <div class="audio-pane pane d-flex justify-space-between px-1 mt-2">
-      <v-icon class="mr-1" @click="toggleMute">
+      <v-icon
+        class="mr-1"
+        @click="toggleMute"
+      >
         {{ mdiVolumeSource }}
       </v-icon>
       <v-text-field

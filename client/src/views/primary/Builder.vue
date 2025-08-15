@@ -1,8 +1,16 @@
 <template>
-  <v-layout align-center column class="pa-4">
+  <v-layout
+    align-center
+    column
+    class="pa-4"
+  >
     <!-- Stage Selector -->
     <v-row class="mt-12">
-      <v-col cols="auto" class="d-flex flex-column" style="padding-top: 224px">
+      <v-col
+        cols="auto"
+        class="d-flex flex-column"
+        style="padding-top: 224px"
+      >
         <v-btn
           v-for="stage in stages"
           :key="stage"
@@ -19,8 +27,13 @@
           {{ stage }}
         </v-btn>
       </v-col>
-      <v-col cols="auto" class="d-flex flex-column align-center">
-        <h1 class="mb-12">Character Creator</h1>
+      <v-col
+        cols="auto"
+        class="d-flex flex-column align-center"
+      >
+        <h1 class="mb-12">
+          Character Creator
+        </h1>
         <CharacterSlide
           :name="name"
           :color="race.color"
@@ -28,7 +41,10 @@
           :avatar_url="avatar"
           class="mb-4"
         />
-        <v-card tile :width="currentStage === 'avatar' ? '800' : '500'">
+        <v-card
+          tile
+          :width="currentStage === 'avatar' ? '800' : '500'"
+        >
           <v-card-text>
             <!-- Name -->
             <v-row v-if="currentStage === 'name'">
@@ -45,7 +61,10 @@
             </v-row>
 
             <!-- Race -->
-            <v-layout v-else-if="currentStage === 'race'" column>
+            <v-layout
+              v-else-if="currentStage === 'race'"
+              column
+            >
               <!-- Image selector to pick from races -->
               <v-select
                 v-model="race_id"
@@ -65,7 +84,11 @@
                 v-for="image_index in hardcoded_races[race_id]"
                 :key="image_index"
               >
-                <v-btn height="300" width="200" @click="setAvatar(image_index)">
+                <v-btn
+                  height="300"
+                  width="200"
+                  @click="setAvatar(image_index)"
+                >
                   <v-img
                     height="300"
                     width="200"

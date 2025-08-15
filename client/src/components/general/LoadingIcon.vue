@@ -1,5 +1,8 @@
 <template>
-  <v-img src="/img/branding/logo.svg" class="pulse-spin-animation" />
+  <v-img
+    src="/img/branding/logo.svg"
+    class="pulse-spin-animation"
+  />
 </template>
 
 <style scoped>

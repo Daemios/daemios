@@ -1,5 +1,10 @@
 <template>
-  <v-layout justify-center align-center column class="login">
+  <v-layout
+    justify-center
+    align-center
+    column
+    class="login"
+  >
     <!-- Character Select -->
     <v-layout
       column
@@ -21,11 +26,11 @@
 
       <div v-if="characters">
         <v-btn
-          v-for="(char, i) in characters.slice(
+          v-for="(char, j) in characters.slice(
             character_index,
             character_index + 5
           )"
-          :key="i"
+          :key="j"
           class="pane flex-grow-0 pa-2 mb-2"
           width="400"
           height="80"
@@ -40,13 +45,20 @@
                 class="location d-flex align-center"
                 :class="isDangerousText(char.location)"
               >
-                <v-icon small class="mr-1">
+                <v-icon
+                  small
+                  class="mr-1"
+                >
                   {{ isDangerousIcon(char.location) }}
                 </v-icon>
                 {{ char.location.name }}
               </div>
             </div>
-            <v-layout column justify-end class="flex-grow-0">
+            <v-layout
+              column
+              justify-end
+              class="flex-grow-0"
+            >
               <v-layout justify-end>
                 <span class="text-body mr-1">LV</span>
                 <h3 class="text-h4 mt-n1">
@@ -54,7 +66,10 @@
                 </h3>
               </v-layout>
               <v-row dense>
-                <v-col v-for="(v, i) in char.vessels" :key="i">
+                <v-col
+                  v-for="(v, k) in char.vessels"
+                  :key="k"
+                >
                   <VesselMini :color="v.color" />
                 </v-col>
               </v-row>
@@ -85,7 +100,12 @@
           Create New Character
         </v-btn>
         <v-spacer />
-        <v-btn class="pane pa-2 mb-2" height="40" color="error" @click="logout">
+        <v-btn
+          class="pane pa-2 mb-2"
+          height="40"
+          color="error"
+          @click="logout"
+        >
           <v-icon small>
             {{ mdiLogout }}
           </v-icon>

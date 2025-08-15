@@ -1,5 +1,8 @@
 <template>
-  <div class="vessel-mini" :style="{ background: color }" />
+  <div
+    class="vessel-mini"
+    :style="{ background: color }"
+  />
 </template>
 
 <script setup>

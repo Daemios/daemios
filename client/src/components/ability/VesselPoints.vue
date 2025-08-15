@@ -1,7 +1,11 @@
 <template>
   <div class="block-counter">
     <div class="blocks container">
-      <div v-for="n in 9" :key="n" :class="classes(n)" />
+      <div
+        v-for="n in 9"
+        :key="n"
+        :class="classes(n)"
+      />
     </div>
     <div class="operations">
       <v-btn
@@ -13,7 +17,10 @@
         :disabled="limit === 0"
         @click="increment()"
       >
-        <v-icon dense x-small>
+        <v-icon
+          dense
+          x-small
+        >
           {{ mdiPlus }}
         </v-icon>
       </v-btn>
@@ -24,7 +31,10 @@
         :disabled="current - 1 < start && positiveOnly"
         @click="decrement()"
       >
-        <v-icon dense x-small>
+        <v-icon
+          dense
+          x-small
+        >
           {{ mdiMinus }}
         </v-icon>
       </v-btn>

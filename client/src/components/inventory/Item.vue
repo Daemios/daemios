@@ -9,19 +9,34 @@
       class="slot-item overflow-hidden pa-0"
       @click="onClick"
     >
-      <div v-if="!item.img" class="d-flex flex-column">
+      <div
+        v-if="!item.img"
+        class="d-flex flex-column"
+      >
         <v-icon class="mb-1">
           {{ mdiAlertCircleOutline }}
         </v-icon>
         No Image
       </div>
-      <v-img v-else-if="item.img" :src="item.img" :aspect-ratio="1.7778" />
+
+      <v-img
+        v-else-if="item.img"
+        :src="item.img"
+        :aspect-ratio="1.7778"
+        contain
+      />
+
       <v-icon v-else>
         {{ mdiMinus }}
       </v-icon>
     </v-btn>
-    <div class="item-label" :class="itemLabelClasses">
-      {{ item.label }} <span v-if="item.quantity">- {{ item.quantity }}</span>
+
+    <div
+      class="item-label"
+      :class="itemLabelClasses"
+    >
+      {{ item.label }}
+      <span v-if="item.quantity">- {{ item.quantity }}</span>
     </div>
   </v-card>
 </template>

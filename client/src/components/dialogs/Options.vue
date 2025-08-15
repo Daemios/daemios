@@ -1,5 +1,9 @@
 <template>
-  <BasicDialog v-model="isOptionsOpen" title="Options" keybind="Esc">
+  <BasicDialog
+    v-model="isOptionsOpen"
+    title="Options"
+    keybind="Esc"
+  >
     Options
   </BasicDialog>
 </template>

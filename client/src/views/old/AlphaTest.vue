@@ -1,12 +1,27 @@
 <template>
   <div class="test d-flex">
     <v-row>
-      <v-col v-for="(data, i) in images" :key="i">
+      <v-col
+        v-for="(data, i) in images"
+        :key="i"
+      >
         <div class="card">
           <!-- Removed Arena-related images -->
-          <img class="background-1" :src="data.background" alt="" />
-          <img class="background-2" :src="data.background" alt="" />
-          <img class="hero" :src="data.hero" alt="" />
+          <img
+            class="background-1"
+            :src="data.background"
+            alt=""
+          >
+          <img
+            class="background-2"
+            :src="data.background"
+            alt=""
+          >
+          <img
+            class="hero"
+            :src="data.hero"
+            alt=""
+          >
         </div>
       </v-col>
     </v-row>

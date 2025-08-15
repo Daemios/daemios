@@ -1,9 +1,19 @@
 <template>
-  <v-app-bar app fixed dense>
-    <v-app-bar-nav-icon @click="toggleNav" />
+  <v-app-bar
+    app
+    fixed
+    dense
+  >
+    <v-app-bar-nav-icon
+      @click="toggleNav"
+    />
     <v-spacer />
-    <v-app-bar-nav-icon @click="router.push('/login')">
-      <v-icon>{{ mdiLogout }}</v-icon>
+    <v-app-bar-nav-icon
+      @click="router.push('/login')"
+    >
+      <v-icon>
+        {{ mdiLogout }}
+      </v-icon>
     </v-app-bar-nav-icon>
   </v-app-bar>
 </template>

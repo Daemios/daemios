@@ -1,6 +1,10 @@
 <template>
   <div class="core d-flex flex-column align-center">
-    <v-btn fab class="mb-2" @click="$router.push(`/cores/edit/${core.id}`)">
+    <v-btn
+      fab
+      class="mb-2"
+      @click="$router.push(`/cores/edit/${core.id}`)"
+    >
       <v-icon>
         {{ mdiDiamondStone }}
       </v-icon>

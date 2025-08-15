@@ -15,7 +15,11 @@
     <v-card-text> 50% Increased Healing </v-card-text>
     <v-spacer />
     <v-card-actions class="mt-auto">
-      <v-btn color="primary" class="ml-auto" @click="selectRole(role)">
+      <v-btn
+        color="primary"
+        class="ml-auto"
+        @click="selectRole(role)"
+      >
         Select
       </v-btn>
     </v-card-actions>
