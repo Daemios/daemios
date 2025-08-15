@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign */
 // Utilities to attach and update radial fade shader logic to materials
 // Keep these pure and side-effect minimal; caller holds onto returned uniforms refs
 import * as THREE from 'three';
@@ -138,6 +139,7 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
 
 export function updateRadialFadeUniforms(uniformsMap, { center, radius, width, enabled, minHeightScale, hexCornerRadius }) {
   if (!uniformsMap) return;
+  /* eslint-disable no-param-reassign */
   const set = (u) => {
     if (!u) return;
     if (u.uFadeCenter && u.uFadeCenter.value) u.uFadeCenter.value.set(center.x, center.y);
@@ -148,6 +150,7 @@ export function updateRadialFadeUniforms(uniformsMap, { center, radius, width, e
     if (u.uHexCornerRadius) u.uHexCornerRadius.value = hexCornerRadius;
     if (u.uCullWholeHex) u.uCullWholeHex.value = 1;
   };
+  /* eslint-enable no-param-reassign */
   set(uniformsMap.top);
   set(uniformsMap.side);
 }

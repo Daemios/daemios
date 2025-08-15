@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign, no-empty, no-unused-vars */
 import * as THREE from 'three';
 import { markRaw } from 'vue';
 import { attachRadialFade, attachRadialFadeDepth } from './radialFade';

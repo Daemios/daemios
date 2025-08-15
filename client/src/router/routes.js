@@ -54,6 +54,7 @@ export default [
     name: 'World Map',
   component: () => import('@/views/primary/WorldMap.vue'),
     meta: {
+      requiresAuth: false,
       overlay: false,
       combat_lock: false,
     },

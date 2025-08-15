@@ -154,7 +154,10 @@ const userStore = useUserStore();
 const { isInventoryOpen } = storeToRefs(dialogsStore);
 const { inventory } = storeToRefs(userStore);
 
-const numberOfPages = computed(() => Math.max(1, Math.ceil(inventory.value.length / itemsPerPage.value)));
+const numberOfPages = computed(() => {
+  const len = Array.isArray(inventory.value) ? inventory.value.length : 0;
+  return Math.max(1, Math.ceil(len / itemsPerPage.value));
+});
 const filteredKeys = computed(() => keys.filter((key) => key !== 'Name'));
 
 function toggleInventory() {

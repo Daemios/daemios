@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { markRaw } from 'vue';
-import ChunkNeighborhood from './ChunkNeighborhood';
+import { buildNeighborhood } from './neighborhoodBuilder';
 import ClutterManager from '../world/ClutterManager';
+import { createHoverMesh } from './hoverMesh';
+import { commitClutter } from './clutterCommit';
+import { initClutter } from './clutterInit';
+import { handleSetCenterChunk } from './centerController';
 
 /**
  * ChunkManager
@@ -28,7 +32,7 @@ export default class ChunkManager {
     this.centerChunk = { x: opts.centerChunk?.x ?? 0, y: opts.centerChunk?.y ?? 0 };
 
     // Rendering helpers
-    this.pastelColorForChunk = opts.pastelColorForChunk || ((wx, wy) => new THREE.Color(0xffffff));
+  this.pastelColorForChunk = opts.pastelColorForChunk || (() => new THREE.Color(0xffffff));
 
     // Streaming budgets
     this.streamBudgetMs = opts.streamBudgetMs ?? 6;
@@ -58,12 +62,12 @@ export default class ChunkManager {
   }
 
   async build(topGeom, sideGeom) {
+  // remember last geoms so the manager can rebuild itself during progressive expansion
+  this._lastTopGeom = topGeom;
+  this._lastSideGeom = sideGeom;
     // Build instanced neighborhood
-    if (this.neighborhood) { try { this.neighborhood.dispose(); } catch (e) {} this.neighborhood = null; }
-    this.neighborhood = new ChunkNeighborhood({
-      scene: this.scene,
-      topGeom,
-      sideGeom,
+    if (this.neighborhood) { try { this.neighborhood.dispose(); } catch (e) { console.debug('neighborhood.dispose failed', e); } this.neighborhood = null; }
+    const res = buildNeighborhood(this.scene, this.world, topGeom, sideGeom, {
       layoutRadius: this.layoutRadius,
       spacingFactor: this.spacingFactor,
       modelScaleFactor: this.modelScaleFactor,
@@ -73,32 +77,95 @@ export default class ChunkManager {
       chunkRows: this.chunkRows,
       neighborRadius: this.neighborRadius,
       features: this.features,
-      world: this.world,
-  heightMagnitude: this.heightMagnitude,
+      heightMagnitude: this.heightMagnitude,
       pastelColorForChunk: (wx, wy) => this.pastelColorForChunk(wx, wy),
       streamBudgetMs: this.streamBudgetMs,
-  streamMaxChunksPerTick: this.streamMaxChunksPerTick,
+      streamMaxChunksPerTick: this.streamMaxChunksPerTick,
       rowsPerSlice: this.rowsPerSlice,
-      onBuildStart: () => {
-        this.streaming = true;
-      },
-      onBuildComplete: () => {
-        this.streaming = false;
-      },
+      onBuildStart: () => { this.streaming = true; },
+      onBuildComplete: () => { this.streaming = false; },
     });
-    const built = this.neighborhood.build();
+    this.neighborhood = res.neighborhood;
+    const built = res.built;
+    // Create a single hover overlay mesh to avoid relying on instance colors
+    try {
+      const hoverMesh = createHoverMesh(this.scene, topGeom);
+      if (hoverMesh) built.hoverMesh = hoverMesh;
+  } catch (e) { console.debug('createHoverMesh failed', e); }
+
     // Hand references to host
     this.onBuilt(built);
+    // Built object already includes topIM/sideIM; inform host which meshes are pick targets
     this.onPickMeshes([built.topIM, built.sideIM]);
 
     // Init clutter service
     if (this.clutter) {
-      this.clutter.addTo(this.scene);
-      this.clutter.prepareFromGrid(this.world);
-      try { await this.clutter.loadAssets(); } catch (e) {}
+      await initClutter(this.clutter, this.scene, this.world);
       this.commitClutterForNeighborhood();
     }
   // WorldMap drives the first center set to avoid duplicate invocations here
+  }
+
+  // Schedule a progressive expansion to `targetRadius` once current streaming finishes.
+  // Accepts an optional callbacks object: { onComplete }
+  scheduleProgressiveExpand(targetRadius, callbacks = {}) {
+    try {
+      if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId);
+    } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+    const self = this;
+    const check = () => {
+      // Wait until current build/streaming completes
+      if (!self.streaming) {
+        // Only expand if targetRadius is larger than current
+        if ((self.neighborRadius || 1) < targetRadius) {
+          self.neighborRadius = targetRadius;
+          // Rebuild using the last provided geometries
+          try {
+            self.build(self._lastTopGeom, self._lastSideGeom)
+              .then(() => {
+                if (callbacks && typeof callbacks.onComplete === 'function') {
+                  try { callbacks.onComplete(); } catch (e) { console.debug('onComplete failed', e); }
+                }
+              })
+              .catch((err) => {
+                console.debug('progressive build failed', err);
+              });
+          } catch (err) {
+            console.debug('scheduleProgressiveExpand build failed', err);
+          }
+        }
+        self._progressiveCheckId = null;
+      } else {
+        self._progressiveCheckId = requestAnimationFrame(check);
+      }
+    };
+    try {
+      this._progressiveCheckId = requestAnimationFrame(check);
+    } catch (e) {
+      // requestAnimationFrame may not exist in some environments
+      console.debug('requestAnimationFrame missing, falling back to setTimeout', e);
+      setTimeout(check, 16);
+    }
+  }
+
+  cancelProgressiveExpand() {
+  try { if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId); } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+    this._progressiveCheckId = null;
+  }
+
+  // Start a progressive expansion sequence; marks progressive mode active during expansion
+  startProgressive(targetRadius) {
+    this._progressiveTarget = targetRadius;
+    this.scheduleProgressiveExpand(targetRadius, {
+      onComplete: () => {
+        this._progressiveTarget = null;
+      },
+    });
+  }
+
+  stopProgressive() {
+    this._progressiveTarget = null;
+    this.cancelProgressiveExpand();
   }
 
   dispose() {
@@ -112,65 +179,47 @@ export default class ChunkManager {
   }
 
   setCenterChunk(wx, wy, options = {}) {
-    if (!this.neighborhood) return;
-    // Skip if center didn't change and we already have slot assignments populated
-    if (wx === this.centerChunk.x && wy === this.centerChunk.y && options.forceRefill !== true) {
-      const assigned = !!(this.neighborhood && this.neighborhood._chunkToSlot && this.neighborhood._chunkToSlot.size > 0);
-      if (assigned) return;
-    }
-    // Trail snapshot (host decides how to draw/hide)
-    const trailMs = options.trailMs != null ? options.trailMs : 3000;
-    // If a trail is already active from the previous move, don't resnapshot; just extend it
-    if (this.trailActive) {
-      try { this.onExtendTrail(trailMs); } catch (e) {}
-    } else {
-      try { this.onSnapshotTrail(trailMs); } catch (e) {}
-      this.trailActive = true;
-    }
-    // Store rect for clutter union under the trail: only the immediate previous neighborhood,
-    // not an accumulated union across moves.
-    const r = this.neighborRadius;
-    this._prevNeighborhoodRect = {
-      colMin: (this.centerChunk.x - r) * this.chunkCols,
-      rowMin: (this.centerChunk.y - r) * this.chunkRows,
-      colMax: (this.centerChunk.x + r) * this.chunkCols + (this.chunkCols - 1),
-      rowMax: (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1),
-    };
-    // Update center
-  const prevX = this.centerChunk.x; const prevY = this.centerChunk.y;
-  this.centerChunk.x = wx; this.centerChunk.y = wy;
-  const bias = { x: Math.sign(wx - prevX), y: Math.sign(wy - prevY) };
-    // Stream neighborhood fill
-  this.neighborhood.setCenterChunk(wx, wy, { bias, forceRefill: options.forceRefill === true });
-    // Debounced clutter rebuild (lighter delay when small radius)
-    const delay = (this.neighborRadius && this.neighborRadius > 1) ? 120 : 60;
-    clearTimeout(this._clutterTimer); this._clutterTimer = setTimeout(() => this.commitClutterForNeighborhood(), delay);
+  handleSetCenterChunk(this, wx, wy, options);
   }
 
   commitClutterForNeighborhood() {
     if (!this.clutter || !this.world) return;
     const radius = this.neighborRadius ?? 1;
-    const curr = {
-      colMin: (this.centerChunk.x - radius) * this.chunkCols,
-      rowMin: (this.centerChunk.y - radius) * this.chunkRows,
-      colMax: (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1),
-      rowMax: (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1),
-    };
-  // Only union clutter for small (radius=1) neighborhoods to prevent lingering clutter under large moves
-  const shouldUnion = (radius === 1) && !!this._prevNeighborhoodRect && !!this.trailActive;
-    const rect = shouldUnion
-      ? {
-          colMin: Math.min(curr.colMin, this._prevNeighborhoodRect.colMin),
-          rowMin: Math.min(curr.rowMin, this._prevNeighborhoodRect.rowMin),
-          colMax: Math.max(curr.colMax, this._prevNeighborhoodRect.colMax),
-          rowMax: Math.max(curr.rowMax, this._prevNeighborhoodRect.rowMax),
-        }
-  : curr;
-    const layoutRadius = this.layoutRadius;
-    const contactScale = this.contactScale;
-    const hexMaxY = this.hexMaxY;
-  const modelScaleY = (q, r) => (this.modelScaleY ? this.modelScaleY(q, r) : 1.0);
     // Commit asynchronously (ClutterManager streams internally)
-  this.clutter.commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY, filter: undefined, offsetRect: rect });
+    commitClutter(this.clutter, this.world, {
+      centerChunk: this.centerChunk,
+      chunkCols: this.chunkCols,
+      chunkRows: this.chunkRows,
+      radius,
+      prevRect: this._prevNeighborhoodRect,
+      layoutRadius: this.layoutRadius,
+      contactScale: this.contactScale,
+      hexMaxY: this.hexMaxY,
+      modelScaleY: this.modelScaleY,
+      trailActive: this.trailActive,
+    });
   }
+
+  // Debounced clutter commit to avoid spamming during UI drags
+  scheduleClutterCommit(delayMs = 120) {
+    try {
+      if (this._clutterCommitTimer) {
+        clearTimeout(this._clutterCommitTimer);
+        this._clutterCommitTimer = null;
+      }
+    } catch (e) { console.debug('clear _clutterCommitTimer failed', e); }
+    this._clutterCommitTimer = setTimeout(() => {
+      this._clutterCommitTimer = null;
+      this.commitClutterForNeighborhood();
+    }, Math.max(0, delayMs | 0));
+  }
+
+  clearClutterCommit() {
+    try { if (this._clutterCommitTimer) { clearTimeout(this._clutterCommitTimer); this._clutterCommitTimer = null; } } catch (e) { console.debug('clearClutterCommit failed', e); }
+  }
+}
+
+// Factory for external callers
+export function createChunkManager(opts) {
+  return new ChunkManager(opts);
 }

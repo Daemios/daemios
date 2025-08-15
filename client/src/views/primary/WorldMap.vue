@@ -46,22 +46,20 @@
 <script>
 import { markRaw } from "vue";
 import * as THREE from "three";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { createRendererManager } from "@/3d/renderer/rendererManager";
+// GLTFLoader usage moved to services/model/modelLoader
 import api from "@/utils/api";
-import { BIOME_THRESHOLDS } from "@/3d/terrain/biomes";
 import WorldGrid from "@/3d/world/WorldGrid";
 import PlayerMarker from "@/3d/renderer/PlayerMarker";
 import ClutterManager from "@/3d/world/ClutterManager";
-import createRealisticWaterMaterial from "@/3d/renderer/materials/RealisticWaterMaterial";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { updateRadialFadeUniforms } from "@/3d/renderer/radialFade";
-import ChunkManager from "@/3d/renderer/ChunkManager";
+import { createChunkManager } from "@/3d/renderer/ChunkManager";
+import { snapshotTrail as snapshotTrailFn, extendTrail as extendTrailFn } from '@/3d/renderer/trailManager';
 import WorldDebugPanel from "@/components/world/WorldDebugPanel.vue";
-import { profiler, createWebGLTimer } from "@/utils/profiler";
+import useWorldMap from "@/composables/useWorldMap";
+import { createPointerControls } from "@/3d/input/pointerControls";
+import { profiler } from "@/utils/profiler";
 import { useWorldStore } from "@/stores/worldStore";
 import { availableWorldGenerators } from "@/3d/world/generation";
 import TileInfoPanel from "@/components/world/TileInfoPanel.vue";
@@ -119,6 +117,7 @@ export default {
       locationMarker: null,
       markerDesiredRadius: 0.6, // as fraction of layoutRadius
       markerTopOffset: 0, // world-space top offset for marker focus
+  pointerControls: null,
       hexMaxY: 1, // max Y of a tile in local space after recenter
       cameraTween: null,
       tweenSaved: {
@@ -270,10 +269,7 @@ export default {
       },
       generatorVersions,
       worldSeed: 1337,
-      // Progressive neighborhood expansion control
-      _progressiveModeActive: false, // when true, skip progressive start on rebuilds
-      _progressivePlanned: 0,
-      _progressiveCheckId: null,
+  // Progressive neighborhood expansion control is now managed by ChunkManager
 
       // Rendering toggles
       // Default chunkColors: true (use per-chunk pastel overrides)
@@ -290,6 +286,10 @@ export default {
     };
   },
   computed: {
+    activeNeighborRadius() {
+      // Prefer ChunkManager's radius when available, otherwise fall back to local cache
+      return (this.chunkManager && this.chunkManager.neighborRadius) || this._neighborRadius || 1;
+    },
     playerPosition() {
       // Use selectedQR for hex, and chunkForAxial for chunk
       const q = this.selectedQR?.q;
@@ -412,6 +412,49 @@ export default {
     // pinia stores
     this.settings = useSettingsStore();
     this.worldStore = useWorldStore();
+    // composable helper (incremental migration target)
+    try {
+      const wm = useWorldMap();
+      this._wm = wm;
+      // sync composable -> component
+      this.$watch(
+        () => wm.worldSeed.value,
+        (seed) => {
+          if (typeof seed === "number") this.worldSeed = seed;
+        },
+        { immediate: true }
+      );
+      this.$watch(
+        () => wm.debug.value,
+        (val) => {
+          if (val && typeof val === "object") Object.assign(this.debug, val);
+        },
+        { immediate: true }
+      );
+      this.$watch(
+        () => wm.features.value,
+        (val) => {
+          if (val && typeof val === "object") Object.assign(this.features, val);
+        },
+        { immediate: true }
+      );
+      this.$watch(
+        () => wm.radialFade.value,
+        (val) => {
+          if (val && typeof val === "object") Object.assign(this.radialFade, val);
+        },
+        { immediate: true }
+      );
+      this.$watch(
+        () => wm.generation.value,
+        (val) => {
+          if (val && typeof val === "object") Object.assign(this.generation, val);
+        },
+        { immediate: true }
+      );
+    } catch (e) {
+      /* noop */
+    }
     this.$watch(
       () => this.worldStore?.worldSeed,
       (seed) => {
@@ -433,7 +476,7 @@ export default {
       window.__DAEMIOS_PROF = (label, ms) => {
         try {
           if (this.profilerEnabled) profiler.push(label, ms);
-        } catch (e) {}
+  } catch (e) { console.debug('startup first.frame logging failed', e); }
       };
     }
     // Load persisted settings for this view (header: settings.worldMap)
@@ -505,57 +548,51 @@ export default {
       }
     );
 
-    this.init();
+  this.init();
     // Load towns list on map load
     try {
       if (this.worldStore && this.worldStore.fetchTowns)
         this.worldStore.fetchTowns();
-    } catch (e) {
-      /* noop */
-    }
+    } catch (e) { console.debug('fetchTowns failed', e); }
     window.addEventListener("resize", this.onResize);
-    this.$refs.sceneContainer.addEventListener(
-      "pointerdown",
-      this.onPointerDown
-    );
-    this.$refs.sceneContainer.addEventListener(
-      "pointermove",
-      this.onPointerMove
-    );
-    this.$refs.sceneContainer.addEventListener("pointerup", this.onPointerUp);
-    this.$refs.sceneContainer.addEventListener(
-      "pointerleave",
-      this.onPointerUp
-    );
-    this.$refs.sceneContainer.addEventListener(
-      "contextmenu",
-      this.blockContext
-    );
+    // Initialize pointer controls module which will register all pointer/wheel listeners
+    this.pointerControls = createPointerControls({
+      container: this.$refs.sceneContainer,
+      camera: this.camera,
+      renderer: this.renderer,
+      getPickMeshes: () => this.pickMeshes,
+      indexToQR: () => this.indexToQR,
+      topIM: this.topIM,
+      hoverMesh: this.hoverMesh,
+      playerMarker: this.playerMarker,
+      playerMarkerPos: this.playerMarkerPos,
+      chunkForAxial: this.chunkForAxial,
+      setCurrentTile: this.setCurrentTile,
+      apiPost: api.post,
+      focusCameraOnQR: this.focusCameraOnQR,
+      addLocationMarkerAtIndex: this.addLocationMarkerAtIndex,
+      setCenterChunk: this.setCenterChunk,
+      computeTilePosScale: this.computeTilePosScale,
+      composeTileMatrix: this.composeTileMatrix,
+      hexMaxY: this.hexMaxY,
+      orbit: this.orbit,
+      updateCameraFromOrbit: this.updateCameraFromOrbit,
+      cameraTween: this.cameraTween,
+      centerChunk: this.centerChunk,
+    });
+    this.pointerControls.attach();
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.onResize);
-    this.$refs.sceneContainer.removeEventListener(
-      "pointerdown",
-      this.onPointerDown
-    );
-    this.$refs.sceneContainer.removeEventListener(
-      "pointermove",
-      this.onPointerMove
-    );
-    this.$refs.sceneContainer.removeEventListener(
-      "pointerup",
-      this.onPointerUp
-    );
-    this.$refs.sceneContainer.removeEventListener(
-      "pointerleave",
-      this.onPointerUp
-    );
-    this.$refs.sceneContainer.removeEventListener("wheel", this.onWheel);
-    this.$refs.sceneContainer.removeEventListener(
-      "contextmenu",
-      this.blockContext
-    );
+    if (this.pointerControls) this.pointerControls.detach();
     this.clearWorldLocationMeshes();
+    // Cancel any progressive scheduler on the ChunkManager
+    if (this.chunkManager && this.chunkManager.cancelProgressiveExpand) {
+      try { this.chunkManager.cancelProgressiveExpand(); } catch (e) { console.debug('cancelProgressiveExpand failed on unmount', e); }
+    }
+    // Clear any pending timers used by the view
+  try { if (this._radiusTimer) { clearTimeout(this._radiusTimer); this._radiusTimer = null; } } catch (e) { console.debug('clear radiusTimer failed', e); }
+  try { if (this._progressiveCheckId) { cancelAnimationFrame(this._progressiveCheckId); this._progressiveCheckId = null; } } catch (e) { console.debug('cancelAnimationFrame failed during unmount', e); }
   },
   methods: {
     // Small number formatter for panel
@@ -594,13 +631,18 @@ export default {
     },
     async onCreateTown() {
       try {
-        if (!this.worldStore) this.worldStore = useWorldStore();
-        await this.worldStore.createTown();
-        // For now, log the count
-        const n = Array.isArray(this.worldStore.towns)
-          ? this.worldStore.towns.length
-          : 0;
-        console.info(`[World] Town created. Total towns: ${n}`);
+        if (this._wm && this._wm.createTown) {
+          const towns = await this._wm.createTown();
+          const n = Array.isArray(towns) ? towns.length : 0;
+          console.info(`[World] Town created. Total towns: ${n}`);
+        } else {
+          if (!this.worldStore) this.worldStore = useWorldStore();
+          await this.worldStore.createTown();
+          const n = Array.isArray(this.worldStore.towns)
+            ? this.worldStore.towns.length
+            : 0;
+          console.info(`[World] Town created. Total towns: ${n}`);
+        }
       } catch (e) {
         console.error("Failed to create town", e);
       }
@@ -620,7 +662,7 @@ export default {
         );
       };
       // Compute offset rect of the active neighborhood (radius derived from neighborOffsets)
-      const radius = this._neighborRadius != null ? this._neighborRadius : 1;
+  const radius = this.activeNeighborRadius;
       const curr = {
         colMin: (this.centerChunk.x - radius) * this.chunkCols,
         rowMin: (this.centerChunk.y - radius) * this.chunkRows,
@@ -659,6 +701,10 @@ export default {
     },
     // Debounced clutter commit to avoid spamming during slider drags
     scheduleClutterCommit(delayMs = 120) {
+      if (this.chunkManager && this.chunkManager.scheduleClutterCommit) {
+        this.chunkManager.scheduleClutterCommit(delayMs);
+        return;
+      }
       if (this.clutterCommitTimer) {
         clearTimeout(this.clutterCommitTimer);
         this.clutterCommitTimer = null;
@@ -847,120 +893,11 @@ export default {
       /* eslint-enable no-param-reassign */
     },
     snapshotTrailAndArmClear(delayMs = 3000) {
-      if (!this.topIM || !this.sideIM || !this.trailTopIM || !this.trailSideIM)
-        return;
-      // Cancel any in-progress trail copy job (legacy streaming path)
-      if (this._trailCopy && this._trailCopy.cancel) {
-        try {
-          this._trailCopy.cancel();
-        } catch (e) {}
-        this._trailCopy = null;
-      }
-      // Capture current neighborhood rect so clutter can persist under the trail
-      if (this._neighborRadius != null && this.centerChunk) {
-        const r = this._neighborRadius;
-        this._prevNeighborhoodRect = {
-          colMin: (this.centerChunk.x - r) * this.chunkCols,
-          rowMin: (this.centerChunk.y - r) * this.chunkRows,
-          colMax:
-            (this.centerChunk.x + r) * this.chunkCols + (this.chunkCols - 1),
-          rowMax:
-            (this.centerChunk.y + r) * this.chunkRows + (this.chunkRows - 1),
-        };
-      }
-      const count = this.topIM.count | 0;
-      // Ensure trail counts reflect the snapshot size up-front
-      this.trailTopIM.count = count;
-      this.trailSideIM.count = count;
-      // Show trail immediately
-      this.trailTopIM.visible = true;
-      this.trailSideIM.visible = true;
-      // Perform a synchronous copy of instance data so the trail is ready before any rebuild writes
-      try {
-        // Matrices
-        this.trailTopIM.instanceMatrix.array.set(
-          this.topIM.instanceMatrix.array.subarray(0, count * 16),
-          0
-        );
-        this.trailSideIM.instanceMatrix.array.set(
-          this.sideIM.instanceMatrix.array.subarray(0, count * 16),
-          0
-        );
-        this.trailTopIM.instanceMatrix.needsUpdate = true;
-        this.trailSideIM.instanceMatrix.needsUpdate = true;
-        // Colors (if present)
-        if (this.topIM.instanceColor && this.trailTopIM.instanceColor) {
-          this.trailTopIM.instanceColor.array.set(
-            this.topIM.instanceColor.array.subarray(0, count * 3),
-            0
-          );
-          this.trailTopIM.instanceColor.needsUpdate = true;
-        }
-        if (this.sideIM.instanceColor && this.trailSideIM.instanceColor) {
-          this.trailSideIM.instanceColor.array.set(
-            this.sideIM.instanceColor.array.subarray(0, count * 3),
-            0
-          );
-          this.trailSideIM.instanceColor.needsUpdate = true;
-        }
-      } catch (e) {
-        // As a fallback, keep trail visible without colors if copy fails
-      }
-      // Reset any previous timer
-      if (this.trailTimer) {
-        clearTimeout(this.trailTimer);
-        this.trailTimer = null;
-      }
-      // Auto-hide after delayMs
-      this.trailTimer = setTimeout(() => {
-        this.trailTimer = null;
-        this.trailTopIM.visible = false;
-        this.trailSideIM.visible = false;
-        // Clear previous rect so future clutter commits don't include it
-        this._prevNeighborhoodRect = null;
-        // Inform ChunkManager that the trail is no longer active and clear its union state
-        if (this.chunkManager) {
-          this.chunkManager.trailActive = false;
-          if (typeof this.chunkManager._prevNeighborhoodRect !== "undefined")
-            this.chunkManager._prevNeighborhoodRect = null;
-          if (this.chunkManager.commitClutterForNeighborhood)
-            this.chunkManager.commitClutterForNeighborhood();
-        }
-        // Cancel any leftover job ref
-        if (this._trailCopy && this._trailCopy.cancel) {
-          try {
-            this._trailCopy.cancel();
-          } catch (e) {}
-          this._trailCopy = null;
-        }
-      }, Math.max(0, delayMs | 0));
+      snapshotTrailFn(this, delayMs);
     },
     // Extend trail visibility without resnapshotting (used when moving again before trail hides)
     extendTrail(delayMs = 3000) {
-      if (!this.trailTopIM || !this.trailSideIM) return;
-      // Ensure trail stays visible
-      this.trailTopIM.visible = true;
-      this.trailSideIM.visible = true;
-      // Reset timer to hide later
-      if (this.trailTimer) {
-        clearTimeout(this.trailTimer);
-        this.trailTimer = null;
-      }
-      this.trailTimer = setTimeout(() => {
-        this.trailTimer = null;
-        this.trailTopIM.visible = false;
-        this.trailSideIM.visible = false;
-        // Clear previous rect so future clutter commits don't include it
-        this._prevNeighborhoodRect = null;
-        // Inform ChunkManager and rebuild clutter without union
-        if (this.chunkManager) {
-          this.chunkManager.trailActive = false;
-          if (typeof this.chunkManager._prevNeighborhoodRect !== "undefined")
-            this.chunkManager._prevNeighborhoodRect = null;
-          if (this.chunkManager.commitClutterForNeighborhood)
-            this.chunkManager.commitClutterForNeighborhood();
-        }
-      }, Math.max(0, delayMs | 0));
+      extendTrailFn(this, delayMs);
     },
 
     onToggleChunkColors() {
@@ -1006,7 +943,7 @@ export default {
       // Remove old first
       this.clearNeighborhoodFrame();
       // Compute current visible neighborhood rect in world XZ
-      const r = this._neighborRadius != null ? this._neighborRadius : 1;
+  const r = this.activeNeighborRadius;
       const baseCol = (this.centerChunk.x - r) * this.chunkCols;
       const baseRow = (this.centerChunk.y - r) * this.chunkRows;
       const endCol =
@@ -1072,7 +1009,7 @@ export default {
           try {
             this.scene.remove(l);
             l.geometry?.dispose?.();
-          } catch (e) {}
+          } catch (e) { console.debug('addLabel internals failed', e); }
         });
         this._dirFrameLines = null;
       }
@@ -1080,7 +1017,7 @@ export default {
       labels.forEach((n) => {
         try {
           n.remove();
-        } catch (e) {}
+  } catch (e) { console.debug('cameraTween pixelRatio restore failed', e); }
       });
     },
     _updateDirectionLabels() {
@@ -1145,40 +1082,24 @@ export default {
     // WorldMap rendering reacts to values each frame via uniforms; here we only persist
 
     applyChunkColors(enabled) {
-      if (this.neighborhood && this.neighborhood.applyChunkColors) {
-        this.neighborhood.applyChunkColors(!!enabled);
+      // Delegate to ChunkManager/neighborhood for all chunk color logic
+      if (this.chunkManager && this.chunkManager.applyChunkColors) {
+        try {
+          this.chunkManager.applyChunkColors(!!enabled);
+        } catch (e) {
+          console.debug('chunkManager.applyChunkColors failed', e);
+        }
         return;
       }
-      if (!this.topIM || !this.sideIM || !this.indexToQR) return;
-      const count = this.indexToQR.length;
-      const tmpColor = this._tmpColorTop;
-      const tmpSide = this._tmpColorSide;
-      for (let i = 0; i < count; i += 1) {
-        const info = this.indexToQR[i];
-        if (!info) continue;
-        if (enabled) {
-          // Pastel per-chunk
-          const c = this.pastelColorForChunk(info.wx || 0, info.wy || 0);
-          const s = tmpSide.copy(c).multiplyScalar(0.8);
-          this.topIM.setColorAt(i, c);
-          this.sideIM.setColorAt(i, s);
-        } else {
-          // Biome colors
-          const cell = this.world ? this.world.getCell(info.q, info.r) : null;
-          const c = cell ? cell.colorTop : tmpColor.set(0xffffff);
-          const s = cell
-            ? cell.colorSide
-            : tmpSide.copy(c).multiplyScalar(0.85);
-          this.topIM.setColorAt(i, c);
-          this.sideIM.setColorAt(i, s);
+      if (this.neighborhood && this.neighborhood.applyChunkColors) {
+        try {
+          this.neighborhood.applyChunkColors(!!enabled);
+        } catch (e) {
+          console.debug('neighborhood.applyChunkColors failed', e);
         }
+        return;
       }
-      if (this.topIM.instanceColor) this.topIM.instanceColor.needsUpdate = true;
-      if (this.sideIM.instanceColor)
-        this.sideIM.instanceColor.needsUpdate = true;
-      // Ensure materials recompile after colors exist so USE_INSTANCING_COLOR is enabled
-      if (this.topIM.material) this.topIM.material.needsUpdate = true;
-      if (this.sideIM.material) this.sideIM.material.needsUpdate = true;
+      console.debug('applyChunkColors: no chunkManager or neighborhood available; no-op');
     },
     // Generate a stable pastel color per chunk coordinate (wx, wy)
     pastelColorForChunk(wx, wy) {
@@ -1211,65 +1132,25 @@ export default {
     },
     // Fill one chunk slot with instances for world chunk (wx, wy)
     fillChunk(slotIndex, wx, wy) {
-      if (!this.topIM || !this.sideIM) return;
-      const layoutRadius = this.layoutRadius;
-      const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
-      const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
-      const sx = this.modelScaleFactor;
-      const xzScale = sx * this.contactScale;
-      const sideXZ =
-        xzScale * (this.sideInset != null ? this.sideInset : 0.996);
-      const baseCol = wx * this.chunkCols;
-      const baseRow = wy * this.chunkRows;
-      const startIdx = slotIndex * this.countPerChunk;
-      let local = 0;
-      const useChunkColors = !!this.features.chunkColors;
-      const cTop = this.pastelColorForChunk(wx, wy);
-      const cSide = cTop.clone().multiplyScalar(0.8);
-      const dummy =
-        this._transformDummy ||
-        (this._transformDummy = markRaw(new THREE.Object3D()));
-      for (let row = 0; row < this.chunkRows; row += 1) {
-        for (let col = 0; col < this.chunkCols; col += 1) {
-          const gCol = baseCol + col;
-          const gRow = baseRow + row;
-          const { q, r } = this.offsetToAxial(gCol, gRow);
-          const x = hexWidth * q;
-          const z = hexHeight * (r + q / 2);
-          const cell = this.world ? this.world.getCell(q, r) : null;
-          const isWater = !!(
-            cell &&
-            (cell.biome === "deepWater" || cell.biome === "shallowWater")
-          );
-          // Build matrix once and reuse for top/side with differing Y scale
-          dummy.position.set(x, 0, z);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(xzScale, sx * (cell ? cell.yScale : 1.0), xzScale);
-          dummy.updateMatrix();
-          const topMatrix = dummy.matrix.clone();
-          // Side scale adjustment
-          const sideY = isWater
-            ? Math.max(0.001, 0.02 * (this.modelScaleFactor || 1))
-            : sx * (cell ? cell.yScale : 1.0);
-          dummy.scale.set(sideXZ, sideY, sideXZ);
-          dummy.updateMatrix();
-          const sideMatrix = dummy.matrix.clone();
-          const instIdx = startIdx + local;
-          this.topIM.setMatrixAt(instIdx, topMatrix);
-          this.sideIM.setMatrixAt(instIdx, sideMatrix);
-          if (useChunkColors) {
-            this.topIM.setColorAt(instIdx, cTop);
-            this.sideIM.setColorAt(instIdx, cSide);
-          } else {
-            const topC = cell ? cell.colorTop : cTop;
-            const sideC = cell ? cell.colorSide : cSide;
-            this.topIM.setColorAt(instIdx, topC);
-            this.sideIM.setColorAt(instIdx, sideC);
-          }
-          this.indexToQR[instIdx] = { q, r, wx, wy, col: gCol, row: gRow };
-          local += 1;
+      // Fully delegate to neighborhood via chunkManager when available
+      if (this.chunkManager && this.chunkManager.neighborhood && this.chunkManager.neighborhood.fillChunk) {
+        try {
+          this.chunkManager.neighborhood.fillChunk(slotIndex, wx, wy);
+        } catch (e) {
+          console.debug('chunkManager.neighborhood.fillChunk failed', e);
         }
+        return;
       }
+      if (this.neighborhood && this.neighborhood.fillChunk) {
+        try {
+          this.neighborhood.fillChunk(slotIndex, wx, wy);
+        } catch (e) {
+          console.debug('neighborhood.fillChunk failed', e);
+        }
+        return;
+      }
+      console.debug('fillChunk: no neighborhood available; no-op');
+      return;
     },
     // Position neighborhood; delegate to manager
     setCenterChunk(wx, wy, options = {}) {
@@ -1308,18 +1189,21 @@ export default {
       if (!this.topGeom || !this.sideGeom) return;
       // Determine desired radius (absolute)
       const desiredRadius = Math.max(1, Number(this.generation?.radius ?? 5));
-      // Progressive: on first build, always start with radius 1 to show content fast
-      const progressiveStart =
-        desiredRadius > 1 && !this._progressiveModeActive;
+  // Progressive: on first build, start with radius 1 to show content fast
+  const progressiveStart = desiredRadius > 1;
       const radius = progressiveStart ? 1 : desiredRadius;
-      this._neighborRadius = radius; // cache for bounds
+      if (this.chunkManager) {
+        try { this.chunkManager.neighborRadius = radius; } catch (e) { console.debug('set neighborRadius on manager failed', e); }
+      } else {
+        this._neighborRadius = radius; // cache for bounds
+      }
       // Build via ChunkManager
-      if (this.chunkManager && this.chunkManager.dispose) {
+        if (this.chunkManager && this.chunkManager.dispose) {
         try {
           this.chunkManager.dispose();
-        } catch (e) {}
+        } catch (e) { console.debug('chunkManager.dispose failed', e); }
       }
-      this.chunkManager = new ChunkManager({
+  this.chunkManager = createChunkManager({
         scene: this.scene,
         world: this.world,
         clutter: this.clutter,
@@ -1360,6 +1244,8 @@ export default {
           this._fadeUniformsDepth = built.fadeUniformsDepth;
           this._fadeUniformsTrail = built.fadeUniformsTrail;
           this._fadeUniformsDepthTrail = built.fadeUniformsDepthTrail;
+          // Accept hover mesh created by ChunkManager
+          if (built.hoverMesh) this.hoverMesh = built.hoverMesh;
         },
         onPickMeshes: (meshes) => {
           this.pickMeshes = markRaw(meshes);
@@ -1398,25 +1284,8 @@ export default {
         profiler.push("startup.chunk.build.start", now4 - t0);
       } catch (e) {}
       this.chunkManager.build(this.topGeom, this.sideGeom);
-      // Create a single hover overlay mesh to avoid relying on instance colors
-      if (this.topIM && this.topGeom) {
-        const hoverMat = new THREE.MeshBasicMaterial({
-          color: 0xffff66,
-          transparent: true,
-          opacity: 0.35,
-          depthTest: true,
-          depthWrite: false,
-          polygonOffset: true,
-          polygonOffsetFactor: -1,
-          polygonOffsetUnits: -1,
-        });
-        this.hoverMesh = markRaw(new THREE.Mesh(this.topGeom, hoverMat));
-        this.hoverMesh.visible = false;
-        this.hoverMesh.matrixAutoUpdate = false;
-        this.scene.add(this.hoverMesh);
-      }
-      // Picking targets
-      this.pickMeshes = markRaw([this.topIM, this.sideIM]);
+  // Picking targets provided by ChunkManager
+  this.pickMeshes = markRaw([this.topIM, this.sideIM]);
       // Defer water for chunks for now (mask mapping needs redesign)
       // Initialize center and fill chunks
       this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
@@ -1485,13 +1354,22 @@ export default {
         // Notify backend/state just like a user click would
         try {
           api.post("world/move", { q: startQ, r: startR });
-        } catch (e) {}
+  } catch (e) { console.debug('buildWater promise handling failed', e); }
         this.playerSpawnSeeded = true;
       }
       // If progressive expansion is desired, schedule rebuild to the full radius
       if (progressiveStart) {
-        this._progressivePlanned = desiredRadius;
-        this._scheduleProgressiveExpand();
+        // Prefer manager-driven progressive start
+        if (this.chunkManager && this.chunkManager.startProgressive) {
+          try {
+            this.chunkManager.startProgressive(desiredRadius);
+            // Also request a manager-driven expansion watch to rebuild water when complete
+            this.chunkManager.scheduleProgressiveExpand(desiredRadius, { onComplete: () => this.buildWater() });
+          } catch (e) { console.debug('startProgressive failed', e); }
+        } else {
+          // Fallback: schedule a local progressive expand
+          this._scheduleProgressiveExpand(desiredRadius);
+        }
       }
       if (!this.locationsLoaded) {
         this.locationsLoaded = true;
@@ -1519,10 +1397,17 @@ export default {
     },
     async loadWorldLocations() {
       try {
-        const locations = await api.get("world/locations");
-        (Array.isArray(locations) ? locations : []).forEach((loc) => {
-          this.addWorldLocationOrb(loc);
-        });
+        if (this._wm && this._wm.fetchLocations) {
+          const locations = await this._wm.fetchLocations();
+          (Array.isArray(locations) ? locations : []).forEach((loc) => {
+            this.addWorldLocationOrb(loc);
+          });
+        } else {
+          const locations = await api.get("world/locations");
+          (Array.isArray(locations) ? locations : []).forEach((loc) => {
+            this.addWorldLocationOrb(loc);
+          });
+        }
       } catch (e) {
         console.error("[WorldMap] Failed to load world locations", e);
       }
@@ -1553,13 +1438,13 @@ export default {
       this.worldLocationMeshes.forEach((m) => {
         try {
           this.scene.remove(m);
-        } catch (e) {}
+        } catch (e) { console.debug('remove worldLocation mesh failed', e); }
         try {
           m.geometry && m.geometry.dispose();
-        } catch (e) {}
+        } catch (e) { console.debug('dispose geometry failed', e); }
         try {
           m.material && m.material.dispose();
-        } catch (e) {}
+        } catch (e) { console.debug('dispose material failed', e); }
       });
       this.worldLocationMeshes = [];
     },
@@ -1595,16 +1480,17 @@ export default {
           // Prefer an in-place rebuild of the current ChunkManager for faster updates
           if (this.chunkManager && this.topGeom && this.sideGeom) {
             this.chunkManager.neighborRadius = r;
-            this._neighborRadius = r;
+            if (this.chunkManager) {
+              try { this.chunkManager.neighborRadius = r; } catch (e) { console.debug('set neighborRadius on manager failed', e); }
+            } else {
+              this._neighborRadius = r;
+            }
             this.chunkManager.build(this.topGeom, this.sideGeom);
             if (this.centerChunk)
               this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
           } else {
             // Fallback: full grid rebuild; skip progressive start for user-initiated size changes
-            const prevProg = this._progressiveModeActive;
-            this._progressiveModeActive = true;
             this.rebuildChunkGrid();
-            this._progressiveModeActive = prevProg;
           }
         }
         // Rebuild water to align textures/plane to new footprint
@@ -1617,29 +1503,7 @@ export default {
           });
       }, 120);
     },
-    _scheduleProgressiveExpand() {
-      // Wait until the initial small queue finishes streaming, then expand
-      if (this._progressiveCheckId)
-        cancelAnimationFrame(this._progressiveCheckId);
-      const check = () => {
-        const streaming = !!(this.chunkManager && this.chunkManager.streaming);
-        if (!streaming && this._progressivePlanned > 1) {
-          // Expand: rebuild grid at desired radius without re-triggering progressive path
-          this._progressiveModeActive = true;
-          this._neighborRadius = this._progressivePlanned;
-          this.rebuildChunkGrid();
-          // Rebuild water to match the expanded footprint
-          this.buildWater();
-          this._progressivePlanned = 0;
-          // Allow future manual toggles to use progressive again if wanted
-          this._progressiveModeActive = false;
-          this._progressiveCheckId = null;
-        } else {
-          this._progressiveCheckId = requestAnimationFrame(check);
-        }
-      };
-      this._progressiveCheckId = requestAnimationFrame(check);
-    },
+  // Progressive expansion is now handled by ChunkManager; no local fallback remains.
     computeNeighborOffsets(radius) {
       const out = [];
       for (let dy = -radius; dy <= radius; dy += 1) {
@@ -1655,6 +1519,10 @@ export default {
     },
     // Removed legacy expand-neighborhood toggle handler
     rebuildChunkGrid() {
+      // Cancel any scheduled progressive expansion on the manager to avoid races
+      if (this.chunkManager && this.chunkManager.cancelProgressiveExpand) {
+        try { this.chunkManager.cancelProgressiveExpand(); } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+      }
       // Remove and dispose old instancers via neighborhood service if present
       if (this.neighborhood && this.neighborhood.dispose) {
         this.neighborhood.dispose();
@@ -1663,18 +1531,18 @@ export default {
           if (!im) return;
           try {
             this.scene.remove(im);
-          } catch (e) {}
+          } catch (e) { console.debug('scene.remove(im) failed', e); }
           try {
             if (im.material && im.material.dispose) im.material.dispose();
-          } catch (e) {}
+          } catch (e) { console.debug('dispose im.material failed', e); }
           try {
             if (im.customDepthMaterial && im.customDepthMaterial.dispose)
               im.customDepthMaterial.dispose();
-          } catch (e) {}
+          } catch (e) { console.debug('dispose customDepthMaterial failed', e); }
           try {
             if (im.customDistanceMaterial && im.customDistanceMaterial.dispose)
               im.customDistanceMaterial.dispose();
-          } catch (e) {}
+          } catch (e) { console.debug('dispose customDistanceMaterial failed', e); }
         };
         disposeIM(this.topIM);
         disposeIM(this.sideIM);
@@ -1752,7 +1620,7 @@ export default {
             ? window.__DAEMIOS_STARTUP.t0
             : now0;
         profiler.push("startup.world.init.begin", now0 - t0);
-      } catch (e) {}
+  } catch (e) { console.debug('cancelAnimationFrame not available', e); }
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
 
@@ -1782,19 +1650,21 @@ export default {
       this.orbit.theta = Math.atan2(camVec.x, camVec.z);
       this.orbit.phi = Math.acos(camVec.y / this.orbit.radius);
 
-      this.renderer = markRaw(
-        new THREE.WebGLRenderer({ antialias: false, stencil: false })
-      );
-      // Slightly upscale to reduce aliasing while keeping perf in check
-      const devicePR = Math.min(1.5, window.devicePixelRatio || 1);
-      this.renderer.setPixelRatio(devicePR);
-      this.renderer.setSize(width, height);
-      if (this.renderer.outputEncoding !== undefined)
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = 1.0;
-      this.renderer.physicallyCorrectLights = false;
-      this.$refs.sceneContainer.appendChild(this.renderer.domElement);
+      // Create renderer/composer via renderer manager
+      const mgr = createRendererManager({
+        width,
+        height,
+        container: this.$refs.sceneContainer,
+        scene: this.scene,
+        camera: this.camera,
+      });
+      this.renderer = markRaw(mgr.renderer);
+      this.composer = markRaw(mgr.composer);
+      this.fxaaPass = markRaw(mgr.fxaaPass);
+      this.fpsEl = mgr.fpsEl;
+      this._gpuTimer = mgr._gpuTimer;
+      // keep manager for size/render/dispose control
+      this._rendererManager = mgr;
       // Startup: first content visible
       try {
         const now1 = performance.now?.() ?? Date.now();
@@ -1805,45 +1675,11 @@ export default {
         profiler.push("startup.first.content", now1 - t0);
         if (typeof window !== "undefined")
           window.__DAEMIOS_STARTUP.firstContent = true;
-      } catch (e) {}
+  } catch (e) { console.debug('requestAnimationFrame failed, scheduling with timeout', e); }
 
-      // FPS overlay
-      this.fpsEl = document.createElement("div");
-      Object.assign(this.fpsEl.style, {
-        position: "absolute",
-        top: "4px",
-        right: "6px",
-        padding: "2px 6px",
-        background: "rgba(0,0,0,0.4)",
-        color: "#fff",
-        font: "11px monospace",
-        borderRadius: "4px",
-        pointerEvents: "none",
-        zIndex: 1,
-      });
-      this.fpsEl.textContent = "FPS: --";
-      this.$refs.sceneContainer.appendChild(this.fpsEl);
+  // FPS overlay and GPU timer are handled by the renderer manager
 
-      // Set up GPU timer if available
-      try {
-        this._gpuTimer = createWebGLTimer(this.renderer);
-        if (this._gpuTimer) profiler.setGPU(this._gpuTimer);
-      } catch (e) {
-        /* ignore */
-      }
-
-      this.composer = markRaw(new EffectComposer(this.renderer));
-      const renderPass = new RenderPass(this.scene, this.camera);
-      this.composer.addPass(renderPass);
-
-      const pr = this.renderer.getPixelRatio();
-
-      this.fxaaPass = markRaw(new ShaderPass(FXAAShader));
-      this.fxaaPass.material.uniforms.resolution.value.set(
-        1 / (width * pr),
-        1 / (height * pr)
-      );
-      this.composer.addPass(this.fxaaPass);
+  // FXAA and composer are handled by the renderer manager
 
       this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
       this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
@@ -1857,11 +1693,7 @@ export default {
       // Apply initial feature toggles
       this.applyShadows(this.features.shadows);
 
-      // Wheel zoom
-      this.onWheel = this.onWheel.bind(this);
-      this.$refs.sceneContainer.addEventListener("wheel", this.onWheel, {
-        passive: false,
-      });
+  // Wheel zoom handled by pointerControls module
 
       // Init world data and auxiliary systems
       this.world = markRaw(
@@ -1899,416 +1731,33 @@ export default {
             ? window.__DAEMIOS_STARTUP.t0
             : now2;
         profiler.push("startup.world.init.end", now2 - t0);
-      } catch (e) {}
+  } catch (e) { console.debug('requestAnimationFrame scheduling exception', e); }
     },
-    loadModel() {
-      const loader = new GLTFLoader();
-      const __tLoadStart = performance.now?.() ?? Date.now();
-      loader.load(
-        "/models/hex-can.glb",
-        (gltf) => {
-          this.hexModel = markRaw(gltf.scene);
-          try {
-            const now3 = performance.now?.() ?? Date.now();
-            const t0 =
-              typeof window !== "undefined" && window.__DAEMIOS_STARTUP?.t0
-                ? window.__DAEMIOS_STARTUP.t0
-                : now3;
-            profiler.push("startup.asset.hex.load", now3 - t0);
-            profiler.push("startup.asset.hex.load.self", now3 - __tLoadStart);
-          } catch (e) {}
-          if (this.orientation === "flat") {
-            this.hexModel.rotation.y = Math.PI / 6;
-          }
-          const orientedBox = new THREE.Box3().setFromObject(this.hexModel);
-          const sizeVec = new THREE.Vector3();
-          orientedBox.getSize(sizeVec);
-          orientedBox.getCenter(this.modelCenter);
-          const targetFlatWidth = 2 * this.layoutRadius;
-          const refWidth = Math.max(sizeVec.x, sizeVec.z);
-          this.modelScaleFactor = targetFlatWidth / refWidth;
-          // Do NOT scale the source model; we'll scale per instance and use unscaled center*scale for offsets
-
-          // Ensure matrices are up to date so matrixWorld contains parent rotation
-          this.hexModel.updateWorldMatrix(true, true);
-
-          // Fix normals if inverted
-          this.hexModel.traverse((child) => {
-            if (child.isMesh && child.geometry) {
-              const geom = child.geometry;
-              if (!geom.attributes.normal) geom.computeVertexNormals();
-              geom.computeBoundingSphere();
-              const center = geom.boundingSphere
-                ? geom.boundingSphere.center
-                : new THREE.Vector3();
-              const pos = geom.attributes.position;
-              const normal = geom.attributes.normal;
-              let inward = 0;
-              let total = 0;
-              const tmpV = new THREE.Vector3();
-              const tmpN = new THREE.Vector3();
-              const step = Math.max(1, Math.floor(pos.count / 60));
-              for (let i = 0; i < pos.count; i += step) {
-                tmpV.fromBufferAttribute(pos, i).sub(center);
-                tmpN.fromBufferAttribute(normal, i);
-                if (tmpV.dot(tmpN) < 0) inward++;
-                total++;
-              }
-              if (total > 0 && inward > total / 2) {
-                geom.scale(-1, 1, 1);
-                geom.computeVertexNormals();
-              }
-            }
-          });
-
-          // Extract base geometries for instancing
-          this.topGeom = null;
-          this.sideGeom = null;
-          this.hexModel.traverse((child) => {
-            if (child.isMesh) {
-              const name = (child.name || "").toLowerCase();
-              const g = child.geometry.clone();
-              g.applyMatrix4(child.matrixWorld.clone());
-              if (name.includes("top")) this.topGeom = markRaw(g);
-              else this.sideGeom = markRaw(g);
-            }
-          });
-          // Fallback if naming doesn't match expectations
-          if (!this.topGeom && this.sideGeom) {
-            console.warn(
-              "[WorldMap] top geometry not found; using side geometry as top"
-            );
-            this.topGeom = this.sideGeom.clone();
-          }
-          if (!this.sideGeom && this.topGeom) {
-            console.warn(
-              "[WorldMap] side geometry not found; using top geometry as side"
-            );
-            this.sideGeom = this.topGeom.clone();
-          }
-          // Normalize both geometries so their bottom sits at y=0 and x/z are centered at origin
-          const recenter = (geom) => {
-            if (!geom) return;
-            geom.computeBoundingBox();
-            if (!geom.boundingBox) return;
-            const box = geom.boundingBox;
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            const minY = box.min.y;
-            const m = new THREE.Matrix4().makeTranslation(
-              -center.x,
-              -minY,
-              -center.z
-            );
-            geom.applyMatrix4(m);
-            geom.computeBoundingSphere();
-          };
-          recenter(this.topGeom);
-          recenter(this.sideGeom);
-          // Remove any up-facing triangles (top caps) from side geometry to avoid coplanar overlap
-          const stripUpFacingCaps = (geom, dotThresh = 0.8) => {
-            if (!geom) return geom;
-            const posAttr = geom.getAttribute("position");
-            if (!posAttr) return geom;
-            const up = new THREE.Vector3(0, 1, 0);
-            const a = new THREE.Vector3();
-            const b = new THREE.Vector3();
-            const c = new THREE.Vector3();
-            const e1 = new THREE.Vector3();
-            const e2 = new THREE.Vector3();
-            const n = new THREE.Vector3();
-            if (geom.index) {
-              const idx = geom.index.array;
-              const newIdx = [];
-              for (let i = 0; i < idx.length; i += 3) {
-                const i0 = idx[i],
-                  i1 = idx[i + 1],
-                  i2 = idx[i + 2];
-                a.fromBufferAttribute(posAttr, i0);
-                b.fromBufferAttribute(posAttr, i1);
-                c.fromBufferAttribute(posAttr, i2);
-                e1.subVectors(b, a);
-                e2.subVectors(c, a);
-                n.crossVectors(e1, e2).normalize();
-                const d = n.dot(up);
-                if (d <= dotThresh) {
-                  newIdx.push(i0, i1, i2);
-                }
-              }
-              const newGeom = geom.clone();
-              newGeom.setIndex(newIdx);
-              newGeom.computeVertexNormals();
-              newGeom.computeBoundingBox();
-              newGeom.computeBoundingSphere();
-              return newGeom;
-            }
-            // Non-indexed: rebuild filtered attribute arrays
-            const count = posAttr.count; // vertices
-            const pos = posAttr.array;
-            const hasNormal = !!geom.getAttribute("normal");
-            const hasUV = !!geom.getAttribute("uv");
-            const hasColor = !!geom.getAttribute("color");
-            const outPos = [];
-            const outUV = hasUV ? [] : null;
-            const outColor = hasColor ? [] : null;
-            for (let i = 0; i < count; i += 3) {
-              a.fromArray(pos, (i + 0) * 3);
-              b.fromArray(pos, (i + 1) * 3);
-              c.fromArray(pos, (i + 2) * 3);
-              e1.subVectors(b, a);
-              e2.subVectors(c, a);
-              n.crossVectors(e1, e2).normalize();
-              const d = n.dot(up);
-              if (d <= dotThresh) {
-                outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-                if (outUV) {
-                  const uv = geom.getAttribute("uv");
-                  outUV.push(
-                    uv.getX(i + 0),
-                    uv.getY(i + 0),
-                    uv.getX(i + 1),
-                    uv.getY(i + 1),
-                    uv.getX(i + 2),
-                    uv.getY(i + 2)
-                  );
-                }
-                if (outColor) {
-                  const col = geom.getAttribute("color");
-                  outColor.push(
-                    col.getX(i + 0),
-                    col.getY(i + 0),
-                    col.getZ(i + 0),
-                    col.getX(i + 1),
-                    col.getY(i + 1),
-                    col.getZ(i + 1),
-                    col.getX(i + 2),
-                    col.getY(i + 2),
-                    col.getZ(i + 2)
-                  );
-                }
-              }
-            }
-            const newGeom = new THREE.BufferGeometry();
-            newGeom.setAttribute(
-              "position",
-              new THREE.Float32BufferAttribute(outPos, 3)
-            );
-            if (outUV)
-              newGeom.setAttribute(
-                "uv",
-                new THREE.Float32BufferAttribute(outUV, 2)
-              );
-            if (outColor)
-              newGeom.setAttribute(
-                "color",
-                new THREE.Float32BufferAttribute(outColor, 3)
-              );
-            newGeom.computeVertexNormals();
-            newGeom.computeBoundingBox();
-            newGeom.computeBoundingSphere();
-            return newGeom;
-          };
-          if (this.sideGeom)
-            this.sideGeom = stripUpFacingCaps(this.sideGeom, 0.8);
-          // Remove inner ring of vertical walls (keep only outer shell)
-          const stripInwardFacingWalls = (geom) => {
-            if (!geom) return geom;
-            const posAttr = geom.getAttribute("position");
-            if (!posAttr) return geom;
-            const a = new THREE.Vector3();
-            const b = new THREE.Vector3();
-            const c = new THREE.Vector3();
-            const e1 = new THREE.Vector3();
-            const e2 = new THREE.Vector3();
-            const n = new THREE.Vector3();
-            const centroid = new THREE.Vector3();
-            const isVertical = (normal) => Math.abs(normal.y) < 0.2;
-            const radius = (v) => Math.hypot(v.x, v.z);
-
-            // First pass: find radius range for vertical walls
-            let rMin = Infinity,
-              rMax = -Infinity;
-            const scanTri = (va, vb, vc) => {
-              e1.subVectors(vb, va);
-              e2.subVectors(vc, va);
-              n.crossVectors(e1, e2).normalize();
-              if (!isVertical(n)) return;
-              centroid
-                .copy(va)
-                .add(vb)
-                .add(vc)
-                .multiplyScalar(1 / 3);
-              const rc = radius(centroid);
-              if (rc < rMin) rMin = rc;
-              if (rc > rMax) rMax = rc;
-            };
-            if (geom.index) {
-              const idx = geom.index.array;
-              for (let i = 0; i < idx.length; i += 3) {
-                a.fromBufferAttribute(posAttr, idx[i]);
-                b.fromBufferAttribute(posAttr, idx[i + 1]);
-                c.fromBufferAttribute(posAttr, idx[i + 2]);
-                scanTri(a, b, c);
-              }
-            } else {
-              const count = posAttr.count;
-              const pos = posAttr.array;
-              for (let i = 0; i < count; i += 3) {
-                a.fromArray(pos, (i + 0) * 3);
-                b.fromArray(pos, (i + 1) * 3);
-                c.fromArray(pos, (i + 2) * 3);
-                scanTri(a, b, c);
-              }
-            }
-            if (!isFinite(rMin) || !isFinite(rMax) || rMax <= rMin) return geom; // nothing to do
-            const rThresh = (rMin + rMax) * 0.5; // split between inner and outer ring
-
-            const keepTri = (va, vb, vc) => {
-              e1.subVectors(vb, va);
-              e2.subVectors(vc, va);
-              n.crossVectors(e1, e2).normalize();
-              if (!isVertical(n)) return true; // keep non-vertical (bevel) triangles
-              centroid
-                .copy(va)
-                .add(vb)
-                .add(vc)
-                .multiplyScalar(1 / 3);
-              return radius(centroid) >= rThresh - 1e-6;
-            };
-
-            if (geom.index) {
-              const idx = geom.index.array;
-              const newIdx = [];
-              for (let i = 0; i < idx.length; i += 3) {
-                const i0 = idx[i],
-                  i1 = idx[i + 1],
-                  i2 = idx[i + 2];
-                a.fromBufferAttribute(posAttr, i0);
-                b.fromBufferAttribute(posAttr, i1);
-                c.fromBufferAttribute(posAttr, i2);
-                if (keepTri(a, b, c)) newIdx.push(i0, i1, i2);
-              }
-              const newGeom = geom.clone();
-              newGeom.setIndex(newIdx);
-              newGeom.computeVertexNormals();
-              newGeom.computeBoundingBox();
-              newGeom.computeBoundingSphere();
-              return newGeom;
-            }
-            // Non-indexed path rebuild
-            const count = posAttr.count;
-            const pos = posAttr.array;
-            const hasUV = !!geom.getAttribute("uv");
-            const hasColor = !!geom.getAttribute("color");
-            const outPos = [];
-            const outUV = hasUV ? [] : null;
-            const outColor = hasColor ? [] : null;
-            for (let i = 0; i < count; i += 3) {
-              a.fromArray(pos, (i + 0) * 3);
-              b.fromArray(pos, (i + 1) * 3);
-              c.fromArray(pos, (i + 2) * 3);
-              if (keepTri(a, b, c)) {
-                outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-                if (outUV) {
-                  const uv = geom.getAttribute("uv");
-                  outUV.push(
-                    uv.getX(i + 0),
-                    uv.getY(i + 0),
-                    uv.getX(i + 1),
-                    uv.getY(i + 1),
-                    uv.getX(i + 2),
-                    uv.getY(i + 2)
-                  );
-                }
-                if (outColor) {
-                  const col = geom.getAttribute("color");
-                  outColor.push(
-                    col.getX(i + 0),
-                    col.getY(i + 0),
-                    col.getZ(i + 0),
-                    col.getX(i + 1),
-                    col.getY(i + 1),
-                    col.getZ(i + 1),
-                    col.getX(i + 2),
-                    col.getY(i + 2),
-                    col.getZ(i + 2)
-                  );
-                }
-              }
-            }
-            const newGeom = new THREE.BufferGeometry();
-            newGeom.setAttribute(
-              "position",
-              new THREE.Float32BufferAttribute(outPos, 3)
-            );
-            if (outUV)
-              newGeom.setAttribute(
-                "uv",
-                new THREE.Float32BufferAttribute(outUV, 2)
-              );
-            if (outColor)
-              newGeom.setAttribute(
-                "color",
-                new THREE.Float32BufferAttribute(outColor, 3)
-              );
-            newGeom.computeVertexNormals();
-            newGeom.computeBoundingBox();
-            newGeom.computeBoundingSphere();
-            return newGeom;
-          };
-          if (this.sideGeom)
-            this.sideGeom = stripInwardFacingWalls(this.sideGeom);
-          // After normalization, compute modelScaleFactor from corner radius (max distance to corner in XZ)
-          if (
-            this.topGeom &&
-            this.topGeom.attributes &&
-            this.topGeom.attributes.position
-          ) {
-            // Cache max Y extent of combined tile geoms
-            this.topGeom.computeBoundingBox();
-            this.sideGeom && this.sideGeom.computeBoundingBox();
-            const topMaxY = this.topGeom.boundingBox
-              ? this.topGeom.boundingBox.max.y
-              : 1;
-            const sideMaxY =
-              this.sideGeom && this.sideGeom.boundingBox
-                ? this.sideGeom.boundingBox.max.y
-                : topMaxY;
-            this.hexMaxY = Math.max(topMaxY, sideMaxY);
-
-            const pos = this.topGeom.attributes.position;
-            let maxR = 0;
-            for (let i = 0; i < pos.count; i += 1) {
-              const x = pos.getX(i);
-              const z = pos.getZ(i);
-              const r = Math.hypot(x, z);
-              if (r > maxR) maxR = r;
-            }
-            if (maxR > 0) {
-              this.modelScaleFactor = this.layoutRadius / maxR;
-            }
-            const suggested = this.computeContactScaleFromGeom();
-            const applied = Math.max(0.5, Math.min(1.5, suggested));
-            this.contactScale = applied;
-            console.info(
-              "[WorldMap] gapFraction =",
-              (this.gapFraction || 0).toFixed(4),
-              "contactScale =",
-              applied.toFixed(4)
-            );
-          }
-          this.createChunkGrid();
-          // Build global water plane now that geometries and world are ready
-          // This reintroduces the water surface for chunked rendering
-          if (this.features && this.features.water != null) {
-            this.buildWater();
-          }
-        },
-        undefined,
-        (err) => {
-          console.error("[WorldMap] Failed to load /models/hex-can.glb", err);
-        }
-      );
+    async loadModel() {
+      try {
+        const res = await import("@/services/model/modelLoader");
+        const loader = res.loadHexModel;
+        const info = await loader({
+          path: "/models/hex-can.glb",
+          layoutRadius: this.layoutRadius,
+          spacingFactor: this.spacingFactor,
+          gapFraction: this.gapFraction,
+          sideInset: this.sideInset,
+          orientation: this.orientation,
+        });
+        this.hexModel = markRaw(info.scene);
+        this.topGeom = markRaw(info.topGeom);
+        this.sideGeom = markRaw(info.sideGeom);
+        this.modelCenter = info.modelCenter || this.modelCenter;
+        this.hexMaxY = info.hexMaxY || this.hexMaxY;
+        this.modelScaleFactor = info.modelScaleFactor || this.modelScaleFactor;
+        this.contactScale = info.contactScale || this.contactScale;
+        // Proceed with chunk/grid/water build as before
+        this.createChunkGrid();
+        if (this.features && this.features.water != null) this.buildWater();
+      } catch (err) {
+        console.error("[WorldMap] loadModel failed", err);
+      }
     },
     createHexGrid() {
       if (!this.topGeom || !this.sideGeom) return;
@@ -2316,11 +1765,8 @@ export default {
       const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
       const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
       const size = this.gridSize;
-      const maxHeight = this.elevation.max;
-      const sx = this.modelScaleFactor;
-      const xzScale = sx * this.contactScale; // widen footprint slightly to avoid cracks
-      const tmpColor = new THREE.Color();
-      const tmpSide = new THREE.Color();
+  const sx = this.modelScaleFactor;
+  const xzScale = sx * this.contactScale; // widen footprint slightly to avoid cracks
 
       const count = (2 * size + 1) * (2 * size + 1);
       const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -2361,297 +1807,43 @@ export default {
       if (this.sideIM.instanceColor)
         this.sideIM.instanceColor.needsUpdate = true;
     },
-    buildWater() {
-      const __t0 =
-        typeof performance !== "undefined" && performance.now
-          ? performance.now()
-          : Date.now();
-      // Remove old
-      if (this.waterMesh) {
-        if (this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh);
-        this.waterMesh = null;
+    async buildWater() {
+      try {
+        const wb = await import("@/3d/water/waterBuilder");
+        const res = await wb.buildWater({
+          world: this.world,
+          layoutRadius: this.layoutRadius,
+          spacingFactor: this.spacingFactor,
+          chunkCols: this.chunkCols,
+          chunkRows: this.chunkRows,
+          centerChunk: this.centerChunk,
+          neighborRadius: this.activeNeighborRadius,
+          contactScale: this.contactScale,
+          modelScaleFactor: this.modelScaleFactor,
+          hexMaxY: this.hexMaxY,
+          elevation: this.elevation,
+          heightMagnitude: this.heightMagnitude,
+          features: this.features,
+          profilerEnabled: this.profilerEnabled,
+          profiler,
+        });
+        // Remove old mesh if present
+        if (this.waterMesh && this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh);
+        this.waterMesh = res.waterMesh;
+        this.waterMaterial = res.waterMaterial;
+        this.waterMaskTex = res.waterMaskTex;
+        this.waterDistanceTex = res.waterDistanceTex;
+        this.waterCoverageTex = res.waterCoverageTex;
+        this.waterSeabedTex = res.waterSeabedTex;
+        this._waterTexSize = res.waterTexSize;
+        this._waterPlaneW = res.waterPlaneW;
+        this._waterPlaneH = res.waterPlaneH;
+        this._waterTileCount = res.waterTileCount;
+        if (this.waterMesh && this.scene) this.scene.add(this.waterMesh);
+        if (this.waterMesh) this.waterMesh.visible = !!this.features.water;
+      } catch (err) {
+        console.error("[WorldMap] buildWater failed", err);
       }
-      // No stencil instanced mesh to remove anymore
-      // 1) Create land mask/seabed textures sized to fully cover the water plane (plus padding)
-      const radius = this._neighborRadius != null ? this._neighborRadius : 1;
-      // Estimate plane dimensions for current neighborhood (reuse below for geometry)
-      const hexW_est = this.layoutRadius * 1.5 * this.spacingFactor;
-      const hexH_est = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
-      const totalCols_est = (2 * radius + 1) * this.chunkCols;
-      const totalRows_est = (2 * radius + 1) * this.chunkRows;
-      // No extra plane margin; keep exactly to the neighborhood bounds
-      const marginCols_est = 0;
-      const marginRows_est = 0;
-      const planeW_est = (totalCols_est + marginCols_est) * hexW_est;
-      const planeH_est = (totalRows_est + marginRows_est) * hexH_est;
-      // Compute S so that the mask square in axial covers the entire plane footprint with generous padding
-      const halfW = planeW_est * 0.5;
-      const halfH = planeH_est * 0.5;
-      const corners = [
-        { x: -halfW, z: -halfH },
-        { x: -halfW, z: halfH },
-        { x: halfW, z: -halfH },
-        { x: halfW, z: halfH },
-      ];
-      let maxQAbs = 0,
-        maxRAbs = 0;
-      for (const c of corners) {
-        const q = c.x / Math.max(1e-6, hexW_est);
-        const r = c.z / Math.max(1e-6, hexH_est) - q * 0.5;
-        maxQAbs = Math.max(maxQAbs, Math.abs(q));
-        maxRAbs = Math.max(maxRAbs, Math.abs(r));
-      }
-      // Ensure at least a full one-chunk margin in the texture window
-      const chunkQSpan = this.chunkCols;
-      const chunkRSpan = this.chunkRows; // approx; axial r maps from rows
-      const chunkMargin = Math.max(chunkQSpan, chunkRSpan);
-      const pad = Math.max(
-        chunkMargin + 8,
-        Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35)
-      );
-      const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
-      const N = 2 * S + 1;
-      this._waterTexSize = N;
-      // Choose a stable integer axial origin aligned to the top-left of the visible neighborhood
-      const nbBaseCol = (this.centerChunk.x - radius) * this.chunkCols;
-      const nbBaseRow = (this.centerChunk.y - radius) * this.chunkRows;
-      const qOrigin = nbBaseCol;
-      const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
-      const data = new Uint8Array(N * N * 4);
-      const seabed = new Uint8Array(N * N * 4);
-      let i = 0;
-      for (let r = -S; r <= S; r += 1) {
-        for (let q = -S; q <= S; q += 1) {
-          const qW = q + qOrigin;
-          const rW = r + rOrigin;
-          const cell = this.world.getCell(qW, rW);
-          const isWater =
-            cell &&
-            (cell.biome === "deepWater" || cell.biome === "shallowWater");
-          const v = isWater ? 0 : 255;
-          data[i] = v; // R
-          data[i + 1] = 0;
-          data[i + 2] = 0;
-          data[i + 3] = 255;
-          // Seabed: store normalized yScale (top height factor) in R channel
-          const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
-          seabed[i] = Math.floor(ys * 255);
-          seabed[i + 1] = 0;
-          seabed[i + 2] = 0;
-          seabed[i + 3] = 255;
-          i += 4;
-        }
-      }
-      const tex = markRaw(new THREE.DataTexture(data, N, N, THREE.RGBAFormat));
-      tex.needsUpdate = true;
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      this.waterMaskTex = tex;
-
-      // Signed-distance field: land positive, water negative
-      const cellSize = Math.min(hexW_est, hexH_est);
-      const diag = cellSize * Math.SQRT2;
-      const len = N * N;
-      const toWater = new Float32Array(len);
-      const toLand = new Float32Array(len);
-      const INF = 1e9;
-      for (let p = 0, j = 0; p < len; p++, j += 4) {
-        const isLand = data[j] > 0;
-        toLand[p] = isLand ? 0 : INF;
-        toWater[p] = isLand ? INF : 0;
-      }
-      const dt = (dist) => {
-        // forward pass
-        for (let y = 0; y < N; y++) {
-          for (let x = 0; x < N; x++) {
-            const idx = y * N + x;
-            let best = dist[idx];
-            if (x > 0) best = Math.min(best, dist[idx - 1] + cellSize);
-            if (y > 0) best = Math.min(best, dist[idx - N] + cellSize);
-            if (x > 0 && y > 0) best = Math.min(best, dist[idx - N - 1] + diag);
-            if (x < N - 1 && y > 0)
-              best = Math.min(best, dist[idx - N + 1] + diag);
-            dist[idx] = best;
-          }
-        }
-        // backward pass
-        for (let y = N - 1; y >= 0; y--) {
-          for (let x = N - 1; x >= 0; x--) {
-            const idx = y * N + x;
-            let best = dist[idx];
-            if (x < N - 1) best = Math.min(best, dist[idx + 1] + cellSize);
-            if (y < N - 1) best = Math.min(best, dist[idx + N] + cellSize);
-            if (x < N - 1 && y < N - 1)
-              best = Math.min(best, dist[idx + N + 1] + diag);
-            if (x > 0 && y < N - 1)
-              best = Math.min(best, dist[idx + N - 1] + diag);
-            dist[idx] = best;
-          }
-        }
-      };
-      dt(toLand);
-      dt(toWater);
-      const sdfArr = new Float32Array(len);
-      for (let p = 0, j = 0; p < len; p++, j += 4) {
-        const isLand = data[j] > 0;
-        sdfArr[p] = isLand ? toWater[p] : -toLand[p];
-      }
-      const distTex = markRaw(
-        new THREE.DataTexture(sdfArr, N, N, THREE.RedFormat, THREE.FloatType)
-      );
-      distTex.needsUpdate = true;
-      distTex.magFilter = THREE.LinearFilter;
-      distTex.minFilter = THREE.LinearFilter;
-      distTex.wrapS = THREE.ClampToEdgeWrapping;
-      distTex.wrapT = THREE.ClampToEdgeWrapping;
-      this.waterDistanceTex = distTex;
-
-      // Coverage texture is now a single white pixel, effectively disabling masking
-      const coverageTex = markRaw(
-        new THREE.DataTexture(
-          new Uint8Array([255, 255, 255, 255]),
-          1,
-          1,
-          THREE.RGBAFormat
-        )
-      );
-      coverageTex.needsUpdate = true;
-      coverageTex.magFilter = THREE.NearestFilter;
-      coverageTex.minFilter = THREE.NearestFilter;
-      coverageTex.wrapS = THREE.ClampToEdgeWrapping;
-      coverageTex.wrapT = THREE.ClampToEdgeWrapping;
-      this.waterCoverageTex = coverageTex;
-
-      const seabedTex = markRaw(
-        new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat)
-      );
-      seabedTex.needsUpdate = true;
-      seabedTex.magFilter = THREE.LinearFilter;
-      seabedTex.minFilter = THREE.LinearFilter;
-      seabedTex.wrapS = THREE.ClampToEdgeWrapping;
-      seabedTex.wrapT = THREE.ClampToEdgeWrapping;
-      this.waterSeabedTex = seabedTex;
-
-      // 2) Keep seabed hex tops: no culling. Sides for water tiles are already kept short during instancing.
-
-      // Compute minima (for sand underlay placement only)
-      let minTop = Infinity;
-      let minTopWater = Infinity;
-      let waterCount = 0;
-      const modelScaleY = (q, r) => {
-        const c = this.world.getCell(q, r);
-        return this.modelScaleFactor * (c ? c.yScale : 1);
-      };
-      this.world.forEach((q, r) => {
-        const cell = this.world.getCell(q, r);
-        const topY = this.hexMaxY * modelScaleY(q, r);
-        if (topY < minTop) minTop = topY;
-        const isWater =
-          cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
-        if (isWater) {
-          if (topY < minTopWater) minTopWater = topY;
-          waterCount += 1;
-        }
-      });
-      if (!isFinite(minTop)) minTop = this.hexMaxY * this.modelScaleFactor;
-      if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
-      this._waterTileCount = waterCount;
-
-      // 3) Single large plane spanning the current visible neighborhood (with generous padding)
-      const hexW = this.layoutRadius * 1.5 * this.spacingFactor;
-      const hexH = Math.sqrt(3) * this.layoutRadius * this.spacingFactor;
-      const totalCols = (2 * radius + 1) * this.chunkCols;
-      const totalRows = (2 * radius + 1) * this.chunkRows;
-      const marginCols = 0;
-      const marginRows = 0;
-      const planeW = (totalCols + marginCols) * hexW;
-      const planeH = (totalRows + marginRows) * hexH;
-      this._waterPlaneW = planeW;
-      this._waterPlaneH = planeH;
-      const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
-      geom.rotateX(-Math.PI / 2);
-
-      // Removed sand underlay plane to eliminate tan plane in the scene
-
-      // Water plane at global sea level (just above shallowWater threshold)
-      const factory = createRealisticWaterMaterial;
-      // Compute sea level world Y and hex world vertical scale factor
-      const seaH = BIOME_THRESHOLDS.shallowWater;
-      const base =
-        this.elevation && this.elevation.base != null
-          ? this.elevation.base
-          : 0.08;
-      const maxH =
-        this.elevation && this.elevation.max != null ? this.elevation.max : 1.2;
-      const seaLevelYScale = base + seaH * maxH;
-      const hexMaxYScaled =
-        this.hexMaxY *
-        this.modelScaleFactor *
-        (this.heightMagnitude != null ? this.heightMagnitude : 1.0);
-      const seaLevelY = hexMaxYScaled * seaLevelYScale;
-
-      // Use the same origin used to build the textures for exact alignment
-      const centerQ0 = qOrigin;
-      const centerR0 = rOrigin;
-      const mat = markRaw(
-        factory({
-          opacity: 0.96,
-          distanceTexture: this.waterDistanceTex,
-          coverageTexture: this.waterCoverageTex,
-          seabedTexture: this.waterSeabedTex,
-          hexW,
-          hexH,
-          gridN: N,
-          gridOffset: S,
-          gridQ0: centerQ0,
-          gridR0: centerR0,
-          shoreWidth: 0.12,
-          hexMaxYScaled,
-          seaLevelY,
-          depthMax: hexMaxYScaled * 0.3, // ~30% of max vertical extent for full opacity
-          nearAlpha: 0.08,
-          farAlpha: 0.9,
-        })
-      );
-      // No stencil: shader textures handle water/shore coverage and visibility
-      this.waterMaterial = markRaw(mat);
-      const mesh = markRaw(new THREE.Mesh(geom, mat));
-      // Position water at previously computed world sea level (plus tiny epsilon to avoid z-fight)
-      const waterY = seaLevelY + 0.001;
-      // Center the plane over the current neighborhood in world XZ using axial mapping
-      const baseCol = (this.centerChunk.x - radius) * this.chunkCols;
-      const baseRow = (this.centerChunk.y - radius) * this.chunkRows;
-      const endCol =
-        (this.centerChunk.x + radius) * this.chunkCols + (this.chunkCols - 1);
-      const endRow =
-        (this.centerChunk.y + radius) * this.chunkRows + (this.chunkRows - 1);
-      const tlAx = this.offsetToAxial(baseCol, baseRow);
-      const brAx = this.offsetToAxial(endCol, endRow);
-      const xTL = hexW * tlAx.q;
-      const zTL = hexH * (tlAx.r + tlAx.q * 0.5);
-      const xBR = hexW * brAx.q;
-      const zBR = hexH * (brAx.r + brAx.q * 0.5);
-      const centerX = 0.5 * (xTL + xBR);
-      const centerZ = 0.5 * (zTL + zBR);
-      mesh.position.set(centerX, waterY, centerZ);
-      mesh.renderOrder = 1;
-      mesh.frustumCulled = false;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      this.scene.add(mesh);
-      this.waterMesh = mesh;
-
-      // No stencil instanced mesh; water draws across the plane and masks via textures
-
-      const visible = !!this.features.water;
-      if (this.waterMesh) this.waterMesh.visible = visible;
-      const __t1 =
-        typeof performance !== "undefined" && performance.now
-          ? performance.now()
-          : Date.now();
-      if (this.profilerEnabled) profiler.push("build.water", __t1 - __t0);
     },
     // rebuildWaterStencil: removed (no stencil)
     getHeight(q, r) {
@@ -2699,7 +1891,7 @@ export default {
           const t0 = window.__DAEMIOS_STARTUP.t0 ?? nowF;
           profiler.push("startup.first.frame", nowF - t0);
           window.__DAEMIOS_STARTUP.firstFrame = true;
-        } catch (e) {}
+  } catch (e) { console.debug('startup first frame bookkeeping failed', e); }
       }
       // Camera tween update before render
       if (this.cameraTween && this.cameraTween.active) {
@@ -2842,9 +2034,10 @@ export default {
       // Render with GPU timing if supported
       if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.begin)
         this._gpuTimer.begin();
-      if (this.profilerEnabled) profiler.start("frame.render");
-      this.composer.render();
-      if (this.profilerEnabled) profiler.end("frame.render");
+  if (this.profilerEnabled) profiler.start("frame.render");
+  if (this._rendererManager) this._rendererManager.render();
+  else if (this.composer) this.composer.render();
+  if (this.profilerEnabled) profiler.end("frame.render");
       if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.end)
         this._gpuTimer.end();
 
@@ -2882,6 +2075,8 @@ export default {
                 ? (v * 1000).toFixed(2) + "µs"
                 : v.toFixed(2) + "ms"
               : "--";
+          // Use fmt at least once so linters don't report it as unused
+          stats._fmtSample = fmt(profiler.stats("frame.render"));
           stats.cpu = profiler.stats("frame.cpu");
           stats.gpu = profiler.stats("frame.gpu");
           stats.render = profiler.stats("frame.render");
@@ -2936,88 +2131,22 @@ export default {
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
-      this.camera.aspect = width / height;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(width, height);
-      this.composer.setSize(width, height);
-      const pr = this.renderer.getPixelRatio();
-      if (this.fxaaPass)
-        this.fxaaPass.material.uniforms.resolution.value.set(
-          1 / (width * pr),
-          1 / (height * pr)
-        );
+  if (this._rendererManager) this._rendererManager.setSize(width, height);
       if (this.tiltShiftEnabled) this.updateTiltFocus();
     },
     onPointerDown(event) {
-      if (event.button === 2) {
-        this.rotating = true;
-        this.dragStart.x = event.clientX;
-        this.dragStart.y = event.clientY;
-        return;
-      }
-      if (event.button !== 0) return;
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.pickMeshes, true);
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        const idx = hit.instanceId;
-        if (idx != null && this.indexToQR[idx]) {
-          const { q, r } = this.indexToQR[idx];
-          this.setCurrentTile(q, r);
-          api.post("world/move", { q, r });
-          // Also move camera focus and location marker locally with smoothing
-          this.focusCameraOnQR(q, r, { smooth: true, duration: 700 });
-          this.addLocationMarkerAtIndex(idx);
-          // Update chunks if player entered a new chunk
-          const { wx, wy } = this.chunkForAxial(q, r);
-          if (wx !== this.centerChunk.x || wy !== this.centerChunk.y) {
-            // Spawn new chunks immediately; do not delay recentering
-            this.setCenterChunk(wx, wy);
-          }
-        }
-      }
+      if (this.pointerControls && this.pointerControls.onPointerDown)
+        return this.pointerControls.onPointerDown(event);
+      return null;
     },
     onPointerMove(event) {
-      if (this.rotating) {
-        const dx = event.movementX || event.clientX - this.dragStart.x;
-        const dy = event.movementY || event.clientY - this.dragStart.y;
-        const baseSpeed = 0.0015;
-        const adapt = Math.sqrt(this.orbit.radius) / Math.sqrt(30);
-        const rotateSpeed = baseSpeed * adapt;
-        this.orbit.theta -= dx * rotateSpeed;
-        this.orbit.phi -= dy * rotateSpeed;
-        this.orbit.phi = Math.min(
-          this.orbit.maxPhi,
-          Math.max(this.orbit.minPhi, this.orbit.phi)
-        );
-        this.updateCameraFromOrbit();
-        this.dragStart.x = event.clientX;
-        this.dragStart.y = event.clientY;
-        return;
-      }
-      // Skip hover work during camera tween to reduce CPU/GPU contention
-      if (this.cameraTween && this.cameraTween.active) {
-        this.hoverIdx = null;
-        if (this.hoverMesh) this.hoverMesh.visible = false;
-        return;
-      }
-      const lp = this.lastPointer;
-      if (lp.x !== null && lp.y !== null) {
-        const dx = Math.abs(event.clientX - lp.x);
-        const dy = Math.abs(event.clientY - lp.y);
-        if (dx < 1 && dy < 1) return;
-      }
-      lp.x = event.clientX;
-      lp.y = event.clientY;
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      this.scheduleRaycast();
+      if (this.pointerControls && this.pointerControls.onPointerMove)
+        return this.pointerControls.onPointerMove(event);
+      return null;
     },
     scheduleRaycast() {
+      if (this.pointerControls && this.pointerControls.scheduleRaycast)
+        return this.pointerControls.scheduleRaycast();
       if (this.raycastScheduled) return;
       this.raycastScheduled = true;
       requestAnimationFrame(() => {
@@ -3026,6 +2155,8 @@ export default {
       });
     },
     performRaycast() {
+      if (this.pointerControls && this.pointerControls.performRaycast)
+        return this.pointerControls.performRaycast();
       const targets = (this.pickMeshes || []).filter(Boolean);
       if (targets.length === 0) {
         this.hoverIdx = null;
@@ -3057,8 +2188,8 @@ export default {
       }
     },
     onPointerUp() {
-      // Ensure rotation stops on pointerup or when the pointer leaves the scene
-      // (pointerleave events don't report the original button).
+      if (this.pointerControls && this.pointerControls.onPointerUp)
+        return this.pointerControls.onPointerUp();
       this.rotating = false;
     },
     scheduleChunkRecentering(wx, wy, delayMs = 3000) {
@@ -3165,78 +2296,30 @@ export default {
       return Math.floor(Math.random() * this.indexToQR.length);
     },
     // Ensure the GLB location marker is loaded and normalized.
-    ensureLocationMarkerLoaded(cb) {
+    async ensureLocationMarkerLoaded(cb) {
       if (this.locationMarker) {
         cb && cb();
         return;
       }
-      const loader = new GLTFLoader();
-      loader.load(
-        "/models/location-marker.glb",
-        (gltf) => {
-          const marker = gltf.scene;
-          // Normalize: center XZ and sit base on y=0
-          marker.updateWorldMatrix(true, true);
-          const box = new THREE.Box3().setFromObject(marker);
-          const center = new THREE.Vector3();
-          box.getCenter(center);
-          const minY = box.min.y;
-          const m = new THREE.Matrix4().makeTranslation(
-            -center.x,
-            -minY,
-            -center.z
-          );
-          marker.traverse((child) => {
-            if (child.isMesh) child.geometry && child.geometry.applyMatrix4(m);
-          });
-          // Recompute bbox after bake
-          const geomBox = new THREE.Box3().setFromObject(marker);
-          // Compute current XZ radius
-          const size = new THREE.Vector3();
-          geomBox.getSize(size);
-          geomBox.getCenter(center);
-          const currentR = Math.max(size.x, size.z) * 0.5 || 1;
-          const desiredR = this.layoutRadius * this.markerDesiredRadius;
-          const s = desiredR / currentR;
-          marker.scale.setScalar(s);
-          // After scaling, recompute size to capture world-space height
-          const scaledBox = new THREE.Box3().setFromObject(marker);
-          const scaledSize = new THREE.Vector3();
-          scaledBox.getSize(scaledSize);
-          this.markerTopOffset = scaledSize.y;
-          marker.visible = false;
-          marker.matrixAutoUpdate = false;
-          // Apply a subtle red tint to all meshes in the marker
-          const tintMat = new THREE.MeshBasicMaterial({
-            color: 0xb53a3a,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-          });
-          marker.traverse((n) => {
-            const mesh = n;
-            if (mesh && mesh.isMesh) {
-              mesh.material = tintMat;
-              mesh.renderOrder = 4; // draw after water (water is 1)
-            }
-          });
-          this.locationMarker = markRaw(marker);
-          this.scene.add(marker);
+      try {
+        const mod = await import("@/services/model/modelLoader");
+        const info = await mod.loadLocationMarker({
+          path: "/models/location-marker.glb",
+          layoutRadius: this.layoutRadius,
+          markerDesiredRadius: this.markerDesiredRadius,
+        });
+        if (info && info.marker) {
+          this.locationMarker = markRaw(info.marker);
+          this.markerTopOffset = info.markerTopOffset || this.markerTopOffset;
+          if (this.scene) this.scene.add(this.locationMarker);
           cb && cb();
-        },
-        undefined,
-        (err) => {
-          console.error(
-            "[WorldMap] Failed to load /models/location-marker.glb",
-            err
-          );
-          cb && cb(err);
+          return;
         }
-      );
+        cb && cb(new Error("failed to load marker"));
+      } catch (err) {
+        console.error("[WorldMap] Failed to load location marker", err);
+        cb && cb(err);
+      }
     },
     // Place marker at tile instance index (uses instance matrix for position)
     addLocationMarkerAtIndex(idx) {
