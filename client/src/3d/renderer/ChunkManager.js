@@ -1,11 +1,11 @@
-import * as THREE from 'three';
-import { markRaw } from 'vue';
-import { buildNeighborhood } from './neighborhoodBuilder';
-import ClutterManager from '../world/ClutterManager';
-import { createHoverMesh } from './hoverMesh';
-import { commitClutter } from './clutterCommit';
-import { initClutter } from './clutterInit';
-import { handleSetCenterChunk } from './centerController';
+import * as THREE from "three";
+import { markRaw } from "vue";
+import { buildNeighborhood } from "./neighborhoodBuilder";
+import ClutterManager from "../world/ClutterManager";
+import { createHoverMesh } from "./hoverMesh";
+import { commitClutter } from "./clutterCommit";
+import { initClutter } from "./clutterInit";
+import { handleSetCenterChunk } from "./centerController";
 
 /**
  * ChunkManager
@@ -28,45 +28,59 @@ export default class ChunkManager {
     this.chunkRows = opts.chunkRows;
     this.neighborRadius = opts.neighborRadius ?? 1;
     this.features = opts.features || {};
-  this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
-    this.centerChunk = { x: opts.centerChunk?.x ?? 0, y: opts.centerChunk?.y ?? 0 };
+    this.heightMagnitude =
+      opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
+    this.centerChunk = {
+      x: opts.centerChunk?.x ?? 0,
+      y: opts.centerChunk?.y ?? 0,
+    };
 
     // Rendering helpers
-  this.pastelColorForChunk = opts.pastelColorForChunk || (() => new THREE.Color(0xffffff));
+    this.pastelColorForChunk =
+      opts.pastelColorForChunk || (() => new THREE.Color(0xffffff));
 
     // Streaming budgets
     this.streamBudgetMs = opts.streamBudgetMs ?? 6;
-  this.streamMaxChunksPerTick = opts.streamMaxChunksPerTick ?? 0; // 0 = unlimited
-  this.rowsPerSlice = opts.rowsPerSlice ?? 4;
+    this.streamMaxChunksPerTick = opts.streamMaxChunksPerTick ?? 0; // 0 = unlimited
+    this.rowsPerSlice = opts.rowsPerSlice ?? 4;
 
     // Misc world info for clutter placement
     this.hexMaxY = opts.hexMaxY ?? 1;
-  this.modelScaleY = opts.modelScaleY || (() => 1.0);
+    this.modelScaleY = opts.modelScaleY || (() => 1.0);
 
     // Callbacks to integrate with host (WorldMap)
     this.onBuilt = opts.onBuilt || (() => {});
     this.onPickMeshes = opts.onPickMeshes || (() => {});
     this.onSnapshotTrail = opts.onSnapshotTrail || (() => {});
-  this.onExtendTrail = opts.onExtendTrail || (() => {});
-  this.onHideTrail = opts.onHideTrail || (() => {});
+    this.onExtendTrail = opts.onExtendTrail || (() => {});
+    this.onHideTrail = opts.onHideTrail || (() => {});
 
     // Services
     this.neighborhood = null;
-    this.clutter = opts.clutter || markRaw(new ClutterManager({ streamBudgetMs: this.streamBudgetMs }));
+    this.clutter =
+      opts.clutter ||
+      markRaw(new ClutterManager({ streamBudgetMs: this.streamBudgetMs }));
 
     // last neighborhood rect for clutter union under trail
     this._prevNeighborhoodRect = null;
-  // Streaming state for neighborhood rebuilds
-  this.streaming = false;
-  this.trailActive = false;
+    // Streaming state for neighborhood rebuilds
+    this.streaming = false;
+    this.trailActive = false;
   }
 
   async build(topGeom, sideGeom) {
-  // remember last geoms so the manager can rebuild itself during progressive expansion
-  this._lastTopGeom = topGeom;
-  this._lastSideGeom = sideGeom;
+    // remember last geoms so the manager can rebuild itself during progressive expansion
+    this._lastTopGeom = topGeom;
+    this._lastSideGeom = sideGeom;
     // Build instanced neighborhood
-    if (this.neighborhood) { try { this.neighborhood.dispose(); } catch (e) { console.debug('neighborhood.dispose failed', e); } this.neighborhood = null; }
+    if (this.neighborhood) {
+      try {
+        this.neighborhood.dispose();
+      } catch (e) {
+        console.debug("neighborhood.dispose failed", e);
+      }
+      this.neighborhood = null;
+    }
     const res = buildNeighborhood(this.scene, this.world, topGeom, sideGeom, {
       layoutRadius: this.layoutRadius,
       spacingFactor: this.spacingFactor,
@@ -82,8 +96,12 @@ export default class ChunkManager {
       streamBudgetMs: this.streamBudgetMs,
       streamMaxChunksPerTick: this.streamMaxChunksPerTick,
       rowsPerSlice: this.rowsPerSlice,
-      onBuildStart: () => { this.streaming = true; },
-      onBuildComplete: () => { this.streaming = false; },
+      onBuildStart: () => {
+        this.streaming = true;
+      },
+      onBuildComplete: () => {
+        this.streaming = false;
+      },
     });
     this.neighborhood = res.neighborhood;
     const built = res.built;
@@ -91,7 +109,9 @@ export default class ChunkManager {
     try {
       const hoverMesh = createHoverMesh(this.scene, topGeom);
       if (hoverMesh) built.hoverMesh = hoverMesh;
-  } catch (e) { console.debug('createHoverMesh failed', e); }
+    } catch (e) {
+      console.debug("createHoverMesh failed", e);
+    }
 
     // Hand references to host
     this.onBuilt(built);
@@ -103,15 +123,18 @@ export default class ChunkManager {
       await initClutter(this.clutter, this.scene, this.world);
       this.commitClutterForNeighborhood();
     }
-  // WorldMap drives the first center set to avoid duplicate invocations here
+    // WorldMap drives the first center set to avoid duplicate invocations here
   }
 
   // Schedule a progressive expansion to `targetRadius` once current streaming finishes.
   // Accepts an optional callbacks object: { onComplete }
   scheduleProgressiveExpand(targetRadius, callbacks = {}) {
     try {
-      if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId);
-    } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+      if (this._progressiveCheckId)
+        cancelAnimationFrame(this._progressiveCheckId);
+    } catch (e) {
+      console.debug("cancelProgressiveExpand failed", e);
+    }
     const self = this;
     const check = () => {
       // Wait until current build/streaming completes
@@ -121,17 +144,22 @@ export default class ChunkManager {
           self.neighborRadius = targetRadius;
           // Rebuild using the last provided geometries
           try {
-            self.build(self._lastTopGeom, self._lastSideGeom)
+            self
+              .build(self._lastTopGeom, self._lastSideGeom)
               .then(() => {
-                if (callbacks && typeof callbacks.onComplete === 'function') {
-                  try { callbacks.onComplete(); } catch (e) { console.debug('onComplete failed', e); }
+                if (callbacks && typeof callbacks.onComplete === "function") {
+                  try {
+                    callbacks.onComplete();
+                  } catch (e) {
+                    console.debug("onComplete failed", e);
+                  }
                 }
               })
               .catch((err) => {
-                console.debug('progressive build failed', err);
+                console.debug("progressive build failed", err);
               });
           } catch (err) {
-            console.debug('scheduleProgressiveExpand build failed', err);
+            console.debug("scheduleProgressiveExpand build failed", err);
           }
         }
         self._progressiveCheckId = null;
@@ -143,13 +171,21 @@ export default class ChunkManager {
       this._progressiveCheckId = requestAnimationFrame(check);
     } catch (e) {
       // requestAnimationFrame may not exist in some environments
-      console.debug('requestAnimationFrame missing, falling back to setTimeout', e);
+      console.debug(
+        "requestAnimationFrame missing, falling back to setTimeout",
+        e
+      );
       setTimeout(check, 16);
     }
   }
 
   cancelProgressiveExpand() {
-  try { if (this._progressiveCheckId) cancelAnimationFrame(this._progressiveCheckId); } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+    try {
+      if (this._progressiveCheckId)
+        cancelAnimationFrame(this._progressiveCheckId);
+    } catch (e) {
+      console.debug("cancelProgressiveExpand failed", e);
+    }
     this._progressiveCheckId = null;
   }
 
@@ -169,17 +205,19 @@ export default class ChunkManager {
   }
 
   dispose() {
-    if (this.neighborhood && this.neighborhood.dispose) this.neighborhood.dispose();
+    if (this.neighborhood && this.neighborhood.dispose)
+      this.neighborhood.dispose();
     this.neighborhood = null;
     // Leave clutter attached; WorldMap manages its lifecycle toggle separately
   }
 
   applyChunkColors(enabled) {
-    if (this.neighborhood && this.neighborhood.applyChunkColors) this.neighborhood.applyChunkColors(!!enabled);
+    if (this.neighborhood && this.neighborhood.applyChunkColors)
+      this.neighborhood.applyChunkColors(!!enabled);
   }
 
   setCenterChunk(wx, wy, options = {}) {
-  handleSetCenterChunk(this, wx, wy, options);
+    handleSetCenterChunk(this, wx, wy, options);
   }
 
   commitClutterForNeighborhood() {
@@ -207,7 +245,9 @@ export default class ChunkManager {
         clearTimeout(this._clutterCommitTimer);
         this._clutterCommitTimer = null;
       }
-    } catch (e) { console.debug('clear _clutterCommitTimer failed', e); }
+    } catch (e) {
+      console.debug("clear _clutterCommitTimer failed", e);
+    }
     this._clutterCommitTimer = setTimeout(() => {
       this._clutterCommitTimer = null;
       this.commitClutterForNeighborhood();
@@ -215,7 +255,14 @@ export default class ChunkManager {
   }
 
   clearClutterCommit() {
-    try { if (this._clutterCommitTimer) { clearTimeout(this._clutterCommitTimer); this._clutterCommitTimer = null; } } catch (e) { console.debug('clearClutterCommit failed', e); }
+    try {
+      if (this._clutterCommitTimer) {
+        clearTimeout(this._clutterCommitTimer);
+        this._clutterCommitTimer = null;
+      }
+    } catch (e) {
+      console.debug("clearClutterCommit failed", e);
+    }
   }
 }
 

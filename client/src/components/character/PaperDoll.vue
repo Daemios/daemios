@@ -1,9 +1,6 @@
 <template>
-
   <div class="flex-grow-0">
-
     <div class="doll-grid">
-
       <!-- Trinkets -->
       <div class="trinkets d-flex">
         <!-- Additional Items -->
@@ -76,42 +73,34 @@
         right
         @click="selected = equipped.legs"
       />
-      <DollSlot
-        label="Feet"
-        :item="equipped.feet"
-        right
-      />
+      <DollSlot label="Feet" :item="equipped.feet" right />
 
       <!-- Weapons -->
       <DollSlot
         label="mainhand"
         :item="equipped.mainhand"
         class="weapon-mainhand"
-        @click="selected = {...equipped.mainhand}"
+        @click="selected = { ...equipped.mainhand }"
       />
       <DollSlot
         label="offhand"
         :item="equipped.offhand"
         class="weapon-offhand"
-        @click="selected = {...equipped.offhand}"
+        @click="selected = { ...equipped.offhand }"
       />
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
-
+    <ItemDialog :item="selected" @close="selected = null" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { mdiClose } from '@mdi/js';
-import DollSlot from '@/components/character/DollSlot.vue';
-import ItemDialog from '@/components/inventory/ItemDialog.vue';
-import { useUserStore } from '@/stores/userStore';
+import { ref, computed } from "vue";
+import { mdiClose } from "@mdi/js";
+import DollSlot from "@/components/character/DollSlot.vue";
+import ItemDialog from "@/components/inventory/ItemDialog.vue";
+import { useUserStore } from "@/stores/userStore";
 
 const selected = ref(null);
 const userStore = useUserStore();
@@ -125,14 +114,29 @@ const equipped = computed(() => character.value.equipped || {});
   display: grid;
   grid-template-columns: 100px auto auto 100px;
   grid-auto-rows: 100px;
-  grid-gap: .5rem;
+  grid-gap: 0.5rem;
   grid-auto-flow: dense;
   min-width: 650px;
   max-width: 650px;
 }
-.doll-grid .trinkets { grid-column: span 4; }
-.doll-grid .weapon-mainhand, .doll-grid .weapon-offhand { grid-column: span 2; height: 100px; }
-.doll-grid .avatar { grid-column: 2/4; grid-row: span 4; }
-.doll-grid .avatar span { width: 100% !important; height: 100% !important; }
-.doll-grid .avatar .v-icon__svg { width: 100% !important; height: 100% !important; }
+.doll-grid .trinkets {
+  grid-column: span 4;
+}
+.doll-grid .weapon-mainhand,
+.doll-grid .weapon-offhand {
+  grid-column: span 2;
+  height: 100px;
+}
+.doll-grid .avatar {
+  grid-column: 2/4;
+  grid-row: span 4;
+}
+.doll-grid .avatar span {
+  width: 100% !important;
+  height: 100% !important;
+}
+.doll-grid .avatar .v-icon__svg {
+  width: 100% !important;
+  height: 100% !important;
+}
 </style>

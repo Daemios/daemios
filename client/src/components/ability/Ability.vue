@@ -3,9 +3,7 @@
     <v-row>
       <!-- Vessel Icon -->
       <v-col>
-        <VesselMini
-          :color="color"
-        />
+        <VesselMini :color="color" />
       </v-col>
       <!-- Details -->
       <v-col>
@@ -21,10 +19,9 @@
 </template>
 
 <script setup>
-import AbilityMockup from '@/components/ability/AbilityMockup.vue';
-import VesselMini from '@/components/ability/VesselMini.vue';
-import { useAbilityStore } from '@/stores/abilityStore';
-import { reactive, computed } from 'vue';
+import AbilityMockup from "@/components/ability/AbilityMockup.vue";
+import VesselMini from "@/components/ability/VesselMini.vue";
+import { reactive } from "vue";
 
 defineProps({
   color: {
@@ -34,9 +31,9 @@ defineProps({
 });
 
 const ability = reactive({
-  name: 'Ability Name',
-  element: { name: 'fire' },
+  name: "Ability Name",
+  element: { name: "fire" },
 });
 
-const elements = computed(() => useAbilityStore().elements || {});
+// elements from store currently unused in this component
 </script>

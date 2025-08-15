@@ -46,7 +46,8 @@ export default function useWorldMap() {
         Object.assign(state.radialFade, saved.radialFade);
       if (saved.generation && typeof saved.generation === "object")
         Object.assign(state.generation, saved.generation);
-      if (typeof saved.worldSeed === "number") state.worldSeed = saved.worldSeed;
+      if (typeof saved.worldSeed === "number")
+        state.worldSeed = saved.worldSeed;
     }
   } catch (e) {
     // noop

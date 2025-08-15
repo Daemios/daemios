@@ -1,7 +1,7 @@
 <template>
   <v-layout
     class="d-flex flex-grow-0"
-    style="position: relative; height: 100px; width: 296px;"
+    style="position: relative; height: 100px; width: 296px"
   >
     <!-- Avatar Image -->
     <v-sheet
@@ -26,22 +26,28 @@
     <v-card
       class="ml-n1 mb-2 pa-2 align-self-end"
       height="60"
-      style="position: absolute; z-index: 1; width: 200px; left: 92px; border-radius: 4px;"
+      style="
+        position: absolute;
+        z-index: 1;
+        width: 200px;
+        left: 92px;
+        border-radius: 4px;
+      "
       :style="`border-left: ${leftBorder}`"
     >
       <div>
         {{ nameDisplay }}
       </div>
       <div class="caption">
-        {{ title || '' }}
+        {{ title || "" }}
       </div>
     </v-card>
   </v-layout>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { mdiHelp } from '@mdi/js';
+import { computed } from "vue";
+import { mdiHelp } from "@mdi/js";
 
 const props = defineProps({
   avatar_url: {
@@ -62,6 +68,8 @@ const props = defineProps({
   },
 });
 
-const nameDisplay = computed(() => (props.name ? props.name : 'Enter Name'));
-const leftBorder = computed(() => (props.color ? `4px solid ${props.color}` : 'none'));
+const nameDisplay = computed(() => (props.name ? props.name : "Enter Name"));
+const leftBorder = computed(() =>
+  props.color ? `4px solid ${props.color}` : "none"
+);
 </script>

@@ -53,11 +53,11 @@ export function createPointerControls(ctx) {
       return;
     }
     if (event.button !== 0) return;
-  const rect = renderer.domElement.getBoundingClientRect();
-  state.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  state.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  state.raycaster.setFromCamera(state.mouse, camera);
-  const intersects = state.raycaster.intersectObjects(getPickMeshes(), true);
+    const rect = renderer.domElement.getBoundingClientRect();
+    state.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    state.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    state.raycaster.setFromCamera(state.mouse, camera);
+    const intersects = state.raycaster.intersectObjects(getPickMeshes(), true);
     if (intersects.length > 0) {
       const hit = intersects[0];
       const idx = hit.instanceId;
@@ -79,13 +79,13 @@ export function createPointerControls(ctx) {
     if (state.rotating) {
       const dx = event.movementX || event.clientX - state.dragStart.x;
       const dy = event.movementY || event.clientY - state.dragStart.y;
-  const baseSpeed = 0.0015;
-  const adapt = Math.sqrt(orbit.radius) / Math.sqrt(30);
-  const rotateSpeed = baseSpeed * adapt;
-  orbit.theta -= dx * rotateSpeed;
-  orbit.phi -= dy * rotateSpeed;
-  orbit.phi = Math.min(orbit.maxPhi, Math.max(orbit.minPhi, orbit.phi));
-  updateCameraFromOrbit();
+      const baseSpeed = 0.0015;
+      const adapt = Math.sqrt(orbit.radius) / Math.sqrt(30);
+      const rotateSpeed = baseSpeed * adapt;
+      orbit.theta -= dx * rotateSpeed;
+      orbit.phi -= dy * rotateSpeed;
+      orbit.phi = Math.min(orbit.maxPhi, Math.max(orbit.minPhi, orbit.phi));
+      updateCameraFromOrbit();
       state.dragStart.x = event.clientX;
       state.dragStart.y = event.clientY;
       return;
@@ -103,9 +103,9 @@ export function createPointerControls(ctx) {
     }
     lp.x = event.clientX;
     lp.y = event.clientY;
-  const rect = renderer.domElement.getBoundingClientRect();
-  state.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  state.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const rect = renderer.domElement.getBoundingClientRect();
+    state.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    state.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     scheduleRaycast();
   }
 
@@ -155,11 +155,14 @@ export function createPointerControls(ctx) {
   }
 
   function onWheel(e) {
-  e.preventDefault();
-  const zoomFactor = 1 + (e.deltaY > 0 ? 0.12 : -0.12);
-  orbit.radius *= zoomFactor;
-  orbit.radius = Math.min(orbit.maxRadius, Math.max(orbit.minRadius, orbit.radius));
-  updateCameraFromOrbit();
+    e.preventDefault();
+    const zoomFactor = 1 + (e.deltaY > 0 ? 0.12 : -0.12);
+    orbit.radius *= zoomFactor;
+    orbit.radius = Math.min(
+      orbit.maxRadius,
+      Math.max(orbit.minRadius, orbit.radius)
+    );
+    updateCameraFromOrbit();
   }
 
   function blockContext(e) {
@@ -189,14 +192,14 @@ export function createPointerControls(ctx) {
   }
 
   return {
-  attach,
-  detach,
-  scheduleRaycast: scheduleRaycast,
-  performRaycast: performRaycast,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onWheel,
-  blockContext,
+    attach,
+    detach,
+    scheduleRaycast: scheduleRaycast,
+    performRaycast: performRaycast,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onWheel,
+    blockContext,
   };
 }

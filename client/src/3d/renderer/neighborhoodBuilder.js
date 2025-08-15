@@ -1,4 +1,4 @@
-import ChunkNeighborhood from './ChunkNeighborhood';
+import ChunkNeighborhood from "./ChunkNeighborhood";
 
 export function buildNeighborhood(scene, world, topGeom, sideGeom, opts = {}) {
   // Create the ChunkNeighborhood instance and return it along with the built descriptor.

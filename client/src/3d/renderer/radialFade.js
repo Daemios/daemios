@@ -1,9 +1,12 @@
 /* eslint-disable no-param-reassign */
 // Utilities to attach and update radial fade shader logic to materials
 // Keep these pure and side-effect minimal; caller holds onto returned uniforms refs
-import * as THREE from 'three';
+import * as THREE from "three";
 
-export function attachRadialFade(material, { bucketKey, layoutRadius, contactScale }) {
+export function attachRadialFade(
+  material,
+  { bucketKey, layoutRadius, contactScale }
+) {
   const uniformsRef = {};
   /* eslint-disable no-param-reassign */
   material.onBeforeCompile = (shader) => {
@@ -18,9 +21,14 @@ export function attachRadialFade(material, { bucketKey, layoutRadius, contactSca
     if (material && material.userData && material.userData.uXZScale != null) {
       shader.uniforms.uXZScale.value = material.userData.uXZScale;
     }
-    const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius; uniform float uXZScale;\n attribute vec2 iCenter; attribute float iScaleY;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
-    shader.vertexShader = vertDecl + shader.vertexShader
-    .replace('#include <begin_vertex>', `#include <begin_vertex>
+    const vertDecl =
+      "\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius; uniform float uXZScale;\n attribute vec2 iCenter; attribute float iScaleY;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n";
+    shader.vertexShader =
+      vertDecl +
+      shader.vertexShader
+        .replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
         #ifdef USE_ATTR_TRANSFORM
           transformed.xz *= uXZScale;
           transformed.y *= iScaleY;
@@ -46,11 +54,19 @@ export function attachRadialFade(material, { bucketKey, layoutRadius, contactSca
         #else
           transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
         #endif
-      `)
-      .replace('#include <beginnormal_vertex>', `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`)
-      // Use our own computed world position to avoid relying on worldPosition symbol presence
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
-    const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+      `
+        )
+        .replace(
+          "#include <beginnormal_vertex>",
+          `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`
+        )
+        // Use our own computed world position to avoid relying on worldPosition symbol presence
+        .replace(
+          "#include <worldpos_vertex>",
+          "#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;"
+        );
+    const fadeDecl =
+      "\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n";
     const injectFrag = `
         float distXZ = length(vWorldPos.xz - uFadeCenter);
         if (uFadeEnabled == 1) {
@@ -64,8 +80,8 @@ export function attachRadialFade(material, { bucketKey, layoutRadius, contactSca
         #include <premultiplied_alpha_fragment>
     `;
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>' + fadeDecl)
-      .replace('#include <premultiplied_alpha_fragment>', injectFrag);
+      .replace("#include <common>", "#include <common>" + fadeDecl)
+      .replace("#include <premultiplied_alpha_fragment>", injectFrag);
     uniformsRef[bucketKey] = shader.uniforms;
   };
   material.needsUpdate = true;
@@ -73,7 +89,10 @@ export function attachRadialFade(material, { bucketKey, layoutRadius, contactSca
   return uniformsRef;
 }
 
-export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, contactScale }) {
+export function attachRadialFadeDepth(
+  material,
+  { bucketKey, layoutRadius, contactScale }
+) {
   const uniformsRef = {};
   /* eslint-disable no-param-reassign */
   material.onBeforeCompile = (shader) => {
@@ -88,9 +107,14 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
     if (material && material.userData && material.userData.uXZScale != null) {
       shader.uniforms.uXZScale.value = material.userData.uXZScale;
     }
-    const vertDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius; uniform float uXZScale;\n attribute vec2 iCenter; attribute float iScaleY;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
-    shader.vertexShader = vertDecl + shader.vertexShader
-    .replace('#include <begin_vertex>', `#include <begin_vertex>
+    const vertDecl =
+      "\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius; uniform float uXZScale;\n attribute vec2 iCenter; attribute float iScaleY;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n";
+    shader.vertexShader =
+      vertDecl +
+      shader.vertexShader
+        .replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
         #ifdef USE_ATTR_TRANSFORM
           transformed.xz *= uXZScale;
           transformed.y *= iScaleY;
@@ -112,10 +136,18 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
         float inner_v = max(0.0, uFadeRadius - uFadeWidth);
         float f_v = float(uFadeEnabled) * smoothstep(inner_v, uFadeRadius, distXZ_v);
         transformed.y = mix(transformed.y, transformed.y * uMinHeightScale, f_v);
-      `)
-      .replace('#include <beginnormal_vertex>', `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`)
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;');
-    const fadeDecl = '\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n';
+      `
+        )
+        .replace(
+          "#include <beginnormal_vertex>",
+          `vec3 objectNormal = vec3( normal );\n#ifdef USE_ATTR_TRANSFORM\n  objectNormal = normalize( objectNormal / vec3(uXZScale, iScaleY, uXZScale) );\n#endif`
+        )
+        .replace(
+          "#include <worldpos_vertex>",
+          "#include <worldpos_vertex>\n  vWorldPos = wpos_pre.xyz;"
+        );
+    const fadeDecl =
+      "\n uniform vec2 uFadeCenter; uniform float uFadeRadius; uniform float uFadeWidth; uniform int uFadeEnabled; uniform float uMinHeightScale; uniform int uCullWholeHex; uniform float uHexCornerRadius;\n varying vec3 vWorldPos; varying vec3 vInstCenter;\n";
     const injectFrag = `
         float distXZ = length(vWorldPos.xz - uFadeCenter);
         if (uFadeEnabled == 1) {
@@ -128,8 +160,11 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
         }
     `;
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>' + fadeDecl)
-      .replace('#include <dithering_fragment>', `${injectFrag}\n#include <dithering_fragment>`);
+      .replace("#include <common>", "#include <common>" + fadeDecl)
+      .replace(
+        "#include <dithering_fragment>",
+        `${injectFrag}\n#include <dithering_fragment>`
+      );
     uniformsRef[bucketKey] = shader.uniforms;
   };
   material.needsUpdate = true;
@@ -137,16 +172,21 @@ export function attachRadialFadeDepth(material, { bucketKey, layoutRadius, conta
   return uniformsRef;
 }
 
-export function updateRadialFadeUniforms(uniformsMap, { center, radius, width, enabled, minHeightScale, hexCornerRadius }) {
+export function updateRadialFadeUniforms(
+  uniformsMap,
+  { center, radius, width, enabled, minHeightScale, hexCornerRadius }
+) {
   if (!uniformsMap) return;
   /* eslint-disable no-param-reassign */
   const set = (u) => {
     if (!u) return;
-    if (u.uFadeCenter && u.uFadeCenter.value) u.uFadeCenter.value.set(center.x, center.y);
+    if (u.uFadeCenter && u.uFadeCenter.value)
+      u.uFadeCenter.value.set(center.x, center.y);
     if (u.uFadeRadius) u.uFadeRadius.value = radius;
     if (u.uFadeWidth) u.uFadeWidth.value = width;
     if (u.uFadeEnabled) u.uFadeEnabled.value = enabled ? 1 : 0;
-    if (u.uMinHeightScale) u.uMinHeightScale.value = minHeightScale != null ? minHeightScale : 0.05;
+    if (u.uMinHeightScale)
+      u.uMinHeightScale.value = minHeightScale != null ? minHeightScale : 0.05;
     if (u.uHexCornerRadius) u.uHexCornerRadius.value = hexCornerRadius;
     if (u.uCullWholeHex) u.uCullWholeHex.value = 1;
   };

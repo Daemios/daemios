@@ -6,10 +6,7 @@
           <v-card-title>
             Arena
             <v-spacer />
-            <v-dialog
-              v-model="create.show"
-              max-width="800"
-            >
+            <v-dialog v-model="create.show" max-width="800">
               <template #activator="{ props }">
                 <v-btn
                   small
@@ -23,16 +20,11 @@
                 </v-btn>
               </template>
               <v-card>
-                <v-card-title>
-                  Create Arena
-                </v-card-title>
+                <v-card-title> Create Arena </v-card-title>
                 <v-card-text>
                   <v-row>
                     <v-col>
-                      <v-text-field
-                        v-model="create.name"
-                        label="Arena Name"
-                      />
+                      <v-text-field v-model="create.name" label="Arena Name" />
                     </v-col>
                   </v-row>
                   <v-row>
@@ -48,86 +40,13 @@
                     </v-col>
                   </v-row>
                   <v-layout align-center>
-                    <v-btn
-                      small
-                      elevation="0"
-                      @click="create.show = false"
-                    >
+                    <v-btn small elevation="0" @click="create.show = false">
                       Cancel
                     </v-btn>
                     <v-spacer />
                     <span class="success--text mr-2">{{ create.status }}</span>
-                    <v-btn
-                      small
-                      color="primary"
-                      @click="createArena()"
-                    >
-                      <template
-                        v-for="header in headers.filter((header) => header.format)"
-                        #[`item.${header.value}`]="{ value }"
-                      >
-                        {{ new Date(value).toLocaleDateString('en-us', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute:'2-digit'
-                        }) }}
-                      </template>
-                      <template #item.actions="{ item }">
-                        <v-btn
-                          x-small
-                          min-width="66"
-                          color="primary"
-                          class="mr-1"
-                          :disabled="item.arena_history_id === active_arena_history_id"
-                          @click="loadArena(item.arena_history_id)"
-                        >
-                          {{ item.arena_history_id === active_arena_history_id ? 'Loaded' : 'Load' }}
-                        </v-btn>
-                        <v-dialog
-                          v-model="delete_dialog"
-                          max-width="400"
-                        >
-                          <template #activator="{ props }">
-                            <v-btn
-                              x-small
-                              color="failure"
-                              v-bind="props"
-                              @click="delete_dialog = true"
-                            >
-                              <v-icon small>
-                                {{ mdiTrashCan }}
-                              </v-icon>
-                            </v-btn>
-                          </template>
-                          <v-card>
-                            <v-card-title>
-                              Delete Arena
-                            </v-card-title>
-                            <v-card-text>
-                              Are you sure you want to delete this arena?
-                            </v-card-text>
-                            <v-card-actions>
-                              <v-spacer />
-                              <v-btn
-                                x-small
-                                color="secondary"
-                                @click="delete_dialog = false"
-                              >
-                                Cancel
-                              </v-btn>
-                              <v-btn
-                                x-small
-                                color="error"
-                                @click="deleteArena(item.arena_history_id)"
-                              >
-                                Delete
-                              </v-btn>
-                            </v-card-actions>
-                          </v-card>
-                        </v-dialog>
-                      </template>
-                      </v-data-table>
+                    <v-btn small color="primary" @click="createArena()">
+                      <span>{{ create.status }}</span>
                     </v-btn>
                   </v-layout>
                 </v-card-text>
@@ -141,20 +60,10 @@
           <v-card-title>
             Combat
             <v-spacer />
-            <v-btn
-              v-if="!combat"
-              small
-              color="primary"
-              @click="startCombat()"
-            >
+            <v-btn v-if="!combat" small color="primary" @click="startCombat()">
               Start
             </v-btn>
-            <v-btn
-              v-if="combat"
-              small
-              color="primary"
-              @click="endCombat()"
-            >
+            <v-btn v-if="combat" small color="primary" @click="endCombat()">
               End
             </v-btn>
           </v-card-title>
@@ -165,18 +74,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
-import api from '@/utils/api';
-import { mdiTrashCan, mdiPlus } from '@mdi/js';
+import { ref, reactive, onMounted } from "vue";
+import api from "@/utils/api";
+import { mdiPlus } from "@mdi/js";
 
-const delete_dialog = ref(false);
 const active_arena_history_id = ref(null);
-const headers = [
-  { text: 'Name', value: 'name' },
-  { text: 'Size', value: 'size' },
-  { text: 'Date', value: 'last_active', format: true },
-  { text: 'Actions', value: 'actions' },
-];
 const saved_arenas = ref([]);
 const create = reactive({
   show: false,
@@ -187,7 +89,7 @@ const create = reactive({
 });
 
 onMounted(() => {
-  api.get('arena/list').then((response) => {
+  api.get("arena/list").then((response) => {
     active_arena_history_id.value = response.active_arena_history_id;
     saved_arenas.value = response.saved_arenas;
   });
@@ -197,9 +99,9 @@ function createArena() {
   const body = { name: create.name, size: create.size };
   if (create.calling) return;
   create.calling = true;
-  api.post('arena/create', body).then((response) => {
+  api.post("arena/create", body).then((response) => {
     if (response) {
-      create.status = 'Created';
+      create.status = "Created";
       setTimeout(() => {
         saved_arenas.value = response;
         create.calling = false;
@@ -209,13 +111,13 @@ function createArena() {
         create.status = null;
       }, 1000);
     } else {
-      create.status = 'Error';
+      create.status = "Error";
     }
   });
 }
 
 function startCombat() {
-  api.post('dm/combat/start').then((response) => {
+  api.post("dm/combat/start").then((response) => {
     if (response) {
       console.log(response);
     }
@@ -223,25 +125,12 @@ function startCombat() {
 }
 
 function endCombat() {
-  api.post('dm/combat/end').then((response) => {
+  api.post("dm/combat/end").then((response) => {
     if (response) {
       console.log(response);
     }
   });
 }
 
-function loadArena(arena_history_id) {
-  api.post(`arena/load/${arena_history_id}`).then((response) => {
-    active_arena_history_id.value = response.active_arena_history_id;
-    saved_arenas.value = response.saved_arenas;
-  });
-}
-
-function deleteArena(arena_history_id) {
-  api.delete(`arena/single/${arena_history_id}`).then((response) => {
-    if (response) {
-      saved_arenas.value = response;
-    }
-  });
-}
+// loadArena and deleteArena were removed from the template; keep API helpers here if needed later
 </script>

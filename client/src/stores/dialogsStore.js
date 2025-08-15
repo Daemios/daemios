@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 
-export const useDialogsStore = defineStore('dialogs', {
+export const useDialogsStore = defineStore("dialogs", {
   state: () => ({
     isEquipmentOpen: false,
     isInventoryOpen: false,
@@ -8,13 +8,29 @@ export const useDialogsStore = defineStore('dialogs', {
     isOptionsOpen: false,
   }),
   actions: {
-    closeEquipment() { this.isEquipmentOpen = false; },
-    closeInventory() { this.isInventoryOpen = false; },
-    closeAbilities() { this.isAbilitiesOpen = false; },
-    closeOptions() { this.isOptionsOpen = false; },
-    toggleEquipment() { this.isEquipmentOpen = !this.isEquipmentOpen; },
-    toggleAbilities() { this.isAbilitiesOpen = !this.isAbilitiesOpen; },
-    toggleInventory() { this.isInventoryOpen = !this.isInventoryOpen; },
-    toggleOptions() { this.isOptionsOpen = !this.isOptionsOpen; },
+    closeEquipment() {
+      this.isEquipmentOpen = false;
+    },
+    closeInventory() {
+      this.isInventoryOpen = false;
+    },
+    closeAbilities() {
+      this.isAbilitiesOpen = false;
+    },
+    closeOptions() {
+      this.isOptionsOpen = false;
+    },
+    toggleEquipment() {
+      this.isEquipmentOpen = !this.isEquipmentOpen;
+    },
+    toggleAbilities() {
+      this.isAbilitiesOpen = !this.isAbilitiesOpen;
+    },
+    toggleInventory() {
+      this.isInventoryOpen = !this.isInventoryOpen;
+    },
+    toggleOptions() {
+      this.isOptionsOpen = !this.isOptionsOpen;
+    },
   },
 });

@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 
-export const useChatStore = defineStore('chat', {
+export const useChatStore = defineStore("chat", {
   state: () => ({
     connected: false,
     error: null,
@@ -20,12 +20,26 @@ export const useChatStore = defineStore('chat', {
     DELETE_MESSAGE(message) {
       this.chatMessages = this.chatMessages.filter((m) => m.id !== message.id);
     },
-    SET_CONNECTION(val) { this.connected = val; },
-    SET_ERROR(error) { this.error = error; },
-    addMessage(message) { this.ADD_MESSAGE(message); },
-    deleteMessage(message) { this.DELETE_MESSAGE(message); },
-    connectionOpened() { this.SET_CONNECTION(true); },
-    connectionClosed() { this.SET_CONNECTION(false); },
-    connectionError(error) { this.SET_ERROR(error); },
+    SET_CONNECTION(val) {
+      this.connected = val;
+    },
+    SET_ERROR(error) {
+      this.error = error;
+    },
+    addMessage(message) {
+      this.ADD_MESSAGE(message);
+    },
+    deleteMessage(message) {
+      this.DELETE_MESSAGE(message);
+    },
+    connectionOpened() {
+      this.SET_CONNECTION(true);
+    },
+    connectionClosed() {
+      this.SET_CONNECTION(false);
+    },
+    connectionError(error) {
+      this.SET_ERROR(error);
+    },
   },
 });

@@ -1,7 +1,18 @@
 <template>
   <div
     class="world-benchmark-panel position-absolute text-white py-2 px-3 rounded text-caption overflow-auto"
-    style="bottom: 6px; left: 6px; width: 440px; height: 320px; background: rgba(0,0,0,0.55); pointer-events: auto; z-index: 20; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.18); line-height: 1.2;"
+    style="
+      bottom: 6px;
+      left: 6px;
+      width: 440px;
+      height: 320px;
+      background: rgba(0, 0, 0, 0.55);
+      pointer-events: auto;
+      z-index: 20;
+      display: block;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      line-height: 1.2;
+    "
     @pointerdown.stop
     @mousedown.stop
     @click.stop
@@ -12,59 +23,56 @@
       background-color="transparent"
       grow
       class="py-0"
-      style="min-height: 28px; height: 28px; font-size: 11px;"
+      style="min-height: 28px; height: 28px; font-size: 11px"
     >
       <v-tab
         value="general"
-        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px"
       >
         General
       </v-tab>
       <v-tab
         value="chunk"
-        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px"
       >
         Chunk
       </v-tab>
       <v-tab
         value="water"
-        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px;"
+        style="min-width: 60px; height: 24px; padding: 0 8px; font-size: 11px"
       >
         Water
       </v-tab>
     </v-tabs>
-    <div
-      v-if="tab === 'general'"
-      class="pa-2"
-    >
-      <pre style="white-space: pre-wrap; word-break: break-word;">{{ generalStatsDisplay }}</pre>
+    <div v-if="tab === 'general'" class="pa-2">
+      <pre style="white-space: pre-wrap; word-break: break-word">{{
+        generalStatsDisplay
+      }}</pre>
     </div>
-    <div
-      v-else-if="tab === 'chunk'"
-      class="pa-2"
-    >
-      <pre style="white-space: pre-wrap; word-break: break-word;">{{ chunkStatsDisplay }}</pre>
+    <div v-else-if="tab === 'chunk'" class="pa-2">
+      <pre style="white-space: pre-wrap; word-break: break-word">{{
+        chunkStatsDisplay
+      }}</pre>
     </div>
-    <div
-      v-else-if="tab === 'water'"
-      class="pa-2"
-    >
-      <pre style="white-space: pre-wrap; word-break: break-word;">{{ waterStatsDisplay }}</pre>
+    <div v-else-if="tab === 'water'" class="pa-2">
+      <pre style="white-space: pre-wrap; word-break: break-word">{{
+        waterStatsDisplay
+      }}</pre>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { ref, computed, watch, onMounted } from "vue";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 const props = defineProps({
-  generalStats: { type: [String, Object], default: '' },
-  chunkStats: { type: [String, Object], default: '' },
-  waterStats: { type: [String, Object], default: '' },
+  generalStats: { type: [String, Object], default: "" },
+  chunkStats: { type: [String, Object], default: "" },
+  waterStats: { type: [String, Object], default: "" },
 });
 
-const tab = ref('general');
+const tab = ref("general");
 const liveStats = ref(null);
 const settings = ref(null);
 
@@ -72,63 +80,79 @@ const generalStatsDisplay = computed(() => {
   if (!liveStats.value) return props.generalStats;
   const s = liveStats.value;
   const lines = [];
-  lines.push(fmtStat(s.cpu, 'CPU'));
-  lines.push(fmtStat(s.gpu, 'GPU'));
-  lines.push(fmtStat(s.render, 'Render'));
-  lines.push(fmtStat(s.fadeU, 'FadeU'));
-  lines.push(fmtStat(s.tween, 'Tween'));
-  lines.push(fmtStat(s.stream, 'Stream'));
-  lines.push(fmtStat(s.slice, 'Slice'));
-  lines.push(fmtStat(s.clutter, 'Clutter'));
-  if (s.queueTotal) lines.push(`Queue Total: ${s.queueTotal.last ?? s.queueTotal.avg}`);
-  if (s.queueRate) lines.push(`Queue Rate: ${(s.queueRate.last ?? 0).toFixed(1)}t/s`);
+  lines.push(fmtStat(s.cpu, "CPU"));
+  lines.push(fmtStat(s.gpu, "GPU"));
+  lines.push(fmtStat(s.render, "Render"));
+  lines.push(fmtStat(s.fadeU, "FadeU"));
+  lines.push(fmtStat(s.tween, "Tween"));
+  lines.push(fmtStat(s.stream, "Stream"));
+  lines.push(fmtStat(s.slice, "Slice"));
+  lines.push(fmtStat(s.clutter, "Clutter"));
+  if (s.queueTotal)
+    lines.push(`Queue Total: ${s.queueTotal.last ?? s.queueTotal.avg}`);
+  if (s.queueRate)
+    lines.push(`Queue Rate: ${(s.queueRate.last ?? 0).toFixed(1)}t/s`);
   if (s.queueEta) lines.push(`Queue ETA: ${s.queueEta.last ?? s.queueEta.avg}`);
   lines.push(`Draw Calls: ${s.dc}`);
   lines.push(`Triangles: ${s.tris}`);
-  if (s.startup) lines.push('Startup: ' + fmtStartup(s.startup));
-  return lines.join('\n');
+  if (s.startup) lines.push("Startup: " + fmtStartup(s.startup));
+  return lines.join("\n");
 });
 
 const chunkStatsDisplay = computed(() => {
   if (!liveStats.value) return props.chunkStats;
   const s = liveStats.value;
   const lines = [];
-  lines.push(fmtStat(s.chunk, 'Chunk'));
-  lines.push(fmtStat(s.chunkCell, 'Chunk Cell'));
-  lines.push(fmtStat(s.chunkMatrix, 'Chunk Matrix'));
-  lines.push(fmtStat(s.chunkColor, 'Chunk Color'));
-  if (s.queueTotal) lines.push(fmtStat(s.queueTotal, 'Queue Total'));
-  if (s.queueRate) lines.push(`Queue Rate: ${(s.queueRate.last ?? s.queueRate.avg ?? 0).toFixed(1)}t/s`);
-  if (s.queueDone && s.queueTasks) lines.push(`Queue Done: ${s.queueDone.last ?? s.queueDone.avg}/${s.queueTasks.last ?? s.queueTasks.avg}`);
+  lines.push(fmtStat(s.chunk, "Chunk"));
+  lines.push(fmtStat(s.chunkCell, "Chunk Cell"));
+  lines.push(fmtStat(s.chunkMatrix, "Chunk Matrix"));
+  lines.push(fmtStat(s.chunkColor, "Chunk Color"));
+  if (s.queueTotal) lines.push(fmtStat(s.queueTotal, "Queue Total"));
+  if (s.queueRate)
+    lines.push(
+      `Queue Rate: ${(s.queueRate.last ?? s.queueRate.avg ?? 0).toFixed(1)}t/s`
+    );
+  if (s.queueDone && s.queueTasks)
+    lines.push(
+      `Queue Done: ${s.queueDone.last ?? s.queueDone.avg}/${
+        s.queueTasks.last ?? s.queueTasks.avg
+      }`
+    );
   if (s.queueEta) lines.push(`Queue ETA: ${s.queueEta.last ?? s.queueEta.avg}`);
-  if (s.queueLen != null && s.queueCursor != null) lines.push(`Queue: ${s.queueCursor}/${s.queueLen}`);
-  if (s.instCount != null && s.instTarget != null) lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
-  return lines.join('\n');
+  if (s.queueLen != null && s.queueCursor != null)
+    lines.push(`Queue: ${s.queueCursor}/${s.queueLen}`);
+  if (s.instCount != null && s.instTarget != null)
+    lines.push(`Instances: ${s.instCount}/${s.instTarget}`);
+  return lines.join("\n");
 });
 
 const waterStatsDisplay = computed(() => {
   if (!liveStats.value) return props.waterStats;
   const s = liveStats.value;
   const lines = [];
-  lines.push(fmtStat(s.waterU, 'Uniform'));
-  lines.push(fmtStat(s.water, 'Build'));
+  lines.push(fmtStat(s.waterU, "Uniform"));
+  lines.push(fmtStat(s.water, "Build"));
   if (s.waterTexSize) lines.push(`Tex: ${s.waterTexSize}²`);
-  if (s.waterPlaneW && s.waterPlaneH) lines.push(`Plane: ${Math.round(s.waterPlaneW)}x${Math.round(s.waterPlaneH)}`);
+  if (s.waterPlaneW && s.waterPlaneH)
+    lines.push(
+      `Plane: ${Math.round(s.waterPlaneW)}x${Math.round(s.waterPlaneH)}`
+    );
   if (s.waterTiles != null) lines.push(`Tiles: ${s.waterTiles}`);
-  return lines.join('\n');
+  return lines.join("\n");
 });
 
 watch(tab, (newTab) => {
   if (settings.value && settings.value.setAtPath) {
-    settings.value.setAtPath({ path: 'benchmarkPanelTab', value: newTab });
+    settings.value.setAtPath({ path: "benchmarkPanelTab", value: newTab });
   }
 });
 
 onMounted(() => {
   settings.value = useSettingsStore?.() ?? null;
   if (settings.value && settings.value.get) {
-    const val = settings.value.get('benchmarkPanelTab', null);
-    if (val === 'chunk' || val === 'general' || val === 'water') tab.value = val;
+    const val = settings.value.get("benchmarkPanelTab", null);
+    if (val === "chunk" || val === "general" || val === "water")
+      tab.value = val;
   }
 });
 
@@ -138,20 +162,36 @@ function setStats(stats) {
 
 function fmtStat(stat, label) {
   if (!stat) return `${label}: --`;
-  const avg = stat.avg != null ? (stat.avg < 0.095 ? (stat.avg * 1000).toFixed(2) + 'µs' : stat.avg.toFixed(2) + 'ms') : '--';
-  const last = stat.last != null ? (stat.last < 0.095 ? (stat.last * 1000).toFixed(2) + 'µs' : stat.last.toFixed(2) + 'ms') : '--';
+  const avg =
+    stat.avg != null
+      ? stat.avg < 0.095
+        ? (stat.avg * 1000).toFixed(2) + "µs"
+        : stat.avg.toFixed(2) + "ms"
+      : "--";
+  const last =
+    stat.last != null
+      ? stat.last < 0.095
+        ? (stat.last * 1000).toFixed(2) + "µs"
+        : stat.last.toFixed(2) + "ms"
+      : "--";
   return `${label}: ${avg} (last ${last})`;
 }
 
 function fmtStartup(startup) {
-  if (!startup) return '';
+  if (!startup) return "";
   const out = [];
   for (const [k, v] of Object.entries(startup)) {
     if (v && v.last != null) {
-      out.push(`${k}: ${v.last < 0.095 ? (v.last * 1000).toFixed(1) + 'µs' : v.last.toFixed(1) + 'ms'}`);
+      out.push(
+        `${k}: ${
+          v.last < 0.095
+            ? (v.last * 1000).toFixed(1) + "µs"
+            : v.last.toFixed(1) + "ms"
+        }`
+      );
     }
   }
-  return out.join('  ');
+  return out.join("  ");
 }
 
 defineExpose({ setStats });

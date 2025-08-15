@@ -19,10 +19,7 @@
 
       <v-divider />
 
-      <v-list
-        dense
-        class="pa-0"
-      >
+      <v-list dense class="pa-0">
         <v-list-item
           v-for="route in routes"
           :key="route.path"
@@ -33,11 +30,7 @@
             <v-icon>
               {{ route.icon }}
             </v-icon>
-            <v-icon
-              v-if="showLock(route)"
-              class="combat-lock"
-              color="red"
-            >
+            <v-icon v-if="showLock(route)" class="combat-lock" color="red">
               {{ mdiLock }}
             </v-icon>
           </v-list-item-icon>
@@ -52,12 +45,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { mdiLock } from '@mdi/js';
-import { useRouter } from 'vue-router';
-import { useArenaStore } from '@/stores/arenaStore';
-import { useUserStore } from '@/stores/userStore';
-import { useUiStore } from '@/stores/uiStore';
+import { computed } from "vue";
+import { mdiLock } from "@mdi/js";
+import { useRouter } from "vue-router";
+import { useArenaStore } from "@/stores/arenaStore";
+import { useUserStore } from "@/stores/userStore";
+import { useUiStore } from "@/stores/uiStore";
 
 const router = useRouter();
 const arenaStore = useArenaStore();
@@ -69,7 +62,7 @@ const routes = computed(() => {
   router.getRoutes().forEach((route) => {
     if (route.meta.render) {
       routes.push({
-        path: route.path.length ? route.path : '/',
+        path: route.path.length ? route.path : "/",
         name: route.name,
         ...route.meta,
       });
@@ -81,7 +74,9 @@ const routes = computed(() => {
 const combat = computed(() => arenaStore.combat);
 const navigation = computed({
   get: () => uiStore.navigation,
-  set: (v) => { uiStore.navigation = v; },
+  set: (v) => {
+    uiStore.navigation = v;
+  },
 });
 const character = computed(() => userStore.character || {});
 
@@ -91,7 +86,15 @@ function showLock(route) {
 </script>
 
 <style>
-.lock-anchor { position: relative; }
-.combat-lock { position: absolute !important; right: -.5rem; }
-.combat-lock svg { height: 1rem; width: 1rem; }
+.lock-anchor {
+  position: relative;
+}
+.combat-lock {
+  position: absolute !important;
+  right: -0.5rem;
+}
+.combat-lock svg {
+  height: 1rem;
+  width: 1rem;
+}
 </style>

@@ -1,49 +1,27 @@
 <template>
-  <v-dialog
-    v-model="isInventoryOpen"
-    app
-    fullscreen
-    persistent
-  >
+  <v-dialog v-model="isInventoryOpen" app fullscreen persistent>
     <v-card>
-      <v-toolbar
-        dark
-        color="primary"
-      >
-        <v-btn
-          icon
-          dark
-          @click="toggleInventory()"
-        >
+      <v-toolbar dark color="primary">
+        <v-btn icon dark @click="toggleInventory()">
           <v-icon>{{ mdiClose }}</v-icon>
         </v-btn>
         <v-toolbar-title>Inventory (I)</v-toolbar-title>
         <v-spacer />
         <v-toolbar-items>
-          <v-btn
-            dark
-            text
-            @click="dialog = false"
-          >
-            Add
-          </v-btn>
+          <v-btn dark text @click="dialog = false"> Add </v-btn>
         </v-toolbar-items>
       </v-toolbar>
       <v-data-iterator
+        v-model:items-per-page="itemsPerPage"
+        v-model:page="page"
         :items="inventory"
-  v-model:items-per-page="itemsPerPage"
-  v-model:page="page"
         :search="search"
         :sort-by="sortBy.toLowerCase()"
         :sort-desc="sortDesc"
         class="overflow-hidden"
       >
         <template #header>
-          <v-toolbar
-            dark
-            color="blue darken-3"
-            class="mb-1"
-          >
+          <v-toolbar dark color="blue darken-3" class="mb-1">
             <v-text-field
               v-model="search"
               clearable
@@ -65,37 +43,19 @@
                 label="Sort by"
               />
               <v-spacer />
-              <v-btn-toggle
-                v-model="sortDesc"
-                mandatory
-              >
-                <v-btn
-                  large
-                  depressed
-                  color="blue"
-                  :value="false"
-                >
+              <v-btn-toggle v-model="sortDesc" mandatory>
+                <v-btn large depressed color="blue" :value="false">
                   <v-icon>{{ mdiArrowUp }}</v-icon>
                 </v-btn>
-                <v-btn
-                  large
-                  depressed
-                  color="blue"
-                  :value="true"
-                >
+                <v-btn large depressed color="blue" :value="true">
                   <v-icon>{{ mdiArrowDown }}</v-icon>
                 </v-btn>
               </v-btn-toggle>
             </template>
           </v-toolbar>
         </template>
-        <template
-          #default
-        >
-          <v-row
-            dense
-            class="pa-2"
-          >
+        <template #default>
+          <v-row dense class="pa-2">
             <v-col
               v-for="(item, n) in inventory"
               :key="n"
@@ -107,7 +67,7 @@
               <Item
                 :item="item"
                 :label="item.label"
-                @click="selected = {...item}"
+                @click="selected = { ...item }"
               />
             </v-col>
           </v-row>
@@ -115,38 +75,32 @@
       </v-data-iterator>
 
       <!-- Inventory Item Dialog -->
-      <ItemDialog
-        :item="selected"
-        @close="selected = null"
-      />
+      <ItemDialog :item="selected" @close="selected = null" />
     </v-card>
   </v-dialog>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import {
-  mdiClose, mdiChevronLeft, mdiChevronRight, mdiMagnify, mdiArrowUp, mdiArrowDown,
-} from '@mdi/js';
-import Item from '@/components/inventory/Item.vue';
-import ItemDialog from '@/components/inventory/ItemDialog.vue';
-import { useDialogsStore } from '@/stores/dialogsStore';
-import { useUserStore } from '@/stores/userStore';
-import { useDisplay } from 'vuetify';
-import { storeToRefs } from 'pinia';
+import { ref, computed, watch } from "vue";
+import { mdiClose, mdiMagnify, mdiArrowUp, mdiArrowDown } from "@mdi/js";
+import Item from "@/components/inventory/Item.vue";
+import ItemDialog from "@/components/inventory/ItemDialog.vue";
+import { useDialogsStore } from "@/stores/dialogsStore";
+import { useUserStore } from "@/stores/userStore";
+import { useDisplay } from "vuetify";
+import { storeToRefs } from "pinia";
 
 const { mdAndUp } = useDisplay();
 
 // Icons and iterator state
 const selected = ref(null);
 const itemsPerPage = ref(20);
-const itemsPerPageArray = [20, 40, 60];
-const search = ref('');
-const filter = ref({});
+const search = ref("");
+// filter (unused) intentionally omitted
 const sortDesc = ref(false);
 const page = ref(1);
-const sortBy = ref('name');
-const keys = ['Label', 'Rarity', 'Quantity'];
+const sortBy = ref("name");
+const keys = ["Label", "Rarity", "Quantity"];
 
 // Stores
 const dialogsStore = useDialogsStore();
@@ -158,28 +112,18 @@ const numberOfPages = computed(() => {
   const len = Array.isArray(inventory.value) ? inventory.value.length : 0;
   return Math.max(1, Math.ceil(len / itemsPerPage.value));
 });
-const filteredKeys = computed(() => keys.filter((key) => key !== 'Name'));
-
 function toggleInventory() {
   dialogsStore.toggleInventory();
 }
 
-function nextPage() {
-  if (page.value + 1 <= numberOfPages.value) page.value += 1;
-}
-
-function formerPage() {
-  if (page.value - 1 >= 1) page.value -= 1;
-}
-
-function updateItemsPerPage(number) {
-  itemsPerPage.value = number;
-}
-
-watch(inventory, () => {
-  const pages = numberOfPages.value;
-  if (page.value > pages) page.value = pages;
-}, { deep: true });
+watch(
+  inventory,
+  () => {
+    const pages = numberOfPages.value;
+    if (page.value > pages) page.value = pages;
+  },
+  { deep: true }
+);
 
 watch(itemsPerPage, () => {
   const pages = numberOfPages.value;
@@ -187,5 +131,4 @@ watch(itemsPerPage, () => {
 });
 </script>
 
-<style>
-</style>
+<style></style>

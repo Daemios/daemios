@@ -12,16 +12,10 @@
         {{ role.description }}
       </div>
     </v-card-title>
-    <v-card-text>
-      50% Increased Healing
-    </v-card-text>
+    <v-card-text> 50% Increased Healing </v-card-text>
     <v-spacer />
     <v-card-actions class="mt-auto">
-      <v-btn
-        color="primary"
-        class="ml-auto"
-        @click="selectRole(role)"
-      >
+      <v-btn color="primary" class="ml-auto" @click="selectRole(role)">
         Select
       </v-btn>
     </v-card-actions>
@@ -30,16 +24,16 @@
 
 <script setup>
 // build basic vue script tag
-const props = defineProps({
+defineProps({
   role: {
     type: Object,
     required: true,
   },
 });
 
-const emit = defineEmits(['selectRole']);
+const emit = defineEmits(["selectRole"]);
 
 function selectRole(role) {
-  emit('selectRole', role);
+  emit("selectRole", role);
 }
 </script>

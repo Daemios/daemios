@@ -1,13 +1,13 @@
-import { defineStore } from 'pinia';
-import api from '@/utils/api';
+import { defineStore } from "pinia";
+import api from "@/utils/api";
 
-export const useDataStore = defineStore('data', {
+export const useDataStore = defineStore("data", {
   state: () => ({
     races: null,
   }),
   actions: {
     async getRaces() {
-      const response = await api.get('data/races');
+      const response = await api.get("data/races");
       this.races = response.races;
     },
   },

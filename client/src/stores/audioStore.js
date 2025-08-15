@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 
-export const useAudioStore = defineStore('audio', {
+export const useAudioStore = defineStore("audio", {
   state: () => ({
     volume: 100,
     previous_volume: 0,

@@ -5,7 +5,7 @@
 // but applies different macro tuning for 60–65% ocean coverage
 // and slightly exaggerated relief.
 
-import { createHexGenerator } from './HexWorldGenerator.js';
+import { createHexGenerator } from "./HexWorldGenerator.js";
 
 export function createHexGenerator2(seed) {
   const gen = createHexGenerator(seed);

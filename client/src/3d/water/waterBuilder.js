@@ -33,7 +33,8 @@ function distanceTransform(orig, N, cellSize) {
       let best = out[idx];
       if (x < N - 1) best = Math.min(best, out[idx + 1] + cellSize);
       if (y < N - 1) best = Math.min(best, out[idx + N] + cellSize);
-      if (x < N - 1 && y < N - 1) best = Math.min(best, out[idx + N + 1] + diag);
+      if (x < N - 1 && y < N - 1)
+        best = Math.min(best, out[idx + N + 1] + diag);
       if (x > 0 && y < N - 1) best = Math.min(best, out[idx + N - 1] + diag);
       out[idx] = best;
     }
@@ -51,7 +52,10 @@ function distanceTransform(orig, N, cellSize) {
  * Returns: { waterMesh, waterMaterial, waterMaskTex, waterDistanceTex, waterCoverageTex, waterSeabedTex, waterTexSize, waterPlaneW, waterPlaneH, waterTileCount, buildTime }
  */
 export function buildWater(ctx) {
-  const t0 = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+  const t0 =
+    typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
   const radius = ctx.neighborRadius != null ? ctx.neighborRadius : 1;
 
   // Estimate tile/plane sizes
@@ -84,7 +88,10 @@ export function buildWater(ctx) {
   const chunkQSpan = ctx.chunkCols;
   const chunkRSpan = ctx.chunkRows;
   const chunkMargin = Math.max(chunkQSpan, chunkRSpan);
-  const pad = Math.max(chunkMargin + 8, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
+  const pad = Math.max(
+    chunkMargin + 8,
+    Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35)
+  );
   const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
   const N = 2 * S + 1;
   const waterTexSize = N;
@@ -103,7 +110,8 @@ export function buildWater(ctx) {
       const qW = q + qOrigin;
       const rW = r + rOrigin;
       const cell = ctx.world.getCell(qW, rW);
-      const isWater = cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
+      const isWater =
+        cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
       const v = isWater ? 0 : 255;
       data[i] = v; // R
       data[i + 1] = 0;
@@ -145,7 +153,9 @@ export function buildWater(ctx) {
     sdfArr[p] = isLand ? dtWater[p] : -dtLand[p];
   }
 
-  const distTex = markRaw(new THREE.DataTexture(sdfArr, N, N, THREE.RedFormat, THREE.FloatType));
+  const distTex = markRaw(
+    new THREE.DataTexture(sdfArr, N, N, THREE.RedFormat, THREE.FloatType)
+  );
   distTex.needsUpdate = true;
   distTex.magFilter = THREE.LinearFilter;
   distTex.minFilter = THREE.LinearFilter;
@@ -153,7 +163,14 @@ export function buildWater(ctx) {
   distTex.wrapT = THREE.ClampToEdgeWrapping;
   const waterDistanceTex = distTex;
 
-  const coverageTex = markRaw(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat));
+  const coverageTex = markRaw(
+    new THREE.DataTexture(
+      new Uint8Array([255, 255, 255, 255]),
+      1,
+      1,
+      THREE.RGBAFormat
+    )
+  );
   coverageTex.needsUpdate = true;
   coverageTex.magFilter = THREE.NearestFilter;
   coverageTex.minFilter = THREE.NearestFilter;
@@ -161,7 +178,9 @@ export function buildWater(ctx) {
   coverageTex.wrapT = THREE.ClampToEdgeWrapping;
   const waterCoverageTex = coverageTex;
 
-  const seabedTex = markRaw(new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat));
+  const seabedTex = markRaw(
+    new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat)
+  );
   seabedTex.needsUpdate = true;
   seabedTex.magFilter = THREE.LinearFilter;
   seabedTex.minFilter = THREE.LinearFilter;
@@ -182,7 +201,8 @@ export function buildWater(ctx) {
       const cell = ctx.world.getCell(q, r);
       const topY = ctx.hexMaxY * modelScaleY(q, r);
       if (topY < minTop) minTop = topY;
-      const isWater = cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
+      const isWater =
+        cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
       if (isWater) {
         if (topY < minTopWater) minTopWater = topY;
         waterCount += 1;
@@ -205,10 +225,15 @@ export function buildWater(ctx) {
 
   // Water material
   const seaH = BIOME_THRESHOLDS.shallowWater;
-  const base = ctx.elevation && ctx.elevation.base != null ? ctx.elevation.base : 0.08;
-  const maxH = ctx.elevation && ctx.elevation.max != null ? ctx.elevation.max : 1.2;
+  const base =
+    ctx.elevation && ctx.elevation.base != null ? ctx.elevation.base : 0.08;
+  const maxH =
+    ctx.elevation && ctx.elevation.max != null ? ctx.elevation.max : 1.2;
   const seaLevelYScale = base + seaH * maxH;
-  const hexMaxYScaled = ctx.hexMaxY * ctx.modelScaleFactor * (ctx.heightMagnitude != null ? ctx.heightMagnitude : 1.0);
+  const hexMaxYScaled =
+    ctx.hexMaxY *
+    ctx.modelScaleFactor *
+    (ctx.heightMagnitude != null ? ctx.heightMagnitude : 1.0);
   const seaLevelY = hexMaxYScaled * seaLevelYScale;
 
   const factory = createRealisticWaterMaterial;
@@ -241,8 +266,10 @@ export function buildWater(ctx) {
   const waterY = seaLevelY + 0.001;
   const baseCol = (ctx.centerChunk.x - radius) * ctx.chunkCols;
   const baseRow = (ctx.centerChunk.y - radius) * ctx.chunkRows;
-  const endCol = (ctx.centerChunk.x + radius) * ctx.chunkCols + (ctx.chunkCols - 1);
-  const endRow = (ctx.centerChunk.y + radius) * ctx.chunkRows + (ctx.chunkRows - 1);
+  const endCol =
+    (ctx.centerChunk.x + radius) * ctx.chunkCols + (ctx.chunkCols - 1);
+  const endRow =
+    (ctx.centerChunk.y + radius) * ctx.chunkRows + (ctx.chunkRows - 1);
   const tlAx = offsetToAxial(baseCol, baseRow);
   const brAx = offsetToAxial(endCol, endRow);
   const xTL = hexW * tlAx.q;
@@ -257,8 +284,15 @@ export function buildWater(ctx) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  const buildTime = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) - t0;
-  if (ctx.profilerEnabled && ctx.profiler && typeof ctx.profiler.push === "function") {
+  const buildTime =
+    (typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now()) - t0;
+  if (
+    ctx.profilerEnabled &&
+    ctx.profiler &&
+    typeof ctx.profiler.push === "function"
+  ) {
     try {
       ctx.profiler.push("build.water", buildTime);
     } catch (e) {

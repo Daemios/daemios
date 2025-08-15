@@ -55,7 +55,10 @@ import ClutterManager from "@/3d/world/ClutterManager";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { updateRadialFadeUniforms } from "@/3d/renderer/radialFade";
 import { createChunkManager } from "@/3d/renderer/ChunkManager";
-import { snapshotTrail as snapshotTrailFn, extendTrail as extendTrailFn } from '@/3d/renderer/trailManager';
+import {
+  snapshotTrail as snapshotTrailFn,
+  extendTrail as extendTrailFn,
+} from "@/3d/renderer/trailManager";
 import WorldDebugPanel from "@/components/world/WorldDebugPanel.vue";
 import useWorldMap from "@/composables/useWorldMap";
 import { createPointerControls } from "@/3d/input/pointerControls";
@@ -72,7 +75,7 @@ export default {
     const generatorVersions = availableWorldGenerators();
     return {
       // core three
-      _dirLabels: null,
+      dirLabels: null,
       scene: null,
       camera: null,
       renderer: null,
@@ -98,7 +101,7 @@ export default {
       trailSideIM: null,
       trailTimer: null,
       // Keep previous neighborhood bounds for clutter persistence during trail visibility
-      _prevNeighborhoodRect: null,
+      prevNeighborhoodRect: null,
       neighborhood: null, // kept for compatibility; managed by chunkManager
       chunkManager: null,
       // Water
@@ -109,15 +112,15 @@ export default {
       waterMaskTex: null,
       waterCoverageTex: null,
       waterDistanceTex: null,
-      _waterTexSize: 0,
-      _waterPlaneW: 0,
-      _waterPlaneH: 0,
-      _waterTileCount: 0,
+      waterTexSize: 0,
+      waterPlaneW: 0,
+      waterPlaneH: 0,
+      waterTileCount: 0,
       // Location marker (GLB)
       locationMarker: null,
       markerDesiredRadius: 0.6, // as fraction of layoutRadius
       markerTopOffset: 0, // world-space top offset for marker focus
-  pointerControls: null,
+      pointerControls: null,
       hexMaxY: 1, // max Y of a tile in local space after recenter
       cameraTween: null,
       tweenSaved: {
@@ -129,8 +132,8 @@ export default {
       hoverTmpQuat: markRaw(new THREE.Quaternion()),
       hoverTmpScale: markRaw(new THREE.Vector3()),
       playerMarkerPos: markRaw(new THREE.Vector3()),
-      _tmpColorTop: markRaw(new THREE.Color()),
-      _tmpColorSide: markRaw(new THREE.Color()),
+      tmpColorTop: markRaw(new THREE.Color()),
+      tmpColorSide: markRaw(new THREE.Color()),
       clutterCommitTimer: null,
 
       // world data / systems
@@ -218,8 +221,8 @@ export default {
       // profiler
       profilerEnabled: true,
       profEl: null,
-      _profLastUpdate: 0,
-      _gpuTimer: null,
+      profLastUpdate: 0,
+      gpuTimer: null,
       // benchmark
       benchmark: {
         running: false,
@@ -243,7 +246,7 @@ export default {
         clutter: true,
       },
       // Directions helper overlay
-      _dirOverlay: null,
+      dirOverlay: null,
       radialFade: {
         enabled: false,
         color: 0xf3eed9,
@@ -269,7 +272,7 @@ export default {
       },
       generatorVersions,
       worldSeed: 1337,
-  // Progressive neighborhood expansion control is now managed by ChunkManager
+      // Progressive neighborhood expansion control is now managed by ChunkManager
 
       // Rendering toggles
       // Default chunkColors: true (use per-chunk pastel overrides)
@@ -288,7 +291,11 @@ export default {
   computed: {
     activeNeighborRadius() {
       // Prefer ChunkManager's radius when available, otherwise fall back to local cache
-      return (this.chunkManager && this.chunkManager.neighborRadius) || this._neighborRadius || 1;
+      return (
+        (this.chunkManager && this.chunkManager.neighborRadius) ||
+        this._neighborRadius ||
+        1
+      );
     },
     playerPosition() {
       // Use selectedQR for hex, and chunkForAxial for chunk
@@ -400,11 +407,11 @@ export default {
       let stats = "";
       stats += `uniform ${this.fmt(b.waterU, 2)}µs\n`;
       stats += `build ${this.fmt(b.water, 2)}ms\n`;
-      stats += `tex ${this._waterTexSize || ""}²\n`;
-      stats += `plane ${Math.round(this._waterPlaneW || 0)}x${Math.round(
-        this._waterPlaneH || 0
+      stats += `tex ${this.waterTexSize || ""}²\n`;
+      stats += `plane ${Math.round(this.waterPlaneW || 0)}x${Math.round(
+        this.waterPlaneH || 0
       )}\n`;
-      stats += `tiles ${this._waterTileCount || ""}`;
+      stats += `tiles ${this.waterTileCount || ""}`;
       return stats;
     },
   },
@@ -441,14 +448,16 @@ export default {
       this.$watch(
         () => wm.radialFade.value,
         (val) => {
-          if (val && typeof val === "object") Object.assign(this.radialFade, val);
+          if (val && typeof val === "object")
+            Object.assign(this.radialFade, val);
         },
         { immediate: true }
       );
       this.$watch(
         () => wm.generation.value,
         (val) => {
-          if (val && typeof val === "object") Object.assign(this.generation, val);
+          if (val && typeof val === "object")
+            Object.assign(this.generation, val);
         },
         { immediate: true }
       );
@@ -470,13 +479,17 @@ export default {
         window.__DAEMIOS_STARTUP.worldMapMounted =
           performance.now?.() ?? Date.now();
       }
-    } catch (e) {}
+    } catch (e) {
+      /* ignore startup timing errors */
+    }
     // Expose a tiny timing hook for modules that don't import the profiler directly
     if (typeof window !== "undefined") {
       window.__DAEMIOS_PROF = (label, ms) => {
         try {
           if (this.profilerEnabled) profiler.push(label, ms);
-  } catch (e) { console.debug('startup first.frame logging failed', e); }
+        } catch (e) {
+          console.debug("startup first.frame logging failed", e);
+        }
       };
     }
     // Load persisted settings for this view (header: settings.worldMap)
@@ -548,12 +561,14 @@ export default {
       }
     );
 
-  this.init();
+    this.init();
     // Load towns list on map load
     try {
       if (this.worldStore && this.worldStore.fetchTowns)
         this.worldStore.fetchTowns();
-    } catch (e) { console.debug('fetchTowns failed', e); }
+    } catch (e) {
+      console.debug("fetchTowns failed", e);
+    }
     window.addEventListener("resize", this.onResize);
     // Initialize pointer controls module which will register all pointer/wheel listeners
     this.pointerControls = createPointerControls({
@@ -588,11 +603,29 @@ export default {
     this.clearWorldLocationMeshes();
     // Cancel any progressive scheduler on the ChunkManager
     if (this.chunkManager && this.chunkManager.cancelProgressiveExpand) {
-      try { this.chunkManager.cancelProgressiveExpand(); } catch (e) { console.debug('cancelProgressiveExpand failed on unmount', e); }
+      try {
+        this.chunkManager.cancelProgressiveExpand();
+      } catch (e) {
+        console.debug("cancelProgressiveExpand failed on unmount", e);
+      }
     }
     // Clear any pending timers used by the view
-  try { if (this._radiusTimer) { clearTimeout(this._radiusTimer); this._radiusTimer = null; } } catch (e) { console.debug('clear radiusTimer failed', e); }
-  try { if (this._progressiveCheckId) { cancelAnimationFrame(this._progressiveCheckId); this._progressiveCheckId = null; } } catch (e) { console.debug('cancelAnimationFrame failed during unmount', e); }
+    try {
+      if (this._radiusTimer) {
+        clearTimeout(this._radiusTimer);
+        this._radiusTimer = null;
+      }
+    } catch (e) {
+      console.debug("clear radiusTimer failed", e);
+    }
+    try {
+      if (this._progressiveCheckId) {
+        cancelAnimationFrame(this._progressiveCheckId);
+        this._progressiveCheckId = null;
+      }
+    } catch (e) {
+      console.debug("cancelAnimationFrame failed during unmount", e);
+    }
   },
   methods: {
     // Small number formatter for panel
@@ -662,7 +695,7 @@ export default {
         );
       };
       // Compute offset rect of the active neighborhood (radius derived from neighborOffsets)
-  const radius = this.activeNeighborRadius;
+      const radius = this.activeNeighborRadius;
       const curr = {
         colMin: (this.centerChunk.x - radius) * this.chunkCols,
         rowMin: (this.centerChunk.y - radius) * this.chunkRows,
@@ -678,13 +711,13 @@ export default {
         radius === 1 &&
         this.trailTopIM &&
         this.trailTopIM.visible &&
-        this._prevNeighborhoodRect;
+        this.prevNeighborhoodRect;
       const rect = shouldUnion
         ? {
-            colMin: Math.min(curr.colMin, this._prevNeighborhoodRect.colMin),
-            rowMin: Math.min(curr.rowMin, this._prevNeighborhoodRect.rowMin),
-            colMax: Math.max(curr.colMax, this._prevNeighborhoodRect.colMax),
-            rowMax: Math.max(curr.rowMax, this._prevNeighborhoodRect.rowMax),
+            colMin: Math.min(curr.colMin, this.prevNeighborhoodRect.colMin),
+            rowMin: Math.min(curr.rowMin, this.prevNeighborhoodRect.rowMin),
+            colMax: Math.max(curr.colMax, this.prevNeighborhoodRect.colMax),
+            rowMax: Math.max(curr.rowMax, this.prevNeighborhoodRect.rowMax),
           }
         : curr;
       // No pre-cull by fade; generate for the union area and let clutter shader handle visibility
@@ -912,7 +945,7 @@ export default {
       }
     },
     showDirectionsOverlay() {
-      if (!this._dirOverlay) {
+      if (!this.dirOverlay) {
         const el = document.createElement("div");
         Object.assign(el.style, {
           position: "absolute",
@@ -927,23 +960,23 @@ export default {
           pointerEvents: "none",
         });
         el.textContent = "N↑  E→  S↓  W←";
-        this._dirOverlay = el;
+        this.dirOverlay = el;
       }
-      if (this._dirOverlay && !this._dirOverlay.parentElement)
-        this.$refs.sceneContainer.appendChild(this._dirOverlay);
+      if (this.dirOverlay && !this.dirOverlay.parentElement)
+        this.$refs.sceneContainer.appendChild(this.dirOverlay);
       // Also draw a labeled rectangle around the current neighborhood in the 3D scene using helpers
       this.drawNeighborhoodFrame();
     },
     hideDirectionsOverlay() {
-      if (this._dirOverlay && this._dirOverlay.parentElement)
-        this._dirOverlay.parentElement.removeChild(this._dirOverlay);
+      if (this.dirOverlay && this.dirOverlay.parentElement)
+        this.dirOverlay.parentElement.removeChild(this.dirOverlay);
       this.clearNeighborhoodFrame();
     },
     drawNeighborhoodFrame() {
       // Remove old first
       this.clearNeighborhoodFrame();
       // Compute current visible neighborhood rect in world XZ
-  const r = this.activeNeighborRadius;
+      const r = this.activeNeighborRadius;
       const baseCol = (this.centerChunk.x - r) * this.chunkCols;
       const baseRow = (this.centerChunk.y - r) * this.chunkRows;
       const endCol =
@@ -960,7 +993,7 @@ export default {
       const zBR = hexH * (brAx.r + brAx.q * 0.5);
       const y = 0.001;
       // Save coords for label updates
-      this._dirFrameCoords = { xTL, zTL, xBR, zBR, y };
+      this.dirFrameCoords = { xTL, zTL, xBR, zBR, y };
       const mat = new THREE.LineBasicMaterial({ color: 0xffcc00 });
       const makeLine = (x1, z1, x2, z2) => {
         const g = new THREE.BufferGeometry().setFromPoints([
@@ -977,10 +1010,10 @@ export default {
       lines.push(makeLine(xBR, zTL, xBR, zBR)); // East edge
       lines.push(makeLine(xBR, zBR, xTL, zBR)); // South edge
       lines.push(makeLine(xTL, zBR, xTL, zTL)); // West edge
-      this._dirFrameLines = lines;
+      this.dirFrameLines = lines;
       lines.forEach((l) => this.scene.add(l));
       // Place simple labels near edges (N/E/S/W) using small sprites via CSS2D-like overlay (simple divs with positions)
-      const addLabel = (txt, x, z) => {
+      const addLabel = (txt) => {
         const d = document.createElement("div");
         d.textContent = txt;
         Object.assign(d.style, {
@@ -996,7 +1029,7 @@ export default {
         return d;
       };
       const mid = (a, b) => (a + b) / 2;
-      this._dirLabels = [
+      this.dirLabels = [
         addLabel("N", mid(xTL, xBR), zTL),
         addLabel("E", xBR, mid(zTL, zBR)),
         addLabel("S", mid(xTL, xBR), zBR),
@@ -1004,31 +1037,35 @@ export default {
       ];
     },
     clearNeighborhoodFrame() {
-      if (this._dirFrameLines) {
-        this._dirFrameLines.forEach((l) => {
+      if (this.dirFrameLines) {
+        this.dirFrameLines.forEach((l) => {
           try {
             this.scene.remove(l);
             l.geometry?.dispose?.();
-          } catch (e) { console.debug('addLabel internals failed', e); }
+          } catch (e) {
+            console.debug("addLabel internals failed", e);
+          }
         });
-        this._dirFrameLines = null;
+        this.dirFrameLines = null;
       }
       const labels = document.querySelectorAll('div[data-dir-label="1"]');
       labels.forEach((n) => {
         try {
           n.remove();
-  } catch (e) { console.debug('cameraTween pixelRatio restore failed', e); }
+        } catch (e) {
+          console.debug("cameraTween pixelRatio restore failed", e);
+        }
       });
     },
     _updateDirectionLabels() {
       if (
-        !this._dirLabels ||
-        !this._dirFrameCoords ||
+        !this.dirLabels ||
+        !this.dirFrameCoords ||
         !this.renderer ||
         !this.camera
       )
         return;
-      const { xTL, zTL, xBR, zBR, y } = this._dirFrameCoords;
+      const { xTL, zTL, xBR, zBR, y } = this.dirFrameCoords;
       const rect = this.renderer.domElement.getBoundingClientRect();
       const mid = (a, b) => (a + b) / 2;
       const points = [
@@ -1041,7 +1078,7 @@ export default {
         const v = new THREE.Vector3(p.x, y, p.z).project(this.camera);
         const sx = (v.x * 0.5 + 0.5) * rect.width;
         const sy = (-v.y * 0.5 + 0.5) * rect.height;
-        const el = this._dirLabels[p.i];
+        const el = this.dirLabels[p.i];
         if (el) {
           el.style.left = `${rect.left + sx}px`;
           el.style.top = `${rect.top + sy}px`;
@@ -1087,7 +1124,7 @@ export default {
         try {
           this.chunkManager.applyChunkColors(!!enabled);
         } catch (e) {
-          console.debug('chunkManager.applyChunkColors failed', e);
+          console.debug("chunkManager.applyChunkColors failed", e);
         }
         return;
       }
@@ -1095,11 +1132,13 @@ export default {
         try {
           this.neighborhood.applyChunkColors(!!enabled);
         } catch (e) {
-          console.debug('neighborhood.applyChunkColors failed', e);
+          console.debug("neighborhood.applyChunkColors failed", e);
         }
         return;
       }
-      console.debug('applyChunkColors: no chunkManager or neighborhood available; no-op');
+      console.debug(
+        "applyChunkColors: no chunkManager or neighborhood available; no-op"
+      );
     },
     // Generate a stable pastel color per chunk coordinate (wx, wy)
     pastelColorForChunk(wx, wy) {
@@ -1133,11 +1172,15 @@ export default {
     // Fill one chunk slot with instances for world chunk (wx, wy)
     fillChunk(slotIndex, wx, wy) {
       // Fully delegate to neighborhood via chunkManager when available
-      if (this.chunkManager && this.chunkManager.neighborhood && this.chunkManager.neighborhood.fillChunk) {
+      if (
+        this.chunkManager &&
+        this.chunkManager.neighborhood &&
+        this.chunkManager.neighborhood.fillChunk
+      ) {
         try {
           this.chunkManager.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          console.debug('chunkManager.neighborhood.fillChunk failed', e);
+          console.debug("chunkManager.neighborhood.fillChunk failed", e);
         }
         return;
       }
@@ -1145,11 +1188,11 @@ export default {
         try {
           this.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          console.debug('neighborhood.fillChunk failed', e);
+          console.debug("neighborhood.fillChunk failed", e);
         }
         return;
       }
-      console.debug('fillChunk: no neighborhood available; no-op');
+      console.debug("fillChunk: no neighborhood available; no-op");
       return;
     },
     // Position neighborhood; delegate to manager
@@ -1189,21 +1232,27 @@ export default {
       if (!this.topGeom || !this.sideGeom) return;
       // Determine desired radius (absolute)
       const desiredRadius = Math.max(1, Number(this.generation?.radius ?? 5));
-  // Progressive: on first build, start with radius 1 to show content fast
-  const progressiveStart = desiredRadius > 1;
+      // Progressive: on first build, start with radius 1 to show content fast
+      const progressiveStart = desiredRadius > 1;
       const radius = progressiveStart ? 1 : desiredRadius;
       if (this.chunkManager) {
-        try { this.chunkManager.neighborRadius = radius; } catch (e) { console.debug('set neighborRadius on manager failed', e); }
+        try {
+          this.chunkManager.neighborRadius = radius;
+        } catch (e) {
+          console.debug("set neighborRadius on manager failed", e);
+        }
       } else {
         this._neighborRadius = radius; // cache for bounds
       }
       // Build via ChunkManager
-        if (this.chunkManager && this.chunkManager.dispose) {
+      if (this.chunkManager && this.chunkManager.dispose) {
         try {
           this.chunkManager.dispose();
-        } catch (e) { console.debug('chunkManager.dispose failed', e); }
+        } catch (e) {
+          console.debug("chunkManager.dispose failed", e);
+        }
       }
-  this.chunkManager = createChunkManager({
+      this.chunkManager = createChunkManager({
         scene: this.scene,
         world: this.world,
         clutter: this.clutter,
@@ -1282,10 +1331,12 @@ export default {
             ? window.__DAEMIOS_STARTUP.t0
             : now4;
         profiler.push("startup.chunk.build.start", now4 - t0);
-      } catch (e) {}
+      } catch (e) {
+        /* ignore profiler errors */
+      }
       this.chunkManager.build(this.topGeom, this.sideGeom);
-  // Picking targets provided by ChunkManager
-  this.pickMeshes = markRaw([this.topIM, this.sideIM]);
+      // Picking targets provided by ChunkManager
+      this.pickMeshes = markRaw([this.topIM, this.sideIM]);
       // Defer water for chunks for now (mask mapping needs redesign)
       // Initialize center and fill chunks
       this.setCenterChunk(this.centerChunk.x, this.centerChunk.y);
@@ -1354,7 +1405,9 @@ export default {
         // Notify backend/state just like a user click would
         try {
           api.post("world/move", { q: startQ, r: startR });
-  } catch (e) { console.debug('buildWater promise handling failed', e); }
+        } catch (e) {
+          console.debug("buildWater promise handling failed", e);
+        }
         this.playerSpawnSeeded = true;
       }
       // If progressive expansion is desired, schedule rebuild to the full radius
@@ -1364,8 +1417,12 @@ export default {
           try {
             this.chunkManager.startProgressive(desiredRadius);
             // Also request a manager-driven expansion watch to rebuild water when complete
-            this.chunkManager.scheduleProgressiveExpand(desiredRadius, { onComplete: () => this.buildWater() });
-          } catch (e) { console.debug('startProgressive failed', e); }
+            this.chunkManager.scheduleProgressiveExpand(desiredRadius, {
+              onComplete: () => this.buildWater(),
+            });
+          } catch (e) {
+            console.debug("startProgressive failed", e);
+          }
         } else {
           // Fallback: schedule a local progressive expand
           this._scheduleProgressiveExpand(desiredRadius);
@@ -1438,13 +1495,19 @@ export default {
       this.worldLocationMeshes.forEach((m) => {
         try {
           this.scene.remove(m);
-        } catch (e) { console.debug('remove worldLocation mesh failed', e); }
+        } catch (e) {
+          console.debug("remove worldLocation mesh failed", e);
+        }
         try {
           m.geometry && m.geometry.dispose();
-        } catch (e) { console.debug('dispose geometry failed', e); }
+        } catch (e) {
+          console.debug("dispose geometry failed", e);
+        }
         try {
           m.material && m.material.dispose();
-        } catch (e) { console.debug('dispose material failed', e); }
+        } catch (e) {
+          console.debug("dispose material failed", e);
+        }
       });
       this.worldLocationMeshes = [];
     },
@@ -1481,7 +1544,11 @@ export default {
           if (this.chunkManager && this.topGeom && this.sideGeom) {
             this.chunkManager.neighborRadius = r;
             if (this.chunkManager) {
-              try { this.chunkManager.neighborRadius = r; } catch (e) { console.debug('set neighborRadius on manager failed', e); }
+              try {
+                this.chunkManager.neighborRadius = r;
+              } catch (e) {
+                console.debug("set neighborRadius on manager failed", e);
+              }
             } else {
               this._neighborRadius = r;
             }
@@ -1503,7 +1570,7 @@ export default {
           });
       }, 120);
     },
-  // Progressive expansion is now handled by ChunkManager; no local fallback remains.
+    // Progressive expansion is now handled by ChunkManager; no local fallback remains.
     computeNeighborOffsets(radius) {
       const out = [];
       for (let dy = -radius; dy <= radius; dy += 1) {
@@ -1521,7 +1588,11 @@ export default {
     rebuildChunkGrid() {
       // Cancel any scheduled progressive expansion on the manager to avoid races
       if (this.chunkManager && this.chunkManager.cancelProgressiveExpand) {
-        try { this.chunkManager.cancelProgressiveExpand(); } catch (e) { console.debug('cancelProgressiveExpand failed', e); }
+        try {
+          this.chunkManager.cancelProgressiveExpand();
+        } catch (e) {
+          console.debug("cancelProgressiveExpand failed", e);
+        }
       }
       // Remove and dispose old instancers via neighborhood service if present
       if (this.neighborhood && this.neighborhood.dispose) {
@@ -1531,18 +1602,26 @@ export default {
           if (!im) return;
           try {
             this.scene.remove(im);
-          } catch (e) { console.debug('scene.remove(im) failed', e); }
+          } catch (e) {
+            console.debug("scene.remove(im) failed", e);
+          }
           try {
             if (im.material && im.material.dispose) im.material.dispose();
-          } catch (e) { console.debug('dispose im.material failed', e); }
+          } catch (e) {
+            console.debug("dispose im.material failed", e);
+          }
           try {
             if (im.customDepthMaterial && im.customDepthMaterial.dispose)
               im.customDepthMaterial.dispose();
-          } catch (e) { console.debug('dispose customDepthMaterial failed', e); }
+          } catch (e) {
+            console.debug("dispose customDepthMaterial failed", e);
+          }
           try {
             if (im.customDistanceMaterial && im.customDistanceMaterial.dispose)
               im.customDistanceMaterial.dispose();
-          } catch (e) { console.debug('dispose customDistanceMaterial failed', e); }
+          } catch (e) {
+            console.debug("dispose customDistanceMaterial failed", e);
+          }
         };
         disposeIM(this.topIM);
         disposeIM(this.sideIM);
@@ -1620,7 +1699,9 @@ export default {
             ? window.__DAEMIOS_STARTUP.t0
             : now0;
         profiler.push("startup.world.init.begin", now0 - t0);
-  } catch (e) { console.debug('cancelAnimationFrame not available', e); }
+      } catch (e) {
+        console.debug("cancelAnimationFrame not available", e);
+      }
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
 
@@ -1662,7 +1743,7 @@ export default {
       this.composer = markRaw(mgr.composer);
       this.fxaaPass = markRaw(mgr.fxaaPass);
       this.fpsEl = mgr.fpsEl;
-      this._gpuTimer = mgr._gpuTimer;
+      this.gpuTimer = mgr._gpuTimer;
       // keep manager for size/render/dispose control
       this._rendererManager = mgr;
       // Startup: first content visible
@@ -1675,11 +1756,16 @@ export default {
         profiler.push("startup.first.content", now1 - t0);
         if (typeof window !== "undefined")
           window.__DAEMIOS_STARTUP.firstContent = true;
-  } catch (e) { console.debug('requestAnimationFrame failed, scheduling with timeout', e); }
+      } catch (e) {
+        console.debug(
+          "requestAnimationFrame failed, scheduling with timeout",
+          e
+        );
+      }
 
-  // FPS overlay and GPU timer are handled by the renderer manager
+      // FPS overlay and GPU timer are handled by the renderer manager
 
-  // FXAA and composer are handled by the renderer manager
+      // FXAA and composer are handled by the renderer manager
 
       this.ambientLight = markRaw(new THREE.AmbientLight(0xffffff, 0.4));
       this.keyLight = markRaw(new THREE.DirectionalLight(0xffffff, 1.0));
@@ -1693,7 +1779,7 @@ export default {
       // Apply initial feature toggles
       this.applyShadows(this.features.shadows);
 
-  // Wheel zoom handled by pointerControls module
+      // Wheel zoom handled by pointerControls module
 
       // Init world data and auxiliary systems
       this.world = markRaw(
@@ -1731,7 +1817,9 @@ export default {
             ? window.__DAEMIOS_STARTUP.t0
             : now2;
         profiler.push("startup.world.init.end", now2 - t0);
-  } catch (e) { console.debug('requestAnimationFrame scheduling exception', e); }
+      } catch (e) {
+        console.debug("requestAnimationFrame scheduling exception", e);
+      }
     },
     async loadModel() {
       try {
@@ -1765,8 +1853,8 @@ export default {
       const hexWidth = layoutRadius * 1.5 * this.spacingFactor;
       const hexHeight = Math.sqrt(3) * layoutRadius * this.spacingFactor;
       const size = this.gridSize;
-  const sx = this.modelScaleFactor;
-  const xzScale = sx * this.contactScale; // widen footprint slightly to avoid cracks
+      const sx = this.modelScaleFactor;
+      const xzScale = sx * this.contactScale; // widen footprint slightly to avoid cracks
 
       const count = (2 * size + 1) * (2 * size + 1);
       const topMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -1828,17 +1916,18 @@ export default {
           profiler,
         });
         // Remove old mesh if present
-        if (this.waterMesh && this.waterMesh.parent) this.waterMesh.parent.remove(this.waterMesh);
+        if (this.waterMesh && this.waterMesh.parent)
+          this.waterMesh.parent.remove(this.waterMesh);
         this.waterMesh = res.waterMesh;
         this.waterMaterial = res.waterMaterial;
         this.waterMaskTex = res.waterMaskTex;
         this.waterDistanceTex = res.waterDistanceTex;
         this.waterCoverageTex = res.waterCoverageTex;
         this.waterSeabedTex = res.waterSeabedTex;
-        this._waterTexSize = res.waterTexSize;
-        this._waterPlaneW = res.waterPlaneW;
-        this._waterPlaneH = res.waterPlaneH;
-        this._waterTileCount = res.waterTileCount;
+        this.waterTexSize = res.waterTexSize;
+        this.waterPlaneW = res.waterPlaneW;
+        this.waterPlaneH = res.waterPlaneH;
+        this.waterTileCount = res.waterTileCount;
         if (this.waterMesh && this.scene) this.scene.add(this.waterMesh);
         if (this.waterMesh) this.waterMesh.visible = !!this.features.water;
       } catch (err) {
@@ -1891,7 +1980,9 @@ export default {
           const t0 = window.__DAEMIOS_STARTUP.t0 ?? nowF;
           profiler.push("startup.first.frame", nowF - t0);
           window.__DAEMIOS_STARTUP.firstFrame = true;
-  } catch (e) { console.debug('startup first frame bookkeeping failed', e); }
+        } catch (e) {
+          console.debug("startup first frame bookkeeping failed", e);
+        }
       }
       // Camera tween update before render
       if (this.cameraTween && this.cameraTween.active) {
@@ -2032,14 +2123,14 @@ export default {
         this.locationMarker.matrix.compose(pos, yQuat, scl);
       }
       // Render with GPU timing if supported
-      if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.begin)
-        this._gpuTimer.begin();
-  if (this.profilerEnabled) profiler.start("frame.render");
-  if (this._rendererManager) this._rendererManager.render();
-  else if (this.composer) this.composer.render();
-  if (this.profilerEnabled) profiler.end("frame.render");
-      if (this.profilerEnabled && this._gpuTimer && this._gpuTimer.end)
-        this._gpuTimer.end();
+      if (this.profilerEnabled && this.gpuTimer && this.gpuTimer.begin)
+        this.gpuTimer.begin();
+      if (this.profilerEnabled) profiler.start("frame.render");
+      if (this._rendererManager) this._rendererManager.render();
+      else if (this.composer) this.composer.render();
+      if (this.profilerEnabled) profiler.end("frame.render");
+      if (this.profilerEnabled && this.gpuTimer && this.gpuTimer.end)
+        this.gpuTimer.end();
 
       // Update direction labels if active
       if (this.features?.directions) this._updateDirectionLabels();
@@ -2065,8 +2156,8 @@ export default {
       // End frame profiling and update overlay ~2x/sec
       if (this.profilerEnabled) {
         profiler.endFrame();
-        if (!this._profLastUpdate || now - this._profLastUpdate > 500) {
-          this._profLastUpdate = now;
+        if (!this.profLastUpdate || now - this.profLastUpdate > 500) {
+          this.profLastUpdate = now;
           // Gather live stats for WorldBenchmarkPanel
           const stats = {};
           const fmt = (v) =>
@@ -2087,10 +2178,10 @@ export default {
           stats.slice = profiler.stats("stream.fillSlice");
           stats.clutter = profiler.stats("clutter.tick");
           stats.water = profiler.stats("build.water");
-          stats.waterTexSize = this._waterTexSize;
-          stats.waterPlaneW = this._waterPlaneW;
-          stats.waterPlaneH = this._waterPlaneH;
-          stats.waterTiles = this._waterTileCount;
+          stats.waterTexSize = this.waterTexSize;
+          stats.waterPlaneW = this.waterPlaneW;
+          stats.waterPlaneH = this.waterPlaneH;
+          stats.waterTiles = this.waterTileCount;
           stats.chunk = profiler.stats("chunk.generate");
           stats.chunkCell = profiler.stats("chunk.gen.cell");
           stats.chunkMatrix = profiler.stats("chunk.gen.matrix");
@@ -2131,7 +2222,7 @@ export default {
     onResize() {
       const width = this.$refs.sceneContainer.clientWidth;
       const height = this.$refs.sceneContainer.clientHeight;
-  if (this._rendererManager) this._rendererManager.setSize(width, height);
+      if (this._rendererManager) this._rendererManager.setSize(width, height);
       if (this.tiltShiftEnabled) this.updateTiltFocus();
     },
     onPointerDown(event) {

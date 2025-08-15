@@ -1,30 +1,28 @@
-import {
-  mdiAbacus, mdiEarth, mdiHammer, mdiHeadQuestion, mdiHorse, mdiHorseVariantFast, mdiWizardHat
-} from '@mdi/js';
+import { mdiEarth, mdiWizardHat } from "@mdi/js";
 
 export default [
   {
-    path: '/login',
-    name: 'Login',
-  component: () => import('@/views/hidden/Login.vue'),
+    path: "/login",
+    name: "Login",
+    component: () => import("@/views/hidden/Login.vue"),
     meta: {
       overlay: false,
       combat_lock: false,
     },
   },
   {
-    path: '/builder',
-    name: 'Builder',
-  component: () => import('@/views/primary/Builder.vue'),
+    path: "/builder",
+    name: "Builder",
+    component: () => import("@/views/primary/Builder.vue"),
     meta: {
       overlay: false,
       combat_lock: false,
     },
   },
   {
-    path: '/',
-    name: 'DnDaemios',
-  component: () => import('@/views/primary/Main.vue'),
+    path: "/",
+    name: "DnDaemios",
+    component: () => import("@/views/primary/Main.vue"),
     meta: {
       render: true,
       icon: mdiEarth,
@@ -33,9 +31,9 @@ export default [
     },
   },
   {
-    path: '/dungeon-master',
-    name: 'Dungeon Master',
-  component: () => import('@/views/primary/DungeonMaster.vue'),
+    path: "/dungeon-master",
+    name: "Dungeon Master",
+    component: () => import("@/views/primary/DungeonMaster.vue"),
     meta: {
       render: true,
       icon: mdiWizardHat,
@@ -50,9 +48,9 @@ export default [
     },
   },
   {
-    path: '/worldmap',
-    name: 'World Map',
-  component: () => import('@/views/primary/WorldMap.vue'),
+    path: "/worldmap",
+    name: "World Map",
+    component: () => import("@/views/primary/WorldMap.vue"),
     meta: {
       requiresAuth: false,
       overlay: false,
@@ -60,18 +58,18 @@ export default [
     },
   },
   {
-    path: '/characters',
-    name: 'Characters',
-  component: () => import('@/views/hidden/Characters.vue'),
+    path: "/characters",
+    name: "Characters",
+    component: () => import("@/views/hidden/Characters.vue"),
     meta: {
       render: false,
       overlay: false,
     },
   },
   {
-    path: '/:pathMatch(.*)*',
-    name: 'Page Not Found',
-  component: () => import('@/views/hidden/NotFound.vue'),
+    path: "/:pathMatch(.*)*",
+    name: "Page Not Found",
+    component: () => import("@/views/hidden/NotFound.vue"),
     meta: {
       requiresAuth: false,
       permission: null,

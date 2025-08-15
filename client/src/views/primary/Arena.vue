@@ -4,5 +4,5 @@
   </v-container>
 </template>
 <script setup>
-import Arena from '@/components/arena/Arena.vue';
+import Arena from "@/components/arena/Arena.vue";
 </script>

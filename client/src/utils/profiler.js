@@ -16,10 +16,14 @@ export class FrameProfiler {
     this._gpu = null; // optional GPU timer interface
   }
 
-  setGPU(gpu) { this._gpu = gpu || null; }
+  setGPU(gpu) {
+    this._gpu = gpu || null;
+  }
 
   now() {
-    return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    return typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
   }
 
   beginFrame() {
@@ -29,17 +33,19 @@ export class FrameProfiler {
   endFrame() {
     if (!this._frameT0) return 0;
     const dt = this.now() - this._frameT0;
-    this.push('frame.cpu', dt);
+    this.push("frame.cpu", dt);
     // Poll GPU timer if available (returns time for a previous frame if ready)
-    if (this._gpu && typeof this._gpu.poll === 'function') {
+    if (this._gpu && typeof this._gpu.poll === "function") {
       const gpuMs = this._gpu.poll();
-      if (gpuMs != null && isFinite(gpuMs)) this.push('frame.gpu', gpuMs);
+      if (gpuMs != null && isFinite(gpuMs)) this.push("frame.gpu", gpuMs);
     }
     this._frameT0 = 0;
     return dt;
   }
 
-  start(label) { this._starts.set(label, this.now()); }
+  start(label) {
+    this._starts.set(label, this.now());
+  }
   end(label) {
     const t0 = this._starts.get(label);
     if (t0 == null) return 0;
@@ -51,8 +57,11 @@ export class FrameProfiler {
 
   measure(label, fn) {
     const t0 = this.now();
-    try { return fn(); }
-    finally { this.push(label, this.now() - t0); }
+    try {
+      return fn();
+    } finally {
+      this.push(label, this.now() - t0);
+    }
   }
 
   push(label, ms) {
@@ -76,23 +85,36 @@ export class FrameProfiler {
     const arr = this._series.get(label);
     const n = this._count.get(label) || 0;
     if (!arr || n === 0) return null;
-    let sum = 0, min = Infinity, max = -Infinity;
+    let sum = 0,
+      min = Infinity,
+      max = -Infinity;
     for (let k = 0; k < n; k += 1) {
       const v = arr[k];
-      sum += v; if (v < min) min = v; if (v > max) max = v;
+      sum += v;
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
     const avg = sum / n;
-    return { label, last: this._last.get(label) || 0, avg, min, max, samples: n };
+    return {
+      label,
+      last: this._last.get(label) || 0,
+      avg,
+      min,
+      max,
+      samples: n,
+    };
   }
 
-  getReport({ sortBy = 'avg', desc = true } = {}) {
+  getReport({ sortBy = "avg", desc = true } = {}) {
     const out = [];
     for (const label of this._series.keys()) {
-      const s = this.stats(label); if (s) out.push(s);
+      const s = this.stats(label);
+      if (s) out.push(s);
     }
     out.sort((a, b) => {
-      const ka = a[sortBy] ?? 0; const kb = b[sortBy] ?? 0;
-      return desc ? (kb - ka) : (ka - kb);
+      const ka = a[sortBy] ?? 0;
+      const kb = b[sortBy] ?? 0;
+      return desc ? kb - ka : ka - kb;
     });
     return out;
   }
@@ -100,17 +122,19 @@ export class FrameProfiler {
 
 // Optional WebGL GPU timer query helper. Works with WebGL2 or EXT_disjoint_timer_query.
 export function createWebGLTimer(renderer) {
-  if (!renderer || typeof renderer.getContext !== 'function') return null;
+  if (!renderer || typeof renderer.getContext !== "function") return null;
   const gl = renderer.getContext();
   if (!gl) return null;
-  const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && (gl instanceof WebGL2RenderingContext);
+  const isWebGL2 =
+    typeof WebGL2RenderingContext !== "undefined" &&
+    gl instanceof WebGL2RenderingContext;
   let ext = null;
   if (isWebGL2) {
     // In WebGL2, TIME_ELAPSED is core, disjoint is via EXT_disjoint_timer_query_webgl2
-    ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+    ext = gl.getExtension("EXT_disjoint_timer_query_webgl2");
     if (!ext) return null;
   } else {
-    ext = gl.getExtension('EXT_disjoint_timer_query');
+    ext = gl.getExtension("EXT_disjoint_timer_query");
     if (!ext) return null;
   }
 
@@ -147,7 +171,10 @@ export function createWebGLTimer(renderer) {
     if (queue.length === 0) return null;
     const head = queue[0];
     if (isWebGL2) {
-      const available = gl.getQueryParameter(head.query, gl.QUERY_RESULT_AVAILABLE);
+      const available = gl.getQueryParameter(
+        head.query,
+        gl.QUERY_RESULT_AVAILABLE
+      );
       const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
       if (!available || disjoint) return null;
       const ns = gl.getQueryParameter(head.query, gl.QUERY_RESULT);
@@ -155,7 +182,10 @@ export function createWebGLTimer(renderer) {
       queue.shift();
       return ns / 1e6; // ns -> ms
     }
-    const available = ext.getQueryObjectEXT(head.query, ext.QUERY_RESULT_AVAILABLE_EXT);
+    const available = ext.getQueryObjectEXT(
+      head.query,
+      ext.QUERY_RESULT_AVAILABLE_EXT
+    );
     const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
     if (!available || disjoint) return null;
     const ns = ext.getQueryObjectEXT(head.query, ext.QUERY_RESULT_EXT);

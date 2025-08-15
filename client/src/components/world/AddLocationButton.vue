@@ -2,7 +2,13 @@
   <div>
     <button
       class="d-flex align-center justify-center px-2 py-1 rounded"
-      style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25); font-size: 12px; cursor: pointer;"
+      style="
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        font-size: 12px;
+        cursor: pointer;
+      "
       @click="showModal = true"
     >
       Add Location
@@ -10,31 +16,42 @@
     <teleport to="body">
       <div
         v-if="showModal"
-        style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;"
+        style="
+          position: fixed;
+          z-index: 9999;
+          left: 0;
+          top: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
       >
         <div
           class="rounded-lg"
-          style="background: rgba(30,30,40,0.92); color: #fff; min-width: 340px; max-width: 95vw; box-shadow: 0 8px 32px #000a; padding: 0; border: 1px solid rgba(255,255,255,0.18);"
+          style="
+            background: rgba(30, 30, 40, 0.92);
+            color: #fff;
+            min-width: 340px;
+            max-width: 95vw;
+            box-shadow: 0 8px 32px #000a;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+          "
         >
           <div
             class="d-flex align-center justify-space-between px-4 pt-4 pb-2"
-            style="border-bottom: 1px solid rgba(255,255,255,0.12);"
+            style="border-bottom: 1px solid rgba(255, 255, 255, 0.12)"
           >
             <span class="text-h6">Add Location</span>
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              @click="closeModal"
-            >
+            <v-btn icon variant="text" size="small" @click="closeModal">
               <v-icon>mdi-close</v-icon>
             </v-btn>
           </div>
           <div class="px-4 py-4">
-            <v-form
-              class="d-flex flex-column gap-2"
-              @submit.prevent="submit"
-            >
+            <v-form class="d-flex flex-column gap-2" @submit.prevent="submit">
               <v-text-field
                 v-model="form.name"
                 label="Name"
@@ -113,19 +130,10 @@
                 class="mt-1"
               />
               <div class="d-flex justify-end gap-2 mt-3">
-                <v-btn
-                  variant="tonal"
-                  color="secondary"
-                  @click="closeModal"
-                >
+                <v-btn variant="tonal" color="secondary" @click="closeModal">
                   Cancel
                 </v-btn>
-                <v-btn
-                  color="primary"
-                  type="submit"
-                >
-                  Add Location
-                </v-btn>
+                <v-btn color="primary" type="submit"> Add Location </v-btn>
               </div>
             </v-form>
           </div>
@@ -133,12 +141,11 @@
       </div>
     </teleport>
   </div>
-
 </template>
 
 <script setup>
-import { useWorldStore } from '@/stores/worldStore';
-import { ref, reactive, watch } from 'vue';
+import { useWorldStore } from "@/stores/worldStore";
+import { ref, reactive, watch } from "vue";
 
 const props = defineProps({
   playerPosition: {
@@ -149,9 +156,9 @@ const props = defineProps({
 
 const showModal = ref(false);
 const form = reactive({
-  name: '',
-  description: '',
-  type: 'TOWN',
+  name: "",
+  description: "",
+  type: "TOWN",
   chunkX: 0,
   chunkY: 0,
   hexQ: 0,
@@ -159,9 +166,9 @@ const form = reactive({
   visible: true,
 });
 const typeOptions = [
-  { text: 'Town', value: 'TOWN' },
-  { text: 'Dungeon', value: 'DUNGEON' },
-  { text: 'Quest', value: 'QUEST' },
+  { text: "Town", value: "TOWN" },
+  { text: "Dungeon", value: "DUNGEON" },
+  { text: "Quest", value: "QUEST" },
 ];
 
 watch(showModal, (val) => {
@@ -183,9 +190,9 @@ async function submit() {
     await worldStore.createLocation({ ...form });
     closeModal();
     Object.assign(form, {
-      name: '',
-      description: '',
-      type: 'TOWN',
+      name: "",
+      description: "",
+      type: "TOWN",
       chunkX: props.playerPosition.chunkX,
       chunkY: props.playerPosition.chunkY,
       hexQ: props.playerPosition.hexQ,
@@ -193,7 +200,7 @@ async function submit() {
       visible: true,
     });
   } catch (e) {
-    alert('Failed to create location: ' + (e?.message || e));
+    alert("Failed to create location: " + (e?.message || e));
   }
 }
 </script>

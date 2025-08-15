@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 // Realistic, transparent, performant water shader
 // Goals:
@@ -16,10 +16,14 @@ export default function createRealisticWaterMaterial(options = {}) {
     opacity: 0.7,
     foamColor: new THREE.Color(0xffffff),
     foamShoreStrength: 0.6,
-  distanceTexture: null,
-  coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
-  hexW: 1.0, hexH: 1.0, gridN: 1, gridOffset: 0,
-  gridQ0: 0, gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
+    distanceTexture: null,
+    coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
+    hexW: 1.0,
+    hexH: 1.0,
+    gridN: 1,
+    gridOffset: 0,
+    gridQ0: 0,
+    gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
     shoreWidth: 0.12, // kept for API compatibility
     // Animation
     timeScale: 1.0,
@@ -30,20 +34,20 @@ export default function createRealisticWaterMaterial(options = {}) {
     normalAmp: 0.06,
     specularStrength: 0.15,
     shininess: 48.0,
-  // Depth-based transparency
-  seabedTexture: null,
-  hexMaxYScaled: 1.0, // hexMaxY * modelScaleFactor passed from WorldMap
-  seaLevelY: 0.0,     // world Y of water plane
-  depthMax: 1.0,      // world units at which opacity reaches farAlpha
-  nearAlpha: 0.12,    // alpha near shore (shallow)
-  farAlpha: 0.85,     // alpha at/max depth
-  // Shoreline wave bands (near-hex waves)
-  shoreWaveStrength: 0.45,
-  shoreWaveSpacing: .8, // in units of min(hexW,hexH) - much larger spacing
-  shoreWaveWidth: 0.08,   // much thinner foam band
-  shoreWaveSpeed: 0.15,
-  shoreWaveOffset: 0.01,   // extremely close to shore
-  ...options,
+    // Depth-based transparency
+    seabedTexture: null,
+    hexMaxYScaled: 1.0, // hexMaxY * modelScaleFactor passed from WorldMap
+    seaLevelY: 0.0, // world Y of water plane
+    depthMax: 1.0, // world units at which opacity reaches farAlpha
+    nearAlpha: 0.12, // alpha near shore (shallow)
+    farAlpha: 0.85, // alpha at/max depth
+    // Shoreline wave bands (near-hex waves)
+    shoreWaveStrength: 0.45,
+    shoreWaveSpacing: 0.8, // in units of min(hexW,hexH) - much larger spacing
+    shoreWaveWidth: 0.08, // much thinner foam band
+    shoreWaveSpeed: 0.15,
+    shoreWaveOffset: 0.01, // extremely close to shore
+    ...options,
   };
 
   const uniforms = {
@@ -54,11 +58,15 @@ export default function createRealisticWaterMaterial(options = {}) {
     uOpacity: { value: opt.opacity },
     uFoamCol: { value: opt.foamColor },
     uFoamShoreStrength: { value: opt.foamShoreStrength },
-  uDist: { value: opt.distanceTexture },
-  uCoverage: { value: opt.coverageTexture },
-  uSeabed: { value: opt.seabedTexture },
-  uHexW: { value: opt.hexW }, uHexH: { value: opt.hexH }, uGridN: { value: opt.gridN }, uGridOffset: { value: opt.gridOffset },
-  uGridQ0: { value: opt.gridQ0 }, uGridR0: { value: opt.gridR0 },
+    uDist: { value: opt.distanceTexture },
+    uCoverage: { value: opt.coverageTexture },
+    uSeabed: { value: opt.seabedTexture },
+    uHexW: { value: opt.hexW },
+    uHexH: { value: opt.hexH },
+    uGridN: { value: opt.gridN },
+    uGridOffset: { value: opt.gridOffset },
+    uGridQ0: { value: opt.gridQ0 },
+    uGridR0: { value: opt.gridR0 },
     uSpecularStrength: { value: opt.specularStrength },
     uShininess: { value: opt.shininess },
     uNormalAmp: { value: opt.normalAmp },
@@ -66,17 +74,17 @@ export default function createRealisticWaterMaterial(options = {}) {
     uFlowDir2: { value: opt.flowDir2 },
     uFlowSpeed1: { value: opt.flowSpeed1 },
     uFlowSpeed2: { value: opt.flowSpeed2 },
-  uHexMaxYScaled: { value: opt.hexMaxYScaled },
-  uSeaLevelY: { value: opt.seaLevelY },
-  uDepthMax: { value: opt.depthMax },
-  uNearAlpha: { value: opt.nearAlpha },
-  uFarAlpha: { value: opt.farAlpha },
-  // Shore waves
-  uShoreWaveStrength: { value: opt.shoreWaveStrength },
-  uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
-  uShoreWaveWidth: { value: opt.shoreWaveWidth },
-  uShoreWaveSpeed: { value: opt.shoreWaveSpeed },
-  uShoreWaveOffset: { value: opt.shoreWaveOffset },
+    uHexMaxYScaled: { value: opt.hexMaxYScaled },
+    uSeaLevelY: { value: opt.seaLevelY },
+    uDepthMax: { value: opt.depthMax },
+    uNearAlpha: { value: opt.nearAlpha },
+    uFarAlpha: { value: opt.farAlpha },
+    // Shore waves
+    uShoreWaveStrength: { value: opt.shoreWaveStrength },
+    uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
+    uShoreWaveWidth: { value: opt.shoreWaveWidth },
+    uShoreWaveSpeed: { value: opt.shoreWaveSpeed },
+    uShoreWaveOffset: { value: opt.shoreWaveOffset },
   };
 
   const vertexShader = `

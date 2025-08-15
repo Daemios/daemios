@@ -1,4 +1,9 @@
-export function computeNeighborhoodRect(centerChunk, chunkCols, chunkRows, radius) {
+export function computeNeighborhoodRect(
+  centerChunk,
+  chunkCols,
+  chunkRows,
+  radius
+) {
   const r = radius ?? 1;
   return {
     colMin: (centerChunk.x - r) * chunkCols,
@@ -21,10 +26,32 @@ export function unionRects(a, b) {
 
 export function commitClutter(clutter, world, opts = {}) {
   if (!clutter || !world) return;
-  const { centerChunk, chunkCols, chunkRows, radius, prevRect, layoutRadius, contactScale, hexMaxY, modelScaleY } = opts;
-  const curr = computeNeighborhoodRect(centerChunk, chunkCols, chunkRows, radius);
-  const shouldUnion = (radius === 1) && !!prevRect && !!opts.trailActive;
+  const {
+    centerChunk,
+    chunkCols,
+    chunkRows,
+    radius,
+    prevRect,
+    layoutRadius,
+    contactScale,
+    hexMaxY,
+    modelScaleY,
+  } = opts;
+  const curr = computeNeighborhoodRect(
+    centerChunk,
+    chunkCols,
+    chunkRows,
+    radius
+  );
+  const shouldUnion = radius === 1 && !!prevRect && !!opts.trailActive;
   const rect = shouldUnion ? unionRects(curr, prevRect) : curr;
   const mScaleY = (q, r) => (modelScaleY ? modelScaleY(q, r) : 1.0);
-  clutter.commitInstances({ layoutRadius, contactScale, hexMaxY, modelScaleY: mScaleY, filter: undefined, offsetRect: rect });
+  clutter.commitInstances({
+    layoutRadius,
+    contactScale,
+    hexMaxY,
+    modelScaleY: mScaleY,
+    filter: undefined,
+    offsetRect: rect,
+  });
 }

@@ -1,24 +1,14 @@
 <template>
   <div class="carousel d-flex">
     <v-layout align-center>
-      <v-btn
-        fab
-        small
-        @click="prev"
-      >
+      <v-btn fab small @click="prev">
         <v-icon>
           {{ mdiChevronLeft }}
         </v-icon>
       </v-btn>
     </v-layout>
-    <div
-      class="center overflow-hidden"
-      style="width: 420px"
-    >
-      <v-layout
-        class="content"
-        :style="`margin-left: -${index * 416}px`"
-      >
+    <div class="center overflow-hidden" style="width: 420px">
+      <v-layout class="content" :style="`margin-left: -${index * 416}px`">
         <slot />
       </v-layout>
       <div class="d-flex justify-center align-center pa-2">
@@ -38,11 +28,7 @@
       </v-layout>
     </div>
     <v-layout align-center>
-      <v-btn
-        fab
-        small
-        @click="next"
-      >
+      <v-btn fab small @click="next">
         <v-icon>
           {{ mdiChevronRight }}
         </v-icon>
@@ -52,8 +38,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { mdiCircle, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
+import { ref, computed } from "vue";
+import { mdiCircle, mdiChevronRight, mdiChevronLeft } from "@mdi/js";
 
 const index = ref(0);
 const slots = defineSlots();
@@ -72,4 +58,3 @@ function prev() {
   }
 }
 </script>
-

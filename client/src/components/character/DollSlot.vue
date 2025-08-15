@@ -8,8 +8,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import Item from '@/components/inventory/Item.vue';
+import { computed } from "vue";
+import Item from "@/components/inventory/Item.vue";
 
 const props = defineProps({
   item: {
@@ -26,15 +26,19 @@ const props = defineProps({
   },
 });
 
-defineEmits(['click']);
+defineEmits(["click"]);
 
 const dollSlotClasses = computed(() => ({
-  'doll-left': props.left,
-  'doll-right': props.right,
+  "doll-left": props.left,
+  "doll-right": props.right,
 }));
 </script>
 
 <style>
-.doll-left { grid-column: 1; }
-.doll-right { grid-column: 4; }
+.doll-left {
+  grid-column: 1;
+}
+.doll-right {
+  grid-column: 4;
+}
 </style>

@@ -1,5 +1,5 @@
-import { mdiVolumeSource, mdiVolumeMute } from '@mdi/js';
-import { useAudioStore } from '@/stores/audioStore';
+import { mdiVolumeSource, mdiVolumeMute } from "@mdi/js";
+import { useAudioStore } from "@/stores/audioStore";
 
 export default {
   data: () => ({

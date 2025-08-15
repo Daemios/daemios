@@ -5,7 +5,10 @@ import { BIOME_THRESHOLDS } from "@/3d/terrain/biomes";
 // Build water plane, mask and distance textures for a neighborhood.
 // ctx: { world, layoutRadius, spacingFactor, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, modelScaleFactor, heightMagnitude, elevation, profilerEnabled, profiler }
 export function buildWater(ctx) {
-  const startTs = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+  const startTs =
+    typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
 
   const {
     world,
@@ -35,7 +38,8 @@ export function buildWater(ctx) {
     { x: halfW, z: -halfH },
     { x: halfW, z: halfH },
   ];
-  let maxQAbs = 0, maxRAbs = 0;
+  let maxQAbs = 0,
+    maxRAbs = 0;
   for (const c of corners) {
     const q = c.x / Math.max(1e-6, hexW_est);
     const r = c.z / Math.max(1e-6, hexH_est) - q * 0.5;
@@ -43,7 +47,10 @@ export function buildWater(ctx) {
     maxRAbs = Math.max(maxRAbs, Math.abs(r));
   }
   const chunkMargin = Math.max(chunkCols, chunkRows);
-  const pad = Math.max(chunkMargin + 8, Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35));
+  const pad = Math.max(
+    chunkMargin + 8,
+    Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35)
+  );
   const S = Math.min(2048, Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad);
   const N = 2 * S + 1;
 
@@ -60,11 +67,18 @@ export function buildWater(ctx) {
       const qW = q + qOrigin;
       const rW = r + rOrigin;
       const cell = world.getCell(qW, rW);
-      const isWater = cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
+      const isWater =
+        cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
       const v = isWater ? 0 : 255;
-      data[idx] = v; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 255;
+      data[idx] = v;
+      data[idx + 1] = 0;
+      data[idx + 2] = 0;
+      data[idx + 3] = 255;
       const ys = cell ? Math.max(0, Math.min(1, cell.yScale)) : 0;
-      seabed[idx] = Math.floor(ys * 255); seabed[idx+1] = 0; seabed[idx+2] = 0; seabed[idx+3] = 255;
+      seabed[idx] = Math.floor(ys * 255);
+      seabed[idx + 1] = 0;
+      seabed[idx + 2] = 0;
+      seabed[idx + 3] = 255;
       idx += 4;
     }
   }
@@ -97,7 +111,8 @@ export function buildWater(ctx) {
         if (x > 0) best = Math.min(best, dist[idx2 - 1] + cellSize);
         if (y > 0) best = Math.min(best, dist[idx2 - N] + cellSize);
         if (x > 0 && y > 0) best = Math.min(best, dist[idx2 - N - 1] + diag);
-        if (x < N - 1 && y > 0) best = Math.min(best, dist[idx2 - N + 1] + diag);
+        if (x < N - 1 && y > 0)
+          best = Math.min(best, dist[idx2 - N + 1] + diag);
         dist[idx2] = best;
       }
     }
@@ -107,8 +122,10 @@ export function buildWater(ctx) {
         let best = dist[idx2];
         if (x < N - 1) best = Math.min(best, dist[idx2 + 1] + cellSize);
         if (y < N - 1) best = Math.min(best, dist[idx2 + N] + cellSize);
-        if (x < N - 1 && y < N - 1) best = Math.min(best, dist[idx2 + N + 1] + diag);
-        if (x > 0 && y < N - 1) best = Math.min(best, dist[idx2 + N - 1] + diag);
+        if (x < N - 1 && y < N - 1)
+          best = Math.min(best, dist[idx2 + N + 1] + diag);
+        if (x > 0 && y < N - 1)
+          best = Math.min(best, dist[idx2 + N - 1] + diag);
         dist[idx2] = best;
       }
     }
@@ -121,14 +138,25 @@ export function buildWater(ctx) {
     const isLand = data[j] > 0;
     sdfArr[p] = isLand ? dtWater[p] : -dtLand[p];
   }
-  const distTex = new THREE.DataTexture(sdfArr, N, N, THREE.RedFormat, THREE.FloatType);
+  const distTex = new THREE.DataTexture(
+    sdfArr,
+    N,
+    N,
+    THREE.RedFormat,
+    THREE.FloatType
+  );
   distTex.needsUpdate = true;
   distTex.magFilter = THREE.LinearFilter;
   distTex.minFilter = THREE.LinearFilter;
   distTex.wrapS = THREE.ClampToEdgeWrapping;
   distTex.wrapT = THREE.ClampToEdgeWrapping;
 
-  const coverageTex = new THREE.DataTexture(new Uint8Array([255,255,255,255]), 1, 1, THREE.RGBAFormat);
+  const coverageTex = new THREE.DataTexture(
+    new Uint8Array([255, 255, 255, 255]),
+    1,
+    1,
+    THREE.RGBAFormat
+  );
   coverageTex.needsUpdate = true;
   coverageTex.magFilter = THREE.NearestFilter;
   coverageTex.minFilter = THREE.NearestFilter;
@@ -153,7 +181,8 @@ export function buildWater(ctx) {
     const cell = world.getCell(q, r);
     const topY = hexMaxY * modelScaleY(q, r);
     if (topY < minTop) minTop = topY;
-    const isWater = cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
+    const isWater =
+      cell && (cell.biome === "deepWater" || cell.biome === "shallowWater");
     if (isWater) {
       if (topY < minTopWater) minTopWater = topY;
       waterCount += 1;
@@ -164,8 +193,8 @@ export function buildWater(ctx) {
 
   const totalCols = (2 * radius + 1) * chunkCols;
   const totalRows = (2 * radius + 1) * chunkRows;
-  const planeW = (totalCols) * hexW_est;
-  const planeH = (totalRows) * hexH_est;
+  const planeW = totalCols * hexW_est;
+  const planeH = totalRows * hexH_est;
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
@@ -173,7 +202,10 @@ export function buildWater(ctx) {
   const base = elevation && elevation.base != null ? elevation.base : 0.08;
   const maxH = elevation && elevation.max != null ? elevation.max : 1.2;
   const seaLevelYScale = base + seaH * maxH;
-  const hexMaxYScaled = hexMaxY * modelScaleFactor * (heightMagnitude != null ? heightMagnitude : 1.0);
+  const hexMaxYScaled =
+    hexMaxY *
+    modelScaleFactor *
+    (heightMagnitude != null ? heightMagnitude : 1.0);
   const seaLevelY = hexMaxYScaled * seaLevelYScale;
 
   const centerQ0 = qOrigin;
@@ -230,7 +262,11 @@ export function buildWater(ctx) {
     waterTileCount: waterCount,
   };
 
-  const endTs = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-  if (ctx.profilerEnabled && ctx.profiler && ctx.profiler.push) ctx.profiler.push("build.water", endTs - startTs);
+  const endTs =
+    typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
+  if (ctx.profilerEnabled && ctx.profiler && ctx.profiler.push)
+    ctx.profiler.push("build.water", endTs - startTs);
   return result;
 }

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 export function createHoverMesh(scene, topGeom, opts = {}) {
   if (!scene || !topGeom) return null;
@@ -19,7 +19,7 @@ export function createHoverMesh(scene, topGeom, opts = {}) {
     scene.add(hoverMesh);
     return hoverMesh;
   } catch (e) {
-    console.debug('createHoverMesh error', e);
+    console.debug("createHoverMesh error", e);
     return null;
   }
 }

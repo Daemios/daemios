@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia';
-import api from '@/utils/api';
+import { defineStore } from "pinia";
+import api from "@/utils/api";
 
-export const useAbilityStore = defineStore('ability', {
+export const useAbilityStore = defineStore("ability", {
   state: () => ({
     elements: null,
     ranges: null,
@@ -10,7 +10,7 @@ export const useAbilityStore = defineStore('ability', {
   }),
   actions: {
     async getElements() {
-      const response = await api.get('ability/elements');
+      const response = await api.get("ability/elements");
       this.elements = response;
     },
   },

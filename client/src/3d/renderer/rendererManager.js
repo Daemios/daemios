@@ -6,7 +6,13 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { createWebGLTimer } from "@/utils/profiler";
 
 // Initialize renderer + composer and return an object of handles.
-export function createRendererManager({ width, height, container, scene, camera }) {
+export function createRendererManager({
+  width,
+  height,
+  container,
+  scene,
+  camera,
+}) {
   const manager = {
     scene,
     camera,
@@ -39,12 +45,19 @@ export function createRendererManager({ width, height, container, scene, camera 
     },
     dispose() {
       try {
-        if (manager.renderer && manager.renderer.domElement && manager.renderer.domElement.parentNode)
-          manager.renderer.domElement.parentNode.removeChild(manager.renderer.domElement);
+        if (
+          manager.renderer &&
+          manager.renderer.domElement &&
+          manager.renderer.domElement.parentNode
+        )
+          manager.renderer.domElement.parentNode.removeChild(
+            manager.renderer.domElement
+          );
       } catch (e) {
         // ignore
       }
-      if (manager.fpsEl && manager.fpsEl.parentNode) manager.fpsEl.parentNode.removeChild(manager.fpsEl);
+      if (manager.fpsEl && manager.fpsEl.parentNode)
+        manager.fpsEl.parentNode.removeChild(manager.fpsEl);
       manager.composer = null;
       manager.renderer = null;
       manager.fxaaPass = null;
@@ -52,17 +65,22 @@ export function createRendererManager({ width, height, container, scene, camera 
   };
 
   // Create renderer
-  manager.renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
+  manager.renderer = new THREE.WebGLRenderer({
+    antialias: false,
+    stencil: false,
+  });
   const devicePR = Math.min(1.5, window.devicePixelRatio || 1);
   manager.renderer.setPixelRatio(devicePR);
   manager.renderer.setSize(width, height);
-  if (manager.renderer.outputEncoding !== undefined) manager.renderer.outputEncoding = THREE.sRGBEncoding;
+  if (manager.renderer.outputEncoding !== undefined)
+    manager.renderer.outputEncoding = THREE.sRGBEncoding;
   manager.renderer.toneMapping = THREE.ACESFilmicToneMapping;
   manager.renderer.toneMappingExposure = 1.0;
   manager.renderer.physicallyCorrectLights = false;
 
   // Append to container
-  if (container && container.appendChild) container.appendChild(manager.renderer.domElement);
+  if (container && container.appendChild)
+    container.appendChild(manager.renderer.domElement);
 
   // FPS overlay element
   manager.fpsEl = document.createElement("div");
@@ -93,7 +111,10 @@ export function createRendererManager({ width, height, container, scene, camera 
   const renderPass = new RenderPass(manager.scene, manager.camera);
   manager.composer.addPass(renderPass);
   manager.fxaaPass = new ShaderPass(FXAAShader);
-  manager.fxaaPass.material.uniforms.resolution.value.set(1 / (width * devicePR), 1 / (height * devicePR));
+  manager.fxaaPass.material.uniforms.resolution.value.set(
+    1 / (width * devicePR),
+    1 / (height * devicePR)
+  );
   manager.composer.addPass(manager.fxaaPass);
 
   return manager;

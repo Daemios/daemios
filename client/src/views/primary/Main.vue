@@ -18,14 +18,17 @@
 </template>
 
 <script setup>
-import CharacterSlide from '@/components/character/CharacterSlide.vue';
-import { useUserStore } from '@/stores/userStore';
-import { storeToRefs } from 'pinia';
+import CharacterSlide from "@/components/character/CharacterSlide.vue";
+import { useUserStore } from "@/stores/userStore";
+import { storeToRefs } from "pinia";
 
 const userStore = useUserStore();
 const { character } = storeToRefs(userStore);
 </script>
 
 <style>
-.world { width: 100%; max-width: 100%; }
+.world {
+  width: 100%;
+  max-width: 100%;
+}
 </style>

@@ -3,9 +3,7 @@
     <v-row>
       <!-- Vessel Icon -->
       <v-col>
-        <VesselMini
-          :color="color"
-        />
+        <VesselMini :color="color" />
       </v-col>
       <!-- Details -->
       <v-col>
@@ -20,8 +18,8 @@
 </template>
 
 <script setup>
-import AbilityMockup from '@/components/ability/AbilityMockup.vue';
-import VesselMini from '@/components/ability/VesselMini.vue';
+import AbilityMockup from "@/components/ability/AbilityMockup.vue";
+import VesselMini from "@/components/ability/VesselMini.vue";
 
 defineProps({
   ability: {

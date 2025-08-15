@@ -1,10 +1,6 @@
 <template>
-  <v-row
-    class="cores-graphic d-flex justify-center align-center flex-grow-0"
-  >
-    <v-col
-      class="d-block"
-    >
+  <v-row class="cores-graphic d-flex justify-center align-center flex-grow-0">
+    <v-col class="d-block">
       <div class="core">
         <v-img
           v-if="element.imgs.vessel"
@@ -46,16 +42,16 @@ defineProps({
   width: 100%;
   background: radial-gradient(
     circle at 75px 65px,
-    rgba(0,0,0,0),
-    rgba(0,0,0,0),
-    rgba(0,0,0,0),
-    rgba(0,0,0,0),
-    rgba(0,0,0,0),
-    rgba(0,0,0,1),
-    rgba(0,0,0,1),
-    rgba(0,0,0,1),
-    rgba(0,0,0,1),
-    rgba(0,0,0,1)
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 1),
+    rgba(0, 0, 0, 1),
+    rgba(0, 0, 0, 1),
+    rgba(0, 0, 0, 1),
+    rgba(0, 0, 0, 1)
   );
 }
 </style>

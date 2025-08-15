@@ -1,9 +1,5 @@
 <template>
-  <v-dialog
-    v-model="dialogState"
-    persistent
-    max-width="600px"
-  >
+  <v-dialog v-model="dialogState" persistent max-width="600px">
     <v-card>
       <v-card-title>
         <span class="headline">{{ title }} ({{ keybind }})</span>
@@ -14,11 +10,7 @@
       <v-card-actions>
         <slot name="actions" />
         <v-spacer />
-        <v-btn
-          color="green darken-1"
-          variant="text"
-          @click="closeDialog"
-        >
+        <v-btn color="green darken-1" variant="text" @click="closeDialog">
           Close
         </v-btn>
       </v-card-actions>
@@ -27,7 +19,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps({
   modelValue: {
@@ -36,22 +28,21 @@ const props = defineProps({
   },
   title: {
     type: String,
-    default: '-',
+    default: "-",
   },
   keybind: {
     type: String,
-    default: 'Not Set',
+    default: "Not Set",
   },
 });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(["update:modelValue"]);
 
 const dialogState = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value),
+  set: (value) => emit("update:modelValue", value),
 });
 
 function closeDialog() {
   dialogState.value = false;
 }
 </script>
-

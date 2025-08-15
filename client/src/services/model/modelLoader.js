@@ -43,7 +43,9 @@ function stripUpFacingCaps(geom, dotThresh = 0.8) {
     const idx = geom.index.array;
     const newIdx = [];
     for (let i = 0; i < idx.length; i += 3) {
-      const i0 = idx[i], i1 = idx[i+1], i2 = idx[i+2];
+      const i0 = idx[i],
+        i1 = idx[i + 1],
+        i2 = idx[i + 2];
       a.fromBufferAttribute(posAttr, i0);
       b.fromBufferAttribute(posAttr, i1);
       c.fromBufferAttribute(posAttr, i2);
@@ -83,25 +85,39 @@ function stripUpFacingCaps(geom, dotThresh = 0.8) {
       if (outUV) {
         const uv = geom.getAttribute("uv");
         outUV.push(
-          uv.getX(i + 0), uv.getY(i + 0),
-          uv.getX(i + 1), uv.getY(i + 1),
-          uv.getX(i + 2), uv.getY(i + 2)
+          uv.getX(i + 0),
+          uv.getY(i + 0),
+          uv.getX(i + 1),
+          uv.getY(i + 1),
+          uv.getX(i + 2),
+          uv.getY(i + 2)
         );
       }
       if (outColor) {
         const col = geom.getAttribute("color");
         outColor.push(
-          col.getX(i + 0), col.getY(i + 0), col.getZ(i + 0),
-          col.getX(i + 1), col.getY(i + 1), col.getZ(i + 1),
-          col.getX(i + 2), col.getY(i + 2), col.getZ(i + 2)
+          col.getX(i + 0),
+          col.getY(i + 0),
+          col.getZ(i + 0),
+          col.getX(i + 1),
+          col.getY(i + 1),
+          col.getZ(i + 1),
+          col.getX(i + 2),
+          col.getY(i + 2),
+          col.getZ(i + 2)
         );
       }
     }
   }
   const newGeom = new THREE.BufferGeometry();
   newGeom.setAttribute("position", new THREE.Float32BufferAttribute(outPos, 3));
-  if (outUV) newGeom.setAttribute("uv", new THREE.Float32BufferAttribute(outUV, 2));
-  if (outColor) newGeom.setAttribute("color", new THREE.Float32BufferAttribute(outColor, 3));
+  if (outUV)
+    newGeom.setAttribute("uv", new THREE.Float32BufferAttribute(outUV, 2));
+  if (outColor)
+    newGeom.setAttribute(
+      "color",
+      new THREE.Float32BufferAttribute(outColor, 3)
+    );
   newGeom.computeVertexNormals();
   newGeom.computeBoundingBox();
   newGeom.computeBoundingSphere();
@@ -123,13 +139,18 @@ function stripInwardFacingWalls(geom) {
   const radius = (v) => Math.hypot(v.x, v.z);
 
   // First pass: find radius range for vertical walls
-  let rMin = Infinity, rMax = -Infinity;
+  let rMin = Infinity,
+    rMax = -Infinity;
   const scanTri = (va, vb, vc) => {
     e1.subVectors(vb, va);
     e2.subVectors(vc, va);
     n.crossVectors(e1, e2).normalize();
     if (!isVertical(n)) return;
-    centroid.copy(va).add(vb).add(vc).multiplyScalar(1/3);
+    centroid
+      .copy(va)
+      .add(vb)
+      .add(vc)
+      .multiplyScalar(1 / 3);
     const rc = radius(centroid);
     if (rc < rMin) rMin = rc;
     if (rc > rMax) rMax = rc;
@@ -138,18 +159,18 @@ function stripInwardFacingWalls(geom) {
     const idx = geom.index.array;
     for (let i = 0; i < idx.length; i += 3) {
       a.fromBufferAttribute(posAttr, idx[i]);
-      b.fromBufferAttribute(posAttr, idx[i+1]);
-      c.fromBufferAttribute(posAttr, idx[i+2]);
-      scanTri(a,b,c);
+      b.fromBufferAttribute(posAttr, idx[i + 1]);
+      c.fromBufferAttribute(posAttr, idx[i + 2]);
+      scanTri(a, b, c);
     }
   } else {
     const count = posAttr.count;
     const pos = posAttr.array;
     for (let i = 0; i < count; i += 3) {
-      a.fromArray(pos, (i+0)*3);
-      b.fromArray(pos, (i+1)*3);
-      c.fromArray(pos, (i+2)*3);
-      scanTri(a,b,c);
+      a.fromArray(pos, (i + 0) * 3);
+      b.fromArray(pos, (i + 1) * 3);
+      c.fromArray(pos, (i + 2) * 3);
+      scanTri(a, b, c);
     }
   }
   if (!isFinite(rMin) || !isFinite(rMax) || rMax <= rMin) return geom;
@@ -160,7 +181,11 @@ function stripInwardFacingWalls(geom) {
     e2.subVectors(vc, va);
     n.crossVectors(e1, e2).normalize();
     if (!isVertical(n)) return true;
-    centroid.copy(va).add(vb).add(vc).multiplyScalar(1/3);
+    centroid
+      .copy(va)
+      .add(vb)
+      .add(vc)
+      .multiplyScalar(1 / 3);
     return radius(centroid) >= rThresh - 1e-6;
   };
 
@@ -168,11 +193,13 @@ function stripInwardFacingWalls(geom) {
     const idx = geom.index.array;
     const newIdx = [];
     for (let i = 0; i < idx.length; i += 3) {
-      const i0 = idx[i], i1 = idx[i+1], i2 = idx[i+2];
+      const i0 = idx[i],
+        i1 = idx[i + 1],
+        i2 = idx[i + 2];
       a.fromBufferAttribute(posAttr, i0);
       b.fromBufferAttribute(posAttr, i1);
       c.fromBufferAttribute(posAttr, i2);
-      if (keepTri(a,b,c)) newIdx.push(i0,i1,i2);
+      if (keepTri(a, b, c)) newIdx.push(i0, i1, i2);
     }
     const newGeom = geom.clone();
     newGeom.setIndex(newIdx);
@@ -191,37 +218,61 @@ function stripInwardFacingWalls(geom) {
   const outUV = hasUV ? [] : null;
   const outColor = hasColor ? [] : null;
   for (let i = 0; i < count; i += 3) {
-    a.fromArray(pos, (i+0)*3);
-    b.fromArray(pos, (i+1)*3);
-    c.fromArray(pos, (i+2)*3);
-    if (keepTri(a,b,c)) {
-      outPos.push(a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z);
+    a.fromArray(pos, (i + 0) * 3);
+    b.fromArray(pos, (i + 1) * 3);
+    c.fromArray(pos, (i + 2) * 3);
+    if (keepTri(a, b, c)) {
+      outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
       if (outUV) {
         const uv = geom.getAttribute("uv");
-        outUV.push(uv.getX(i+0), uv.getY(i+0), uv.getX(i+1), uv.getY(i+1), uv.getX(i+2), uv.getY(i+2));
+        outUV.push(
+          uv.getX(i + 0),
+          uv.getY(i + 0),
+          uv.getX(i + 1),
+          uv.getY(i + 1),
+          uv.getX(i + 2),
+          uv.getY(i + 2)
+        );
       }
       if (outColor) {
         const col = geom.getAttribute("color");
         outColor.push(
-          col.getX(i+0), col.getY(i+0), col.getZ(i+0),
-          col.getX(i+1), col.getY(i+1), col.getZ(i+1),
-          col.getX(i+2), col.getY(i+2), col.getZ(i+2)
+          col.getX(i + 0),
+          col.getY(i + 0),
+          col.getZ(i + 0),
+          col.getX(i + 1),
+          col.getY(i + 1),
+          col.getZ(i + 1),
+          col.getX(i + 2),
+          col.getY(i + 2),
+          col.getZ(i + 2)
         );
       }
     }
   }
   const newGeom = new THREE.BufferGeometry();
   newGeom.setAttribute("position", new THREE.Float32BufferAttribute(outPos, 3));
-  if (outUV) newGeom.setAttribute("uv", new THREE.Float32BufferAttribute(outUV, 2));
-  if (outColor) newGeom.setAttribute("color", new THREE.Float32BufferAttribute(outColor, 3));
+  if (outUV)
+    newGeom.setAttribute("uv", new THREE.Float32BufferAttribute(outUV, 2));
+  if (outColor)
+    newGeom.setAttribute(
+      "color",
+      new THREE.Float32BufferAttribute(outColor, 3)
+    );
   newGeom.computeVertexNormals();
   newGeom.computeBoundingBox();
   newGeom.computeBoundingSphere();
   return newGeom;
 }
 
-function computeContactScaleFromGeom(topGeom, layoutRadius, modelScaleFactor, gapFraction) {
-  if (!topGeom || !topGeom.attributes || !topGeom.attributes.position) return 1.0;
+function computeContactScaleFromGeom(
+  topGeom,
+  layoutRadius,
+  modelScaleFactor,
+  gapFraction
+) {
+  if (!topGeom || !topGeom.attributes || !topGeom.attributes.position)
+    return 1.0;
   const pos = topGeom.attributes.position;
   const R = layoutRadius;
   const deltas = [
@@ -279,7 +330,9 @@ export async function loadHexModel(options = {}) {
       const geom = child.geometry;
       if (!geom.attributes.normal) geom.computeVertexNormals();
       geom.computeBoundingSphere();
-      const center = geom.boundingSphere ? geom.boundingSphere.center : new THREE.Vector3();
+      const center = geom.boundingSphere
+        ? geom.boundingSphere.center
+        : new THREE.Vector3();
       const pos = geom.attributes.position;
       const normal = geom.attributes.normal;
       let inward = 0;
@@ -332,7 +385,8 @@ export async function loadHexModel(options = {}) {
     topGeom.computeBoundingBox();
     sideGeom && sideGeom.computeBoundingBox();
     const topMaxY = topGeom.boundingBox ? topGeom.boundingBox.max.y : 1;
-    const sideMaxY = sideGeom && sideGeom.boundingBox ? sideGeom.boundingBox.max.y : topMaxY;
+    const sideMaxY =
+      sideGeom && sideGeom.boundingBox ? sideGeom.boundingBox.max.y : topMaxY;
     hexMaxY = Math.max(topMaxY, sideMaxY);
     const pos = topGeom.attributes.position;
     let maxR = 0;
@@ -342,14 +396,21 @@ export async function loadHexModel(options = {}) {
       const r = Math.hypot(x, z);
       if (r > maxR) maxR = r;
     }
-  let modelScaleFactor = 1;
-  if (maxR > 0) modelScaleFactor = layoutRadius / maxR;
-  const suggested = computeContactScaleFromGeom(topGeom, layoutRadius, modelScaleFactor, gapFraction);
+    let modelScaleFactor = 1;
+    if (maxR > 0) modelScaleFactor = layoutRadius / maxR;
+    const suggested = computeContactScaleFromGeom(
+      topGeom,
+      layoutRadius,
+      modelScaleFactor,
+      gapFraction
+    );
     const applied = Math.max(0.5, Math.min(1.5, suggested));
     return {
       topGeom,
       sideGeom,
-      modelCenter: scene ? new THREE.Box3().setFromObject(scene).getCenter(new THREE.Vector3()) : new THREE.Vector3(0,0,0),
+      modelCenter: scene
+        ? new THREE.Box3().setFromObject(scene).getCenter(new THREE.Vector3())
+        : new THREE.Vector3(0, 0, 0),
       hexMaxY,
       modelScaleFactor,
       contactScale: applied,
@@ -357,11 +418,23 @@ export async function loadHexModel(options = {}) {
     };
   }
 
-  return { topGeom, sideGeom, modelCenter: new THREE.Vector3(0,0,0), hexMaxY, modelScaleFactor: 1, contactScale: 1, scene };
+  return {
+    topGeom,
+    sideGeom,
+    modelCenter: new THREE.Vector3(0, 0, 0),
+    hexMaxY,
+    modelScaleFactor: 1,
+    contactScale: 1,
+    scene,
+  };
 }
 
 export async function loadLocationMarker(options = {}) {
-  const { path = "/models/location-marker.glb", layoutRadius = 0.5, markerDesiredRadius = 0.6 } = options;
+  const {
+    path = "/models/location-marker.glb",
+    layoutRadius = 0.5,
+    markerDesiredRadius = 0.6,
+  } = options;
   const gltf = await loadGLTF(path);
   const marker = gltf.scene;
   marker.updateWorldMatrix(true, true);

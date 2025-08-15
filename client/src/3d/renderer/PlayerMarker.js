@@ -3,12 +3,21 @@
 // - setPosition(q,r,matrixProvider): places marker using instance matrix of target cell
 // - addTo(scene) / removeFrom(scene)
 
-import * as THREE from 'three';
+import * as THREE from "three";
 
 export default class PlayerMarker {
   constructor(geometry = null) {
     const geom = geometry || new THREE.RingGeometry(0.35, 0.5, 32);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xb53a3a, transparent: true, opacity: 1.0, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xb53a3a,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
     this.mesh = new THREE.Mesh(geom, mat);
     this.mesh.renderOrder = 3; // draw after water to ensure visibility on water
     // Note: matrixAutoUpdate=false; orientation is driven by composed matrix below
@@ -23,8 +32,12 @@ export default class PlayerMarker {
     this._tmpScale = new THREE.Vector3();
   }
 
-  addTo(scene) { scene.add(this.mesh); }
-  removeFrom(scene) { scene.remove(this.mesh); }
+  addTo(scene) {
+    scene.add(this.mesh);
+  }
+  removeFrom(scene) {
+    scene.remove(this.mesh);
+  }
 
   setPosition(instanceIndex, instanceMesh) {
     if (!instanceMesh || instanceIndex == null) return;
@@ -53,13 +66,16 @@ export default class PlayerMarker {
     if (!camera || !this.mesh.visible) return;
     const dx = camera.position.x - this._pos.x;
     const dz = camera.position.z - this._pos.z;
-  // Face camera; add 90° to account for model forward axis
-  this._yaw = Math.atan2(dx, dz) + Math.PI / 2;
+    // Face camera; add 90° to account for model forward axis
+    this._yaw = Math.atan2(dx, dz) + Math.PI / 2;
     this._compose();
   }
 
   _compose() {
-  const yQuat = new THREE.Quaternion().setFromAxisAngle(ClutterMarkerShared.UP, this._yaw);
+    const yQuat = new THREE.Quaternion().setFromAxisAngle(
+      ClutterMarkerShared.UP,
+      this._yaw
+    );
     this.mesh.matrix.compose(this._pos, yQuat, this._scale);
     this.mesh.visible = true;
   }
