@@ -996,6 +996,7 @@ export default {
           }
         }
       }
+      if (this.renderer && this.renderer.shadowMap) this.renderer.shadowMap.needsUpdate = true;
     },
     // Build instanced meshes for rectangular chunk neighborhood (even-q offset); then set center
     createChunkGrid() {
@@ -1143,7 +1144,10 @@ export default {
         const scaleY = (this.modelScaleFactor * (cell ? cell.yScale : 1) * (this.heightMagnitude != null ? this.heightMagnitude : 1.0));
         const yTop = this.hexMaxY * scaleY;
         const pos = new THREE.Vector3(pos2D.x, yTop + 0.01, pos2D.z);
-        if (this.playerMarker) this.playerMarker.setWorldPosition(pos);
+        if (this.playerMarker) {
+          this.playerMarker.setWorldPosition(pos);
+          if (this.renderer && this.renderer.shadowMap) this.renderer.shadowMap.needsUpdate = true;
+        }
         // Also place the GLB location marker for clarity at the same world position
         this.placeLocationMarkerAtWorld(pos);
   this.focusCameraOnQR(startQ, startR, { smooth: true, duration: 900 });
@@ -1157,6 +1161,7 @@ export default {
         this._progressivePlanned = desiredRadius;
         this._scheduleProgressiveExpand();
       }
+      if (this.renderer && this.renderer.shadowMap) this.renderer.shadowMap.needsUpdate = true;
       if (!this.locationsLoaded) {
         this.locationsLoaded = true;
         this.loadWorldLocations();
@@ -1175,6 +1180,7 @@ export default {
         const markerScale = this.locationMarker.scale.clone();
         this.locationMarker.matrix.compose(pos.clone(), markerQuat, markerScale);
         this.locationMarker.visible = true;
+        if (this.renderer && this.renderer.shadowMap) this.renderer.shadowMap.needsUpdate = true;
       });
     },
     async loadWorldLocations() {
@@ -2412,6 +2418,7 @@ export default {
             const pos = this.playerMarkerPos;
             pos.set(ps.x, this.hexMaxY * ps.scaleY + 0.01, ps.z);
             this.playerMarker.setWorldPosition(pos);
+            if (this.renderer && this.renderer.shadowMap) this.renderer.shadowMap.needsUpdate = true;
           }
         }
       } else {
@@ -2697,7 +2704,11 @@ export default {
       if (!this.renderer || !this.scene) return;
       // Renderer shadow map
       this.renderer.shadowMap.enabled = !!enabled;
-      if (enabled) this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.autoUpdate = false;
+      if (enabled) {
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.needsUpdate = true;
+      }
       // Key light shadows
       if (this.keyLight) {
         this.keyLight.castShadow = !!enabled;
