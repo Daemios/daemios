@@ -100,3 +100,6 @@ init may fail on missing assets or bad configuration (rejects promise). tick sho
 - Prefer pooling for temporary objects and reuse geometries/materials across chunks.
 - Each step in the rendering process must produce metrics that have negligible impact on the rendering times
 - For metrics that cannot be obtained without impacting performance, they may be safely ignored until a need arises
+
+## Optimization considerations
+We want to be intelligently examining each piece of code we add to 3d2, making sure it's designed in the most performant way. It is critical that we don't lose functionality, but any detours for improvements to performance should be flagged to the user for approval. 
