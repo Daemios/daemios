@@ -226,7 +226,6 @@ export default {
       profEl: null,
       profLastUpdate: 0,
       gpuTimer: null,
-      gpuMsAvg: 0,
       // benchmark
       benchmark: {
         running: false,
@@ -2160,38 +2159,6 @@ export default {
       // End frame profiling and update overlay ~2x/sec
       if (this.profilerEnabled) {
         profiler.endFrame();
-        const gpuStats = profiler.stats("frame.gpu");
-        if (gpuStats && gpuStats.last != null && this.renderer) {
-          const sample = gpuStats.last;
-          this.gpuMsAvg = this.gpuMsAvg
-            ? this.gpuMsAvg * 0.9 + sample * 0.1
-            : sample;
-          const threshold = 16;
-          const margin = 2;
-          const currentPR = this.renderer.getPixelRatio();
-          if (this.gpuMsAvg > threshold && currentPR > 0.5) {
-            if (this.tweenSaved.pixelRatio == null)
-              this.tweenSaved.pixelRatio = currentPR;
-            const newPR = Math.max(0.5, currentPR - 0.05);
-            if (newPR !== currentPR) {
-              this.renderer.setPixelRatio(newPR);
-              this.onResize();
-            }
-          } else if (
-            this.tweenSaved.pixelRatio != null &&
-            this.gpuMsAvg < threshold - margin
-          ) {
-            const target = this.tweenSaved.pixelRatio;
-            const newPR = Math.min(target, currentPR + 0.05);
-            if (newPR !== currentPR) {
-              this.renderer.setPixelRatio(newPR);
-              this.onResize();
-            }
-            if (newPR >= target - 0.001) {
-              this.tweenSaved.pixelRatio = null;
-            }
-          }
-        }
         if (!this.profLastUpdate || now - this.profLastUpdate > 500) {
           this.profLastUpdate = now;
           // Gather live stats for WorldBenchmarkPanel
