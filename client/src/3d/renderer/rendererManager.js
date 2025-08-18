@@ -3,7 +3,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { createWebGLTimer } from "@/utils/profiler";
+import { createWebGLTimer, profiler } from "@/utils/profiler";
 
 // Initialize renderer + composer and return an object of handles.
 export function createRendererManager({
@@ -58,6 +58,12 @@ export function createRendererManager({
       }
       if (manager.fpsEl && manager.fpsEl.parentNode)
         manager.fpsEl.parentNode.removeChild(manager.fpsEl);
+      // detach profiler GPU hook to avoid keeping references to GL context
+      try {
+        profiler.setGPU(null);
+      } catch (e) {
+        // ignore
+      }
       manager.composer = null;
       manager.renderer = null;
       manager.fxaaPass = null;
@@ -102,6 +108,12 @@ export function createRendererManager({
   // GPU timer
   try {
     manager._gpuTimer = createWebGLTimer(manager.renderer);
+    // attach GPU timer to global profiler so profiler.poll() receives data
+    try {
+      profiler.setGPU(manager._gpuTimer);
+    } catch (e) {
+      // ignore
+    }
   } catch (e) {
     // ignore
   }
