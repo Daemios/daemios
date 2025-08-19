@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { createRendererManager } from '@/3d2/renderer/rendererManager';
+import { createInstancedMesh } from '@/3d2/renderer/instancing';
+import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
-// OrbitControls is a browser-only module; import dynamically when init runs to avoid SSR issues
+import { createOrbitControls } from '@/3d2/interaction/orbitControls';
+import ClutterManager from '@/3d2/world/ClutterManager';
+import { loadHexModel } from '@/services/model/modelLoader';
 
 export class WorldMapScene {
   constructor(container) {
@@ -30,6 +34,13 @@ export class WorldMapScene {
       scene: this.scene,
       camera: this.camera,
     });
+
+    // attempt to create a postprocessing composer; non-fatal if unavailable
+    try {
+      createComposer(this.manager.renderer, this.scene, this.camera).then((c) => {
+        if (c) this.manager.composer = c;
+      }).catch(() => { /* ignore */ });
+    } catch (e) { /* ignore */ }
 
     // Ensure renderer DOM is visible and attached. Prefer container, otherwise fallback to body.
     try {
@@ -75,15 +86,46 @@ export class WorldMapScene {
 
   this.grid = new WorldGrid(1);
 
+    // simplified clutter manager for 3d2: attach to scene and generate a lightweight set
+    try {
+      this._clutter = new ClutterManager({
+        types: [
+          { id: 'grass', baseColor: 0x66aa66, density: 0.22, scale: { min: 0.5, max: 1.0 } },
+        ],
+        streamBudgetMs: 6,
+        worldSeed: 1337,
+      });
+      this._clutter.addTo(this.scene);
+      try { this._clutter.prepareFromGrid(this.grid); } catch (e) { /* ignore */ }
+      try {
+        // commit an initial region matching the grid radius
+        this._clutter.commitInstances({ layoutRadius: 1, contactScale: 1, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -this._gridRadius, qMax: this._gridRadius, rMin: -this._gridRadius, rMax: this._gridRadius } });
+      } catch (e) {
+        // ignore commit failures in simplified manager
+      }
+    } catch (e) {
+      // ignore clutter manager init failures
+    }
+
     // add simple lighting for the debug scene
   const ambient = new THREE.AmbientLight(0xffffff, 0.6);
   const key = new THREE.DirectionalLight(0xffffff, 0.8);
     key.position.set(10, 20, 10);
     this.scene.add(ambient, key);
 
-    // create a visible debug grid of hex-like markers (instanced) at startup
+    // create a visible debug grid of hex markers (instanced) at startup
     this._gridRadius = 4; // default; scene API can expose setter later
-    this._createGridInstances(this._gridRadius);
+    // Try to load the project's hex model for visual parity; fall back to simple geometry
+    (async () => {
+      try {
+        const model = await loadHexModel({ path: '/models/hex-can.glb', layoutRadius: 1, orientation: 'flat' });
+        this._hexModel = model; // contains topGeom, sideGeom, modelScaleFactor, contactScale, hexMaxY
+      } catch (e) {
+        // model not available; continue with fallback
+        this._hexModel = null;
+      }
+      this._createGridInstances(this._gridRadius);
+    })();
 
   // entity group for runtime markers
   this._entityGroup = new THREE.Group();
@@ -96,22 +138,19 @@ export class WorldMapScene {
     container: this.container,
   });
 
-    // lazy load OrbitControls and wire controls to camera and renderer dom
+    // create orbit controls via wrapper (dynamic import inside wrapper)
     try {
       const dom = this.manager && this.manager.renderer && this.manager.renderer.domElement;
       if (dom) {
-        // dynamic import keeps build light and avoids SSR/runtime require issues
-        import('three/examples/jsm/controls/OrbitControls.js').then((mod) => {
-          try {
-            const OrbitControls = mod.OrbitControls || mod.default || mod;
-            this._controls = new OrbitControls(this.camera, dom);
-            this._controls.enableDamping = true;
-            this._controls.dampingFactor = 0.1;
-            this._controls.screenSpacePanning = false;
-            this._controls.minDistance = 5;
-            this._controls.maxDistance = 300;
-          } catch (e) { /* ignore */ }
-        }).catch(() => { /* ignore dynamic import failures */ });
+        createOrbitControls(this.camera, dom, {
+          enableDamping: true,
+          dampingFactor: 0.1,
+          screenSpacePanning: false,
+          minDistance: 5,
+          maxDistance: 300,
+        }).then((controls) => {
+          if (controls) this._controls = controls;
+        }).catch(() => { /* ignore */ });
       }
     } catch (e) { /* ignore */ }
 
@@ -149,21 +188,66 @@ export class WorldMapScene {
 
     if (!positions.length) return;
 
-  const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
-  const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-  const inst = new THREE.InstancedMesh(geom, mat, positions.length);
-  inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      dummy.position.set(p.x, 0, p.z);
-      dummy.updateMatrix();
-      inst.setMatrixAt(i, dummy.matrix);
+    // If we have a loaded hex model, use its geometries for instanced rendering to match legacy visuals.
+    if (this._hexModel && this._hexModel.topGeom) {
+      const topGeom = this._hexModel.topGeom;
+      const sideGeom = this._hexModel.sideGeom || topGeom;
+      const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+      try {
+        const topApi = createInstancedMesh(topGeom, mat, positions.length);
+        const sideApi = createInstancedMesh(sideGeom, mat, positions.length);
+        const topIM = topApi.instancedMesh;
+        const sideIM = sideApi.instancedMesh;
+        for (let i = 0; i < positions.length; i++) {
+          const p = positions[i];
+          topApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
+          sideApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
+        }
+        this.scene.add(topIM);
+        this.scene.add(sideIM);
+        this._gridInstanced = topIM;
+        this._gridInstancedApi = topApi;
+      } catch (e) {
+        // fallback to simple cylinder if instancing fails
+        const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
+        const mat2 = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+        const group = new THREE.Group();
+        for (let i = 0; i < positions.length; i++) {
+          const p = positions[i];
+          const m = new THREE.Mesh(geom.clone(), mat2.clone());
+          m.position.set(p.x, 0, p.z);
+          group.add(m);
+        }
+        this.scene.add(group);
+        this._gridInstanced = group;
+      }
+    } else {
+      // No model loaded -> simple cylinder markers
+      const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
+      const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+      try {
+        const instanceApi = createInstancedMesh(geom, mat, positions.length);
+        const inst = instanceApi.instancedMesh;
+        for (let i = 0; i < positions.length; i++) {
+          const p = positions[i];
+          instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
+        }
+        this.scene.add(inst);
+        this._gridInstanced = inst;
+        this._gridInstancedApi = instanceApi;
+      } catch (e) {
+        // fallback to non-instanced mesh set in case helper fails
+        const group = new THREE.Group();
+        for (let i = 0; i < positions.length; i++) {
+          const p = positions[i];
+          const m = new THREE.Mesh(geom.clone(), mat.clone());
+          m.position.set(p.x, 0, p.z);
+          group.add(m);
+        }
+        this.scene.add(group);
+        this._gridInstanced = group;
+      }
     }
-
-    this.scene.add(inst);
-    this._gridInstanced = inst;
   }
 
   // update the grid radius (recreate instanced markers)
@@ -176,6 +260,15 @@ export class WorldMapScene {
     }
     this._gridRadius = radius;
     this._createGridInstances(radius);
+    // update clutter region to match new grid radius
+    try {
+      if (this._clutter) {
+        try { this._clutter.prepareFromGrid(this.grid); } catch (e) { /* ignore */ }
+        this._clutter.commitInstances({ layoutRadius: 1, contactScale: 1, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
+      }
+    } catch (e) {
+      // ignore
+    }
   }
 
   // show entity markers; entities: [{ type, pos: { q,r }, ... }]
@@ -243,6 +336,14 @@ export class WorldMapScene {
       // ignore
     }
     if (this.manager && this.manager.dispose) this.manager.dispose();
+    try {
+      if (this._clutter) {
+        try { this._clutter.removeFrom(); } catch (e) { /* ignore */ }
+        this._clutter = null;
+      }
+    } catch (e) {
+      /* ignore */
+    }
     this.scene = null;
     this.camera = null;
     this.manager = null;
