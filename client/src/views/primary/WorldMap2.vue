@@ -1,25 +1,30 @@
 <template>
-  <div class="worldmap2">
-    <h3>WorldMap2 — 3d2 scene (initial)</h3>
-    <div class="controls">
-      <label> Seed </label>
-      <input v-model="seed" />
+  <div ref="sceneContainer" class="world-map position-relative w-100 h-screen">
+    <!-- Controls overlay (top-left) -->
+    <div class="controls-overlay position-absolute" style="left: 12px; top: 12px; z-index: 20">
+      <div class="controls">
+        <label> Seed </label>
+        <input v-model="seed" />
 
-      <label> Grid radius </label>
-      <input v-model.number="gridRadius" type="number" min="1" max="12" />
+        <label> Grid radius </label>
+        <input v-model.number="gridRadius" type="number" min="1" max="12" />
 
-      <button @click="genEntities">Generate Entities</button>
+        <button @click="genEntities">Generate Entities</button>
 
-      <button @click="saveToWorld">Save to world</button>
-      <button @click="batchSave">Batch save</button>
+        <button @click="saveToWorld">Save to world</button>
+        <button @click="batchSave">Batch save</button>
 
-      <div class="status">Status: {{ status }}</div>
+        <div class="status">Status: {{ status }}</div>
+      </div>
     </div>
 
-    <div class="scene-container">
+    <!-- Scene fills the container -->
+    <div class="scene-fill" style="width:100%; height:100%; position:relative">
       <WorldMapSceneWrapper ref="sceneWrapper" />
     </div>
-    <div v-if="selectedEntity" class="selection-panel">
+
+    <!-- Selection panel (right) -->
+    <div v-if="selectedEntity" class="selection-panel position-absolute" style="right:12px; top:12px; z-index:20; width:260px;">
       <h4>Selected entity</h4>
       <div>Type: {{ selectedEntity.type }}</div>
       <div>
@@ -180,7 +185,12 @@ async function batchSave() {
 
 <style scoped>
 .worldmap2 {
-  padding: 12px;
+  /* legacy padding removed; wrapper uses full-screen layout */
+}
+/* Make sure the world-map root fills the viewport so child 100% heights work */
+.world-map {
+  width: 100%;
+  min-height: 100vh;
 }
 .controls {
   display: flex;
@@ -190,10 +200,31 @@ async function batchSave() {
   flex-wrap: wrap;
 }
 .scene-container {
-  height: 560px;
-  border: 1px solid #222;
+  height: 100%;
+  width: 100%;
 }
 .status {
   font-family: monospace;
+}
+/* ensure scene wrapper stretches */
+.scene-fill > * {
+  position: absolute !important;
+  inset: 0px !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.controls-overlay .controls {
+  background: rgba(20,20,20,0.7);
+  padding: 8px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.selection-panel {
+  background: rgba(20,20,20,0.8);
+  padding: 8px;
+  border-radius: 6px;
+  color: #fff;
 }
 </style>

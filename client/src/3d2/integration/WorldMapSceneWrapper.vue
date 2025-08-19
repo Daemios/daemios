@@ -16,6 +16,8 @@ const ready = ref(false);
 let _pendingOnSelect = null;
 let _onSelectCallback = null;
 let _domEventListener = null;
+let _resizeObserver = null;
+let _windowResizeHandler = null;
 
 async function initScene() {
   await nextTick();
@@ -56,6 +58,48 @@ async function initScene() {
   }
   ready.value = true;
 
+  // ensure scene has the correct logical size right away
+  try {
+    const cw = container.value ? container.value.clientWidth : window.innerWidth;
+    const ch = container.value ? container.value.clientHeight : window.innerHeight;
+    if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(cw, ch);
+  } catch (e) {
+    /* ignore */
+  }
+
+  // observe container size changes and resize the scene accordingly
+  try {
+    if (typeof ResizeObserver !== 'undefined') {
+      _resizeObserver = new ResizeObserver((entries) => {
+        try {
+          for (const entry of entries) {
+            const cr = entry.contentRect || entry.target.getBoundingClientRect();
+            const w = Math.round(cr.width || 0);
+            const h = Math.round(cr.height || 0);
+            if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(w, h);
+          }
+        } catch (err) {
+          /* ignore */
+        }
+      });
+      if (container.value) _resizeObserver.observe(container.value);
+    } else {
+      // fallback: window resize
+      _windowResizeHandler = () => {
+        try {
+          const w = container.value ? container.value.clientWidth : window.innerWidth;
+          const h = container.value ? container.value.clientHeight : window.innerHeight;
+          if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(w, h);
+        } catch (err) {
+          /* ignore */
+        }
+      };
+      window.addEventListener('resize', _windowResizeHandler);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+
   function _loop(t) {
     try {
       if (sceneInst && sceneInst.tick) sceneInst.tick(t);
@@ -75,6 +119,16 @@ onBeforeUnmount(() => {
   try {
     if (container.value && _domEventListener)
       container.value.removeEventListener("worldmap:select", _domEventListener);
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    if (_resizeObserver && container.value) _resizeObserver.unobserve(container.value);
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    if (_windowResizeHandler) window.removeEventListener('resize', _windowResizeHandler);
   } catch (e) {
     /* ignore */
   }
