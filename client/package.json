@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint --ext .js,.vue src"
+  "lint": "eslint --ext .js,.vue src",
+  "test:3d2": "vitest --config ./vitest.config.ts --run --dir src/3d2/__tests__"
   },
   "dependencies": {
     "@mdi/js": "^6.5.96",
@@ -28,7 +29,8 @@
     "eslint-plugin-vue": "^8.5.0",
     "vite": "^7.1.2",
     "vite-plugin-vuetify": "^2.0.0",
-    "vue-eslint-parser": "^9.3.1"
+    "vue-eslint-parser": "^9.3.1",
+    "vitest": "^0.34.2"
   },
   "eslintConfig": {
     "root": true,

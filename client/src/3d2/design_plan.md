@@ -94,7 +94,7 @@ init may fail on missing assets or bad configuration (rejects promise). tick sho
 - Input race conditions — decouple input sampling from render thread where possible.
 - Hot reload / dispose — scenes must cleanly release GPU resources to avoid memory leaks.
 
-## Performance rules (unchanged, but reiterated)
+## Performance rules
 
 - Target 120 fps where feasible; avoid per-frame allocations and prefer instancing.
 - Prefer pooling for temporary objects and reuse geometries/materials across chunks.
@@ -102,4 +102,5 @@ init may fail on missing assets or bad configuration (rejects promise). tick sho
 - For metrics that cannot be obtained without impacting performance, they may be safely ignored until a need arises
 
 ## Optimization considerations
-We want to be intelligently examining each piece of code we add to 3d2, making sure it's designed in the most performant way. It is critical that we don't lose functionality, but any detours for improvements to performance should be flagged to the user for approval. 
+
+We want to be intelligently examining each piece of code we add to 3d2, making sure it's designed in the most performant way. It is critical that we don't lose functionality, but any detours for improvements to performance should be flagged to the user for approval.
