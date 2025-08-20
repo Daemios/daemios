@@ -5,40 +5,41 @@
     @pointerdown.stop
   >
     <v-card
-      class="compact pa-1"
+      class="pa-1 rounded"
       elevation="6"
       color="#041219"
       dark
+      style="width: 180px; cursor: pointer"
       @click="toggleExpanded"
     >
-      <v-row class="ma-0 pa-0 compact-top" align="center">
-        <v-col class="d-flex align-center compact-fps">
-          <div class="fps small">
+      <v-row class="ma-0 pa-0" align="center">
+        <v-col class="d-flex align-center" cols="3">
+          <div class="text-subtitle-2 font-weight-bold">
             {{ fpsDisplay }}
           </div>
         </v-col>
-        <v-col class="d-flex align-center compact-spark">
-          <canvas ref="spark" class="spark" width="72" height="14" />
+
+        <v-col class="d-flex align-center" cols="9">
+          <canvas ref="spark" height="14" class="w-100" />
         </v-col>
-        <v-col class="d-flex align-center compact-stats">
-          <div class="bottom-row mono d-flex justify-space-between">
-            <div class="stat">
-              ms: <b>{{ lastFrameMs }}</b>
-            </div>
-            <div class="stat">
-              calls: <b>{{ lastCalls }}</b>
-            </div>
-            <div class="stat">
-              tris: <b>{{ lastTris }}</b>
-            </div>
+
+        <v-col class="d-flex justify-space-between" cols="12">
+          <div>
+            ms: <b>{{ lastFrameMs }}</b>
+          </div>
+          <div>
+            calls: <b>{{ lastCalls }}</b>
+          </div>
+          <div>
+            tris: <b>{{ lastTris }}</b>
           </div>
         </v-col>
       </v-row>
     </v-card>
 
-    <div v-if="expanded" class="detail">
-      <div class="header">
-        <div class="title">Live Metrics</div>
+    <v-card v-if="expanded" class="pa-3 mt-2" flat color="#041219" dark>
+      <div class="d-flex align-center justify-space-between">
+        <div class="text-h6">Live Metrics</div>
         <div class="d-flex align-center">
           <v-tabs
             v-model="activeTab"
@@ -50,90 +51,117 @@
             <v-tab value="overview"> Overview </v-tab>
             <v-tab value="breakdown"> Breakdown </v-tab>
           </v-tabs>
-
-          <!-- header actions removed per request -->
         </div>
       </div>
 
-      <div class="grid">
+      <v-row class="ma-0 mt-3" dense>
         <template v-if="activeTab === 'overview'">
-          <v-card class="card mono" flat>
-            <div class="card-title">Overview</div>
-            <div class="card-body">
-              <div>
-                Frames: <b>{{ summary?.frames ?? "—" }}</b>
+          <v-col cols="12" md="3">
+            <v-card flat class="pa-3" color="transparent">
+              <div
+                class="text-subtitle-2"
+                style="color: #8ff; margin-bottom: 6px"
+              >
+                Overview
               </div>
-              <div>
-                Avg ms: <b>{{ fmt(summary?.frameMs?.avg) }}</b> p90:
-                <b>{{ fmt(summary?.frameMs?.p90) }}</b> p99:
-                <b>{{ fmt(summary?.frameMs?.p99) }}</b>
+              <div style="font-size: 12px; color: #dfe">
+                <div>
+                  Frames: <b>{{ summary?.frames ?? "—" }}</b>
+                </div>
+                <div>
+                  Avg ms: <b>{{ fmt(summary?.frameMs?.avg) }}</b> p90:
+                  <b>{{ fmt(summary?.frameMs?.p90) }}</b> p99:
+                  <b>{{ fmt(summary?.frameMs?.p99) }}</b>
+                </div>
+                <div>
+                  Avg calls: <b>{{ fmt(summary?.calls?.avg, 0) }}</b> tris:
+                  <b>{{ fmt(summary?.tris?.avg, 0) }}</b>
+                </div>
               </div>
-              <div>
-                Avg calls: <b>{{ fmt(summary?.calls?.avg, 0) }}</b> tris:
-                <b>{{ fmt(summary?.tris?.avg, 0) }}</b>
-              </div>
-            </div>
-          </v-card>
+            </v-card>
+          </v-col>
 
-          <v-card class="card mono" flat>
-            <div class="card-title">Layers (last)</div>
-            <div class="card-body table">
-              <v-simple-table>
-                <thead>
-                  <tr>
-                    <th>layer</th>
-                    <th>vis</th>
-                    <th>inst</th>
-                    <th>uMs</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(v, k) in lastLayers" :key="k">
-                    <td>
-                      {{ k }}
-                    </td>
-                    <td class="mono">
-                      {{ v.visible ?? "—" }}
-                    </td>
-                    <td class="mono">
-                      {{ v.instanced ?? "—" }}
-                    </td>
-                    <td class="mono">
-                      {{ v.updateMs ?? "—" }}
-                    </td>
-                  </tr>
-                </tbody>
-              </v-simple-table>
-            </div>
-          </v-card>
+          <v-col cols="12" md="3">
+            <v-card flat class="pa-3" color="transparent">
+              <div
+                class="text-subtitle-2"
+                style="color: #8ff; margin-bottom: 6px"
+              >
+                Layers (last)
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: #dfe;
+                  max-height: 160px;
+                  overflow: auto;
+                "
+              >
+                <v-simple-table>
+                  <thead>
+                    <tr>
+                      <th>layer</th>
+                      <th>vis</th>
+                      <th>inst</th>
+                      <th>uMs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(v, k) in lastLayers" :key="k">
+                      <td>{{ k }}</td>
+                      <td>{{ v.visible ?? "—" }}</td>
+                      <td>{{ v.instanced ?? "—" }}</td>
+                      <td>{{ v.updateMs ?? "—" }}</td>
+                    </tr>
+                  </tbody>
+                </v-simple-table>
+              </div>
+            </v-card>
+          </v-col>
 
-          <v-card class="card wide mono" flat>
-            <div class="card-title">
-              Timeline (last {{ samples.length }} frames)
-            </div>
-            <div class="card-body">
-              <canvas
-                ref="timeline"
-                width="640"
-                height="120"
-                class="timeline"
-              />
-            </div>
-          </v-card>
+          <v-col cols="12" md="6">
+            <v-card flat class="pa-3" color="transparent">
+              <div
+                class="text-subtitle-2"
+                style="color: #8ff; margin-bottom: 6px"
+              >
+                Timeline (last {{ samples.length }} frames)
+              </div>
+              <div>
+                <canvas
+                  ref="timeline"
+                  width="640"
+                  height="120"
+                  style="
+                    width: 100%;
+                    height: 120px;
+                    background: #071019;
+                    border-radius: 4px;
+                    display: block;
+                  "
+                />
+              </div>
+            </v-card>
+          </v-col>
         </template>
 
         <template v-else-if="activeTab === 'breakdown'">
-          <v-card class="card wide mono" flat>
-            <div class="card-title">Layer Breakdown</div>
-            <div class="card-body">
-              <div class="coming-soon">
+          <v-col cols="12">
+            <v-card flat class="pa-3" color="transparent">
+              <div
+                class="text-subtitle-2"
+                style="color: #8ff; margin-bottom: 6px"
+              >
+                Layer Breakdown
+              </div>
+              <div style="font-size: 12px; color: #dfe">
                 Breakdown coming soon — will be added incrementally.
               </div>
-            </div>
-          </v-card>
+            </v-card>
+          </v-col>
         </template>
-      </div>
-    </div>
+      </v-row>
+    </v-card>
   </div>
 </template>
 
@@ -269,7 +297,9 @@ onMounted(() => {
         if (typeof mgr.getLayerMetrics === "function") {
           try {
             layers = mgr.getLayerMetrics() || {};
-          } catch (e) {}
+          } catch (e) {
+            console.error("Error getting layer metrics:", e);
+          }
         } else {
           // fallback: inspect common groups
           try {
@@ -327,12 +357,16 @@ onMounted(() => {
           // don't actually call render here — assume the scene is already rendering; just read info
           renderMs = null;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error measuring render time:", e);
+      }
 
       // push a sample by calling sampler.sampleFrame
       try {
         sampler.sampleFrame({ renderMs, info, layers });
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error sampling frame:", e);
+      }
 
       // redraw UI at ~15fps
       const now = performance.now();
@@ -443,122 +477,5 @@ const expose = { sampler, samples };
 .live-metrics {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   color: #cde;
-}
-.compact {
-  background: rgba(6, 12, 18, 0.92);
-  padding: 3px 6px;
-  border-radius: 8px;
-  width: 180px;
-  min-height: 26px;
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-.compact-top {
-  margin: 0;
-  padding: 0;
-  align-items: center;
-}
-.compact .fps {
-  font-size: 10px;
-  font-weight: 700;
-  color: #dff;
-  min-width: 44px;
-  line-height: 12px;
-}
-.compact .fps.small {
-  font-size: 9px;
-}
-.compact .bottom-row {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  margin-top: 0;
-  font-size: 10px;
-  color: #9db;
-}
-
-.spark-wrap {
-  display: flex;
-  align-items: center;
-}
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-}
-.spark {
-  display: inline-block;
-  margin-top: 0;
-  background: transparent;
-  border-radius: 4px;
-  width: 72px;
-  height: 14px;
-}
-.detail {
-  margin-top: 8px;
-  background: rgba(4, 8, 12, 0.94);
-  color: #dfe;
-  padding: 10px;
-  border-radius: 8px;
-  width: 840px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
-}
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.controls button {
-  margin-left: 8px;
-  background: #0b4958;
-  color: #fff;
-  border-radius: 4px;
-  padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 12px;
-}
-.grid {
-  display: grid;
-  grid-template-columns: 260px 260px 1fr;
-  gap: 10px;
-  margin-top: 10px;
-}
-.card {
-  background: rgba(8, 12, 18, 0.6);
-  padding: 8px;
-  border-radius: 6px;
-}
-.card-title {
-  font-size: 12px;
-  color: #8ff;
-  margin-bottom: 6px;
-}
-.card-body {
-  font-size: 12px;
-}
-.card.wide {
-  grid-column: 1 / span 3;
-}
-.table {
-  max-height: 160px;
-  overflow: auto;
-}
-.tr {
-  display: flex;
-  gap: 8px;
-  padding: 2px 0;
-}
-.tr.header {
-  font-weight: 700;
-  color: #9ff;
-}
-.tr .td {
-  flex: 1;
-}
-.timeline {
-  width: 100%;
-  height: 120px;
-  display: block;
-  background: #071019;
-  border-radius: 4px;
 }
 </style>
