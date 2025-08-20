@@ -60,23 +60,30 @@ async function initScene() {
 
   // ensure scene has the correct logical size right away
   try {
-    const cw = container.value ? container.value.clientWidth : window.innerWidth;
-    const ch = container.value ? container.value.clientHeight : window.innerHeight;
-    if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(cw, ch);
+    const cw = container.value
+      ? container.value.clientWidth
+      : window.innerWidth;
+    const ch = container.value
+      ? container.value.clientHeight
+      : window.innerHeight;
+    if (sceneInst && typeof sceneInst.resize === "function")
+      sceneInst.resize(cw, ch);
   } catch (e) {
     /* ignore */
   }
 
   // observe container size changes and resize the scene accordingly
   try {
-    if (typeof ResizeObserver !== 'undefined') {
+    if (typeof ResizeObserver !== "undefined") {
       _resizeObserver = new ResizeObserver((entries) => {
         try {
           for (const entry of entries) {
-            const cr = entry.contentRect || entry.target.getBoundingClientRect();
+            const cr =
+              entry.contentRect || entry.target.getBoundingClientRect();
             const w = Math.round(cr.width || 0);
             const h = Math.round(cr.height || 0);
-            if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(w, h);
+            if (sceneInst && typeof sceneInst.resize === "function")
+              sceneInst.resize(w, h);
           }
         } catch (err) {
           /* ignore */
@@ -87,14 +94,19 @@ async function initScene() {
       // fallback: window resize
       _windowResizeHandler = () => {
         try {
-          const w = container.value ? container.value.clientWidth : window.innerWidth;
-          const h = container.value ? container.value.clientHeight : window.innerHeight;
-          if (sceneInst && typeof sceneInst.resize === 'function') sceneInst.resize(w, h);
+          const w = container.value
+            ? container.value.clientWidth
+            : window.innerWidth;
+          const h = container.value
+            ? container.value.clientHeight
+            : window.innerHeight;
+          if (sceneInst && typeof sceneInst.resize === "function")
+            sceneInst.resize(w, h);
         } catch (err) {
           /* ignore */
         }
       };
-      window.addEventListener('resize', _windowResizeHandler);
+      window.addEventListener("resize", _windowResizeHandler);
     }
   } catch (e) {
     /* ignore */
@@ -123,12 +135,14 @@ onBeforeUnmount(() => {
     /* ignore */
   }
   try {
-    if (_resizeObserver && container.value) _resizeObserver.unobserve(container.value);
+    if (_resizeObserver && container.value)
+      _resizeObserver.unobserve(container.value);
   } catch (e) {
     /* ignore */
   }
   try {
-    if (_windowResizeHandler) window.removeEventListener('resize', _windowResizeHandler);
+    if (_windowResizeHandler)
+      window.removeEventListener("resize", _windowResizeHandler);
   } catch (e) {
     /* ignore */
   }
