@@ -1,6 +1,6 @@
 <template>
   <div
-    class="live-metrics position-absolute"
+    class="live-metrics position-absolute d-flex flex-column align-end"
     :style="styleRoot"
     @pointerdown.stop
   >
@@ -97,10 +97,10 @@
                   overflow: auto;
                 "
               >
-                <table style="width:100%; font-size:12px; color:#dfe;">
+                <table style="width: 100%; font-size: 12px; color: #dfe">
                   <thead>
                     <tr>
-                      <th style="text-align:left">layer</th>
+                      <th style="text-align: left">layer</th>
                       <th>vis</th>
                       <th>inst</th>
                       <th>uMs</th>
@@ -108,7 +108,7 @@
                   </thead>
                   <tbody>
                     <tr v-for="(v, k) in lastLayers" :key="k">
-                      <td style="text-align:left">{{ k }}</td>
+                      <td style="text-align: left">{{ k }}</td>
                       <td>{{ v.visible ?? "—" }}</td>
                       <td>{{ v.instanced ?? "—" }}</td>
                       <td>{{ v.updateMs ?? "—" }}</td>
