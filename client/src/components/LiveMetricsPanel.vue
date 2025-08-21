@@ -1,6 +1,6 @@
 <template>
   <div
-    class="live-metrics position-absolute d-flex flex-column align-end"
+    class="live-metrics position-absolute d-flex flex-column align-items-end"
     :style="styleRoot"
     @pointerdown.stop
   >

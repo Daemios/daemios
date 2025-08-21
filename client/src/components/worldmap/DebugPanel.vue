@@ -63,7 +63,7 @@
         Chunk colors
       </label>
 
-    <!-- showChunkBorders option removed -->
+      <!-- showChunkBorders option removed -->
 
       <label class="d-flex align-center cursor-pointer" style="gap: 6px">
         <input
@@ -242,8 +242,8 @@ export default {
     apply() {
       let radius;
       if (this.state.sizePreset === "small") radius = 1;
-      else if (this.state.sizePreset === "medium") radius = 3;
-      else if (this.state.sizePreset === "large") radius = 5;
+      else if (this.state.sizePreset === "medium") radius = 5;
+      else if (this.state.sizePreset === "large") radius = 9;
       else radius = Number(this.state.customSize) || 1;
 
       const payload = {
