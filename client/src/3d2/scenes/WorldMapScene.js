@@ -169,18 +169,11 @@ export class WorldMapScene {
       }
     } catch (e) { console.debug('WorldMapScene: createOrbitControls failed', e); }
 
-    // Add additional helpers to ensure something is visible
+    // Debug helpers removed: grid, axes, and center box were useful during development
+    // but are not wanted in production scenes. Keep the try/catch in place so
+    // adding temporary helpers back is simple during debugging.
     try {
-      const gridHelper = new THREE.GridHelper(40, 20, 0xff0000, 0x444444);
-      this.scene.add(gridHelper);
-      const axes = new THREE.AxesHelper(10);
-      this.scene.add(axes);
-
-      const boxGeom = new THREE.BoxGeometry(4, 4, 4);
-      const boxMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, wireframe: true });
-      const box = new THREE.Mesh(boxGeom, boxMat);
-      box.position.set(0, 2, 0);
-      this.scene.add(box);
+      // debug helpers intentionally removed
     } catch (e) {
       console.debug('WorldMapScene: helper setup failed', e);
     }
