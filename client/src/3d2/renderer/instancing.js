@@ -23,4 +23,17 @@ export function createInstancedMesh(geometry, material, count) {
   return { instancedMesh: inst, setInstanceMatrix, dispose };
 }
 
-export default { createInstancedMesh };
+// Helper: set per-instance colors on an InstancedMesh while attempting to reuse
+// an existing InstancedBufferAttribute.array when possible to avoid allocations.
+export function setInstanceColors(inst, colors) {
+  if (!inst) return;
+  if (inst.instanceColor && inst.instanceColor.array && inst.instanceColor.array.length === colors.length) {
+    inst.instanceColor.array.set(colors);
+    inst.instanceColor.needsUpdate = true;
+    return;
+  }
+  inst.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+  inst.instanceColor.needsUpdate = true;
+}
+
+export default { createInstancedMesh, setInstanceColors };

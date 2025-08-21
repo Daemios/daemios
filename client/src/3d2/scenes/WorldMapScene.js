@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createRendererManager } from '@/3d2/renderer/rendererManager';
-import { createInstancedMesh } from '@/3d2/renderer/instancing';
+import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
 import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
 import { createWorldGenerator } from '@/3d2/domain/world';
@@ -236,13 +236,18 @@ export class WorldMapScene {
 
     if (!positions.length) return;
 
-    // create a local generator for sampling cell fields so we can color/scale instances
-    let gen = null;
-    try {
-      gen = createWorldGenerator('hex', 1337);
-    } catch (e) {
-      console.debug('WorldMapScene: createWorldGenerator failed, proceeding without generator', e);
-      gen = null;
+    // create or reuse a generator for sampling cell fields so we can color/scale instances
+    // Reuse the scene-level generator if present to avoid repeated construction.
+    let gen = this._generator || null;
+    if (!gen) {
+      try {
+        gen = createWorldGenerator('hex', 1337);
+        // Cache for potential reuse later
+        this._generator = gen;
+      } catch (e) {
+        console.debug('WorldMapScene: createWorldGenerator failed, proceeding without generator', e);
+        gen = null;
+      }
     }
 
     // If we have a loaded hex model, use its geometries for instanced rendering to match legacy visuals.
@@ -288,10 +293,8 @@ export class WorldMapScene {
         }
         // attach instanceColor attributes where supported
         try {
-          topIM.instanceColor = new THREE.InstancedBufferAttribute(topColors, 3);
-          sideIM.instanceColor = new THREE.InstancedBufferAttribute(sideColors, 3);
-          topIM.instanceColor.needsUpdate = true;
-          sideIM.instanceColor.needsUpdate = true;
+          setInstanceColors(topIM, topColors);
+          setInstanceColors(sideIM, sideColors);
         } catch (e) {
           // fallback: tint material per mesh if instance colors not supported
           try { topIM.material.color.setHex(0xeeeeee); sideIM.material.color.setHex(0xcccccc); } catch (ee) { console.debug('WorldMapScene: fallback tint failed', ee); }
@@ -339,7 +342,7 @@ export class WorldMapScene {
           colors[i * 3 + 1] = col.g;
           colors[i * 3 + 2] = col.b;
         }
-  try { inst.instanceColor = new THREE.InstancedBufferAttribute(colors, 3); inst.instanceColor.needsUpdate = true; } catch (e) { console.debug('WorldMapScene: set instance color failed', e); }
+  try { setInstanceColors(inst, colors); } catch (e) { console.debug('WorldMapScene: set instance color failed', e); }
         this.scene.add(inst);
         this._gridInstanced = inst;
         this._gridInstancedApi = instanceApi;

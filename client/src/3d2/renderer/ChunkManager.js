@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createInstancedMesh } from '@/3d2/renderer/instancing';
+import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
 import { axialToXZ } from '@/3d2/config/layout';
 import { offsetToAxial } from '@/3d/utils/hexUtils';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
@@ -250,10 +250,9 @@ export default class ChunkManager {
     // attach instanceColor attributes where supported
     // initially use biome colors for instanceColor; store both buffers on neighborhood
     try {
-      topIM.instanceColor = new THREE.InstancedBufferAttribute(topColorsBiome, 3);
-      sideIM.instanceColor = new THREE.InstancedBufferAttribute(sideColorsBiome, 3);
-      topIM.instanceColor.needsUpdate = true;
-      sideIM.instanceColor.needsUpdate = true;
+      // Use centralized helper to set instance colors (will reuse arrays when possible)
+      setInstanceColors(topIM, topColorsBiome);
+      setInstanceColors(sideIM, sideColorsBiome);
     } catch (e) {
       // fallback handled below
     }
@@ -300,18 +299,16 @@ export default class ChunkManager {
       },
       applyChunkColors: (enabled) => {
         try {
-          // If instanced per-instance color is supported, swap the instanceColor buffer
+          // Prefer reusing the existing InstancedBufferAttribute arrays to avoid
+          // repeated allocations and potential resource churn. If the attribute
+          // exists and sizes match, copy the alternate buffer into the existing
+          // array and mark needsUpdate. Otherwise fall back to swapping in a
+          // new attribute (rare).
           try {
-            if (enabled) {
-              topIM.instanceColor = new THREE.InstancedBufferAttribute(neighborhood._topColorsChunk, 3);
-              sideIM.instanceColor = new THREE.InstancedBufferAttribute(neighborhood._sideColorsChunk, 3);
-            } else {
-              topIM.instanceColor = new THREE.InstancedBufferAttribute(neighborhood._topColorsBiome, 3);
-              sideIM.instanceColor = new THREE.InstancedBufferAttribute(neighborhood._sideColorsBiome, 3);
-            }
-            if (topIM.instanceColor) topIM.instanceColor.needsUpdate = true;
-            if (sideIM.instanceColor) sideIM.instanceColor.needsUpdate = true;
-            return;
+            const useTopChunk = enabled ? neighborhood._topColorsChunk : neighborhood._topColorsBiome;
+            const useSideChunk = enabled ? neighborhood._sideColorsChunk : neighborhood._sideColorsBiome;
+
+            try { setInstanceColors(topIM, useTopChunk); setInstanceColors(sideIM, useSideChunk); return; } catch (e) { /* fall through */ }
           } catch (e) {
             // fall through to material-based tinting
           }

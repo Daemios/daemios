@@ -190,6 +190,11 @@ export default class ChunkNeighborhood {
     // pre-create instance colors
     const colorsTop = new Float32Array(total * 3);
     const colorsSide = new Float32Array(total * 3);
+    // NOTE: These initial allocations are intentional for ChunkNeighborhood's
+    // streaming pipeline. There is an opportunity to reuse these typed arrays
+    // across rebuilds to reduce allocations, but doing so requires careful
+    // coordination with the streaming build state (_slotAssignments, _buildQueue)
+    // so it is left for a follow-up refactor after smoke testing.
     this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
     this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(
       colorsSide,

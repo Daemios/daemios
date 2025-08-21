@@ -74,10 +74,19 @@ function createHexGenerator(seed, opts = {}) {
 // API
 export const availableWorldGenerators = ['hex:local'];
 
+// Lightweight memoization: reuse generator instance for the same (type, seed)
+// when no custom opts are provided. This avoids repeated initialization cost
+// for common code paths that call createWorldGenerator('hex', seed) often.
+const _genCache = new Map(); // key -> generator
 export function createWorldGenerator(type = 'hex', seed = 'seed', opts = {}) {
-  if (type === 'hex' || type === 'hex:local') return createHexGenerator(seed, opts);
-  // fallback: treat unknown as hex
-  return createHexGenerator(seed, opts);
+  const key = `${type}::${String(seed)}`;
+  const hasOpts = opts && Object.keys(opts).length > 0;
+  if (!hasOpts && _genCache.has(key)) return _genCache.get(key);
+  let gen;
+  if (type === 'hex' || type === 'hex:local') gen = createHexGenerator(seed, opts);
+  else gen = createHexGenerator(seed, opts);
+  if (!hasOpts) _genCache.set(key, gen);
+  return gen;
 }
 
 export function registerWorldGenerator(name, factory) {
