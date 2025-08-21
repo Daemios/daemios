@@ -3,10 +3,13 @@ import { createRendererManager } from '@/3d2/renderer/rendererManager';
 import { createInstancedMesh } from '@/3d2/renderer/instancing';
 import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
+import { createWorldGenerator } from '@/3d2/domain/world';
+import { biomeFromCell } from '@/3d2/domain/world/biomes';
+import { axialToXZ, BASE_HEX_SIZE } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
 import { createOrbitControls } from '@/3d2/interaction/orbitControls';
 import ClutterManager from '@/3d2/world/ClutterManager';
-import { loadHexModel } from '@/services/model/modelLoader';
+import { loadHexModel } from '@/3d2/services/modelLoader';
 
 export class WorldMapScene {
   constructor(container) {
@@ -39,8 +42,8 @@ export class WorldMapScene {
     try {
       createComposer(this.manager.renderer, this.scene, this.camera).then((c) => {
         if (c) this.manager.composer = c;
-      }).catch(() => { /* ignore */ });
-    } catch (e) { /* ignore */ }
+      }).catch((err) => { console.debug('WorldMapScene: createComposer promise failed', err); });
+    } catch (e) { console.debug('WorldMapScene: createComposer failed', e); }
 
     // Ensure renderer DOM is visible and attached. Prefer container, otherwise fallback to body.
     try {
@@ -66,7 +69,7 @@ export class WorldMapScene {
             this.manager.renderer.setSize(cw, ch);
             if (this.manager.composer && this.manager.composer.setSize) this.manager.composer.setSize(cw, ch);
           } catch (e) {
-            /* ignore */
+            console.debug('WorldMapScene: renderer.setSize/setComposer failed', e);
           }
         } else {
           if (canvas.parentNode !== document.body) document.body.appendChild(canvas);
@@ -77,11 +80,12 @@ export class WorldMapScene {
             this.manager.renderer.setClearColor(0x223344, 1);
           }
         } catch (e) {
-          /* ignore */
+          console.debug('WorldMapScene: setClearColor failed', e);
         }
       }
     } catch (e) {
-      // ignore attach errors in production
+      // ignore attach errors in production, but log for debug
+      console.debug('WorldMapScene: attach canvas failed', e);
     }
 
   this.grid = new WorldGrid(1);
@@ -96,12 +100,12 @@ export class WorldMapScene {
         worldSeed: 1337,
       });
       this._clutter.addTo(this.scene);
-      try { this._clutter.prepareFromGrid(this.grid); } catch (e) { /* ignore */ }
+  try { this._clutter.prepareFromGrid(this.grid); } catch (e) { console.debug('WorldMapScene: clutter.prepareFromGrid failed', e); }
       try {
         // commit an initial region matching the grid radius
-        this._clutter.commitInstances({ layoutRadius: 1, contactScale: 1, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -this._gridRadius, qMax: this._gridRadius, rMin: -this._gridRadius, rMax: this._gridRadius } });
+  this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -this._gridRadius, qMax: this._gridRadius, rMin: -this._gridRadius, rMax: this._gridRadius } });
       } catch (e) {
-        // ignore commit failures in simplified manager
+        console.debug('WorldMapScene: clutter.commitInstances failed', e);
       }
     } catch (e) {
       // ignore clutter manager init failures
@@ -119,10 +123,21 @@ export class WorldMapScene {
     (async () => {
       try {
         const model = await loadHexModel({ path: '/models/hex-can.glb', layoutRadius: 1, orientation: 'flat' });
-        this._hexModel = model; // contains topGeom, sideGeom, modelScaleFactor, contactScale, hexMaxY
+        this._hexModel = model; // contains topGeom, sideGeom, modelScaleFactor, contactScale, hexMaxY, nativeRadius
+        // set a scene-wide layout radius derived from the model's native radius so tiles touch
+  // layoutRadius is a unitless multiplier applied to BASE_HEX_SIZE; compute so hexSize == model.nativeRadius
+        this._layoutRadius = (model.nativeRadius && BASE_HEX_SIZE) ? (model.nativeRadius / BASE_HEX_SIZE) : 1;
+        // debug: print measured dims and derived spacing
+        try {
+          const hexSize = BASE_HEX_SIZE * this._layoutRadius;
+          const pos0 = axialToXZ(0, 0, { layoutRadius: this._layoutRadius, spacingFactor: 1 });
+          const pos1 = axialToXZ(1, 0, { layoutRadius: this._layoutRadius, spacingFactor: 1 });
+          console.debug('WorldMapScene: hex dims', { nativeRadius: model.nativeRadius, baseHex: BASE_HEX_SIZE, layoutRadius: this._layoutRadius, hexSize, centerSpacing: Math.hypot(pos1.x - pos0.x, pos1.z - pos0.z) });
+        } catch (e) { /* ignore */ }
       } catch (e) {
         // model not available; continue with fallback
         this._hexModel = null;
+        this._layoutRadius = 1;
       }
       this._createGridInstances(this._gridRadius);
     })();
@@ -150,9 +165,9 @@ export class WorldMapScene {
           maxDistance: 300,
         }).then((controls) => {
           if (controls) this._controls = controls;
-        }).catch(() => { /* ignore */ });
+        }).catch((err) => { console.debug('WorldMapScene: createOrbitControls promise failed', err); });
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.debug('WorldMapScene: createOrbitControls failed', e); }
 
     // Add additional helpers to ensure something is visible
     try {
@@ -167,7 +182,7 @@ export class WorldMapScene {
       box.position.set(0, 2, 0);
       this.scene.add(box);
     } catch (e) {
-      // ignore helper failures
+      console.debug('WorldMapScene: helper setup failed', e);
     }
 
   // no debug logs
@@ -175,18 +190,25 @@ export class WorldMapScene {
 
   // Create instanced markers for hex centers (flat-top axial layout -> x,z)
   _createGridInstances(radius) {
-    const HEX_SIZE = 2.0;
-    const positions = [];
+  const positions = [];
     for (let q = -radius; q <= radius; q++) {
       for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-        // flat-top axial to x,z
-        const x = HEX_SIZE * 1.5 * q;
-        const z = HEX_SIZE * Math.sqrt(3) * (r + q / 2);
-        positions.push({ x, z });
+    // flat-top axial to x,z using model-derived layoutRadius so tiles align with geometry
+    const pos = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+    positions.push({ x: pos.x, z: pos.z, q, r });
       }
     }
 
     if (!positions.length) return;
+
+    // create a local generator for sampling cell fields so we can color/scale instances
+    let gen = null;
+    try {
+      gen = createWorldGenerator('hex', 1337);
+    } catch (e) {
+      console.debug('WorldMapScene: createWorldGenerator failed, proceeding without generator', e);
+      gen = null;
+    }
 
     // If we have a loaded hex model, use its geometries for instanced rendering to match legacy visuals.
     if (this._hexModel && this._hexModel.topGeom) {
@@ -198,10 +220,46 @@ export class WorldMapScene {
         const sideApi = createInstancedMesh(sideGeom, mat, positions.length);
         const topIM = topApi.instancedMesh;
         const sideIM = sideApi.instancedMesh;
+        // prepare color arrays for per-instance coloring
+        const topColors = new Float32Array(positions.length * 3);
+        const sideColors = new Float32Array(positions.length * 3);
         for (let i = 0; i < positions.length; i++) {
           const p = positions[i];
-          topApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
-          sideApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
+          // default scale and color
+          let yScale = 1.0;
+          let topCol = new THREE.Color(0xeeeeee);
+          let sideCol = new THREE.Color(0xcccccc);
+          try {
+            if (gen && typeof gen.get === 'function') {
+              const cell = gen.get(p.q, p.r);
+              const bio = biomeFromCell(cell);
+              yScale = (bio && bio.yScale) || 1.0;
+              topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+              sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
+            }
+          } catch (e) {
+            console.debug('WorldMapScene: sampling generator for top/side failed', e);
+          }
+          // set instance matrix with vertical scale
+          topApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
+          sideApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
+          // write colors
+          topColors[i * 3 + 0] = topCol.r;
+          topColors[i * 3 + 1] = topCol.g;
+          topColors[i * 3 + 2] = topCol.b;
+          sideColors[i * 3 + 0] = sideCol.r;
+          sideColors[i * 3 + 1] = sideCol.g;
+          sideColors[i * 3 + 2] = sideCol.b;
+        }
+        // attach instanceColor attributes where supported
+        try {
+          topIM.instanceColor = new THREE.InstancedBufferAttribute(topColors, 3);
+          sideIM.instanceColor = new THREE.InstancedBufferAttribute(sideColors, 3);
+          topIM.instanceColor.needsUpdate = true;
+          sideIM.instanceColor.needsUpdate = true;
+        } catch (e) {
+          // fallback: tint material per mesh if instance colors not supported
+          try { topIM.material.color.setHex(0xeeeeee); sideIM.material.color.setHex(0xcccccc); } catch (ee) { console.debug('WorldMapScene: fallback tint failed', ee); }
         }
         this.scene.add(topIM);
         this.scene.add(sideIM);
@@ -228,14 +286,30 @@ export class WorldMapScene {
       try {
         const instanceApi = createInstancedMesh(geom, mat, positions.length);
         const inst = instanceApi.instancedMesh;
+        const colors = new Float32Array(positions.length * 3);
         for (let i = 0; i < positions.length; i++) {
           const p = positions[i];
-          instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z });
+          let yScale = 1.0;
+          let col = new THREE.Color(0xeeeeee);
+          try {
+            if (gen && typeof gen.get === 'function') {
+              const cell = gen.get(p.q, p.r);
+              const bio = biomeFromCell(cell);
+              yScale = (bio && bio.yScale) || 1.0;
+              col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+            }
+          } catch (e) { console.debug('WorldMapScene: sampling generator for cylinder failed', e); }
+          instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
+          colors[i * 3 + 0] = col.r;
+          colors[i * 3 + 1] = col.g;
+          colors[i * 3 + 2] = col.b;
         }
+  try { inst.instanceColor = new THREE.InstancedBufferAttribute(colors, 3); inst.instanceColor.needsUpdate = true; } catch (e) { console.debug('WorldMapScene: set instance color failed', e); }
         this.scene.add(inst);
         this._gridInstanced = inst;
         this._gridInstancedApi = instanceApi;
       } catch (e) {
+        console.debug('WorldMapScene: instancing creation failed, falling back to group', e);
         // fallback to non-instanced mesh set in case helper fails
         const group = new THREE.Group();
         for (let i = 0; i < positions.length; i++) {
@@ -253,7 +327,7 @@ export class WorldMapScene {
   // update the grid radius (recreate instanced markers)
   setGridRadius(radius) {
     if (this._gridInstanced) {
-      try { this.scene.remove(this._gridInstanced); } catch (e) { /* ignore */ }
+      try { this.scene.remove(this._gridInstanced); } catch (e) { console.debug('WorldMapScene: remove previous instanced failed', e); }
       this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose();
       this._gridInstanced.material.dispose && this._gridInstanced.material.dispose();
       this._gridInstanced = null;
@@ -263,11 +337,11 @@ export class WorldMapScene {
     // update clutter region to match new grid radius
     try {
       if (this._clutter) {
-        try { this._clutter.prepareFromGrid(this.grid); } catch (e) { /* ignore */ }
-        this._clutter.commitInstances({ layoutRadius: 1, contactScale: 1, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
+        try { this._clutter.prepareFromGrid(this.grid); } catch (e) { console.debug('WorldMapScene: clutter.prepareFromGrid failed (setGridRadius)', e); }
+  this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
       }
     } catch (e) {
-      // ignore
+      console.debug('WorldMapScene: setGridRadius clutter update failed', e);
     }
   }
 
@@ -280,12 +354,12 @@ export class WorldMapScene {
         try {
           c.geometry && c.geometry.dispose && c.geometry.dispose();
         } catch (e) {
-          // ignore dispose geometry errors
+          console.debug('WorldMapScene: dispose geometry failed', e);
         }
         try {
           c.material && c.material.dispose && c.material.dispose();
         } catch (e) {
-          // ignore dispose material errors
+          console.debug('WorldMapScene: dispose material failed', e);
         }
       }
     }
@@ -297,9 +371,8 @@ export class WorldMapScene {
       const e = entities[i];
       const q = e.pos && typeof e.pos.q === 'number' ? e.pos.q : 0;
       const r = e.pos && typeof e.pos.r === 'number' ? e.pos.r : 0;
-      const HEX_SIZE = 2.0;
-      const x = HEX_SIZE * 1.5 * q;
-      const z = HEX_SIZE * Math.sqrt(3) * (r + q / 2);
+  // use centralized layout helper for axial->world conversion
+  const { x, z } = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
       const mat = new THREE.MeshStandardMaterial({ color: 0x3388ff });
       const m = new THREE.Mesh(geom, mat);
       m.position.set(x, 0.6, z);
@@ -313,7 +386,7 @@ export class WorldMapScene {
       const dom = this.manager && this.manager.renderer && this.manager.renderer.domElement;
       if (dom) this._picker.attach(dom);
     } catch (e) {
-      /* ignore */
+      console.debug('WorldMapScene: picker attach failed', e);
     }
   }
 
@@ -333,16 +406,16 @@ export class WorldMapScene {
     try {
       if (this._picker) this._picker.detach();
     } catch (e) {
-      // ignore
+      console.debug('WorldMapScene: picker detach failed', e);
     }
     if (this.manager && this.manager.dispose) this.manager.dispose();
     try {
       if (this._clutter) {
-        try { this._clutter.removeFrom(); } catch (e) { /* ignore */ }
+        try { this._clutter.removeFrom(); } catch (e) { console.debug('WorldMapScene: clutter.removeFrom failed', e); }
         this._clutter = null;
       }
     } catch (e) {
-      /* ignore */
+      console.debug('WorldMapScene: dispose clutter failed', e);
     }
     this.scene = null;
     this.camera = null;
@@ -359,10 +432,8 @@ export class WorldMapScene {
 
   // Camera helpers
   centerOn(q, r) {
-    // convert axial q,r to world x,z using the same HEX_SIZE used for rendering
-    const HEX_SIZE = 2.0;
-    const x = HEX_SIZE * 1.5 * (typeof q === 'number' ? q : 0);
-    const z = HEX_SIZE * Math.sqrt(3) * ((typeof r === 'number' ? r : 0) + (typeof q === 'number' ? q : 0) / 2);
+  // convert axial q,r to world x,z using centralized layout helper
+  const { x, z } = axialToXZ(typeof q === 'number' ? q : 0, typeof r === 'number' ? r : 0, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
     if (this.camera) {
       this.camera.position.set(x, this.camera.position.y, z + 30);
       this.camera.lookAt(x, 0, z);

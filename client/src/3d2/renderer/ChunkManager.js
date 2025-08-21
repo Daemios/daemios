@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createInstancedMesh } from '@/3d2/renderer/instancing';
+import { axialToXZ } from '@/3d2/config/layout';
 
 // Simplified ChunkManager for 3d2. This is intentionally smaller than the legacy
 // version: it provides the same external API surface (build, scheduleProgressiveExpand,
@@ -13,7 +14,7 @@ export default class ChunkManager {
     this.scene = opts.scene;
     this.world = opts.world;
     this.layoutRadius = opts.layoutRadius || 1;
-    this.spacingFactor = opts.spacingFactor || 1;
+  this.spacingFactor = opts.spacingFactor || 0.85;
     this.modelScaleFactor = opts.modelScaleFactor || 1;
     this.contactScale = opts.contactScale || 1;
     this.sideInset = opts.sideInset ?? 0.996;
@@ -52,12 +53,10 @@ export default class ChunkManager {
 
     const radius = this.neighborRadius || 1;
     const positions = [];
-    const HEX_SIZE = 2.0 * this.layoutRadius * this.spacingFactor;
-    for (let q = -radius; q <= radius; q++) {
+  for (let q = -radius; q <= radius; q++) {
       for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-        const x = HEX_SIZE * 1.5 * q;
-        const z = HEX_SIZE * Math.sqrt(3) * (r + q / 2);
-        positions.push({ x, z });
+        const pos = axialToXZ(q, r, { layoutRadius: this.layoutRadius, spacingFactor: this.spacingFactor });
+        positions.push({ x: pos.x, z: pos.z });
       }
     }
 

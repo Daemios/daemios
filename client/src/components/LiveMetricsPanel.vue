@@ -97,10 +97,10 @@
                   overflow: auto;
                 "
               >
-                <v-simple-table>
+                <table style="width:100%; font-size:12px; color:#dfe;">
                   <thead>
                     <tr>
-                      <th>layer</th>
+                      <th style="text-align:left">layer</th>
                       <th>vis</th>
                       <th>inst</th>
                       <th>uMs</th>
@@ -108,13 +108,13 @@
                   </thead>
                   <tbody>
                     <tr v-for="(v, k) in lastLayers" :key="k">
-                      <td>{{ k }}</td>
+                      <td style="text-align:left">{{ k }}</td>
                       <td>{{ v.visible ?? "—" }}</td>
                       <td>{{ v.instanced ?? "—" }}</td>
                       <td>{{ v.updateMs ?? "—" }}</td>
                     </tr>
                   </tbody>
-                </v-simple-table>
+                </table>
               </div>
             </v-card>
           </v-col>
@@ -170,7 +170,8 @@ import { ref, onMounted, onBeforeUnmount, reactive, computed } from "vue";
 import { LiveSampler } from "@/3d2/metrics/LiveSampler";
 
 const props = defineProps({
-  sceneWrapper: { type: Object, required: true },
+  // sceneWrapper may be a ref that's initially null; make optional to avoid prop warnings
+  sceneWrapper: { type: Object, required: false, default: null },
   top: { type: Number, default: 12 },
   right: { type: Number, default: 12 },
 });
