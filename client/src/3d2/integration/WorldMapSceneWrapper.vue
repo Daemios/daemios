@@ -3,11 +3,27 @@
     ref="container"
     class="worldmap-scene-wrapper"
     style="width: 100%; height: 100%; position: relative"
-  />
+  >
+    <!-- Debug panel mount -->
+    <div
+      v-if="showDebug"
+      style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
+    >
+      <DebugPanel @apply="onDebugApply" />
+    </div>
+
+    <!-- Top-left control panel -->
+    <ControlPanel
+      :debug-active="showDebug"
+      @toggle-debug="showDebug = !showDebug"
+    />
+  </div>
 </template>
 
 <script setup>
 import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
+import DebugPanel from "@/components/worldmap/DebugPanel.vue";
+import ControlPanel from "@/components/worldmap/ControlPanel.vue";
 
 const container = ref(null);
 let sceneInst = null;
@@ -18,6 +34,11 @@ let _onSelectCallback = null;
 let _domEventListener = null;
 let _resizeObserver = null;
 let _windowResizeHandler = null;
+const showDebug = ref(true);
+
+import { useSettingsStore } from "@/stores/settingsStore";
+
+const settings = useSettingsStore();
 
 async function initScene() {
   await nextTick();
@@ -57,6 +78,23 @@ async function initScene() {
     /* ignore */
   }
   ready.value = true;
+
+  // Apply persisted worldMap settings (map radius, chunk colors, etc.) immediately so
+  // presets are respected on initial load.
+  try {
+    const saved = settings && typeof settings.get === 'function' ? settings.get('worldMap', {}) : {};
+    const gen = saved.generation || {};
+    const features = saved.features || {};
+    const radius = Number(gen.radius || saved.mapRadius || 0) || 0;
+    if (radius && sceneInst && typeof sceneInst.setGridRadius === 'function') {
+      try { sceneInst.setGridRadius(radius); } catch (e) { /* ignore */ }
+    }
+    if (typeof features.chunkColors !== 'undefined' && sceneInst && typeof sceneInst.applyChunkColors === 'function') {
+      try { sceneInst.applyChunkColors(!!features.chunkColors); } catch (e) { /* ignore */ }
+    }
+  } catch (e) {
+    /* ignore settings application errors */
+  }
 
   // ensure scene has the correct logical size right away
   try {
@@ -121,6 +159,66 @@ async function initScene() {
     _raf = requestAnimationFrame(_loop);
   }
   _raf = requestAnimationFrame(_loop);
+}
+
+function onDebugApply(payload) {
+  // payload: { mapRadius, sizePreset, chunkColors, clutter, shadows, water, directions }
+  try {
+    if (!payload || typeof payload !== "object") return;
+    const r = Number(payload.mapRadius) || 1;
+    // forward to scene
+    if (sceneInst && typeof sceneInst.setGridRadius === "function") {
+      try {
+        sceneInst.setGridRadius(r);
+      } catch (e) {
+        /*ignore*/
+      }
+    }
+    // apply chunk colors toggle if available
+    if (sceneInst && typeof sceneInst.applyChunkColors === "function") {
+      try {
+        sceneInst.applyChunkColors(!!payload.chunkColors);
+      } catch (e) {
+        /*ignore*/
+      }
+    }
+    // request clutter commit if scene exposes chunk manager hooks
+    try {
+      if (
+        sceneInst &&
+        typeof sceneInst.commitClutterForNeighborhood === "function"
+      ) {
+        sceneInst.commitClutterForNeighborhood();
+      }
+    } catch (e) {
+      /*ignore*/
+    }
+    // persist the same values to settings store as a single source of truth
+    try {
+      if (settings && typeof settings.mergeAtPath === "function") {
+        settings.mergeAtPath({
+          path: "worldMap",
+          value: {
+            features: {
+              clutter: !!payload.clutter,
+              shadows: !!payload.shadows,
+              water: !!payload.water,
+              chunkColors: !!payload.chunkColors,
+              directions: !!payload.directions,
+            },
+            generation: {
+              radius: Number(payload.mapRadius) || 1,
+              sizePreset: payload.sizePreset,
+            },
+          },
+        });
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  } catch (e) {
+    /* ignore handler errors */
+  }
 }
 
 onMounted(() => initScene());

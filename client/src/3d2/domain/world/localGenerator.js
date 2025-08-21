@@ -1,5 +1,8 @@
 import SimplexNoise from 'simplex-noise';
 import { SeededRNG } from '../seeded';
+import { fbm, domainWarp } from './noiseUtils';
+import worldConfig from './worldConfig.json';
+import { continentalMask } from './continents';
 
 // Minimal, deterministic hex world generator for 3d2.
 // Provides createWorldGenerator(type, seed) -> { get(q,r), setTuning(opts) }
@@ -17,13 +20,27 @@ function createHexGenerator(seed, opts = {}) {
   let scale = opts.scale || 12.0;
   const heightMult = typeof opts.heightMult === 'number' ? opts.heightMult : 1.0;
 
+  // build an FBM-based height sampler and domain-warp wrapper
+  const fbmCfg = worldConfig.fbm || { octaves: 4, lacunarity: 2.0, gain: 0.5 };
+  const fbmSampler = fbm(noise, fbmCfg.octaves, fbmCfg.lacunarity, fbmCfg.gain);
+  const warpCfg = worldConfig.domainWarp || {};
+
   function heightAt(q, r) {
-    // sample simplex noise at scaled axial coordinates
+    // Macro continental mask (smooth, large scale)
+    const macro = continentalMask(noise, q, r, worldConfig.plateCellSize || 48);
+
+    // Mesoscale detail: sample at tile scale using FBM & warp
     const x = q / scale;
     const y = r / scale;
-    const v = noise.noise2D(x, y); // -1..1
-    // normalize to 0..1 and apply multiplier
-    return ((v + 1) / 2) * heightMult;
+    const w = domainWarp(noise, x, y, warpCfg);
+    const v = fbmSampler(w.x, w.y); // -1..1
+    const detail = (v + 1) / 2;
+
+    // combine macro and detail: macro determines large basins/continents, detail adds local variation
+    // weight detail lightly so continents remain the dominant feature
+    const detailWeight = 0.35;
+    const combined = Math.max(0, Math.min(1, macro * (1 - detailWeight) + detail * detailWeight));
+    return combined * heightMult;
   }
 
   function get(q, r) {

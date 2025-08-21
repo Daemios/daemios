@@ -95,9 +95,11 @@ export async function loadHexModel(options = {}) {
   // Extract mesh geometries and bake world transforms
   let topGeom = null;
   let sideGeom = null;
+  let meshCount = 0;
   scene.traverse((child) => {
     if (child.isMesh && child.geometry) {
       try {
+        meshCount += 1;
         const g = child.geometry.clone();
         g.applyMatrix4(child.matrixWorld);
         if (!topGeom) topGeom = g;
@@ -108,8 +110,17 @@ export async function loadHexModel(options = {}) {
     }
   });
 
-  if (!topGeom && sideGeom) topGeom = sideGeom.clone();
-  if (!sideGeom && topGeom) sideGeom = topGeom.clone();
+  // If the model only provided a single mesh, treat it as the side geometry only
+  // and leave topGeom null so renderers will use a flat fallback top. This
+  // prevents instancing the exact same mesh twice (top + side) which causes
+  // coplanar overlap and z-fighting.
+  if (meshCount === 1 && topGeom && !sideGeom) {
+    sideGeom = topGeom;
+    topGeom = null;
+  } else {
+    if (!topGeom && sideGeom) topGeom = sideGeom.clone();
+    if (!sideGeom && topGeom) sideGeom = topGeom.clone();
+  }
 
   // Recenter and compute geometry metrics
   if (topGeom) recenterGeometry(topGeom);

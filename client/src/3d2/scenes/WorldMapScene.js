@@ -10,6 +10,8 @@ import { EntityPicker } from '@/3d2/interaction/EntityPicker';
 import { createOrbitControls } from '@/3d2/interaction/orbitControls';
 import ClutterManager from '@/3d2/world/ClutterManager';
 import { loadHexModel } from '@/3d2/services/modelLoader';
+import { createChunkManager } from '@/3d2/renderer/ChunkManager';
+import { pastelColorForChunk } from '@/3d/utils/hexUtils';
 
 export class WorldMapScene {
   constructor(container) {
@@ -88,7 +90,14 @@ export class WorldMapScene {
       console.debug('WorldMapScene: attach canvas failed', e);
     }
 
-  this.grid = new WorldGrid(1);
+    this.grid = new WorldGrid(1);
+    // create a world generator early so renderers can sample cell data
+    try {
+      this._generator = createWorldGenerator('hex', 1337);
+    } catch (e) {
+      console.debug('WorldMapScene: createWorldGenerator failed', e);
+      this._generator = null;
+    }
 
     // simplified clutter manager for 3d2: attach to scene and generate a lightweight set
     try {
@@ -139,7 +148,36 @@ export class WorldMapScene {
         this._hexModel = null;
         this._layoutRadius = 1;
       }
-      this._createGridInstances(this._gridRadius);
+      // create a chunk manager for chunk-based rendering and delegate instance creation
+      // omit explicit chunkCols/chunkRows so ChunkManager can use its defaults
+      try {
+  this.chunkManager = createChunkManager({ scene: this.scene, generator: this._generator, layoutRadius: this._layoutRadius, spacingFactor: 1, neighborRadius: this._gridRadius, pastelColorForChunk });
+        try {
+          const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+          // expose neighborhood's top instanced mesh for compatibility
+          if (built && built.neighborhood && built.neighborhood.topIM) {
+            // if a legacy grid instanced object exists, remove it to avoid duplicate geometry
+            try {
+              if (this._gridInstanced && this._gridInstanced !== built.neighborhood.topIM) {
+                try { this.scene.remove(this._gridInstanced); } catch (e2) { /* ignore */ }
+                try { this._gridInstanced.geometry && this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose(); } catch (e2) { /* ignore */ }
+                try { this._gridInstanced.material && this._gridInstanced.material.dispose && this._gridInstanced.material.dispose(); } catch (e2) { /* ignore */ }
+              }
+            } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
+            this._gridInstanced = built.neighborhood.topIM;
+          }
+          this._gridInstancedApi = this.chunkManager;
+          console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+        } catch (e) {
+          // fallback to legacy instanced creation
+          console.debug('WorldMapScene: chunkManager build failed, falling back to legacy grid instances', e);
+          this._createGridInstances(this._gridRadius);
+        }
+      } catch (e) {
+        // chunk manager creation failed -> fallback
+        console.debug('WorldMapScene: chunkManager creation failed, falling back', e);
+        this._createGridInstances(this._gridRadius);
+      }
     })();
 
   // entity group for runtime markers
@@ -183,6 +221,10 @@ export class WorldMapScene {
 
   // Create instanced markers for hex centers (flat-top axial layout -> x,z)
   _createGridInstances(radius) {
+  // Root-cause protection: if a ChunkManager is active, do not create the
+  // legacy grid instances. This prevents duplicate clusters when both
+  // systems run (was causing stray small patches of cells).
+  if (this.chunkManager) return;
   const positions = [];
     for (let q = -radius; q <= radius; q++) {
       for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
@@ -319,22 +361,116 @@ export class WorldMapScene {
 
   // update the grid radius (recreate instanced markers)
   setGridRadius(radius) {
-    if (this._gridInstanced) {
-      try { this.scene.remove(this._gridInstanced); } catch (e) { console.debug('WorldMapScene: remove previous instanced failed', e); }
-      this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose();
-      this._gridInstanced.material.dispose && this._gridInstanced.material.dispose();
-      this._gridInstanced = null;
+    // prefer chunkManager if available
+    try {
+      if (this.chunkManager) {
+        // neighborRadius in chunkManager is the number of chunks around center
+        this.chunkManager.neighborRadius = radius;
+        try {
+          const built = this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+          // build may be async; ensure _gridInstanced points to neighborhood after promise
+          if (built && built.then) {
+            built.then((res) => {
+              if (res && res.neighborhood && res.neighborhood.topIM) {
+                try {
+                  if (this._gridInstanced && this._gridInstanced !== res.neighborhood.topIM) {
+                    try { this.scene.remove(this._gridInstanced); } catch (e2) { /* ignore */ }
+                    try { this._gridInstanced.geometry && this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose(); } catch (e2) { /* ignore */ }
+                    try { this._gridInstanced.material && this._gridInstanced.material.dispose && this._gridInstanced.material.dispose(); } catch (e2) { /* ignore */ }
+                  }
+                } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
+                this._gridInstanced = res.neighborhood.topIM;
+              }
+            }).catch(() => {});
+          } else if (built && built.neighborhood && built.neighborhood.topIM) {
+            try {
+              if (this._gridInstanced && this._gridInstanced !== built.neighborhood.topIM) {
+                try { this.scene.remove(this._gridInstanced); } catch (e2) { /* ignore */ }
+                try { this._gridInstanced.geometry && this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose(); } catch (e2) { /* ignore */ }
+                try { this._gridInstanced.material && this._gridInstanced.material.dispose && this._gridInstanced.material.dispose(); } catch (e2) { /* ignore */ }
+              }
+            } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
+            this._gridInstanced = built.neighborhood.topIM;
+          }
+        } catch (e) {
+          // fallback to recreate legacy grid instances
+          if (this._gridInstanced) {
+            try { this.scene.remove(this._gridInstanced); } catch (ee) { /* ignore */ }
+            this._gridInstanced = null;
+          }
+          this._gridRadius = radius;
+          this._createGridInstances(radius);
+        }
+        // update clutter region below
+      } else {
+        if (this._gridInstanced) {
+          try { this.scene.remove(this._gridInstanced); } catch (e) { console.debug('WorldMapScene: remove previous instanced failed', e); }
+          this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose();
+          this._gridInstanced.material.dispose && this._gridInstanced.material.dispose();
+          this._gridInstanced = null;
+        }
+        this._gridRadius = radius;
+        this._createGridInstances(radius);
+      }
+    } catch (e) {
+      console.debug('WorldMapScene: setGridRadius failed', e);
     }
-    this._gridRadius = radius;
-    this._createGridInstances(radius);
+    // update clutter region to match new grid radius
     // update clutter region to match new grid radius
     try {
       if (this._clutter) {
         try { this._clutter.prepareFromGrid(this.grid); } catch (e) { console.debug('WorldMapScene: clutter.prepareFromGrid failed (setGridRadius)', e); }
-  this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
+        // if chunkManager exists compute axialRect based on chunk extents
+        if (this.chunkManager) {
+          const cols = this.chunkManager.chunkCols || 8;
+          const rows = this.chunkManager.chunkRows || 8;
+          const nr = this.chunkManager.neighborRadius || 1;
+          const cx = this.chunkManager.centerChunk ? this.chunkManager.centerChunk.x : 0;
+          const cy = this.chunkManager.centerChunk ? this.chunkManager.centerChunk.y : 0;
+          const rect = {
+            qMin: (cx - nr) * cols,
+            qMax: (cx + nr) * cols + (cols - 1),
+            rMin: (cy - nr) * rows,
+            rMax: (cy + nr) * rows + (rows - 1),
+          };
+          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: rect });
+        } else {
+          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
+        }
       }
     } catch (e) {
       console.debug('WorldMapScene: setGridRadius clutter update failed', e);
+    }
+  }
+
+  // allow external callers to toggle chunk coloring if a chunk manager or neighborhood exists
+  applyChunkColors(enabled) {
+    try {
+      if (this.chunkManager && typeof this.chunkManager.applyChunkColors === 'function') {
+        this.chunkManager.applyChunkColors(enabled);
+        return;
+      }
+      if (this._gridInstanced && this._gridInstanced.material) {
+        try { this._gridInstanced.material.color.setHex(enabled ? 0xffdddd : 0xeeeeee); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      console.debug('WorldMapScene: applyChunkColors failed', e);
+    }
+  }
+
+  // wrapper to request clutter commit for the current visible neighborhood
+  commitClutterForNeighborhood() {
+    try {
+      if (this.chunkManager && typeof this.chunkManager.commitClutterForNeighborhood === 'function') {
+        this.chunkManager.commitClutterForNeighborhood();
+        return;
+      }
+      // fallback to view-level commit helper
+      if (typeof this.commitClutterForNeighborhood === 'function') {
+        try { this.commitClutterForNeighborhood(); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      console.debug('WorldMapScene: commitClutterForNeighborhood failed', e);
     }
   }
 
