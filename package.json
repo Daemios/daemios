@@ -11,11 +11,13 @@
     "install:all": "npm install --prefix client && npm install --prefix server",
     "client": "npm --prefix client run dev",
     "server": "npm --prefix server run dev",
-    "prisma:generate:server": "npx --prefix server prisma generate"
-  ,
-  "test": "npm --prefix shared run test && npm --prefix server run test"
+    "prisma:generate:server": "npx --prefix server prisma generate",
+    "test": "npm --prefix shared run test && npm --prefix server run test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
   }
 }

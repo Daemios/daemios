@@ -9,3 +9,4 @@ This repository contains the source code and configuration for the "daemios" pro
 - Only perform additional searches if information is incomplete or errors are encountered.
 - Prioritize using documented commands and workflows.
 - Avoid unnecessary exploration; follow the documented project layout and validation steps.
+- Never npm run build, use tests or lint if you absolutely must test something. The user will often test something for you.
