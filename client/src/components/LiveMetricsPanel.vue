@@ -407,9 +407,9 @@ onMounted(() => {
         }
       }
 
-      // redraw UI at ~15fps
-      const now = performance.now();
-      if (!redraw._last || now - redraw._last > 66) {
+  // redraw UI at most every 200ms (~5Hz) to reduce panel overhead
+  const now = performance.now();
+  if (!redraw._last || now - redraw._last > 200) {
         redraw();
         redraw._last = now;
       }
