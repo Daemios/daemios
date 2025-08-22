@@ -12,12 +12,44 @@ export class FrameProfiler {
     this._idx = new Map(); // label -> write index
     this._count = new Map(); // label -> count (<= maxSamples)
     this._last = new Map(); // label -> last value
-    this._frameT0 = 0;
+  this._frameT0 = null;
     this._gpu = null; // optional GPU timer interface
+    this._gpuEnabled = true; // allow runtime toggling of GPU queries
+  this._frameCounter = 0; // increments each beginFrame
+  this._labelSampleEvery = 4; // only record label durations every N frames (reduce overhead)
+  }
+
+  // Allow runtime enabling/disabling of GPU timer enqueueing to reduce driver overhead
+  setGPUEnabled(v) {
+    this._gpuEnabled = !!v;
+  }
+  isGPUEnabled() {
+    return !!this._gpuEnabled;
   }
 
   setGPU(gpu) {
+    // attach/detach GPU timer (no logging)
+    try {
+      // intentionally no logging here
+    } catch (e) {}
     this._gpu = gpu || null;
+  }
+
+  // Quick helper for callers to know if a GPU timer is attached
+  hasGPU() {
+    return !!this._gpu;
+  }
+
+  // Debug helper callable from console: returns basic GPU timer state and a single poll result
+  debugGPU() {
+    try {
+      if (!this._gpu) return { hasGPU: false };
+      const pollFn = this._gpu.poll;
+      const pollRes = typeof pollFn === 'function' ? pollFn() : null;
+      return { hasGPU: true, poll: pollRes };
+    } catch (e) {
+      return { error: String(e) };
+    }
   }
 
   now() {
@@ -27,20 +59,34 @@ export class FrameProfiler {
   }
 
   beginFrame() {
-    this._frameT0 = this.now();
+    try {
+      this._frameT0 = this.now();
+      // advance frame counter used for label sampling
+      this._frameCounter = (this._frameCounter + 1) | 0;
+    } catch (e) {
+      // swallow any timing errors
+    }
   }
 
   endFrame() {
-    if (!this._frameT0) return 0;
-    const dt = this.now() - this._frameT0;
-    this.push("frame.cpu", dt);
+    try {
+      if (this._frameT0 == null) {
+        // no logging: missing beginFrame
+        return 0;
+      }
+      const dt = this.now() - this._frameT0;
+      // no logging of frame timing
+      this.push("frame.cpu", dt);
     // Poll GPU timer if available (returns time for a previous frame if ready)
     if (this._gpu && typeof this._gpu.poll === "function") {
       const gpuMs = this._gpu.poll();
       if (gpuMs != null && isFinite(gpuMs)) this.push("frame.gpu", gpuMs);
     }
-    this._frameT0 = 0;
-    return dt;
+  this._frameT0 = null;
+      return dt;
+    } catch (e) {
+      return 0;
+    }
   }
 
   start(label) {
@@ -51,8 +97,24 @@ export class FrameProfiler {
     if (t0 == null) return 0;
     const dt = this.now() - t0;
     this._starts.delete(label);
-    this.push(label, dt);
+    // Record label durations only on a sampling interval to reduce profiler overhead.
+    // Always push frame.cpu via endFrame; for other labels sample every _labelSampleEvery frames.
+    try {
+      const shouldPush = (label === 'frame.cpu') || (this._frameCounter % Math.max(1, this._labelSampleEvery) === 0);
+      if (shouldPush) this.push(label, dt);
+    } catch (e) {
+      // ignore push failures
+    }
     return dt;
+  }
+
+  setLabelSampleEvery(n) {
+    const v = Math.max(1, Math.floor(n) || 1);
+    this._labelSampleEvery = v;
+  }
+
+  getLabelSampleEvery() {
+    return this._labelSampleEvery;
   }
 
   measure(label, fn) {
@@ -194,8 +256,28 @@ export function createWebGLTimer(renderer) {
     return ns / 1e6;
   }
 
+  // created timer (no logging)
   return { begin, end, poll };
 }
 
 // Global profiler instance for convenience
 export const profiler = new FrameProfiler({ maxSamples: 240 });
+
+// Expose profiler to window for easy debugging in the browser console
+try {
+  if (typeof window !== 'undefined') {
+    // attach under a clearly-named property used for debugging
+  window.__DAEMIOS_PROFILER = profiler;
+    try {
+      window.__DAEMIOS_PROFILER.rawGPU = () => {
+        try {
+          const g = profiler._gpu || null;
+          if (!g) return { attached: false };
+          return { attached: true, raw: g, hasPoll: typeof g.poll === 'function' };
+        } catch (e) { return { error: String(e) } }
+      }
+    } catch (e) {}
+  }
+} catch (e) {
+  // ignore
+}

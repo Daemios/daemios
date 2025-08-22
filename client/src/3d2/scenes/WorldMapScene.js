@@ -12,6 +12,7 @@ import ClutterManager from '@/3d2/world/ClutterManager';
 import { loadHexModel } from '@/3d2/services/modelLoader';
 import { createChunkManager } from '@/3d2/renderer/ChunkManager';
 import { pastelColorForChunk } from '@/3d/utils/hexUtils';
+import { profiler } from '@/utils/profiler';
 
 export class WorldMapScene {
   constructor(container) {
@@ -555,7 +556,34 @@ export class WorldMapScene {
   }
 
   tick() {
-    if (this.manager) this.manager.render();
+    try {
+      // Start frame profiling (CPU) and enqueue GPU timer if available.
+      profiler.beginFrame();
+      if (this.manager) {
+        try {
+          // start GPU timer if supported and enabled
+          if (profiler.isGPUEnabled && profiler.isGPUEnabled()) {
+            const g = profiler._gpu || null;
+            if (g && typeof g.begin === 'function') g.begin();
+          }
+        } catch (e) {}
+
+        profiler.start('frame.render');
+        this.manager.render();
+        profiler.end('frame.render');
+
+        try {
+          // end GPU timer so it can be polled by profiler.endFrame (only if enabled)
+          if (profiler.isGPUEnabled && profiler.isGPUEnabled()) {
+            const g2 = profiler._gpu || null;
+            if (g2 && typeof g2.end === 'function') g2.end();
+          }
+        } catch (e) {}
+      }
+      profiler.endFrame();
+    } catch (e) {
+      // swallow to keep the render loop alive
+    }
   }
 
   resize(w, h) {

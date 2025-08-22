@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createWebGLTimer, profiler } from '@/utils/profiler';
 
 // Minimal renderer manager adapter for 3d2.
 // Provides the small API WorldMapScene expects: { renderer, composer?, setSize, render, dispose }
@@ -60,6 +61,10 @@ export function createRendererManager(options = {}) {
         const canvas = renderer.domElement;
         if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
       } catch (e) {}
+      try {
+        // detach profiler GPU hook if we attached one
+        if (profiler && typeof profiler.setGPU === 'function') profiler.setGPU(null);
+      } catch (e) {}
     },
   };
 
@@ -71,6 +76,18 @@ export function createRendererManager(options = {}) {
   } catch (e) {
     // ignore DOM attach failures
   }
+
+  // Try to create a GPU timer for this renderer and attach to global profiler
+  try {
+    const gpuTimer = createWebGLTimer(renderer);
+    try {
+      if (gpuTimer && profiler && typeof profiler.setGPU === 'function') {
+  profiler.setGPU(gpuTimer);
+      } else {
+  // no GPU timer available
+      }
+    } catch (e) {}
+  } catch (e) {}
 
   return manager;
 }

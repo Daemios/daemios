@@ -491,7 +491,7 @@ export default {
         try {
           if (this.profilerEnabled) profiler.push(label, ms);
         } catch (e) {
-          console.debug("startup first.frame logging failed", e);
+          if (import.meta.env.DEV) console.debug("startup first.frame logging failed", e);
         }
       };
     }
@@ -570,7 +570,7 @@ export default {
       if (this.worldStore && this.worldStore.fetchTowns)
         this.worldStore.fetchTowns();
     } catch (e) {
-      console.debug("fetchTowns failed", e);
+  if (import.meta.env.DEV) console.debug("fetchTowns failed", e);
     }
     window.addEventListener("resize", this.onResize);
     // Initialize pointer controls module which will register all pointer/wheel listeners
@@ -609,7 +609,7 @@ export default {
       try {
         this.chunkManager.cancelProgressiveExpand();
       } catch (e) {
-        console.debug("cancelProgressiveExpand failed on unmount", e);
+  if (import.meta.env.DEV) console.debug("cancelProgressiveExpand failed on unmount", e);
       }
     }
     // Clear any pending timers used by the view
@@ -619,7 +619,7 @@ export default {
         this._radiusTimer = null;
       }
     } catch (e) {
-      console.debug("clear radiusTimer failed", e);
+  if (import.meta.env.DEV) console.debug("clear radiusTimer failed", e);
     }
     try {
       if (this._progressiveCheckId) {
@@ -627,7 +627,7 @@ export default {
         this._progressiveCheckId = null;
       }
     } catch (e) {
-      console.debug("cancelAnimationFrame failed during unmount", e);
+  if (import.meta.env.DEV) console.debug("cancelAnimationFrame failed during unmount", e);
     }
   },
   methods: {
@@ -1046,7 +1046,7 @@ export default {
             this.scene.remove(l);
             l.geometry?.dispose?.();
           } catch (e) {
-            console.debug("addLabel internals failed", e);
+            if (import.meta.env.DEV) console.debug("addLabel internals failed", e);
           }
         });
         this.dirFrameLines = null;
@@ -1056,7 +1056,7 @@ export default {
         try {
           n.remove();
         } catch (e) {
-          console.debug("cameraTween pixelRatio restore failed", e);
+          if (import.meta.env.DEV) console.debug("cameraTween pixelRatio restore failed", e);
         }
       });
     },
@@ -1127,7 +1127,7 @@ export default {
         try {
           this.chunkManager.applyChunkColors(!!enabled);
         } catch (e) {
-          console.debug("chunkManager.applyChunkColors failed", e);
+          if (import.meta.env.DEV) console.debug("chunkManager.applyChunkColors failed", e);
         }
         return;
       }
@@ -1135,11 +1135,11 @@ export default {
         try {
           this.neighborhood.applyChunkColors(!!enabled);
         } catch (e) {
-          console.debug("neighborhood.applyChunkColors failed", e);
+          if (import.meta.env.DEV) console.debug("neighborhood.applyChunkColors failed", e);
         }
         return;
       }
-      console.debug(
+  if (import.meta.env.DEV) console.debug(
         "applyChunkColors: no chunkManager or neighborhood available; no-op"
       );
     },
@@ -1183,7 +1183,7 @@ export default {
         try {
           this.chunkManager.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          console.debug("chunkManager.neighborhood.fillChunk failed", e);
+          if (import.meta.env.DEV) console.debug("chunkManager.neighborhood.fillChunk failed", e);
         }
         return;
       }
@@ -1191,11 +1191,11 @@ export default {
         try {
           this.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          console.debug("neighborhood.fillChunk failed", e);
+          if (import.meta.env.DEV) console.debug("neighborhood.fillChunk failed", e);
         }
         return;
       }
-      console.debug("fillChunk: no neighborhood available; no-op");
+  if (import.meta.env.DEV) console.debug("fillChunk: no neighborhood available; no-op");
       return;
     },
     // Position neighborhood; delegate to manager
@@ -1242,7 +1242,7 @@ export default {
         try {
           this.chunkManager.neighborRadius = radius;
         } catch (e) {
-          console.debug("set neighborRadius on manager failed", e);
+          if (import.meta.env.DEV) console.debug("set neighborRadius on manager failed", e);
         }
       } else {
         this._neighborRadius = radius; // cache for bounds
@@ -1252,7 +1252,7 @@ export default {
         try {
           this.chunkManager.dispose();
         } catch (e) {
-          console.debug("chunkManager.dispose failed", e);
+          if (import.meta.env.DEV) console.debug("chunkManager.dispose failed", e);
         }
       }
       this.chunkManager = createChunkManager({
@@ -1409,7 +1409,7 @@ export default {
         try {
           api.post("world/move", { q: startQ, r: startR });
         } catch (e) {
-          console.debug("buildWater promise handling failed", e);
+          if (import.meta.env.DEV) console.debug("buildWater promise handling failed", e);
         }
         this.playerSpawnSeeded = true;
       }
@@ -1424,7 +1424,7 @@ export default {
               onComplete: () => this.buildWater(),
             });
           } catch (e) {
-            console.debug("startProgressive failed", e);
+            if (import.meta.env.DEV) console.debug("startProgressive failed", e);
           }
         } else {
           // Fallback: schedule a local progressive expand
@@ -1499,17 +1499,17 @@ export default {
         try {
           this.scene.remove(m);
         } catch (e) {
-          console.debug("remove worldLocation mesh failed", e);
+          if (import.meta.env.DEV) console.debug("remove worldLocation mesh failed", e);
         }
         try {
           m.geometry && m.geometry.dispose();
         } catch (e) {
-          console.debug("dispose geometry failed", e);
+          if (import.meta.env.DEV) console.debug("dispose geometry failed", e);
         }
         try {
           m.material && m.material.dispose();
         } catch (e) {
-          console.debug("dispose material failed", e);
+          if (import.meta.env.DEV) console.debug("dispose material failed", e);
         }
       });
       this.worldLocationMeshes = [];
@@ -1550,7 +1550,7 @@ export default {
               try {
                 this.chunkManager.neighborRadius = r;
               } catch (e) {
-                console.debug("set neighborRadius on manager failed", e);
+                if (import.meta.env.DEV) console.debug("set neighborRadius on manager failed", e);
               }
             } else {
               this._neighborRadius = r;
@@ -1970,8 +1970,12 @@ export default {
     },
     animate() {
       requestAnimationFrame(this.animate);
-      // Start frame profiling
-      if (this.profilerEnabled) profiler.beginFrame();
+      // Start frame profiling (always call; safe in try/catch)
+      try {
+        profiler.beginFrame();
+      } catch (e) {
+        /* ignore */
+      }
       // Startup: record first frame once
       if (
         typeof window !== "undefined" &&

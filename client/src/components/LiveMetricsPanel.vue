@@ -84,35 +84,32 @@
 
           <v-col cols="12" md="3">
             <v-card flat class="pa-3" color="transparent">
-              <div
-                class="text-subtitle-2"
-                style="color: #8ff; margin-bottom: 6px"
-              >
-                Layers (last)
+              <div class="text-subtitle-2" style="color: #8ff; margin-bottom: 6px">
+                Diagnostics
               </div>
-              <div
-                style="
-                  font-size: 12px;
-                  color: #dfe;
-                  max-height: 160px;
-                  overflow: auto;
-                "
-              >
-                <table style="width: 100%; font-size: 12px; color: #dfe">
+              <div style="font-size: 12px; color: #dfe; max-height: 160px; overflow: auto;">
+                <div>
+                  GPU timer available: <b>{{ profilerHasGPU ? 'yes' : 'no' }}</b>
+                </div>
+                <div style="height:6px"></div>
+                <div>
+                  CPU frame (last / avg):
+                  <b>{{ diagnostics.cpu ? fmt(diagnostics.cpu.last,2) + ' / ' + fmt(diagnostics.cpu.avg,2) : '—' }}</b>
+                </div>
+                <div>
+                  GPU frame (last / avg):
+                  <b>{{ diagnostics.gpu ? fmt(diagnostics.gpu.last,2) + ' / ' + fmt(diagnostics.gpu.avg,2) : 'n/a' }}</b>
+                </div>
+                <div style="margin-top:8px; color:#9fe;">Top profiler entries (by avg)</div>
+                <table style="width:100%; font-size:12px; color:#dfe; margin-top:6px">
                   <thead>
-                    <tr>
-                      <th style="text-align: left">layer</th>
-                      <th>vis</th>
-                      <th>inst</th>
-                      <th>uMs</th>
-                    </tr>
+                    <tr><th style="text-align:left">label</th><th>avg ms</th><th>last</th></tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(v, k) in lastLayers" :key="k">
-                      <td style="text-align: left">{{ k }}</td>
-                      <td>{{ v.visible ?? "—" }}</td>
-                      <td>{{ v.instanced ?? "—" }}</td>
-                      <td>{{ v.updateMs ?? "—" }}</td>
+                    <tr v-for="r in diagnostics.top" :key="r.label">
+                      <td style="text-align:left">{{ r.label }}</td>
+                      <td>{{ fmt(r.avg,2) }}</td>
+                      <td>{{ fmt(r.last,2) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -169,6 +166,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, reactive, computed } from "vue";
 import { LiveSampler } from "@/3d2/metrics/LiveSampler";
+import { profiler } from "@/utils/profiler";
 
 const props = defineProps({
   // sceneWrapper may be a ref that's initially null; make optional to avoid prop warnings
@@ -184,6 +182,8 @@ const samples = reactive([]);
 const last = ref(null);
 const spark = ref(null);
 const timeline = ref(null);
+const diagTick = ref(0);
+let diagInterval = null;
 const activeTab = ref("overview");
 let raf = null;
 
@@ -323,10 +323,15 @@ function redraw() {
 }
 
 onMounted(() => {
+  // Disable GPU timing by default to avoid overhead; enable only when panel expanded
+  try { if (profiler && typeof profiler.setGPUEnabled === 'function') profiler.setGPUEnabled(false); } catch (e) {}
+  // Use coarse label sampling when collapsed to reduce overhead
+  try { if (profiler && typeof profiler.setLabelSampleEvery === 'function') profiler.setLabelSampleEvery(8); } catch (e) {}
   // hook into scene RAF: attach sampler to wrapper's scene tick via nextTick polling
   let lastCall = performance.now();
   function loop() {
     try {
+  // profiler frame lifecycle is driven by the main render loop (WorldMap)
       // collect quick metrics from scene wrapper
       // Avoid expensive scene inspection on frames that won't be recorded
       const willSample = ((sampler.frameCounter + 1) % sampler.sampleEvery) === 0;
@@ -407,11 +412,15 @@ onMounted(() => {
         }
       }
 
+  // profiler frame lifecycle is driven by the main render loop (WorldMap)
+
   // redraw UI at most every 200ms (~5Hz) to reduce panel overhead
   const now = performance.now();
   if (!redraw._last || now - redraw._last > 200) {
         redraw();
-        redraw._last = now;
+  redraw._last = now;
+  // bump diag tick so diagnostics computed property recalculates
+  try { diagTick.value += 1; } catch (e) { /* ignore */ }
       }
     } catch (e) {
       /* ignore */
@@ -420,15 +429,37 @@ onMounted(() => {
   }
   start();
   loop();
+  // Ensure diagnostics recompute regularly even if RAFs are out-of-sync
+  try {
+    diagInterval = setInterval(() => {
+      try {
+        diagTick.value += 1;
+      } catch (e) {
+        /* ignore */
+      }
+    }, 200);
+  } catch (e) {
+    /* ignore */
+  }
 });
 
 onBeforeUnmount(() => {
   if (raf) cancelAnimationFrame(raf);
   stop();
+  if (diagInterval) {
+    try { clearInterval(diagInterval); } catch (e) {}
+    diagInterval = null;
+  }
 });
 
 function toggleExpanded() {
   expanded.value = !expanded.value;
+  try {
+    if (profiler && typeof profiler.setGPUEnabled === 'function') profiler.setGPUEnabled(expanded.value);
+  } catch (e) {}
+  try {
+    if (profiler && typeof profiler.setLabelSampleEvery === 'function') profiler.setLabelSampleEvery(expanded.value ? 1 : 8);
+  } catch (e) {}
 }
 
 function exportJson() {
@@ -507,6 +538,44 @@ const layerSummary = computed(() => {
   }
   return out;
 });
+
+const diagnostics = computed(() => {
+  // touch diagTick to ensure this computed re-runs on the UI redraw cadence
+  void diagTick.value;
+  // Try profiler first
+  const cpuStat = profiler && typeof profiler.stats === 'function' ? profiler.stats('frame.cpu') : null;
+  const gpuStat = profiler && typeof profiler.stats === 'function' ? profiler.stats('frame.gpu') : null;
+  const report = profiler && typeof profiler.getReport === 'function' ? profiler.getReport({ sortBy: 'avg', desc: true }) : [];
+  // Fallback: use sampler summary for CPU frame time if profiler has no data
+  if (!cpuStat) {
+    try {
+      const s = sampler.summary();
+      if (s && s.frameMs) {
+        const avg = s.frameMs.avg || null;
+        const last = s.frameMs.last || null;
+        if (avg != null || last != null) {
+          return {
+            cpu: {
+              label: 'frame.cpu',
+              last: last,
+              avg: avg,
+              min: s.frameMs.min || null,
+              max: s.frameMs.max || null,
+              samples: s.frames || 0,
+            },
+            gpu: gpuStat,
+            top: report.slice(0, 6),
+          };
+        }
+      }
+    } catch (e) {
+      /* ignore fallback errors */
+    }
+  }
+  return { cpu: cpuStat, gpu: gpuStat, top: report.slice(0, 6) };
+});
+
+const profilerHasGPU = computed(() => !!(profiler && typeof profiler.hasGPU === 'function' ? profiler.hasGPU() : false));
 
 // expose samples for debug
 const expose = { sampler, samples };
