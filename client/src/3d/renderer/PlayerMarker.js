@@ -54,11 +54,9 @@ export default class PlayerMarker {
   // Direct world position setter (Y is expected to be at desired height already)
   setWorldPosition(posVec3) {
     if (!posVec3) return;
-  // Reuse temporary quaternion/scale to avoid allocation
-  this._tmpQuat.identity();
-  const scale = this._tmpScale;
-  scale.set(1, 1, 1);
-  this.mesh.matrix.compose(posVec3, this._tmpQuat, scale);
+    const quat = new THREE.Quaternion();
+    const scale = new THREE.Vector3(1, 1, 1);
+    this.mesh.matrix.compose(posVec3, quat, scale);
     this.mesh.visible = true;
     this._pos.copy(posVec3);
   }
@@ -74,9 +72,11 @@ export default class PlayerMarker {
   }
 
   _compose() {
-  // Reuse temporary quaternion to avoid per-frame allocation
-  const yQuat = this._tmpQuat.setFromAxisAngle(ClutterMarkerShared.UP, this._yaw);
-  this.mesh.matrix.compose(this._pos, yQuat, this._scale);
+    const yQuat = new THREE.Quaternion().setFromAxisAngle(
+      ClutterMarkerShared.UP,
+      this._yaw
+    );
+    this.mesh.matrix.compose(this._pos, yQuat, this._scale);
     this.mesh.visible = true;
   }
 }

@@ -134,12 +134,6 @@ export default {
       hoverTmpPos: markRaw(new THREE.Vector3()),
       hoverTmpQuat: markRaw(new THREE.Quaternion()),
       hoverTmpScale: markRaw(new THREE.Vector3()),
-  // Reusable temporaries for per-frame billboard/location marker math
-  tmpBillboardPos: markRaw(new THREE.Vector3()),
-  tmpBillboardQuat: markRaw(new THREE.Quaternion()),
-  tmpBillboardScale: markRaw(new THREE.Vector3()),
-  tmpBillboardYawQuat: markRaw(new THREE.Quaternion()),
-  tmpYAxis: markRaw(new THREE.Vector3(0, 1, 0)),
       playerMarkerPos: markRaw(new THREE.Vector3()),
       tmpColorTop: markRaw(new THREE.Color()),
       tmpColorSide: markRaw(new THREE.Color()),
@@ -1083,11 +1077,10 @@ export default {
         { i: 2, x: mid(xTL, xBR), z: zBR }, // S
         { i: 3, x: xTL, z: mid(zTL, zBR) }, // W
       ];
-      const _projV = this.hoverTmpPos; // reuse temp
       for (const p of points) {
-        _projV.set(p.x, y, p.z).project(this.camera);
-        const sx = (_projV.x * 0.5 + 0.5) * rect.width;
-        const sy = (-_projV.y * 0.5 + 0.5) * rect.height;
+        const v = new THREE.Vector3(p.x, y, p.z).project(this.camera);
+        const sx = (v.x * 0.5 + 0.5) * rect.width;
+        const sy = (-v.y * 0.5 + 0.5) * rect.height;
         const el = this.dirLabels[p.i];
         if (el) {
           el.style.left = `${rect.left + sx}px`;
@@ -2123,16 +2116,15 @@ export default {
       // Update billboards (yaw-only) before render
       if (this.playerMarker) this.playerMarker.faceCamera(this.camera);
       if (this.locationMarker && this.locationMarker.visible) {
-        // Reuse temporaries to avoid allocating each frame
-        const pos = this.tmpBillboardPos;
-        const quat = this.tmpBillboardQuat;
-        const scl = this.tmpBillboardScale;
+        const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scl = new THREE.Vector3();
         this.locationMarker.matrix.decompose(pos, quat, scl);
         const dx = this.camera.position.x - pos.x;
         const dz = this.camera.position.z - pos.z;
         const yaw = Math.atan2(dx, dz) + Math.PI / 2;
-        const yQuat = this.tmpBillboardYawQuat.setFromAxisAngle(
-          this.tmpYAxis,
+        const yQuat = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
           yaw
         );
         this.locationMarker.matrix.compose(pos, yQuat, scl);
