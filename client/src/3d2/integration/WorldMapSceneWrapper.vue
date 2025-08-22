@@ -22,6 +22,7 @@
 
 <script setup>
 import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
+import * as THREE from "three";
 import DebugPanel from "@/components/worldmap/DebugPanel.vue";
 import ControlPanel from "@/components/worldmap/ControlPanel.vue";
 
@@ -46,6 +47,43 @@ async function initScene() {
   const WorldMapScene = mod.WorldMapScene || mod.default || mod;
   sceneInst = new WorldMapScene(container.value);
   if (sceneInst.init) await sceneInst.init();
+  // Apply runtime performance patches to avoid per-frame allocations in shared classes.
+  try {
+    // If the scene provides a PlayerMarker instance, monkey-patch its methods to reuse
+    // internal temporaries instead of allocating new objects per-frame. This mirrors
+    // an optimization we previously applied at source-level but keeps the change
+    // local to the WorldMap2 integration layer.
+    if (sceneInst && sceneInst.playerMarker) {
+      const pm = sceneInst.playerMarker;
+      try {
+        // Replace _compose to reuse pm._tmpQuat (exists on PlayerMarker) and avoid new Quaternion()
+        if (typeof pm._compose === 'function') {
+          pm._compose = function () {
+            // pm._tmpQuat, pm._scale and pm._pos are preallocated in the PlayerMarker constructor
+            const yQuat = this._tmpQuat.setFromAxisAngle({ x: 0, y: 1, z: 0 }, this._yaw);
+            this.mesh.matrix.compose(this._pos, yQuat, this._scale);
+            this.mesh.visible = true;
+          };
+        }
+        // Replace setWorldPosition to avoid allocating a new quaternion
+        if (typeof pm.setWorldPosition === 'function') {
+          pm.setWorldPosition = function (posVec3) {
+            if (!posVec3) return;
+            this._tmpQuat.identity();
+            const scale = this._tmpScale || (this._tmpScale = new THREE.Vector3(1,1,1));
+            scale.set(1, 1, 1);
+            this.mesh.matrix.compose(posVec3, this._tmpQuat, scale);
+            this.mesh.visible = true;
+            this._pos.copy(posVec3);
+          };
+        }
+      } catch (e) {
+        /* ignore runtime patch failures */
+      }
+    }
+  } catch (e) {
+    /* ignore */
+  }
   // install any pending selection callback
   if (_pendingOnSelect && sceneInst.setOnSelect) {
     try {
