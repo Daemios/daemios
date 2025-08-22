@@ -37,6 +37,13 @@ let _resizeObserver = null;
 let _windowResizeHandler = null;
 const showDebug = ref(true);
 
+// Render-on-demand control shared across lifecycle so it can be referenced
+// from onBeforeUnmount (removeEventListener) without scope issues.
+let renderRequested = true;
+function requestRender() {
+  renderRequested = true;
+}
+
 import { useSettingsStore } from "@/stores/settingsStore";
 
 const settings = useSettingsStore();
@@ -188,14 +195,35 @@ async function initScene() {
     /* ignore */
   }
 
+  // Hook basic user interactions to request a render
+  try {
+    if (container.value && container.value.addEventListener) {
+      container.value.addEventListener('pointermove', requestRender, { passive: true });
+      container.value.addEventListener('pointerdown', requestRender, { passive: true });
+      container.value.addEventListener('wheel', requestRender, { passive: true });
+      // also resume on focus/key events
+      window.addEventListener('keydown', requestRender, { passive: true });
+    }
+  } catch (e) {
+    /* ignore */
+  }
+
   function _loop(t) {
     try {
-      if (sceneInst && sceneInst.tick) sceneInst.tick(t);
+      if (renderRequested) {
+        try {
+          if (sceneInst && sceneInst.tick) sceneInst.tick(t);
+        } catch (e) {
+          // swallow per-frame errors
+        }
+        renderRequested = false;
+      }
     } catch (e) {
       // keep loop alive
     }
     _raf = requestAnimationFrame(_loop);
   }
+  // start loop
   _raf = requestAnimationFrame(_loop);
 }
 
@@ -267,6 +295,16 @@ onBeforeUnmount(() => {
   try {
     if (container.value && _domEventListener)
       container.value.removeEventListener("worldmap:select", _domEventListener);
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    if (container.value && container.value.removeEventListener) {
+      container.value.removeEventListener('pointermove', requestRender);
+      container.value.removeEventListener('pointerdown', requestRender);
+      container.value.removeEventListener('wheel', requestRender);
+      window.removeEventListener('keydown', requestRender);
+    }
   } catch (e) {
     /* ignore */
   }
