@@ -328,83 +328,83 @@ onMounted(() => {
   function loop() {
     try {
       // collect quick metrics from scene wrapper
+      // Avoid expensive scene inspection on frames that won't be recorded
+      const willSample = ((sampler.frameCounter + 1) % sampler.sampleEvery) === 0;
       const mgr = props.sceneWrapper?.value;
-      let info = {};
-      let layers = {};
-      if (mgr && mgr._scene) {
-        // best-effort: if sceneWrapper exposes getLayerMetrics, use it
-        if (typeof mgr.getLayerMetrics === "function") {
-          try {
-            layers = mgr.getLayerMetrics() || {};
-          } catch (e) {
-            console.error("Error getting layer metrics:", e);
+      if (willSample) {
+        let info = {};
+        let layers = {};
+        if (mgr && mgr._scene) {
+          // best-effort: if sceneWrapper exposes getLayerMetrics, use it
+          if (typeof mgr.getLayerMetrics === "function") {
+            try {
+              layers = mgr.getLayerMetrics() || {};
+            } catch (e) {
+              console.error("Error getting layer metrics:", e);
+            }
+          } else {
+            // fallback: inspect common groups (only on sampled frames)
+            try {
+              const s = mgr._scene;
+              const g = (name) => s.getObjectByName(name) || null;
+              const clutter = g("clutterGroup");
+              if (clutter)
+                layers.clutter = {
+                  visible: clutter.visible,
+                  instanced:
+                    clutter.count || (clutter.children && clutter.children.length) || 0,
+                };
+              const entities = g("entityGroup");
+              if (entities)
+                layers.entities = {
+                  visible: entities.visible,
+                  instanced:
+                    entities.count || (entities.children && entities.children.length) || 0,
+                };
+              const terrain = g("terrainGroup");
+              if (terrain)
+                layers.terrain = {
+                  visible: terrain.visible,
+                  instanced:
+                    terrain.count || (terrain.children && terrain.children.length) || 0,
+                };
+            } catch (e) {
+              /* ignore */
+            }
           }
-        } else {
-          // fallback: inspect common groups
+
+          // try to read renderer.info from manager if present
           try {
-            const s = mgr._scene;
-            const g = (name) => {
-              const o = s.getObjectByName(name);
-              return o || null;
-            };
-            const clutter = g("clutterGroup");
-            if (clutter)
-              layers.clutter = {
-                visible: clutter.visible,
-                instanced:
-                  clutter.count ||
-                  (clutter.children && clutter.children.length) ||
-                  0,
-              };
-            const entities = g("entityGroup");
-            if (entities)
-              layers.entities = {
-                visible: entities.visible,
-                instanced:
-                  entities.count ||
-                  (entities.children && entities.children.length) ||
-                  0,
-              };
-            const terrain = g("terrainGroup");
-            if (terrain)
-              layers.terrain = {
-                visible: terrain.visible,
-                instanced:
-                  terrain.count ||
-                  (terrain.children && terrain.children.length) ||
-                  0,
-              };
-          } catch (e) {
-            /* ignore */
-          }
+            const man = mgr.manager || mgr._manager || null;
+            if (man && man.renderer && man.renderer.info) info = man.renderer.info;
+          } catch (e) {}
         }
 
-        // try to read renderer.info from manager if present
+        // attempt to measure render time by briefly instrumenting manager.render if available
+        let renderMs = null;
         try {
-          const man = mgr.manager || mgr._manager || null;
-          if (man && man.renderer && man.renderer.info)
-            info = man.renderer.info;
-        } catch (e) {}
-      }
-
-      // attempt to measure render time by briefly instrumenting manager.render if available
-      let renderMs = null;
-      try {
-        const man = mgr && (mgr.manager || mgr._manager);
-        if (man && typeof man.render === "function") {
-          const t0 = performance.now();
-          // don't actually call render here — assume the scene is already rendering; just read info
-          renderMs = null;
+          const man = mgr && (mgr.manager || mgr._manager);
+          if (man && typeof man.render === "function") {
+            // don't actually call render here — assume the scene is already rendering; just read info
+            renderMs = null;
+          }
+        } catch (e) {
+          console.error("Error measuring render time:", e);
         }
-      } catch (e) {
-        console.error("Error measuring render time:", e);
-      }
 
-      // push a sample by calling sampler.sampleFrame
-      try {
-        sampler.sampleFrame({ renderMs, info, layers });
-      } catch (e) {
-        console.error("Error sampling frame:", e);
+        // push a sample by calling sampler.sampleFrame with full payload
+        try {
+          sampler.sampleFrame({ renderMs, info, layers });
+        } catch (e) {
+          console.error("Error sampling frame:", e);
+        }
+      } else {
+        // not sampling this frame: keep work minimal
+        try {
+          sampler.sampleFrame();
+        } catch (e) {
+          console.error("Error sampling frame:", e);
+        }
       }
 
       // redraw UI at ~15fps
