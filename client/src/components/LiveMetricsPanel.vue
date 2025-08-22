@@ -4,6 +4,7 @@
     :style="styleRoot"
     @pointerdown.stop
   >
+    <!-- Micro panel -->
     <v-card
       class="pa-1 rounded"
       elevation="6"
@@ -216,12 +217,49 @@ function fmt(v, n = 1) {
 }
 
 const summary = computed(() => sampler.summary());
-const lastFrameMs = computed(() =>
-  last.value ? fmt(last.value.frameMs, 2) : "—"
-);
+const lastFrameMs = computed(() => {
+  // Rolling average over the last 3 seconds
+  const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  const windowMs = 3000;
+  let sum = 0;
+  let count = 0;
+  for (let i = samples.length - 1; i >= 0; i -= 1) {
+    const s = samples[i];
+    if (!s || typeof s.t !== 'number') continue;
+    if (now - s.t <= windowMs) {
+      if (typeof s.frameMs === 'number') {
+        sum += s.frameMs;
+        count += 1;
+      }
+    } else break;
+  }
+  if (count > 0) return fmt(sum / count, 2);
+  return last.value ? fmt(last.value.frameMs, 2) : "—";
+});
 const lastCalls = computed(() => (last.value ? last.value.calls : "—"));
 const lastTris = computed(() => (last.value ? last.value.tris : "—"));
 const fpsDisplay = computed(() => {
+  // Compute FPS from the mean frame time over the same 3s window so it matches ms display
+  const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  const windowMs = 3000;
+  let sum = 0;
+  let count = 0;
+  for (let i = samples.length - 1; i >= 0; i -= 1) {
+    const s = samples[i];
+    if (!s || typeof s.t !== 'number') continue;
+    if (now - s.t <= windowMs) {
+      if (typeof s.frameMs === 'number') {
+        sum += s.frameMs;
+        count += 1;
+      }
+    } else break;
+  }
+  if (count > 0) {
+    const meanMs = sum / count;
+    const fps = meanMs > 0 ? Math.round(1000 / meanMs) : 0;
+    return `${fps} fps`;
+  }
+  // fallback to last instantaneous if no recent samples
   if (!last.value) return "-- fps";
   const fps = last.value.frameMs ? Math.round(1000 / last.value.frameMs) : 0;
   return `${fps} fps`;
