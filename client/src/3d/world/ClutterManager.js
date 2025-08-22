@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import makeRng from "./Random";
+import { ensureInstanceCapacity } from '../renderer/instancingUtils';
 import { CLUTTER_TYPES, CLUTTER_SETTINGS } from "./clutter/definitions";
 
 // Helper to normalize a loaded mesh: center XZ, base at y=0
@@ -224,8 +225,9 @@ export default class ClutterManager {
       const asset = this.assets.get(t.id);
       if (!asset) continue;
       const count = Math.min(this.maxPerType, 1); // will grow when committing
-      const im = new THREE.InstancedMesh(asset.geom, asset.material, count);
-      im.count = 0; // no instances until commit
+  const im = new THREE.InstancedMesh(asset.geom, asset.material, count);
+  // ensure initial capacity and explicit zero visible
+  ensureInstanceCapacity(im, 0);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.visible = this.enabled;
       im.frustumCulled = false;
@@ -560,7 +562,7 @@ export default class ClutterManager {
           const cap = Math.max(1, needed);
           im = new THREE.InstancedMesh(asset.geom, asset.material, cap);
           im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-          im.count = 0;
+          ensureInstanceCapacity(im, 0);
           im.visible = this.enabled;
           im.frustumCulled = false;
           im.castShadow = this._shadowsEnabled;
@@ -572,49 +574,40 @@ export default class ClutterManager {
           if (this.scene) this.scene.add(im);
           this.pools.set(t.id, im);
         } else if (needed > im.instanceMatrix.count) {
-          const grown = Math.max(
-            needed,
-            Math.ceil(im.instanceMatrix.count * 1.5)
-          );
-          const cap = Math.min(this.maxPerType, grown);
-          const newIM = new THREE.InstancedMesh(
-            asset.geom,
-            asset.material,
-            cap
-          );
-          newIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-          newIM.visible = this.enabled;
-          newIM.frustumCulled = false;
-          newIM.castShadow = this._shadowsEnabled;
-          newIM.receiveShadow = this._shadowsEnabled;
-          if (asset.depthMaterial) {
-            newIM.customDepthMaterial = asset.depthMaterial;
-            newIM.customDistanceMaterial = asset.depthMaterial;
-          }
-          // Copy previous matrices to preserve current visuals
+          // Grow in-place via helper which preserves data and updates attributes
           try {
-            const prevCount = Math.min(
-              im.count | 0,
-              newIM.instanceMatrix.count
-            );
-            if (prevCount > 0) {
-              newIM.instanceMatrix.array.set(
-                im.instanceMatrix.array.subarray(0, prevCount * 16),
-                0
-              );
-              newIM.count = prevCount;
-              newIM.instanceMatrix.needsUpdate = true;
-            } else {
-              newIM.count = 0;
-            }
+            ensureInstanceCapacity(im, Math.min(this.maxPerType, needed));
           } catch (e) {
-            newIM.count = im.count | 0;
+            // Fallback: create a new mesh if helper fails
+            const grown = Math.max(needed, Math.ceil(im.instanceMatrix.count * 1.5));
+            const cap = Math.min(this.maxPerType, grown);
+            const newIM = new THREE.InstancedMesh(asset.geom, asset.material, cap);
+            newIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            newIM.visible = this.enabled;
+            newIM.frustumCulled = false;
+            newIM.castShadow = this._shadowsEnabled;
+            newIM.receiveShadow = this._shadowsEnabled;
+            if (asset.depthMaterial) {
+              newIM.customDepthMaterial = asset.depthMaterial;
+              newIM.customDistanceMaterial = asset.depthMaterial;
+            }
+            try {
+              const prevCount = Math.min(im.count | 0, newIM.instanceMatrix.count);
+              if (prevCount > 0) {
+                  newIM.instanceMatrix.array.set(im.instanceMatrix.array.subarray(0, prevCount * 16), 0);
+                  ensureInstanceCapacity(newIM, prevCount);
+                  newIM.instanceMatrix.needsUpdate = true;
+                } else {
+                  ensureInstanceCapacity(newIM, 0);
+                }
+            } catch (e2) {
+              try { ensureInstanceCapacity(newIM, im.count | 0); } catch (e3) { try { newIM.count = im.count | 0; } catch (e4) {} }
+            }
+            if (im.parent) im.parent.add(newIM);
+            else if (this.scene) this.scene.add(newIM);
+            if (im.parent) im.parent.remove(im);
+            this.pools.set(t.id, newIM);
           }
-          // Swap in scene
-          if (im.parent) im.parent.add(newIM);
-          else if (this.scene) this.scene.add(newIM);
-          if (im.parent) im.parent.remove(im);
-          this.pools.set(t.id, newIM);
         } else {
           // Reuse existing pool; keep count so no flicker; we will overwrite progressively.
         }
@@ -624,11 +617,11 @@ export default class ClutterManager {
           // Clamp down any excess visible instances from the previous area right away
           if (typeof pool.count === "number") {
             const clamped = Math.min(needed, pool.count | 0);
-            if (clamped !== pool.count) pool.count = clamped;
+            if (clamped !== pool.count) ensureInstanceCapacity(pool, clamped);
           }
           // If this type has no placements in the new area, hide it immediately so stale instances disappear
           if (needed === 0) {
-            if (pool.count !== 0) pool.count = 0;
+            if (pool.count !== 0) ensureInstanceCapacity(pool, 0);
             pool.visible = this.enabled && false;
           } else {
             // Keep it visible; final exact count will be set during phase 3 per-type finalize
@@ -713,8 +706,17 @@ export default class ClutterManager {
           // Write to a stable destination index (overwriting front); avoid shrinking visible count mid-stream
           const wIdx = job.write.dstIndex;
           if (wIdx < im.instanceMatrix.count) im.setMatrixAt(wIdx, _mat);
-          // Non-decreasing visible count during stream
-          im.count = Math.max(im.count || 0, wIdx + 1);
+          // Non-decreasing visible count during stream; ensure capacity if we're about to exceed
+          try {
+            ensureInstanceCapacity(im, Math.max(im.count || 0, wIdx + 1));
+          } catch (e) {
+            // best-effort: attempt a conservative ensure, else fallback to setting count
+            try {
+              ensureInstanceCapacity(im, Math.min(wIdx + 1, im.instanceMatrix.count));
+            } catch (e2) {
+              im.count = Math.max(im.count || 0, Math.min(wIdx + 1, im.instanceMatrix.count));
+            }
+          }
           if (it.scl > maxScl) maxScl = it.scl;
           job.write.instIndex += 1;
           job.write.dstIndex += 1;
@@ -733,7 +735,15 @@ export default class ClutterManager {
         }
         // Finished this type; finalize frustum tuning and advance
         // Finalize this type: clamp to written count, then update visibility
-        im.count = Math.min(job.write.dstIndex, im.instanceMatrix.count);
+        try {
+          ensureInstanceCapacity(im, Math.min(job.write.dstIndex, im.instanceMatrix.count));
+        } catch (e) {
+        try {
+          ensureInstanceCapacity(im, Math.min(job.write.dstIndex, im.instanceMatrix.count));
+        } catch (e) {
+          try { im.count = Math.min(job.write.dstIndex, im.instanceMatrix.count); } catch (e2) {}
+        }
+        }
         im.instanceMatrix.needsUpdate = true;
         im.visible = this.enabled && im.count > 0;
         if (doRadialCull && im.count > 0 && asset && asset.geom) {

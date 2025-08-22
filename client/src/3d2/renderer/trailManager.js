@@ -1,4 +1,6 @@
 /* eslint-disable no-param-reassign */
+import { ensureInstanceCapacity } from '@/3d/renderer/instancingUtils';
+
 export function snapshotTrail(ctx, delayMs = 3000) {
   if (!ctx || !ctx.topIM || !ctx.sideIM || !ctx.trailTopIM || !ctx.trailSideIM)
     return;
@@ -22,8 +24,12 @@ export function snapshotTrail(ctx, delayMs = 3000) {
     };
   }
   const count = ctx.topIM.count | 0;
-  ctx.trailTopIM.count = count;
-  ctx.trailSideIM.count = count;
+  try {
+    ensureInstanceCapacity(ctx.trailTopIM, count);
+    ensureInstanceCapacity(ctx.trailSideIM, count);
+  } catch (e) {
+    console.debug('trail snapshot ensure capacity failed', e);
+  }
   ctx.trailTopIM.visible = true;
   ctx.trailSideIM.visible = true;
   try {

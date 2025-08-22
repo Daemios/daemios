@@ -1,6 +1,7 @@
 /* eslint-disable no-param-reassign, no-empty, no-unused-vars */
 import * as THREE from "three";
 import { markRaw } from "vue";
+import { ensureInstanceCapacity } from './instancingUtils';
 import { attachRadialFade, attachRadialFadeDepth } from "./radialFade";
 
 export default class ChunkNeighborhood {
@@ -1139,8 +1140,8 @@ export default class ChunkNeighborhood {
       Math.floor(prevSide / this.countPerChunk) * this.countPerChunk;
     this._prevVisibleTop = prevSafeTop;
     this._prevVisibleSide = prevSafeSide;
-    if (this.topIM.count !== prevSafeTop) this.topIM.count = prevSafeTop;
-    if (this.sideIM.count !== prevSafeSide) this.sideIM.count = prevSafeSide;
+  if (this.topIM.count !== prevSafeTop) ensureInstanceCapacity(this.topIM, prevSafeTop);
+  if (this.sideIM.count !== prevSafeSide) ensureInstanceCapacity(this.sideIM, prevSafeSide);
     this._scheduleStreamingTick(token);
   }
 
@@ -1270,8 +1271,8 @@ export default class ChunkNeighborhood {
       const safeUntil =
         Math.floor(this._writtenUntil / this.countPerChunk) *
         this.countPerChunk;
-      this.topIM.count = Math.max(this._prevVisibleTop || 0, safeUntil);
-      this.sideIM.count = Math.max(this._prevVisibleSide || 0, safeUntil);
+  ensureInstanceCapacity(this.topIM, Math.max(this._prevVisibleTop || 0, safeUntil));
+  ensureInstanceCapacity(this.sideIM, Math.max(this._prevVisibleSide || 0, safeUntil));
 
       // Check budget after each slice, not only per-chunk
       const tNow =
@@ -1566,8 +1567,8 @@ export default class ChunkNeighborhood {
     this._buildCursor = 0;
     this._writtenUntil = Math.max(this._writtenUntil, this._targetCount);
     const finalCount = Math.min(this._targetCount, this.indexToQR.length);
-    this.topIM.count = finalCount;
-    this.sideIM.count = finalCount;
+  ensureInstanceCapacity(this.topIM, finalCount);
+  ensureInstanceCapacity(this.sideIM, finalCount);
     this._prevVisibleTop = this.topIM.count;
     this._prevVisibleSide = this.sideIM.count;
     // Queue total duration

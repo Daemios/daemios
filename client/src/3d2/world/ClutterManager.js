@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createInstancedMesh } from '@/3d2/renderer/instancing';
+import { ensureInstanceCapacity } from '@/3d/renderer/instancingUtils';
 import { axialToXZ, getHexSize } from '@/3d2/config/layout';
 
 // Lightweight ClutterManager for 3d2. Intentionally simplified: it
@@ -52,8 +53,8 @@ export default class ClutterManager {
       const asset = this.assets.get(t.id) || {};
       const geom = asset.geom || new THREE.BoxGeometry(1, 1, 1);
       const mat = asset.material || new THREE.MeshLambertMaterial({ color: 0xffffff });
-      const api = createInstancedMesh(geom, mat, 1);
-      api.instancedMesh.count = 0;
+  const api = createInstancedMesh(geom, mat, 1);
+  ensureInstanceCapacity(api.instancedMesh, 0);
       api.instancedMesh.visible = this.enabled;
       this.pools.set(t.id, { api, count: 0 });
     }
@@ -127,7 +128,7 @@ export default class ClutterManager {
         this.pools.set(id, pool);
         if (this.scene) this.scene.add(api.instancedMesh);
       }
-      const api = pool.api;
+  const api = pool.api;
   const mat4 = new THREE.Matrix4();
   const vecPos = new THREE.Vector3();
   const quat = new THREE.Quaternion();
@@ -166,7 +167,7 @@ export default class ClutterManager {
         api.setInstanceMatrix(dst, mat4);
         dst += 1;
       }
-      api.instancedMesh.count = dst;
+  ensureInstanceCapacity(api.instancedMesh, dst);
       api.instancedMesh.instanceMatrix.needsUpdate = true;
       api.instancedMesh.visible = this.enabled && dst > 0;
       pool.count = dst;
