@@ -77,17 +77,10 @@ export default class ChunkNeighborhood {
   }
 
   build() {
-    const total = this.neighborOffsets.length * this.countPerChunk;
-    const topMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.7,
-      metalness: 0.0,
-    });
-    const sideMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.7,
-      metalness: 0.0,
-    });
+  const total = this.neighborOffsets.length * this.countPerChunk;
+  // Use PBR (standard) materials for top and side
+  const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
     // attach radial fades
     const topRef = attachRadialFade(topMat, {
       bucketKey: "top",
@@ -188,7 +181,7 @@ export default class ChunkNeighborhood {
       writeIdentityBlocks(this.topIM.instanceMatrix.array);
     if (this.sideIM.instanceMatrix && this.sideIM.instanceMatrix.array)
       writeIdentityBlocks(this.sideIM.instanceMatrix.array);
-    // pre-create instance colors
+    // pre-create instance colors and attach attributes to geometry so shaders can access them.
     const colorsTop = new Float32Array(total * 3);
     const colorsSide = new Float32Array(total * 3);
     // NOTE: These initial allocations are intentional for ChunkNeighborhood's
@@ -197,10 +190,19 @@ export default class ChunkNeighborhood {
     // coordination with the streaming build state (_slotAssignments, _buildQueue)
     // so it is left for a follow-up refactor after smoke testing.
     this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
-    this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(
-      colorsSide,
-      3
-    );
+    this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(colorsSide, 3);
+    try {
+      if (this.topIM.geometry && this.topIM.geometry.setAttribute) {
+        this.topIM.geometry.setAttribute('instanceColor', this.topIM.instanceColor);
+        if (!this.topIM.geometry.getAttribute('color')) this.topIM.geometry.setAttribute('color', this.topIM.instanceColor);
+      }
+      if (this.sideIM.geometry && this.sideIM.geometry.setAttribute) {
+        this.sideIM.geometry.setAttribute('instanceColor', this.sideIM.instanceColor);
+        if (!this.sideIM.geometry.getAttribute('color')) this.sideIM.geometry.setAttribute('color', this.sideIM.instanceColor);
+      }
+    } catch (e) {
+      // ignore geometry attachment failures
+    }
 
     this.indexToQR = new Array(total);
     this.scene.add(this.sideIM);
@@ -295,14 +297,20 @@ export default class ChunkNeighborhood {
         new THREE.InstancedBufferAttribute(this._scyArrSide, 1)
       );
     }
-    this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(total * 3),
-      3
-    );
-    this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(total * 3),
-      3
-    );
+    this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
+    this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
+    try {
+      if (this.trailTopIM.geometry && this.trailTopIM.geometry.setAttribute) {
+        this.trailTopIM.geometry.setAttribute('instanceColor', this.trailTopIM.instanceColor);
+        if (!this.trailTopIM.geometry.getAttribute('color')) this.trailTopIM.geometry.setAttribute('color', this.trailTopIM.instanceColor);
+      }
+      if (this.trailSideIM.geometry && this.trailSideIM.geometry.setAttribute) {
+        this.trailSideIM.geometry.setAttribute('instanceColor', this.trailSideIM.instanceColor);
+        if (!this.trailSideIM.geometry.getAttribute('color')) this.trailSideIM.geometry.setAttribute('color', this.trailSideIM.instanceColor);
+      }
+    } catch (e) {
+      // ignore
+    }
     this.trailTopIM.visible = false;
     this.trailSideIM.visible = false;
     this.trailTopIM.renderOrder = (this.topIM.renderOrder || 0) - 1;
