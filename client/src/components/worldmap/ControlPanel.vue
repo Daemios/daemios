@@ -15,6 +15,16 @@
     >
       Debug
     </v-btn>
+    <v-btn
+      size="x-small"
+      variant="outlined"
+      :color="worldGenActive ? 'primary' : undefined"
+      :title="worldGenActive ? 'Hide World Generation' : 'Show World Generation'"
+      style="min-width:28px; height:28px; padding:0 6px;"
+      @click="$emit('toggle-worldgen')"
+    >
+      World Gen
+    </v-btn>
   </div>
 </template>
 
@@ -23,7 +33,8 @@ export default {
   name: 'ControlPanel',
   props: {
     debugActive: { type: Boolean, default: false }
+    , worldGenActive: { type: Boolean, default: false }
   },
-  emits: ['toggle-debug']
+  emits: ['toggle-debug', 'toggle-worldgen']
 }
 </script>

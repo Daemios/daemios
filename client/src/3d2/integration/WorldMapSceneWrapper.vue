@@ -12,10 +12,20 @@
       <DebugPanel @apply="onDebugApply" />
     </div>
 
+    <!-- World generation panel mount -->
+    <div
+      v-if="showWorldGen"
+      style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
+    >
+      <WorldGenPanel @apply="onWorldGenApply" />
+    </div>
+
     <!-- Top-left control panel -->
     <ControlPanel
       :debug-active="showDebug"
-      @toggle-debug="showDebug = !showDebug"
+      :world-gen-active="showWorldGen"
+      @toggle-debug="toggleDebug"
+      @toggle-worldgen="toggleWorldGen"
     />
   </div>
 </template>
@@ -25,6 +35,7 @@ import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
 import * as THREE from "three";
 import DebugPanel from "@/components/worldmap/DebugPanel.vue";
 import ControlPanel from "@/components/worldmap/ControlPanel.vue";
+import WorldGenPanel from "@/components/worldmap/WorldGenPanel.vue";
 
 const container = ref(null);
 let sceneInst = null;
@@ -36,12 +47,25 @@ let _domEventListener = null;
 let _resizeObserver = null;
 let _windowResizeHandler = null;
 const showDebug = ref(true);
+const showWorldGen = ref(false);
 
 // Render-on-demand control shared across lifecycle so it can be referenced
 // from onBeforeUnmount (removeEventListener) without scope issues.
 let renderRequested = true;
 function requestRender() {
   renderRequested = true;
+}
+
+function toggleDebug() {
+  // If opening debug, ensure world gen is closed
+  if (!showDebug.value) showWorldGen.value = false;
+  showDebug.value = !showDebug.value;
+}
+
+function toggleWorldGen() {
+  // If opening world gen, ensure debug is closed
+  if (!showWorldGen.value) showDebug.value = false;
+  showWorldGen.value = !showWorldGen.value;
 }
 
 import { useSettingsStore } from "@/stores/settingsStore";
