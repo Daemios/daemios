@@ -78,16 +78,19 @@ export default class ChunkNeighborhood {
 
   build() {
     const total = this.neighborOffsets.length * this.countPerChunk;
+    // Use standard PBR material to match project-wide renderer expectations
     const topMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.7,
-      metalness: 0.0,
     });
+    // honor per-instance color attributes
+    topMat.vertexColors = true;
+    topMat.needsUpdate = true;
     const sideMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.7,
-      metalness: 0.0,
     });
+    // honor per-instance color attributes
+    sideMat.vertexColors = true;
+    sideMat.needsUpdate = true;
     // attach radial fades
     const topRef = attachRadialFade(topMat, {
       bucketKey: "top",
@@ -119,10 +122,8 @@ export default class ChunkNeighborhood {
     this._fadeUniforms = { top: topRef.top, side: sideRef.side };
     this._fadeUniformsDepth = { top: topDepthRef.top, side: sideDepthRef.side };
 
-    this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
-    this.sideIM = markRaw(
-      new THREE.InstancedMesh(this.sideGeom, sideMat, total)
-    );
+  this.topIM = markRaw(new THREE.InstancedMesh(this.topGeom, topMat, total));
+  this.sideIM = markRaw(new THREE.InstancedMesh(this.sideGeom, sideMat, total));
     // Enable shadow casting and receiving
     this.topIM.castShadow = true;
     this.topIM.receiveShadow = true;
@@ -196,11 +197,18 @@ export default class ChunkNeighborhood {
     // across rebuilds to reduce allocations, but doing so requires careful
     // coordination with the streaming build state (_slotAssignments, _buildQueue)
     // so it is left for a follow-up refactor after smoke testing.
+    // Attach per-instance color attributes and also alias to 'color' so
+    // shaders expecting vertex colors can consume per-instance colors.
     this.topIM.instanceColor = new THREE.InstancedBufferAttribute(colorsTop, 3);
-    this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(
-      colorsSide,
-      3
-    );
+    try { if (this.topIM.geometry && typeof this.topIM.geometry.setAttribute === 'function') {
+      this.topIM.geometry.setAttribute('instanceColor', this.topIM.instanceColor);
+      if (!this.topIM.geometry.getAttribute('color')) this.topIM.geometry.setAttribute('color', this.topIM.instanceColor);
+    } } catch (e) {}
+    this.sideIM.instanceColor = new THREE.InstancedBufferAttribute(colorsSide, 3);
+    try { if (this.sideIM.geometry && typeof this.sideIM.geometry.setAttribute === 'function') {
+      this.sideIM.geometry.setAttribute('instanceColor', this.sideIM.instanceColor);
+      if (!this.sideIM.geometry.getAttribute('color')) this.sideIM.geometry.setAttribute('color', this.sideIM.instanceColor);
+    } } catch (e) {}
 
     this.indexToQR = new Array(total);
     this.scene.add(this.sideIM);
@@ -295,14 +303,16 @@ export default class ChunkNeighborhood {
         new THREE.InstancedBufferAttribute(this._scyArrSide, 1)
       );
     }
-    this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(total * 3),
-      3
-    );
-    this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(total * 3),
-      3
-    );
+    this.trailTopIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
+    try { if (this.trailTopIM.geometry && typeof this.trailTopIM.geometry.setAttribute === 'function') {
+      this.trailTopIM.geometry.setAttribute('instanceColor', this.trailTopIM.instanceColor);
+      if (!this.trailTopIM.geometry.getAttribute('color')) this.trailTopIM.geometry.setAttribute('color', this.trailTopIM.instanceColor);
+    } } catch (e) {}
+    this.trailSideIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3);
+    try { if (this.trailSideIM.geometry && typeof this.trailSideIM.geometry.setAttribute === 'function') {
+      this.trailSideIM.geometry.setAttribute('instanceColor', this.trailSideIM.instanceColor);
+      if (!this.trailSideIM.geometry.getAttribute('color')) this.trailSideIM.geometry.setAttribute('color', this.trailSideIM.instanceColor);
+    } } catch (e) {}
     this.trailTopIM.visible = false;
     this.trailSideIM.visible = false;
     this.trailTopIM.renderOrder = (this.topIM.renderOrder || 0) - 1;

@@ -19,7 +19,11 @@ try {
 // random source. We return an object with noise2D(x,y) to match the
 // previous factory contract used by layers.
 export function makeSimplex(seed, q, r) {
-  const s = String(seed) + ':' + String(q) + ':' + String(r);
+  // Use only the global seed to create the simplex noise instance.
+  // Seeding per-tile (including q,r) produced uncorrelated noise between
+  // neighboring tiles and looked like static. Keeping signature for
+  // backwards compatibility but ignore q,r here.
+  const s = String(seed);
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   const lcg = new SeededRNG(h);

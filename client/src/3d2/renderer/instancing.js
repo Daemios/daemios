@@ -27,13 +27,44 @@ export function createInstancedMesh(geometry, material, count) {
 // an existing InstancedBufferAttribute.array when possible to avoid allocations.
 export function setInstanceColors(inst, colors) {
   if (!inst) return;
+  // If an existing InstancedBufferAttribute exists and matches length, reuse it.
   if (inst.instanceColor && inst.instanceColor.array && inst.instanceColor.array.length === colors.length) {
     inst.instanceColor.array.set(colors);
     inst.instanceColor.needsUpdate = true;
+    // Ensure the attribute is attached to geometry so the shader can read it.
+      try {
+        if (inst.geometry && typeof inst.geometry.setAttribute === 'function') {
+          // Attach under both 'instanceColor' and 'color' so shaders that
+          // expect vertex colors (attribute name 'color') will find the data.
+          inst.geometry.setAttribute('instanceColor', inst.instanceColor);
+          // Only set 'color' if it's not already present to avoid overwriting
+          // any per-vertex color attributes on non-instanced geometries.
+          if (!inst.geometry.getAttribute('color')) {
+            inst.geometry.setAttribute('color', inst.instanceColor);
+          }
+        }
+      } catch (e) {
+        // ignore attachment failures; attribute still exists on the mesh instance
+      }
     return;
   }
+
+  // Create new attribute and attach it to the mesh geometry so the GPU shader
+  // receives per-instance color data under the name `instanceColor`.
   inst.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
   inst.instanceColor.needsUpdate = true;
+  try {
+    if (inst.geometry && typeof inst.geometry.setAttribute === 'function') {
+      inst.geometry.setAttribute('instanceColor', inst.instanceColor);
+      // Also attach under 'color' when not present so shaders that expect
+      // a vertex color attribute find the per-instance data.
+      if (!inst.geometry.getAttribute('color')) {
+        inst.geometry.setAttribute('color', inst.instanceColor);
+      }
+    }
+  } catch (e) {
+    // ignore attachment failures; attribute still exists on the mesh instance
+  }
 }
 
 export default { createInstancedMesh, setInstanceColors };

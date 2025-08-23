@@ -13,8 +13,8 @@ export default function useWorldMap() {
     debug: { show: true },
     features: {
       shadows: true,
-      water: true,
-      chunkColors: true,
+  water: true,
+  chunkColors: false,
       clutter: true,
     },
     radialFade: {

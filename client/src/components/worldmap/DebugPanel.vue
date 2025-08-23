@@ -75,6 +75,8 @@
       </label>
     </div>
 
+  <!-- worldgen layer controls moved to WorldGenPanel.vue -->
+
     <div
       style="
         border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -235,6 +237,7 @@ export default {
         sizePreset:
           this.value.sizePreset ?? savedGeneration.sizePreset ?? "medium",
         customSize: this.value.customSize ?? savedGeneration.customSize ?? 48,
+  // (worldgen layer controls moved to WorldGenPanel.vue)
       },
     };
   },
@@ -272,9 +275,9 @@ export default {
               },
               generation: {
                 // store radius under generation.radius to match useWorldMap
-                radius: radius,
-                sizePreset: this.state.sizePreset,
-                customSize: this.state.customSize,
+                  radius: radius,
+                  sizePreset: this.state.sizePreset,
+                  customSize: this.state.customSize,
               },
             },
           });

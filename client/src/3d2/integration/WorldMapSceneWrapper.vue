@@ -4,18 +4,26 @@
     class="worldmap-scene-wrapper"
     style="width: 100%; height: 100%; position: relative"
   >
-    <!-- Debug panel mount -->
+    <!-- Debug or World Gen panel mount -->
     <div
       v-if="showDebug"
       style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
     >
       <DebugPanel @apply="onDebugApply" />
     </div>
+    <div
+      v-if="showWorldGen"
+      style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
+    >
+      <WorldGenPanel @apply="onDebugApply" />
+    </div>
 
     <!-- Top-left control panel -->
     <ControlPanel
       :debug-active="showDebug"
-      @toggle-debug="showDebug = !showDebug"
+      :world-gen-active="showWorldGen"
+      @toggle-debug="toggleShowDebug"
+      @toggle-worldgen="toggleShowWorldGen"
     />
   </div>
 </template>
@@ -24,6 +32,7 @@
 import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
 import * as THREE from "three";
 import DebugPanel from "@/components/worldmap/DebugPanel.vue";
+import WorldGenPanel from "@/components/worldmap/WorldGenPanel.vue";
 import ControlPanel from "@/components/worldmap/ControlPanel.vue";
 
 const container = ref(null);
@@ -36,6 +45,7 @@ let _domEventListener = null;
 let _resizeObserver = null;
 let _windowResizeHandler = null;
 const showDebug = ref(true);
+const showWorldGen = ref(false);
 
 // Render-on-demand control shared across lifecycle so it can be referenced
 // from onBeforeUnmount (removeEventListener) without scope issues.
@@ -47,6 +57,16 @@ function requestRender() {
 import { useSettingsStore } from "@/stores/settingsStore";
 
 const settings = useSettingsStore();
+
+function toggleShowDebug() {
+  showDebug.value = true;
+  showWorldGen.value = false;
+}
+
+function toggleShowWorldGen() {
+  showWorldGen.value = true;
+  showDebug.value = false;
+}
 
 async function initScene() {
   await nextTick();
@@ -123,6 +143,17 @@ async function initScene() {
     /* ignore */
   }
   ready.value = true;
+  // Expose scene and helpful internals to window for on-demand debugging in dev.
+  try {
+    // Expose debug handles only in development to avoid leaking internals in prod
+    if (import.meta.env && import.meta.env.DEV && typeof window !== 'undefined' && sceneInst) {
+      window.__DAEMIOS_SCENE = sceneInst;
+      window.__DAEMIOS_WORLD = sceneInst.grid || null;
+      window.__DAEMIOS_CHUNK = sceneInst.chunkManager || null;
+    }
+  } catch (e) {
+    /* ignore exposure failures */
+  }
 
   // Apply persisted worldMap settings (map radius, chunk colors, etc.) immediately so
   // presets are respected on initial load.
@@ -137,6 +168,13 @@ async function initScene() {
     if (typeof features.chunkColors !== 'undefined' && sceneInst && typeof sceneInst.applyChunkColors === 'function') {
       try { sceneInst.applyChunkColors(!!features.chunkColors); } catch (e) { /* ignore */ }
     }
+    // Apply saved world generation config (layers, tunables) if present so
+    // the scene generator reflects persisted settings on initial load.
+    try {
+      if (gen && gen.config && sceneInst && typeof sceneInst.applyGeneratorConfig === 'function') {
+        try { sceneInst.applyGeneratorConfig(gen.config); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* ignore settings application errors */ }
   } catch (e) {
     /* ignore settings application errors */
   }
@@ -231,13 +269,13 @@ function onDebugApply(payload) {
   // payload: { mapRadius, sizePreset, chunkColors, clutter, shadows, water, directions }
   try {
     if (!payload || typeof payload !== "object") return;
-    const r = Number(payload.mapRadius) || 1;
-    // forward to scene
-    if (sceneInst && typeof sceneInst.setGridRadius === "function") {
-      try {
-        sceneInst.setGridRadius(r);
-      } catch (e) {
-        /*ignore*/
+    // Only forward mapRadius when explicitly provided by the sender. Avoid
+    // defaulting to 1 which can shrink the visible neighborhood unexpectedly
+    // when WorldGenPanel doesn't include a mapRadius value.
+    if (payload.hasOwnProperty('mapRadius') && payload.mapRadius != null && payload.mapRadius !== '') {
+      const r = Number(payload.mapRadius) || 0;
+      if (r > 0 && sceneInst && typeof sceneInst.setGridRadius === "function") {
+        try { sceneInst.setGridRadius(r); } catch (e) { /*ignore*/ }
       }
     }
     // apply chunk colors toggle if available
@@ -259,6 +297,12 @@ function onDebugApply(payload) {
     } catch (e) {
       /*ignore*/
     }
+    // apply generator config if provided so layer toggles take effect
+    try {
+      if (payload.generationConfig && sceneInst && typeof sceneInst.applyGeneratorConfig === 'function') {
+        sceneInst.applyGeneratorConfig(payload.generationConfig);
+      }
+    } catch (e) { /* ignore */ }
     // persist the same values to settings store as a single source of truth
     try {
       if (settings && typeof settings.mergeAtPath === "function") {

@@ -17,8 +17,20 @@ export function createWorldGenerator(type = 'hex', seed = 'seed', opts = {}) {
   const wrapper = {
     get(q, r) {
       const tile = shared.generateTile(seed, q, r, opts);
-      // Map fields for backward compatibility. Use elevation h and slope.
-      const h = tile.elevation != null ? tile.elevation : (tile.fields && tile.fields.h) || 0;
+      // Map fields for backward compatibility. Use numeric elevation (prefer normalized/raw/add)
+      let h = 0;
+      if (tile != null) {
+        if (tile.elevation != null) {
+          // elevation may be an object now: { raw, normalized, add }
+          if (typeof tile.elevation === 'number') {
+            h = tile.elevation;
+          } else if (tile.elevation && typeof tile.elevation === 'object') {
+            h = tile.elevation.normalized ?? tile.elevation.raw ?? (typeof tile.elevation.add === 'number' ? tile.elevation.add : 0);
+          }
+        } else if (tile.fields && typeof tile.fields.h === 'number') {
+          h = tile.fields.h;
+        }
+      }
       const slope = tile.slope != null ? tile.slope : (tile.fields && tile.fields.slope) || 0;
       return { fields: { h, slope }, tile };
     },

@@ -670,14 +670,14 @@ export default {
         if (this._wm && this._wm.createTown) {
           const towns = await this._wm.createTown();
           const n = Array.isArray(towns) ? towns.length : 0;
-          console.info(`[World] Town created. Total towns: ${n}`);
+          if (import.meta && import.meta.env && import.meta.env.DEV) console.info(`[World] Town created. Total towns: ${n}`);
         } else {
           if (!this.worldStore) this.worldStore = useWorldStore();
           await this.worldStore.createTown();
           const n = Array.isArray(this.worldStore.towns)
             ? this.worldStore.towns.length
             : 0;
-          console.info(`[World] Town created. Total towns: ${n}`);
+          if (import.meta && import.meta.env && import.meta.env.DEV) console.info(`[World] Town created. Total towns: ${n}`);
         }
       } catch (e) {
         console.error("Failed to create town", e);

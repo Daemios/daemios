@@ -27,7 +27,24 @@ function normalizeConfig(partial) {
   }
   // merge per-layer tunables if provided
   for (const k of Object.keys(base.layers)) {
-    if (partial.layers && partial.layers[k]) base.layers[k] = Object.assign({}, base.layers[k], partial.layers[k]);
+    if (!partial.layers || partial.layers[k] === undefined) continue;
+    const src = partial.layers[k];
+    const dst = base.layers[k];
+    // If both source and destination are plain objects, merge properties.
+    if (dst && typeof dst === 'object' && !Array.isArray(dst) && src && typeof src === 'object' && !Array.isArray(src)) {
+      base.layers[k] = Object.assign({}, dst, src);
+    } else {
+      // Primitive tunables (numbers/strings) should replace the default directly.
+      base.layers[k] = src;
+    }
+  }
+  // copy any additional numeric/simple keys from partial.layers (e.g., baseSeabedMin)
+  if (partial.layers) {
+    for (const k of Object.keys(partial.layers)) {
+      if (!(k in base.layers)) {
+        base.layers[k] = partial.layers[k];
+      }
+    }
   }
   if (partial.visual_style) base.visual_style = Object.assign({}, base.visual_style, partial.visual_style);
   return base;
@@ -40,14 +57,22 @@ function generateTile(seed, q, r, cfgPartial) {
   // run layers in order; parts are partial tile outputs consumed by later layers
   const parts = {};
 
+  // Apply a configurable minimum seabed baseline so later layers 'paint' on
+  // top of a controlled canvas. This keeps behavior deterministic and allows
+  // tuning of a global minimum tile height.
+  const baseMin = (cfg.layers && typeof cfg.layers.baseSeabedMin === 'number') ? cfg.layers.baseSeabedMin : 0.0;
+  if (baseMin !== 0) parts.base = { elevation: { add: baseMin } };
+
   // Layer 0: palette defaults
   if (cfg.layers.enabled.layer0) parts.layer0 = layer00Compute(ctx);
   else parts.layer0 = { palette: { id: 'fallback', topColor: '#000000', sideColor: '#000000', slopeTint: '#000000' } };
   ctx.partials = Object.assign({}, parts);
 
   // Layer 1: continents (may be expensive)
+  // If layer1 is enabled, compute it. If disabled, do not run the fallback
+  // generator — leaving layer1 undefined preserves the configurable base
+  // seabed minimum (parts.base) and prevents accidental patterned defaults.
   if (cfg.layers.enabled.layer1) parts.layer1 = layer01Compute(ctx);
-  else parts.layer1 = layer01Fallback(ctx);
   ctx.partials = Object.assign({}, ctx.partials, { layer1: parts.layer1 });
 
   // Layer 2: regions

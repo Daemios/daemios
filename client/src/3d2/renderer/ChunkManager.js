@@ -151,12 +151,18 @@ export default class ChunkManager {
     // positioned above the side geometry to avoid z-fighting.
     const usingDefaultGeom = !topGeom || !sideGeom;
     const sideGeometry = sideGeom || new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
-    const sideMaterial = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-    const sideApi = createInstancedMesh(sideGeometry, sideMaterial, count);
-    const sideIM = sideApi.instancedMesh;
+  const sideMaterial = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+  // Support per-instance colors written into `instanceColor` attributes
+  sideMaterial.vertexColors = true;
+  sideMaterial.needsUpdate = true;
+  const sideApi = createInstancedMesh(sideGeometry, sideMaterial, count);
+  const sideIM = sideApi.instancedMesh;
 
     let topGeometry;
-    let topMaterial = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  let topMaterial = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  // Support per-instance colors written into `instanceColor` attributes
+  topMaterial.vertexColors = true;
+  topMaterial.needsUpdate = true;
     if (usingDefaultGeom) {
   // Use a flat disk for the top cap to avoid creating side faces that overlap
   // the side geometry (which caused z-fighting). CircleGeometry is created
@@ -183,7 +189,13 @@ export default class ChunkManager {
         if (this.generator && typeof this.generator.get === 'function') {
           const cell = this.generator.get(p.q, p.r);
           const bio = biomeFromCell(cell);
-          yScale = (bio && bio.yScale) || 1.0;
+          // derive elevation from generator cell fields if available (0..1)
+          const elev = cell && cell.fields && typeof cell.fields.h === 'number' ? cell.fields.h : 0;
+          // base biome yScale (coarse) then modulate by elevation so noise paints height
+          const biomeY = (bio && bio.yScale) || 1.0;
+          // map elevation into a reasonable visual scale: small base plus elevation*heightMagnitude
+          const elevScale = 0.3 + (elev * (this.heightMagnitude || 1.0));
+          yScale = biomeY * elevScale;
           topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
           sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
         }
@@ -211,6 +223,13 @@ export default class ChunkManager {
       sideColorsBiome[i * 3 + 0] = sideCol.r;
       sideColorsBiome[i * 3 + 1] = sideCol.g;
       sideColorsBiome[i * 3 + 2] = sideCol.b;
+        // Commit per-instance colors onto instanced meshes so shaders can read them
+        try {
+          setInstanceColors(topIM, topColorsBiome);
+          setInstanceColors(sideIM, sideColorsBiome);
+        } catch (e) {
+          console.warn('ChunkManager: applyChunkColors failed', e);
+        }
       // compute chunk coords and pastel color for chunk
       try {
   const chunkX = (typeof p.chunkX === 'number') ? p.chunkX : Math.floor(p.q / (this.chunkCols || 8));

@@ -20,6 +20,8 @@ export const DEFAULT_CONFIG = {
       seaLevel: 0.52,
       plateCellSize: 48
     },
+  // minimum seabed baseline (paint canvas) applied before other layers
+  baseSeabedMin: 0.0,
     layer2: {
       regionNoiseScale: 0.02,
       maxInlandDistance: 100

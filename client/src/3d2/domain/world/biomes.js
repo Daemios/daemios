@@ -1,11 +1,17 @@
 // Simple biome mapper for 3d2
 // Maps normalized elevation (h: 0..1) and slope -> biome, colors and yScale
 // Keep this minimal and deterministic so it can be used by WorldMapScene/ChunkManager
+// Load scene configuration so water thresholds align with the generator's seaLevel.
+import worldConfig from './worldConfig.json';
 
+const SEA_LEVEL = (worldConfig && typeof worldConfig.seaLevel === 'number') ? worldConfig.seaLevel : 0.52;
+
+// Compute thresholds so any elevation <= SEA_LEVEL is treated as water in this mapper.
+// We keep a narrow deep/shallow split below SEA_LEVEL for visual variety.
 export const BIOME_THRESHOLDS = {
-  deepWater: 0.08,
-  shallowWater: 0.26,
-  beach: 0.28,
+  deepWater: Math.max(0.01, SEA_LEVEL * 0.25), // deepest band
+  shallowWater: SEA_LEVEL, // anything at-or-below configured sea level is water
+  beach: Math.min(0.95, SEA_LEVEL + 0.06),
   plains: 0.45,
   forest: 0.60,
   hill: 0.75,

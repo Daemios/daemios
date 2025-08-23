@@ -94,7 +94,7 @@ export class WorldMapScene {
     this.grid = new WorldGrid(1);
     // create a world generator early so renderers can sample cell data
     try {
-      this._generator = createWorldGenerator('hex', 1337);
+  this._generator = createWorldGenerator('hex', 1337);
     } catch (e) {
       console.debug('WorldMapScene: createWorldGenerator failed', e);
       this._generator = null;
@@ -151,8 +151,14 @@ export class WorldMapScene {
       }
       // create a chunk manager for chunk-based rendering and delegate instance creation
       // omit explicit chunkCols/chunkRows so ChunkManager can use its defaults
-      try {
+  try {
   this.chunkManager = createChunkManager({ scene: this.scene, generator: this._generator, layoutRadius: this._layoutRadius, spacingFactor: 1, neighborRadius: this._gridRadius, pastelColorForChunk });
+    // Expose chunkManager for runtime debugging (dev-only)
+    try {
+      if (import.meta.env && import.meta.env.DEV && typeof window !== 'undefined') {
+        window.__DAEMIOS_CHUNK = this.chunkManager;
+      }
+    } catch (e) { /* ignore */ }
         try {
           const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
           // expose neighborhood's top instanced mesh for compatibility
@@ -168,7 +174,24 @@ export class WorldMapScene {
             this._gridInstanced = built.neighborhood.topIM;
           }
           this._gridInstancedApi = this.chunkManager;
+          try {
+            if (import.meta.env && import.meta.env.DEV && typeof window !== 'undefined') {
+              window.__DAEMIOS_NEIGHBORHOOD = built && built.neighborhood ? built.neighborhood : null;
+            }
+          } catch (e) { /* ignore */ }
           console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+          // If a generator cfg was applied while the scene was initializing, drain
+          // it now so the final rebuild uses the loaded model geometries and
+          // avoids the legacy-instance fallback.
+          try {
+            if (this._pendingGeneratorCfg) {
+              const pending = this._pendingGeneratorCfg;
+              this._pendingGeneratorCfg = null;
+              // ensure chunkManager references the current generator
+              try { this.chunkManager.generator = this._generator; } catch (e) {}
+              await this.applyGeneratorConfig(pending);
+            }
+          } catch (e) { console.debug('WorldMapScene: applying pending generator cfg failed', e); }
         } catch (e) {
           // fallback to legacy instanced creation
           console.debug('WorldMapScene: chunkManager build failed, falling back to legacy grid instances', e);
@@ -220,6 +243,40 @@ export class WorldMapScene {
   // no debug logs
   }
 
+  // Apply a generator configuration (cfg) at runtime. This will recreate the
+  // generator wrapper with the provided tuning opts and trigger a neighborhood
+  // rebuild so visuals update to reflect the change. cfg should match the
+  // shared worldgen config shape (e.g., { layers: { enabled: { layer1: true }}}).
+  async applyGeneratorConfig(cfg) {
+    try {
+      // recreate generator with opts so shared.generateTile will use them
+      this._generator = createWorldGenerator('hex', 1337, cfg);
+    } catch (e) {
+      console.debug('WorldMapScene: recreate generator failed', e);
+      this._generator = null;
+    }
+
+    // If we have a chunk manager, rebuild neighborhood to pick up new generator data
+    try {
+      if (this.chunkManager) {
+        // update the chunkManager's generator reference so rebuild samples with the new generator
+        try { this.chunkManager.generator = this._generator; } catch (e) { /* ignore */ }
+        // prefer using the scene's loaded hex model geoms if available so spacing/layout is preserved
+        const topG = this._hexModel && this._hexModel.topGeom ? this._hexModel.topGeom : this._lastTopGeom;
+        const sideG = this._hexModel && this._hexModel.sideGeom ? this._hexModel.sideGeom : this._lastSideGeom;
+        await this.chunkManager.build(topG, sideG);
+      } else {
+        // chunkManager not yet created/built (scene still initializing). Queue the cfg
+        // to be applied once the chunkManager is ready to avoid falling back to legacy
+        // grid instancing which uses a different layout/spacing.
+        this._pendingGeneratorCfg = cfg;
+        return;
+      }
+    } catch (e) {
+      console.debug('WorldMapScene: rebuild after generator config failed', e);
+    }
+  }
+
   // Create instanced markers for hex centers (flat-top axial layout -> x,z)
   _createGridInstances(radius) {
   // Root-cause protection: if a ChunkManager is active, do not create the
@@ -255,7 +312,10 @@ export class WorldMapScene {
     if (this._hexModel && this._hexModel.topGeom) {
       const topGeom = this._hexModel.topGeom;
       const sideGeom = this._hexModel.sideGeom || topGeom;
-      const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  // ensure instanceColor attributes are respected by the material
+  mat.vertexColors = true;
+  mat.needsUpdate = true;
       try {
         const topApi = createInstancedMesh(topGeom, mat, positions.length);
         const sideApi = createInstancedMesh(sideGeom, mat, positions.length);
@@ -307,7 +367,9 @@ export class WorldMapScene {
       } catch (e) {
         // fallback to simple cylinder if instancing fails
         const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
-        const mat2 = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+    const mat2 = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+    mat2.vertexColors = true;
+    mat2.needsUpdate = true;
         const group = new THREE.Group();
         for (let i = 0; i < positions.length; i++) {
           const p = positions[i];

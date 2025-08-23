@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import SimplexNoise from "simplex-noise";
 import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from "../terrain/biomes";
+import worldConfig from "@/3d2/domain/world/worldConfig.json";
 import { createWorldGenerator } from "./generation";
 
 export default class WorldGrid {
@@ -43,6 +44,10 @@ export default class WorldGrid {
       opts.generationScale != null ? opts.generationScale : 1.0; // 1.0 = current scale; smaller => closer features
     this.generatorVersion = opts.generatorVersion || "hex";
     this._generatorTuning = opts.generatorTuning || null;
+  // Option: render heights directly from generator-normalized elevation (hRaw)
+  // When true, yScale will be computed as elevation.base + hRaw * maxHeight
+  // which makes the visual height match the generator 1:1 for debugging.
+  this.useGeneratorHeightForRender = !!opts.useGeneratorHeightForRender;
     // Noise (seeded deterministically by world seed)
     // Legacy noises remain for minor shaping (e.g., shoreline), but are now tied to the same seed
     const seedStr = String(this.seed);
@@ -71,6 +76,13 @@ export default class WorldGrid {
       : (q, r) => `${q},${r}`;
     this._cacheSize = 0;
     this._cacheLimit = (2 * this.gridSize + 1) * (2 * this.gridSize + 1); // at least one full grid
+  }
+
+  // Toggle whether rendering heights should come directly from generator-normalized
+  // elevation (hRaw) instead of the shaped/curved/exaggerated yScale.
+  setUseGeneratorHeightForRender(enabled) {
+    this.useGeneratorHeightForRender = !!enabled;
+    this.invalidateCache();
   }
 
   // Update generator tuning parameters at runtime
@@ -107,6 +119,44 @@ export default class WorldGrid {
     this._cacheVersion = (this._cacheVersion + 1) >>> 0;
     this._cellCache.clear();
     this._cacheSize = 0;
+  }
+
+  // Debug helper: sample a rectangular axial range and return basic stats.
+  // Returns { count, pctWater, meanHRaw, minHRaw, maxHRaw, meanYScale }
+  getStats(qMin, qMax, rMin, rMax) {
+    const cfgSea = (worldConfig && typeof worldConfig.seaLevel === 'number') ? worldConfig.seaLevel : 0.52;
+    const vals = [];
+    for (let q = qMin; q <= qMax; q += 1) {
+      for (let r = rMin; r <= rMax; r += 1) {
+        const c = this.getCell(q, r);
+        vals.push({ hRaw: c.hRaw, yScale: c.yScale, biome: c.biome });
+      }
+    }
+    const n = vals.length;
+    if (n === 0) return { count: 0 };
+    const below = vals.filter((v) => v.hRaw <= cfgSea).length;
+    const meanH = vals.reduce((s, v) => s + v.hRaw, 0) / n;
+    const meanY = vals.reduce((s, v) => s + v.yScale, 0) / n;
+    const minH = Math.min(...vals.map((v) => v.hRaw));
+    const maxH = Math.max(...vals.map((v) => v.hRaw));
+    return {
+      count: n,
+      pctWater: (below / n) * 100,
+      meanHRaw: meanH,
+      minHRaw: minH,
+      maxHRaw: maxH,
+      meanYScale: meanY,
+    };
+  }
+
+  // Convenience: log stats around a center axial coordinate with half-radius
+  logWaterStats(centerQ = 0, centerR = 0, half = 8) {
+    const s = this.getStats(centerQ - half, centerQ + half, centerR - half, centerR + half);
+    if (import.meta && import.meta.env && import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.info('WorldGrid.stats', s);
+    }
+    return s;
   }
 
   bounds() {
@@ -201,27 +251,38 @@ export default class WorldGrid {
       2;
     const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
 
-    const curved = Math.pow(hRaw, this.elevation.curve);
-    let baseScaleY = this.elevation.base + curved * maxHeight;
-    baseScaleY = baseScaleY * (1 - 0.35 * waterCut);
+    // By default, compute a shaped visual yScale that exaggerates terrain and
+    // raises shorelines. However, for debugging we allow an override where the
+    // visual height maps directly to the generator-normalized elevation (hRaw).
+    let yScale;
+    if (this.useGeneratorHeightForRender) {
+      // Direct mapping: small base plus generator elevation scaled to maxHeight
+      yScale = this.elevation.base + hRaw * maxHeight;
+      // apply a modest water cut so deep lakes don't look like high islands
+      yScale = yScale * (1 - 0.35 * waterCut);
+    } else {
+      const curved = Math.pow(hRaw, this.elevation.curve);
+      let baseScaleY = this.elevation.base + curved * maxHeight;
+      baseScaleY = baseScaleY * (1 - 0.35 * waterCut);
 
-    const shoreTop = BIOME_THRESHOLDS.shallowWater;
-    const blendRange = this.elevation.shorelineBlend;
-    let yScale = baseScaleY;
-    let biome = classifyBiome(hRaw);
-    if (biome !== "deepWater" && biome !== "shallowWater") {
-      if (hRaw <= shoreTop + blendRange) {
-        const tt = (hRaw - shoreTop) / blendRange;
-        const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : tt * tt * (3 - 2 * tt);
-        const raised = Math.max(baseScaleY, this.elevation.minLand);
-        yScale = THREE.MathUtils.lerp(
-          baseScaleY,
-          raised,
-          Math.pow(smoothT, 0.9)
-        );
-      } else if (baseScaleY < this.elevation.minLand) {
-        const deficit = this.elevation.minLand - baseScaleY;
-        yScale = baseScaleY + deficit * 0.85;
+      const shoreTop = BIOME_THRESHOLDS.shallowWater;
+      const blendRange = this.elevation.shorelineBlend;
+      yScale = baseScaleY;
+
+      if (hRaw !== undefined && hRaw !== null) {
+        if (hRaw <= shoreTop + blendRange) {
+          const tt = (hRaw - shoreTop) / blendRange;
+          const smoothT = tt <= 0 ? 0 : tt >= 1 ? 1 : tt * tt * (3 - 2 * tt);
+          const raised = Math.max(baseScaleY, this.elevation.minLand);
+          yScale = THREE.MathUtils.lerp(
+            baseScaleY,
+            raised,
+            Math.pow(smoothT, 0.9)
+          );
+        } else if (baseScaleY < this.elevation.minLand) {
+          const deficit = this.elevation.minLand - baseScaleY;
+          yScale = baseScaleY + deficit * 0.85;
+        }
       }
     }
 
@@ -249,23 +310,47 @@ export default class WorldGrid {
       0,
       Math.min(1, (yScale - this.elevation.base) / maxHeight)
     );
-    biome = classifyBiome(hVisual);
+    // Decide biome/water classification using configured sea level so the
+    // renderer shows water where intended.
+    const seaLevelCfg =
+      (worldConfig && typeof worldConfig.seaLevel === "number")
+        ? worldConfig.seaLevel
+        : 0.52;
+    let biome;
+    if (hRaw < seaLevelCfg) {
+      const shallowThresh = seaLevelCfg * 0.5;
+      biome = hRaw < shallowThresh ? "deepWater" : "shallowWater";
+    } else {
+      biome = classifyBiome(hRaw);
+    }
+
+    // Keep render hints separate; decide color from generator-normalized hRaw
     const renderHints = gen.render || {};
-    const colorTop = biomeColor(hVisual, f, t, this._tmpColor.clone(), {
-      moisture: gen.fields?.moisture,
-      temp: gen.fields?.temp,
-      aridityTint: renderHints.aridityTint,
-      snowMask: renderHints.snowMask,
-      rockExposure: renderHints.rockExposure,
-      bathymetryStep: renderHints.bathymetryStep,
-      flags: gen.flags,
-      bands: {
-        elevation: gen.elevationBand,
-        temp: gen.temperatureBand,
-        moisture: gen.moistureBand,
-      },
-      biomeMajor: gen.biomeMajor,
-    });
+    let colorTop;
+    if (hRaw < seaLevelCfg) {
+      // t: 0 at bottom (deep) -> 1 at sea surface using generator-normalized elevation
+      const tSea = Math.max(0, Math.min(1, hRaw / seaLevelCfg));
+      const sandy = new THREE.Color('#d1b37a'); // sandy tan
+      const deep = new THREE.Color('#052234'); // deep dark blue/abyss
+      colorTop = deep.clone().lerp(sandy, tSea);
+    } else {
+      // For land, use generator-normalized elevation for biomeColor so layer tuning is direct
+      colorTop = biomeColor(hRaw, f, t, this._tmpColor.clone(), {
+        moisture: gen.fields?.moisture,
+        temp: gen.fields?.temp,
+        aridityTint: renderHints.aridityTint,
+        snowMask: renderHints.snowMask,
+        rockExposure: renderHints.rockExposure,
+        bathymetryStep: renderHints.bathymetryStep,
+        flags: gen.flags,
+        bands: {
+          elevation: gen.elevationBand,
+          temp: gen.temperatureBand,
+          moisture: gen.moistureBand,
+        },
+        biomeMajor: gen.biomeMajor,
+      });
+    }
 
     // darker side color
     const side = colorTop.clone();
