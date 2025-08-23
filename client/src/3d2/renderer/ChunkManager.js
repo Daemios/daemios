@@ -181,9 +181,13 @@ export default class ChunkManager {
       let sideCol = new THREE.Color(0xcccccc);
       try {
         if (this.generator && typeof this.generator.get === 'function') {
-          const cell = this.generator.get(p.q, p.r);
-          const bio = biomeFromCell(cell);
-          yScale = (bio && bio.yScale) || 1.0;
+          const tile = this.generator.get(p.q, p.r);
+          const bio = biomeFromCell(tile);
+          // Expect tile shape: prefer tile.height, then tile.elevation.normalized
+          let elev = 0;
+          if (tile && typeof tile.height === 'number') elev = tile.height;
+          else if (tile && tile.elevation && typeof tile.elevation.normalized === 'number') elev = tile.elevation.normalized;
+          yScale = Math.max(0.001, elev * (this.heightMagnitude || 1.0));
           topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
           sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
         }

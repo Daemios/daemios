@@ -88,20 +88,24 @@ async function initScene() {
       const pm = sceneInst.playerMarker;
       try {
         // Replace _compose to reuse pm._tmpQuat (exists on PlayerMarker) and avoid new Quaternion()
-        if (typeof pm._compose === 'function') {
+        if (typeof pm._compose === "function") {
           pm._compose = function () {
             // pm._tmpQuat, pm._scale and pm._pos are preallocated in the PlayerMarker constructor
-            const yQuat = this._tmpQuat.setFromAxisAngle({ x: 0, y: 1, z: 0 }, this._yaw);
+            const yQuat = this._tmpQuat.setFromAxisAngle(
+              { x: 0, y: 1, z: 0 },
+              this._yaw
+            );
             this.mesh.matrix.compose(this._pos, yQuat, this._scale);
             this.mesh.visible = true;
           };
         }
         // Replace setWorldPosition to avoid allocating a new quaternion
-        if (typeof pm.setWorldPosition === 'function') {
+        if (typeof pm.setWorldPosition === "function") {
           pm.setWorldPosition = function (posVec3) {
             if (!posVec3) return;
             this._tmpQuat.identity();
-            const scale = this._tmpScale || (this._tmpScale = new THREE.Vector3(1,1,1));
+            const scale =
+              this._tmpScale || (this._tmpScale = new THREE.Vector3(1, 1, 1));
             scale.set(1, 1, 1);
             this.mesh.matrix.compose(posVec3, this._tmpQuat, scale);
             this.mesh.visible = true;
@@ -151,15 +155,30 @@ async function initScene() {
   // Apply persisted worldMap settings (map radius, chunk colors, etc.) immediately so
   // presets are respected on initial load.
   try {
-    const saved = settings && typeof settings.get === 'function' ? settings.get('worldMap', {}) : {};
+    const saved =
+      settings && typeof settings.get === "function"
+        ? settings.get("worldMap", {})
+        : {};
     const gen = saved.generation || {};
     const features = saved.features || {};
     const radius = Number(gen.radius || saved.mapRadius || 0) || 0;
-    if (radius && sceneInst && typeof sceneInst.setGridRadius === 'function') {
-      try { sceneInst.setGridRadius(radius); } catch (e) { /* ignore */ }
+    if (radius && sceneInst && typeof sceneInst.setGridRadius === "function") {
+      try {
+        sceneInst.setGridRadius(radius);
+      } catch (e) {
+        /* ignore */
+      }
     }
-    if (typeof features.chunkColors !== 'undefined' && sceneInst && typeof sceneInst.applyChunkColors === 'function') {
-      try { sceneInst.applyChunkColors(!!features.chunkColors); } catch (e) { /* ignore */ }
+    if (
+      typeof features.chunkColors !== "undefined" &&
+      sceneInst &&
+      typeof sceneInst.applyChunkColors === "function"
+    ) {
+      try {
+        sceneInst.applyChunkColors(!!features.chunkColors);
+      } catch (e) {
+        /* ignore */
+      }
     }
   } catch (e) {
     /* ignore settings application errors */
@@ -222,11 +241,17 @@ async function initScene() {
   // Hook basic user interactions to request a render
   try {
     if (container.value && container.value.addEventListener) {
-      container.value.addEventListener('pointermove', requestRender, { passive: true });
-      container.value.addEventListener('pointerdown', requestRender, { passive: true });
-      container.value.addEventListener('wheel', requestRender, { passive: true });
+      container.value.addEventListener("pointermove", requestRender, {
+        passive: true,
+      });
+      container.value.addEventListener("pointerdown", requestRender, {
+        passive: true,
+      });
+      container.value.addEventListener("wheel", requestRender, {
+        passive: true,
+      });
       // also resume on focus/key events
-      window.addEventListener('keydown', requestRender, { passive: true });
+      window.addEventListener("keydown", requestRender, { passive: true });
     }
   } catch (e) {
     /* ignore */
@@ -311,6 +336,34 @@ function onDebugApply(payload) {
   }
 }
 
+function onWorldGenApply(payload) {
+  try {
+    if (!payload || !payload.layers) return;
+    const layers = payload.layers;
+    // persist to settings store
+    try {
+      if (settings && typeof settings.mergeAtPath === 'function') {
+        settings.mergeAtPath({ path: 'worldMap', value: { generation: { layers: { ...layers } } } });
+      }
+    } catch (e) { /* ignore persistence errors */ }
+
+    // construct cfgPartial expected by shared generator: layers.enabled
+    const cfgPartial = { layers: { enabled: {} } };
+    // map layer35 key to layer3_5 expected by generator
+    for (const k of Object.keys(layers)) {
+      const mapped = k === 'layer35' ? 'layer3_5' : k;
+      cfgPartial.layers.enabled[mapped] = !!layers[k];
+    }
+
+    // apply to scene generator
+    try {
+      if (sceneInst && typeof sceneInst.setGeneratorConfig === 'function') {
+        sceneInst.setGeneratorConfig(cfgPartial);
+      }
+    } catch (e) { /* ignore */ }
+  } catch (e) { /* ignore */ }
+}
+
 onMounted(() => initScene());
 
 onBeforeUnmount(() => {
@@ -324,10 +377,10 @@ onBeforeUnmount(() => {
   }
   try {
     if (container.value && container.value.removeEventListener) {
-      container.value.removeEventListener('pointermove', requestRender);
-      container.value.removeEventListener('pointerdown', requestRender);
-      container.value.removeEventListener('wheel', requestRender);
-      window.removeEventListener('keydown', requestRender);
+      container.value.removeEventListener("pointermove", requestRender);
+      container.value.removeEventListener("pointerdown", requestRender);
+      container.value.removeEventListener("wheel", requestRender);
+      window.removeEventListener("keydown", requestRender);
     }
   } catch (e) {
     /* ignore */

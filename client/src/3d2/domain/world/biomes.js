@@ -67,8 +67,19 @@ export function mapBiome({ h = 0, slope = 0, lat = 0 } = {}) {
 
 // Helper that accepts generator cell shape { fields: { h, slope } }
 export function biomeFromCell(cell, extras = {}) {
-  if (!cell || !cell.fields) return { biome: 'plains', ...BIOME_PALETTE.plains };
-  const { h, slope } = cell.fields;
+  if (!cell) return { biome: 'plains', ...BIOME_PALETTE.plains };
+  // Accept either legacy { fields: { h, slope } } or new tile-shaped cell with
+  // { height } or { elevation: { normalized } }
+  let h = 0;
+  let slope = 0;
+  if (cell.fields) {
+    h = cell.fields.h ?? 0;
+    slope = cell.fields.slope ?? 0;
+  } else if (typeof cell.height === 'number') {
+    h = cell.height;
+  } else if (cell.elevation && typeof cell.elevation.normalized === 'number') {
+    h = cell.elevation.normalized;
+  }
   const lat = extras.lat ?? 0;
   return mapBiome({ h, slope, lat });
 }

@@ -94,10 +94,12 @@ export class WorldMapScene {
     this.grid = new WorldGrid(1);
     // create a world generator early so renderers can sample cell data
     try {
-      this._generator = createWorldGenerator('hex', 1337);
+      this._generatorSeed = 1337;
+      this._generator = createWorldGenerator('hex', this._generatorSeed);
     } catch (e) {
       console.debug('WorldMapScene: createWorldGenerator failed', e);
       this._generator = null;
+      this._generatorSeed = null;
     }
 
     // simplified clutter manager for 3d2: attach to scene and generate a lightweight set
@@ -220,6 +222,34 @@ export class WorldMapScene {
   // no debug logs
   }
 
+  // Replace the current generator config. cfg is forwarded as the shared
+  // generator's cfgPartial (controls layers.enabled and tunables). This will
+  // recreate the generator and trigger a rebuild of chunk neighborhood so new
+  // layer toggles take effect immediately.
+  async setGeneratorConfig(cfg = {}) {
+    try {
+      const seed = this._generatorSeed != null ? this._generatorSeed : 1337;
+      this._generator = createWorldGenerator('hex', seed, cfg);
+      // rebuild chunk neighborhood if manager present so instances reflect new tiles
+      if (this.chunkManager && typeof this.chunkManager.build === 'function') {
+        try {
+          await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+        } catch (e) {
+          // bubbling rebuild failed; ignore
+        }
+      }
+      // commit clutter if supported so clutter reflects new generator
+      try {
+        if (this.commitClutterForNeighborhood) this.commitClutterForNeighborhood();
+        if (this.chunkManager && typeof this.chunkManager.commitClutterForNeighborhood === 'function') this.chunkManager.commitClutterForNeighborhood();
+      } catch (e) {
+        // ignore
+      }
+    } catch (e) {
+      console.debug('WorldMapScene: setGeneratorConfig failed', e);
+    }
+  }
+
   // Create instanced markers for hex centers (flat-top axial layout -> x,z)
   _createGridInstances(radius) {
   // Root-cause protection: if a ChunkManager is active, do not create the
@@ -267,14 +297,19 @@ export class WorldMapScene {
         for (let i = 0; i < positions.length; i++) {
           const p = positions[i];
           // default scale and color
-          let yScale = 1.0;
+        let yScale = 1.0; // Default yScale
           let topCol = new THREE.Color(0xeeeeee);
           let sideCol = new THREE.Color(0xcccccc);
           try {
             if (gen && typeof gen.get === 'function') {
               const cell = gen.get(p.q, p.r);
-              const bio = biomeFromCell(cell);
-              yScale = (bio && bio.yScale) || 1.0;
+          // derive elevation from the canonical tile shape first, fall back to legacy fields.h
+          let elev = 0;
+          if (cell && typeof cell.height === 'number') elev = cell.height;
+          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
+          yScale = Math.max(0.001, elev * 1.0);
+          // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields
+          const bio = biomeFromCell(cell);
               topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
               sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
             }
@@ -333,8 +368,12 @@ export class WorldMapScene {
           try {
             if (gen && typeof gen.get === 'function') {
               const cell = gen.get(p.q, p.r);
-              const bio = biomeFromCell(cell);
-              yScale = (bio && bio.yScale) || 1.0;
+          // prefer tile.height / elevation.normalized
+          let elev = 0;
+          if (cell && typeof cell.height === 'number') elev = cell.height;
+          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
+          yScale = Math.max(0.001, elev * 1.0);
+          const bio = biomeFromCell(cell);
               col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
             }
           } catch (e) { console.debug('WorldMapScene: sampling generator for cylinder failed', e); }

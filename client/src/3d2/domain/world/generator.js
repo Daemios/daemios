@@ -19,9 +19,9 @@ function populateEntities(seed, radius) {
     for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
       const cell = gen.get(q, r);
       // heuristic: prefer low slope, mid elevation land
-      const fields = cell.fields || {};
-      const elev = fields.h ?? 0;
-      const slope = fields.slope ?? 1;
+  // Accept tile-shaped cell or legacy fields wrapper
+  const elev = (typeof cell.height === 'number') ? cell.height : (cell.elevation && typeof cell.elevation.normalized === 'number' ? cell.elevation.normalized : (cell.fields && cell.fields.h) || 0);
+  const slope = (cell.fields && typeof cell.fields.slope === 'number') ? cell.fields.slope : 1;
       if (elev > 0.4 && elev < 0.8 && slope < 0.25) {
         // probabilistic placement using seeded RNG. Raised probability so
         // manual testing shows results more reliably.
