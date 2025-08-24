@@ -1,7 +1,7 @@
 import * as worldGen from './index';
 import { makeEntity } from '../entities';
 import { SeededRNG } from '../seeded';
-import { axialToXZ } from '@/3d2/config/layout';
+import { WorldGrid } from '../grid/WorldGrid';
 
 // Simple deterministic placement helper that samples generator cells inside a
 // radius and places a small set of entities (towns) at spots with high elevation
@@ -15,10 +15,11 @@ import { axialToXZ } from '@/3d2/config/layout';
 function populateEntities(seed, radius) {
   const gen = worldGen.createWorldGenerator('hex', seed);
   const rng = new SeededRNG(String(seed).split('').reduce((s,c)=>s+c.charCodeAt(0),0));
+  const grid = new WorldGrid(1);
   const entities = [];
   for (let q = -radius; q <= radius; q++) {
     for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-      const { x, z } = axialToXZ(q, r);
+      const { x, z } = grid.cellToWorld({ q, r });
       const cell = gen.getByXZ(x, z);
       // heuristic: prefer low slope, mid elevation land
   // Accept tile-shaped cell or legacy fields wrapper

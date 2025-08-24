@@ -1,5 +1,5 @@
 // Minimal WorldGrid implementation for 3d2 domain (dependency-free)
-// Provides basic axial coords helpers used by the scene and domain utilities.
+// Provides basic coordinate helpers used by the scene and domain utilities.
 
 import { axialToXZ, getHexSize } from '@/3d2/config/layout';
 
@@ -13,38 +13,27 @@ export class WorldGrid {
 
   // Basic hex size used by renderer conventions in the scene code
   _hexSize() {
-  // map instance scale to centralized layout size
-  return getHexSize({ layoutRadius: this.scale, spacingFactor: 1 });
+    // map instance scale to centralized layout size
+    return getHexSize({ layoutRadius: this.scale, spacingFactor: 1 });
   }
 
-  // Convert axial (q,r) to world x,z (flat-top axial -> x,z)
-  axialToWorld(q, r) {
-  return axialToXZ(q, r, { layoutRadius: this.scale, spacingFactor: 1 });
+  // Convert cell index to world x,z. Accepts either {q,r} or packed index.
+  cellToWorld(idx) {
+    const { q, r } = typeof idx === 'object' ? idx : this._fromIndex(idx);
+    return axialToXZ(q, r, { layoutRadius: this.scale, spacingFactor: 1 });
   }
 
-  // Approximate conversion from world x,z back to axial q,r
-  worldToAxial(x, z) {
-  const HEX_SIZE = this._hexSize();
-  // inverse math for flat-top axial
-  const q = (2 / 3) * (x / HEX_SIZE);
-  const r = ((-1 / 3) * (x / HEX_SIZE)) + ((1 / Math.sqrt(3)) * (z / HEX_SIZE));
-  // return fractional axial; callers can round if needed
-  return { q, r };
+  // Approximate conversion from world x,z back to a cell index
+  worldToCell(x, z) {
+    const HEX_SIZE = this._hexSize();
+    // inverse math for flat-top axial
+    const q = (2 / 3) * (x / HEX_SIZE);
+    const r = ((-1 / 3) * (x / HEX_SIZE)) + ((1 / Math.sqrt(3)) * (z / HEX_SIZE));
+    // return rounded axial as cell index
+    return { q: Math.round(q), r: Math.round(r) };
   }
 
-  // Return axial neighbors for q,r (6 neighbors)
-  neighbors(q, r) {
-    return [
-      { q: q + 1, r: r },
-      { q: q - 1, r: r },
-      { q: q, r: r + 1 },
-      { q: q, r: r - 1 },
-      { q: q + 1, r: r - 1 },
-      { q: q - 1, r: r + 1 },
-    ];
-  }
-
-  // Simple axial distance (using cube coords via axial conversion)
+  // Simple distance (using cube coords via axial conversion)
   distance(a, b) {
     const aq = a.q, ar = a.r;
     const bq = b.q, br = b.r;
@@ -55,6 +44,18 @@ export class WorldGrid {
     const bz = br;
     const by = -bx - bz;
     return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
+  }
+
+  // Optional helpers for packed indices if callers provide numeric keys
+  _fromIndex(i) {
+    if (typeof i === 'string') {
+      const [q, r] = i.split(',').map(Number);
+      return { q, r };
+    }
+    // if numeric assume simple packing via bit shifting
+    const q = (i >> 16) | 0;
+    const r = (i & 0xffff) << 16 >> 16; // sign extend
+    return { q, r };
   }
 }
 
