@@ -9,4 +9,4 @@ export const createWorldGenerator = gen.createWorldGenerator;
 export const registerWorldGenerator = gen.registerWorldGenerator;
 
 // Intentionally minimal: consumers should treat the returned generator as an
-// opaque object with `get(q,r)` and optional `setTuning`.
+// opaque object with `getByXZ(x,z)` (and legacy `get(q,r)`) and optional `setTuning`.
