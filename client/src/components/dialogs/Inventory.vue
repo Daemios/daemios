@@ -38,7 +38,7 @@
         v-model:page="page"
         :items="inventory"
         :search="search"
-        :sort-by="sortBy.toLowerCase()"
+  :sort-by="[ sortBy.toLowerCase() ]"
         :sort-desc="sortDesc"
         class="overflow-hidden"
       >
@@ -144,7 +144,7 @@ const search = ref("");
 // filter (unused) intentionally omitted
 const sortDesc = ref(false);
 const page = ref(1);
-const sortBy = ref("name");
+const sortBy = ref("Label");
 const keys = ["Label", "Rarity", "Quantity"];
 
 // Stores
