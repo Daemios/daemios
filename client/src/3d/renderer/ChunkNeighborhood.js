@@ -320,7 +320,7 @@ export default class ChunkNeighborhood {
         const gCol = baseCol + col;
         const gRow = baseRow + row;
         const q = gCol; // even-q offset -> axial
-        const r = gRow - Math.floor(gCol / 2);
+        const r = gRow - Math.floor((gCol + (gCol & 1)) / 2);
         const x = hexWidth * q;
         const z = hexHeight * (r + q / 2);
         // Sampled timing: cell fetch
