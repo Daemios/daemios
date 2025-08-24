@@ -131,11 +131,32 @@ export default class ChunkManager {
       const rowStart = chunkY * rows;
       const rowEnd = rowStart + rows - 1;
       for (let col = colStart; col <= colEnd; col++) {
-        for (let row = rowStart; row <= rowEnd; row++) {
+      for (let row = rowStart; row <= rowEnd; row++) {
           const ax = offsetToAxial(col, row);
-          const pos = axialToXZ(ax.q, ax.r, { layoutRadius: this.layoutRadius, spacingFactor: this.spacingFactor });
-          const axial = XZToAxial(pos.x, pos.z, { layoutRadius: this.layoutRadius, spacingFactor: this.spacingFactor });
-          positions.push({ x: pos.x, z: pos.z, q: axial.q, r: axial.r, chunkX, chunkY });
+          // Compute coordinates for rendering using the configured spacingFactor
+          const pos = axialToXZ(ax.q, ax.r, {
+            layoutRadius: this.layoutRadius,
+            spacingFactor: this.spacingFactor
+          });
+          // Compute uncompressed world coordinates for generator sampling with spacingFactor 1
+          const samplePos = axialToXZ(ax.q, ax.r, {
+            layoutRadius: this.layoutRadius,
+            spacingFactor: 1
+          });
+          const axial = XZToAxial(pos.x, pos.z, {
+            layoutRadius: this.layoutRadius,
+            spacingFactor: this.spacingFactor
+          });
+          positions.push({
+            x: pos.x,
+            z: pos.z,
+            worldX: samplePos.x,
+            worldZ: samplePos.z,
+            q: axial.q,
+            r: axial.r,
+            chunkX,
+            chunkY
+          });
         }
       }
     }
@@ -183,7 +204,7 @@ export default class ChunkManager {
       try {
         if (this.generator) {
           let tile;
-          if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.x, p.z);
+          if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
           else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
           const bio = biomeFromCell(tile);
           // Expect tile shape: prefer tile.height, then tile.elevation.normalized
