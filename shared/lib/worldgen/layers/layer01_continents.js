@@ -1,8 +1,9 @@
 // shared/lib/worldgen/layers/layer01_continents.js
 // Layer 1: macro continents pass using a Voronoi/plate mask blended with low-frequency FBM
 
-import { fbm as fbmFactory, domainWarp } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../noiseUtils.js';
 import { makeSimplex } from '../noiseFactory.js';
+import { worldXZToAxial } from '../../../../client/src/3d2/config/layout.js';
 
 function seedStringToNumber(s) {
   let n = 0;
@@ -57,19 +58,14 @@ function findNearestPlate(q, r, plateSize, seedNum) {
 }
 
 function computeTilePart(ctx) {
-  const q = ctx.q;
-  const r = ctx.r;
   const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
   // Larger plate size for big continents (default set in DEFAULT_CONFIG)
   const plateSizeBase = (typeof cfg.plateCellSize === 'number') ? cfg.plateCellSize : 512;
   const plateSize = Math.max(1, Math.round(plateSizeBase * (typeof cfg.continentScale === 'number' ? cfg.continentScale : 1)));
-  // smoothing: 0..1 blend between macro and local neighbor average to remove speckles
-  const smoothing = (typeof cfg.smoothing === 'number') ? Math.max(0, Math.min(1, cfg.smoothing)) : 0.25;
 
   // Use a single global-noise sampler (seeded only by the world seed) so sampling
   // across tiles is continuous. Passing q,r to makeSimplex creates per-tile noise
   // functions which breaks continuity and produces stripes/artifacts.
-  const seedNum = seedStringToNumber(String(ctx.seed || '0'));
   const noise = makeSimplex(String(ctx.seed));
 
   // Stricter macro: single-octave FBM and lower gain so macro is very smooth.
@@ -77,11 +73,10 @@ function computeTilePart(ctx) {
   const macroOctaves = Math.max(1, (fbmCfg.octaves ? Math.max(1, Math.floor(fbmCfg.octaves)) : 1));
   const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 1.8, fbmCfg.gain || 0.3);
 
-  // Sample in world-space so wavelengths map to true hex spacing.
-  const worldX = ctx.x;
-  const worldZ = ctx.z;
-  const sx = worldX / plateSize;
-  const sy = worldZ / plateSize;
+  // Convert world X/Z to fractional axial coords so hex anisotropy is preserved
+  const { q: qf, r: rf } = worldXZToAxial(ctx.x, ctx.z, { layoutRadius: 1, spacingFactor: 1 });
+  const sx = qf / plateSize;
+  const sy = rf / plateSize;
   // Avoid domain warp for the macro pass (it injects high-frequency energy)
   const v = macroSampler(sx, sy); // -1..1
   const macro = Math.max(0, Math.min(1, (v + 1) / 2));
@@ -122,20 +117,24 @@ function computeTilePart(ctx) {
 
 // fallback deterministic shallow pattern when layer is disabled
 function fallback(ctx) {
-  const q = ctx.q;
-  const r = ctx.r;
+  const { q: qf, r: rf } = worldXZToAxial(ctx.x, ctx.z, { layoutRadius: 1, spacingFactor: 1 });
   const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
   const plateSize = cfg.plateCellSize || 256;
   // cheap deterministic pattern
-  const v = Math.abs(Math.sin((q * 12.9898 + r * 78.233) % 1));
+  const v = Math.abs(Math.sin((qf * 12.9898 + rf * 78.233) % 1));
   const base = Math.max(0, Math.min(1, v));
   const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
   const h = base * seaLevel * 0.9; // keep fallback under sea level mostly
   const isWater = h <= seaLevel;
   const depthBand = isWater ? 'shallow' : 'land';
-  const plateId = Math.abs(Math.floor((q + r) / plateSize));
-  const edgeDistance = Math.abs((q + r) % plateSize - (plateSize / 2)) / plateSize;
-  return { elevation: { raw: h, normalized: h }, bathymetry: { depthBand, seaLevel }, slope: 0.0, plate: { id: plateId, edgeDistance } };
+  const plateId = Math.abs(Math.floor((qf + rf) / plateSize));
+  const edgeDistance = Math.abs((qf + rf) % plateSize - (plateSize / 2)) / plateSize;
+  return {
+    elevation: { raw: h, normalized: h },
+    bathymetry: { depthBand, seaLevel },
+    slope: 0.0,
+    plate: { id: plateId, edgeDistance }
+  };
 }
 
 export { computeTilePart, fallback };
