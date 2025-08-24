@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
-import { axialToXZ } from '@/3d2/renderer/coordinates';
+import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
 import { offsetToAxial } from '@/3d/utils/hexUtils';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
 
@@ -134,7 +134,8 @@ export default class ChunkManager {
         for (let row = rowStart; row <= rowEnd; row++) {
           const ax = offsetToAxial(col, row);
           const pos = axialToXZ(ax.q, ax.r, { layoutRadius: this.layoutRadius, spacingFactor: this.spacingFactor });
-          positions.push({ x: pos.x, z: pos.z, q: ax.q, r: ax.r, chunkX, chunkY });
+          const axial = XZToAxial(pos.x, pos.z, { layoutRadius: this.layoutRadius, spacingFactor: this.spacingFactor });
+          positions.push({ x: pos.x, z: pos.z, q: axial.q, r: axial.r, chunkX, chunkY });
         }
       }
     }

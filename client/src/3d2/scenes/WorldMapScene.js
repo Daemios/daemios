@@ -5,7 +5,7 @@ import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
 import { createWorldGenerator } from '@/3d2/domain/world';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
-import { axialToXZ } from '@/3d2/renderer/coordinates';
+import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
 import { BASE_HEX_SIZE } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
 import { createOrbitControls } from '@/3d2/interaction/orbitControls';
@@ -262,7 +262,8 @@ export class WorldMapScene {
       for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
     // flat-top axial to x,z using model-derived layoutRadius so tiles align with geometry
     const pos = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
-    positions.push({ x: pos.x, z: pos.z, q, r });
+    const axial = XZToAxial(pos.x, pos.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+    positions.push({ x: pos.x, z: pos.z, q: axial.q, r: axial.r });
       }
     }
 
@@ -305,7 +306,10 @@ export class WorldMapScene {
             if (gen) {
               let cell;
               if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
-              else if (typeof gen.get === 'function') cell = gen.get(p.q, p.r);
+              else if (typeof gen.get === 'function') {
+                const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                cell = gen.get(a.q, a.r);
+              }
               // derive elevation from the canonical tile shape first, fall back to legacy fields.h
               let elev = 0;
               if (cell && typeof cell.height === 'number') elev = cell.height;
@@ -372,7 +376,10 @@ export class WorldMapScene {
             if (gen) {
               let cell;
               if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
-              else if (typeof gen.get === 'function') cell = gen.get(p.q, p.r);
+              else if (typeof gen.get === 'function') {
+                const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                cell = gen.get(a.q, a.r);
+              }
               // prefer tile.height / elevation.normalized
               let elev = 0;
               if (cell && typeof cell.height === 'number') elev = cell.height;
@@ -522,7 +529,7 @@ export class WorldMapScene {
     }
   }
 
-  // show entity markers; entities: [{ type, pos: { q,r }, ... }]
+  // show entity markers; entities: [{ type, pos: { x,z }, ... }]
   showEntities(entities) {
     // clear previous
     if (this._entityGroup) {
@@ -546,10 +553,8 @@ export class WorldMapScene {
     const geom = new THREE.SphereGeometry(0.6, 10, 10);
     for (let i = 0; i < entities.length; i++) {
       const e = entities[i];
-      const q = e.pos && typeof e.pos.q === 'number' ? e.pos.q : 0;
-      const r = e.pos && typeof e.pos.r === 'number' ? e.pos.r : 0;
-  // use centralized layout helper for axial->world conversion
-  const { x, z } = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+      const x = e.pos && typeof e.pos.x === 'number' ? e.pos.x : 0;
+      const z = e.pos && typeof e.pos.z === 'number' ? e.pos.z : 0;
       const mat = new THREE.MeshStandardMaterial({ color: 0x3388ff });
       const m = new THREE.Mesh(geom, mat);
       m.position.set(x, 0.6, z);
