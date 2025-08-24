@@ -30,12 +30,14 @@ function createHexGenerator(seed, opts = {}) {
 
   function heightAt(q, r) {
     // Macro continental mask (smooth, large scale)
-    const macro = continentalMask(noise, q, r, worldConfig.plateCellSize || 48);
+    const x = q;
+    const z = r;
+    const macro = continentalMask(noise, x, z, worldConfig.plateCellSize || 48);
 
     // Mesoscale detail: sample at tile scale using FBM & warp
-    const x = q / scale;
-    const y = r / scale;
-    const w = domainWarp(noise, x, y, warpCfg);
+    const nx = q / scale;
+    const ny = r / scale;
+    const w = domainWarp(noise, nx, ny, warpCfg);
     const v = fbmSampler(w.x, w.y); // -1..1
     const detail = (v + 1) / 2;
 
