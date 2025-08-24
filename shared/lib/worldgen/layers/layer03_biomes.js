@@ -2,6 +2,7 @@
 // Layer 3: biome selection & blending (stub)
 
 import { fbm, valueNoise } from '../noiseUtils.js';
+import { makeSimplex } from '../noiseFactory.js';
 
 const MAJOR = ['ocean','beach','plains','forest','hill','mountain','snow'];
 
@@ -16,10 +17,16 @@ function chooseMajor(ctx, h) {
 }
 
 function computeTilePart(ctx) {
-  const h = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation) ? ctx.partials.layer1.elevation.normalized : fbm(ctx, ctx.x * 0.01, ctx.z * 0.01, 3);
+  const noise = makeSimplex(String(ctx.seed));
+  const baseSampler = fbm(noise, 3, 2.0, 0.5);
+  const h = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation)
+    ? ctx.partials.layer1.elevation.normalized
+    : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2;
   const major = chooseMajor(ctx, h);
   // pick a secondary candidate with a small noise weight for blending
-  const secIdx = Math.floor(fbm(ctx, ctx.x * 0.03, ctx.z * 0.03, 2) * MAJOR.length) % MAJOR.length;
+  const secSampler = fbm(noise, 2, 2.0, 0.5);
+  const secVal = (secSampler(ctx.x * 0.03, ctx.z * 0.03) + 1) / 2;
+  const secIdx = Math.floor(secVal * MAJOR.length) % MAJOR.length;
   const secondary = MAJOR[secIdx];
   const blend = Math.abs(valueNoise(ctx, ctx.x * 0.07, ctx.z * 0.07) - 0.5) * 2 * 0.5; // 0..0.5
   return { biome: { major, secondary, blend } };

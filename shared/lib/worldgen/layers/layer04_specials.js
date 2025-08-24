@@ -2,11 +2,14 @@
 // Layer 4: special/rare regions (stub)
 
 import { fbm } from '../noiseUtils.js';
+import { makeSimplex } from '../noiseFactory.js';
 
 const SPECIALS = ['frozen_jungle','volcanic_seafloor','glass_desert','obsidian_flats','mushroom_glade'];
 
 function computeTilePart(ctx) {
-  const v = fbm(ctx, ctx.x * 0.002, ctx.z * 0.002, 2);
+  const noise = makeSimplex(String(ctx.seed));
+  const sampler = fbm(noise, 2, 2.0, 0.5);
+  const v = (sampler(ctx.x * 0.002, ctx.z * 0.002) + 1) / 2;
   // rarity threshold depends on rarityMultiplier
   const thr = 0.995 * (1 / (ctx.cfg.layers.layer4.rarityMultiplier || 1));
   if (v > thr) {
