@@ -61,6 +61,13 @@ function axialToPlane(q, r) {
   return { x, y };
 }
 
+// Inverse of axialToPlane for flat-top hexes
+function planeToAxial(x, y) {
+  const q = x / 1.5;
+  const r = y / SQRT3 - q / 2;
+  return { q, r };
+}
+
 // Worley (cellular) distance to closest and 2nd closest feature points in 3x3 neighborhood
 function worley2F12(x, y, cellSize, seed) {
   const cx = Math.floor(x / cellSize);
@@ -557,12 +564,17 @@ export function createHexGenerator(seed) {
     };
   }
 
+  function getByXZ(x, z) {
+    const { q, r } = planeToAxial(x, z);
+    return get(q, r);
+  }
+
   function setTuning(newTuning = {}) {
     tuning = { ...tuning, ...newTuning };
     applyTuning();
   }
 
-  return { get, setTuning };
+  return { get, getByXZ, setTuning };
 }
 
 export function computeHex(seed, q, r) {
