@@ -10,6 +10,13 @@ import SimplexNoise from 'simplex-noise';
 import { biomeColor, classifyBiome, BIOME_THRESHOLDS } from '../terrain/biomes';
 import { createWorldGenerator } from './generation';
 
+const SQRT3 = Math.sqrt(3);
+function axialToPlane(q, r) {
+  const x = 1.5 * q;
+  const y = SQRT3 * (r + q / 2);
+  return { x, y };
+}
+
 export default class WorldGrid {
   constructor(opts = {}) {
     this.layoutRadius = opts.layoutRadius ?? 0.5;
@@ -127,9 +134,10 @@ export default class WorldGrid {
   }
 
   getHeight(q, r) {
-    const base = (this.heightNoise.noise2D(q * this.terrainShape.baseFreq, r * this.terrainShape.baseFreq) + 1) / 2;
+    const { x, y } = axialToPlane(q, r);
+    const base = (this.heightNoise.noise2D(x * this.terrainShape.baseFreq, y * this.terrainShape.baseFreq) + 1) / 2;
     const plains = Math.pow(base, this.terrainShape.plainsExponent);
-    const mRaw = (this.mountainNoise.noise2D(q * this.terrainShape.mountainFreq + 250, r * this.terrainShape.mountainFreq + 250) + 1) / 2;
+    const mRaw = (this.mountainNoise.noise2D(x * this.terrainShape.mountainFreq + 250, y * this.terrainShape.mountainFreq + 250) + 1) / 2;
     let mountain = 0;
     if (mRaw > this.terrainShape.mountainThreshold) {
       const norm = (mRaw - this.terrainShape.mountainThreshold) / (1 - this.terrainShape.mountainThreshold);
@@ -153,13 +161,14 @@ export default class WorldGrid {
   const s = (this.generationScale && isFinite(this.generationScale) && this.generationScale > 0) ? this.generationScale : 1.0;
   const qg = q / s; const rg = r / s;
   const gen = this.hexGen.get(qg, rg);
+  const { x, y } = axialToPlane(q, r);
     const hRaw = gen.fields?.h ?? 0; // 0..1 elevation composite
     // Map generator climate to our existing foliage/temp channels used by biomeColor
     const f = gen.fields?.moisture ?? 0.5; // treat moisture as foliage proxy
     const t = gen.fields?.temp ?? 0.5; // climate temperature 0..1
 
     // Shoreline floor and lake mask (retain subtle shaping so beaches get a lift)
-    const waterMask = (this.waterMaskNoise.noise2D((q + 250) * 0.035, (r - 120) * 0.035) + 1) / 2;
+    const waterMask = (this.waterMaskNoise.noise2D((x + 250) * 0.035, (y - 120) * 0.035) + 1) / 2;
     const waterCut = THREE.MathUtils.smoothstep(waterMask, 0.6, 0.85);
 
     const curved = Math.pow(hRaw, this.elevation.curve);
