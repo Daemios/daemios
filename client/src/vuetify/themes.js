@@ -5,17 +5,31 @@ export default {
   themes: {
     dark: {
       colors: {
-        primary: "#49b69d",
-        tertiary: "#49a9b6",
+        // Primary UI: deep forest green (action buttons, highlights)
+        primary: "#2E6A42",
+        // Secondary / accents: mystical purple for magic/menus
+        secondary: "#6B4B94",
+        // Tertiary / subtle accents: warm teal for interest
+        tertiary: "#4FA3A3",
 
-        "turn-inactive": "#AAAAAA",
-        "turn-active": "#FFD700",
-        enemy: "#cc0000",
-        "enemy-border": "#ff0000",
-        ally: "#0099cc",
-        "ally-border": "#00bfff",
-        player: "#63c900",
-        "player-border": "#7cfc00",
+        // Background tones (for overlays / panels)
+        "surface": "#0F1B16",
+        "surface-2": "#16261F",
+
+        // Warm parchment/gold accents for actionable or important UI
+        "accent-gold": "#D9A441",
+
+        // Turn/flow indicators
+        "turn-inactive": "#7E7E7E",
+        "turn-active": "#D9A441",
+
+        // Entity colors tuned for fantasy readability
+        enemy: "#B33A3A",
+        "enemy-border": "#D9534F",
+        ally: "#3B82A1",
+        "ally-border": "#5FB4D1",
+        player: "#8BC34A",
+        "player-border": "#B9F6AE",
       },
     },
   },
