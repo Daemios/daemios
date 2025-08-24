@@ -10,6 +10,15 @@ export default defineConfig(({ mode }) => {
       vue(),
       vuetify({ autoImport: true }),
     ],
+    // Ensure Vuetify is treated correctly by Vite's optimizer and SSR handling.
+    // This prevents Vite from rewriting component CSS imports to paths that
+    // don't exist in certain package builds.
+    optimizeDeps: {
+      include: ['vuetify'],
+    },
+    ssr: {
+      noExternal: ['vuetify'],
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

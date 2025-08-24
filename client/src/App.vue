@@ -12,6 +12,7 @@
     </v-main>
 
     <!-- Micro menu -->
+    <MicroMenu />
 
     <!-- Websocket lock -->
     <v-dialog :model-value="!socket.connection" persistent max-width="400">
