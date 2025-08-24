@@ -116,7 +116,7 @@ export class WorldMapScene {
   try { this._clutter.prepareFromGrid(this.grid); } catch (e) { console.debug('WorldMapScene: clutter.prepareFromGrid failed', e); }
       try {
         // commit an initial region matching the grid radius
-  this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -this._gridRadius, qMax: this._gridRadius, rMin: -this._gridRadius, rMax: this._gridRadius } });
+    this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, cellRect: { xMin: -this._gridRadius, xMax: this._gridRadius, zMin: -this._gridRadius, zMax: this._gridRadius } });
       } catch (e) {
         console.debug('WorldMapScene: clutter.commitInstances failed', e);
       }
@@ -475,7 +475,7 @@ export class WorldMapScene {
     try {
       if (this._clutter) {
         try { this._clutter.prepareFromGrid(this.grid); } catch (e) { console.debug('WorldMapScene: clutter.prepareFromGrid failed (setGridRadius)', e); }
-        // if chunkManager exists compute axialRect based on chunk extents
+        // if chunkManager exists compute cellRect based on chunk extents
         if (this.chunkManager) {
           const cols = this.chunkManager.chunkCols || 8;
           const rows = this.chunkManager.chunkRows || 8;
@@ -483,14 +483,14 @@ export class WorldMapScene {
           const cx = this.chunkManager.centerChunk ? this.chunkManager.centerChunk.x : 0;
           const cy = this.chunkManager.centerChunk ? this.chunkManager.centerChunk.y : 0;
           const rect = {
-            qMin: (cx - nr) * cols,
-            qMax: (cx + nr) * cols + (cols - 1),
-            rMin: (cy - nr) * rows,
-            rMax: (cy + nr) * rows + (rows - 1),
+            xMin: (cx - nr) * cols,
+            xMax: (cx + nr) * cols + (cols - 1),
+            zMin: (cy - nr) * rows,
+            zMax: (cy + nr) * rows + (rows - 1),
           };
-          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: rect });
+          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, cellRect: rect });
         } else {
-          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, axialRect: { qMin: -radius, qMax: radius, rMin: -radius, rMax: radius } });
+          this._clutter.commitInstances({ layoutRadius: this._layoutRadius || 1, contactScale: 0.6, hexMaxY: 1, modelScaleY: () => 1, cellRect: { xMin: -radius, xMax: radius, zMin: -radius, zMax: radius } });
         }
       }
     } catch (e) {

@@ -19,7 +19,7 @@ function populateEntities(seed, radius) {
   const entities = [];
   for (let q = -radius; q <= radius; q++) {
     for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-      const { x, z } = grid.cellToWorld({ q, r });
+        const { x, z } = grid.cellToWorld({ x: q, z: r });
       const cell = gen.getByXZ(x, z);
       // heuristic: prefer low slope, mid elevation land
   // Accept tile-shaped cell or legacy fields wrapper

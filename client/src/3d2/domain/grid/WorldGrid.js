@@ -17,10 +17,10 @@ export class WorldGrid {
     return getHexSize({ layoutRadius: this.scale, spacingFactor: 1 });
   }
 
-  // Convert cell index to world x,z. Accepts either {q,r} or packed index.
+  // Convert cell index to world x,z. Accepts either {x,z} or packed index.
   cellToWorld(idx) {
-    const { q, r } = typeof idx === 'object' ? idx : this._fromIndex(idx);
-    return axialToXZ(q, r, { layoutRadius: this.scale, spacingFactor: 1 });
+    const { x, z } = typeof idx === 'object' ? this._normalizeCell(idx) : this._fromIndex(idx);
+    return axialToXZ(x, z, { layoutRadius: this.scale, spacingFactor: 1 });
   }
 
   // Approximate conversion from world x,z back to a cell index
@@ -29,19 +29,17 @@ export class WorldGrid {
     // inverse math for flat-top axial
     const q = (2 / 3) * (x / HEX_SIZE);
     const r = ((-1 / 3) * (x / HEX_SIZE)) + ((1 / Math.sqrt(3)) * (z / HEX_SIZE));
-    // return rounded axial as cell index
-    return { q: Math.round(q), r: Math.round(r) };
+    // return rounded axial as cell index using common {x,z} keys
+    return { x: Math.round(q), z: Math.round(r) };
   }
 
   // Simple distance (using cube coords via axial conversion)
   distance(a, b) {
-    const aq = a.q, ar = a.r;
-    const bq = b.q, br = b.r;
-    const ax = aq;
-    const az = ar;
+    const ax = a.x ?? a.q;
+    const az = a.z ?? a.r;
+    const bx = b.x ?? b.q;
+    const bz = b.z ?? b.r;
     const ay = -ax - az;
-    const bx = bq;
-    const bz = br;
     const by = -bx - bz;
     return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
   }
@@ -49,13 +47,18 @@ export class WorldGrid {
   // Optional helpers for packed indices if callers provide numeric keys
   _fromIndex(i) {
     if (typeof i === 'string') {
-      const [q, r] = i.split(',').map(Number);
-      return { q, r };
+      const [x, z] = i.split(',').map(Number);
+      return { x, z };
     }
     // if numeric assume simple packing via bit shifting
-    const q = (i >> 16) | 0;
-    const r = (i & 0xffff) << 16 >> 16; // sign extend
-    return { q, r };
+    const x = (i >> 16) | 0;
+    const z = (i & 0xffff) << 16 >> 16; // sign extend
+    return { x, z };
+  }
+
+  // normalize accepts {q,r} or {x,z}
+  _normalizeCell(obj) {
+    return { x: obj.x ?? obj.q ?? 0, z: obj.z ?? obj.r ?? 0 };
   }
 }
 

@@ -1,12 +1,12 @@
 // Minimal square-grid nav placeholder (keeps API parity)
 export function findPathSquare(start, goal, neighborsFn, costFn) {
   // naive BFS for demo purposes
-  const startKey = `${start.x},${start.y}`;
-  const goalKey = `${goal.x},${goal.y}`;
+  const startKey = `${start.x},${start.z}`;
+  const goalKey = `${goal.x},${goal.z}`;
   const queue = [start];
   const cameFrom = new Map();
   const visited = new Set([startKey]);
-  function keyOf(p){ return `${p.x},${p.y}`; }
+  function keyOf(p){ return `${p.x},${p.z}`; }
   while (queue.length) {
     const cur = queue.shift();
     const ck = keyOf(cur);
@@ -14,13 +14,13 @@ export function findPathSquare(start, goal, neighborsFn, costFn) {
       const path = [];
       let k = ck;
       while (k) {
-        const [x,y] = k.split(',').map(Number);
-        path.unshift({ x, y });
+        const [x,z] = k.split(',').map(Number);
+        path.unshift({ x, z });
         k = cameFrom.get(k);
       }
       return path;
     }
-    const neighs = neighborsFn(cur.x, cur.y) || [];
+    const neighs = neighborsFn(cur.x, cur.z) || [];
     for (const n of neighs) {
       const nk = keyOf(n);
       if (visited.has(nk)) continue;
