@@ -1,5 +1,5 @@
 import * as shared from '../../../../../shared/lib/worldgen/index.js';
-import { worldXZToAxial, roundAxial, axialToXZ } from '../../config/layout.js';
+import { axialToXZ } from '../../config/layout.js';
 
 // Minimal adapter: return the shared Tile object directly. Consumers should
 // use the tile shape (tile.elevation, tile.height, tile.palette, etc.).
@@ -8,18 +8,17 @@ export const availableWorldGenerators = ['hex:shared'];
 export function createWorldGenerator(type = 'hex', seed = 'seed', opts = {}) {
   let cfg = opts || {};
   return {
-    // Deprecated: prefer getByXZ(x,z)
-    get(q, r, x, z) {
-      if (typeof x !== 'number' || typeof z !== 'number') {
-        const coords = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
-        x = coords.x; z = coords.z;
-      }
+    getByXZ(x, z, q, r) {
       return shared.generateTile(seed, q, r, x, z, cfg);
     },
-    getByXZ(x, z) {
-      const frac = worldXZToAxial(x, z, { layoutRadius: 1, spacingFactor: 1 });
-      const { q, r } = roundAxial(frac.q, frac.r);
-      return this.get(q, r, x, z);
+    // Helper for hex callers: derive world {x,z} from {q,r}
+    getByQR(q, r) {
+      const coords = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
+      return this.getByXZ(coords.x, coords.z, q, r);
+    },
+    // Legacy: prefer getByQR(q,r) or getByXZ(x,z,q,r)
+    get(q, r) {
+      return this.getByQR(q, r);
     },
     setTuning(newOpts = {}) {
       cfg = Object.assign({}, cfg, newOpts);
