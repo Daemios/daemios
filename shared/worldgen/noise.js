@@ -1,4 +1,5 @@
-import SimplexNoise from 'simplex-noise';
+import * as SimplexNoiseModule from 'simplex-noise';
+const SimplexNoise = (SimplexNoiseModule && SimplexNoiseModule.default) || SimplexNoiseModule;
 
 const cache = new Map();
 const ATTRIBUTES = ['elevation', 'moisture', 'flora', 'passable', 'territory'];

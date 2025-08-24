@@ -21,7 +21,9 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'src'),
+  '@': path.resolve(__dirname, 'src'),
+  // allow imports like '@shared/...' to reference the workspace shared/ directory
+  '@shared': path.resolve(__dirname, '..', 'shared'),
       },
     },
     server: {
