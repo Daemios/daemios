@@ -1,4 +1,13 @@
-import { axialToCube, cubeToAxial, distanceAxial } from '../grid/coords';
+// Simple axial distance using cube coordinates (inline to avoid external imports)
+function distanceAxial(a, b) {
+  const ax = a.q;
+  const az = a.r;
+  const ay = -ax - az;
+  const bx = b.q;
+  const bz = b.r;
+  const by = -bx - bz;
+  return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
+}
 
 // Simple A* pathfinder for hex axial coordinates using a uniform cost heuristic
 export function findPathHex(start, goal, neighborsFn, costFn) {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
-import { axialToXZ } from '@/3d2/config/layout';
+import { axialToXZ } from '@/3d2/renderer/coordinates';
 import { offsetToAxial } from '@/3d/utils/hexUtils';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
 
