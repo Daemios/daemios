@@ -77,11 +77,12 @@ function computeTilePart(ctx) {
   const macroOctaves = Math.max(1, (fbmCfg.octaves ? Math.max(1, Math.floor(fbmCfg.octaves)) : 1));
   const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 1.8, fbmCfg.gain || 0.3);
 
-  // Sample in world-space so wavelengths map to true hex spacing.
-  const worldX = ctx.x;
-  const worldZ = ctx.z;
-  const sx = worldX / plateSize;
-  const sy = worldZ / plateSize;
+  // Sample using axial cell units so plateSize operates on cell coordinates
+  // rather than world-space distances. This keeps the FBM wavelength aligned
+  // with the intended number of hex cells and avoids anisotropic stripes
+  // caused by mismatched world scaling.
+  const sx = q / plateSize;
+  const sy = r / plateSize;
   // Avoid domain warp for the macro pass (it injects high-frequency energy)
   const v = macroSampler(sx, sy); // -1..1
   const macro = Math.max(0, Math.min(1, (v + 1) / 2));
