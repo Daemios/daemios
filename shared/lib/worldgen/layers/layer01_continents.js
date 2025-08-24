@@ -5,13 +5,20 @@
 import { fbm as fbmFactory, domainWarp } from '../noiseUtils.js';
 import { makeSimplex } from '../noiseFactory.js';
 
+// Axial (q,r) -> 2D plane coordinates for hex layout (radius = 1, flat-top)
+// Mirrors the client's axialToPlane to ensure noise sampling parity.
+const SQRT3 = Math.sqrt(3);
+function axialToPlane(q, r) {
+  return { x: 1.5 * q, y: SQRT3 * (r + q / 2) };
+}
+
 // Re-implement the client's continentalMask logic here to improve parity.
-function continentalMask(noise, q, r, scale = 48, cfg = {}) {
-  const x = q / scale;
-  const y = r / scale;
+function continentalMask(noise, x, y, scale = 48, cfg = {}) {
+  const sx = x / scale;
+  const sy = y / scale;
 
   const warpCfg = cfg.domainWarp || { ampA: 0.8, freqA: 0.3, ampB: 0.25, freqB: 2.0 };
-  const warped = domainWarp(noise, x, y, warpCfg);
+  const warped = domainWarp(noise, sx, sy, warpCfg);
 
   const fbmCfg = cfg.fbm || { octaves: 5, lacunarity: 2.0, gain: 0.5 };
   const macroOctaves = Math.max(3, (fbmCfg.octaves || 5) - 1);
@@ -45,12 +52,15 @@ function computeTilePart(ctx) {
   const fbmSampler = fbmFactory(noise, cfg.fbmOctaves || 4, cfg.lacunarity || 2.0, cfg.gain || 0.5);
 
   // Macro continental mask using client-like algorithm
-  const macro = continentalMask(noise, q, r, cfg.plateCellSize || 48, cfg);
+  const { x, y } = axialToPlane(q, r);
+
+  // Macro continental mask using client-like algorithm (uses plane coords)
+  const macro = continentalMask(noise, x, y, cfg.plateCellSize || 48, cfg);
 
   // Mesoscale detail using domain warp and FBM
-  const x = q / scale;
-  const y = r / scale;
-  const warp = domainWarp(noise, x, y, cfg.domainWarp || {});
+  const xs = x / scale;
+  const ys = y / scale;
+  const warp = domainWarp(noise, xs, ys, cfg.domainWarp || {});
   const v = fbmSampler(warp.x, warp.y); // -1..1
   const detail = (v + 1) / 2;
 
@@ -63,8 +73,8 @@ function computeTilePart(ctx) {
   const depthBand = isWater ? (h < seaLevel - 0.15 ? 'deep' : 'shallow') : 'land';
 
   const plateSize = cfg.plateCellSize || 48;
-  const plateId = Math.abs(Math.floor((q + r) / plateSize));
-  const edgeDistance = Math.abs((q + r) % plateSize - (plateSize / 2)) / plateSize;
+  const plateId = Math.abs(Math.floor((x + y) / plateSize));
+  const edgeDistance = Math.abs(((x + y) % plateSize) - (plateSize / 2)) / plateSize;
 
   return {
     elevation: { raw: h, normalized: h },
