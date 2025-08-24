@@ -1,6 +1,7 @@
 import * as worldGen from './index';
 import { makeEntity } from '../entities';
 import { SeededRNG } from '../seeded';
+import { axialToXZ } from '@/3d2/config/layout';
 
 // Simple deterministic placement helper that samples generator cells inside a
 // radius and places a small set of entities (towns) at spots with high elevation
@@ -17,7 +18,8 @@ function populateEntities(seed, radius) {
   const entities = [];
   for (let q = -radius; q <= radius; q++) {
     for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-      const cell = gen.get(q, r);
+      const { x, z } = axialToXZ(q, r);
+      const cell = gen.getByXZ(x, z);
       // heuristic: prefer low slope, mid elevation land
   // Accept tile-shaped cell or legacy fields wrapper
   const elev = (typeof cell.height === 'number') ? cell.height : (cell.elevation && typeof cell.elevation.normalized === 'number' ? cell.elevation.normalized : (cell.fields && cell.fields.h) || 0);

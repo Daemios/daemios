@@ -302,11 +302,13 @@ export class WorldMapScene {
           let topCol = new THREE.Color(0xeeeeee);
           let sideCol = new THREE.Color(0xcccccc);
           try {
-            if (gen && typeof gen.get === 'function') {
-              const cell = gen.get(p.q, p.r);
-          // derive elevation from the canonical tile shape first, fall back to legacy fields.h
-          let elev = 0;
-          if (cell && typeof cell.height === 'number') elev = cell.height;
+            if (gen) {
+              let cell;
+              if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
+              else if (typeof gen.get === 'function') cell = gen.get(p.q, p.r);
+              // derive elevation from the canonical tile shape first, fall back to legacy fields.h
+              let elev = 0;
+              if (cell && typeof cell.height === 'number') elev = cell.height;
           else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
           yScale = Math.max(0.001, elev * 1.0);
           // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields
@@ -367,11 +369,13 @@ export class WorldMapScene {
           let yScale = 1.0;
           let col = new THREE.Color(0xeeeeee);
           try {
-            if (gen && typeof gen.get === 'function') {
-              const cell = gen.get(p.q, p.r);
-          // prefer tile.height / elevation.normalized
-          let elev = 0;
-          if (cell && typeof cell.height === 'number') elev = cell.height;
+            if (gen) {
+              let cell;
+              if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
+              else if (typeof gen.get === 'function') cell = gen.get(p.q, p.r);
+              // prefer tile.height / elevation.normalized
+              let elev = 0;
+              if (cell && typeof cell.height === 'number') elev = cell.height;
           else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
           yScale = Math.max(0.001, elev * 1.0);
           const bio = biomeFromCell(cell);

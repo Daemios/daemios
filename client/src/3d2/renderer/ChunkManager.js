@@ -26,7 +26,7 @@ export default class ChunkManager {
     this.features = opts.features || {};
     this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
     this.centerChunk = { x: opts.centerChunk?.x ?? 0, y: opts.centerChunk?.y ?? 0 };
-  // optional generator for sampling cell data (expects get(q,r) -> cell)
+  // optional generator for sampling cell data (expects getByXZ(x,z) -> cell)
   this.generator = opts.generator || null;
 
     // callbacks
@@ -180,8 +180,10 @@ export default class ChunkManager {
       let topCol = new THREE.Color(0xeeeeee);
       let sideCol = new THREE.Color(0xcccccc);
       try {
-        if (this.generator && typeof this.generator.get === 'function') {
-          const tile = this.generator.get(p.q, p.r);
+        if (this.generator) {
+          let tile;
+          if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.x, p.z);
+          else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
           const bio = biomeFromCell(tile);
           // Expect tile shape: prefer tile.height, then tile.elevation.normalized
           let elev = 0;
