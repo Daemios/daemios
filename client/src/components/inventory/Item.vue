@@ -5,12 +5,12 @@
   >
     <v-btn
       depressed
-      :color="item.color ? item.color : null"
+      :color="safeItem.color ? safeItem.color : null"
       class="slot-item overflow-hidden pa-0"
       @click="onClick"
     >
       <div
-        v-if="!item.img"
+        v-if="!safeItem.img"
         class="d-flex flex-column"
       >
         <v-icon class="mb-1">
@@ -20,8 +20,8 @@
       </div>
 
       <v-img
-        v-else-if="item.img"
-        :src="item.img"
+        v-else-if="safeItem.img"
+        :src="safeItem.img"
         :aspect-ratio="1.7778"
         contain
       />
@@ -35,8 +35,8 @@
       class="item-label"
       :class="itemLabelClasses"
     >
-      {{ item.label }}
-      <span v-if="item.quantity">- {{ item.quantity }}</span>
+      {{ safeItem.label }}
+      <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
   </v-card>
 </template>
@@ -52,16 +52,16 @@ const props = defineProps({
   },
   item: {
     type: Object,
-    default: null,
+    default: () => ({}),
   },
 });
 
 const itemClasses = computed(() => ({
   white: true,
-  "green accent-4": props.item?.rarity?.toLowerCase() === "uncommon",
-  "blue accent-3": props.item?.rarity?.toLowerCase() === "rare",
-  "deep-purple accent-4": props.item?.rarity?.toLowerCase() === "epic",
-  "orange darken-1": props.item?.rarity?.toLowerCase() === "legendary",
+  "green accent-4": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "uncommon"),
+  "blue accent-3": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "rare"),
+  "deep-purple accent-4": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "epic"),
+  "orange darken-1": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "legendary"),
 }));
 
 const emit = defineEmits(["click"]);
@@ -71,8 +71,12 @@ function onClick() {
 }
 
 const itemLabelClasses = computed(() => ({
-  "has-img": props.item.img,
+  "has-img": (props.item && props.item.img),
 }));
+
+// Safe item wrapper so template can safely access properties even when parent
+// explicitly passes null (Vue will not use prop default if the parent provided null).
+const safeItem = computed(() => props.item || {});
 </script>
 
 <style>

@@ -1,8 +1,8 @@
 <template>
   <Item
-    :label="item.slot"
+    :label="label"
     :class="dollSlotClasses"
-    :item="item"
+    :item="safeItem"
     @click="$emit('click')"
   />
 </template>
@@ -32,6 +32,13 @@ const dollSlotClasses = computed(() => ({
   "doll-left": props.left,
   "doll-right": props.right,
 }));
+
+const label = computed(() => {
+  // support null item gracefully
+  return props.item && props.item.slot ? props.item.slot : "";
+});
+
+const safeItem = computed(() => props.item || {});
 </script>
 
 <style>

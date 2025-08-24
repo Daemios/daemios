@@ -9,14 +9,14 @@
     <v-card class="item-slot-dialog">
       <!-- TODO make this img only be a small part and animate it to float -->
       <!-- TODO background color based on rarity with a circular darken effect on edges -->
-      <v-img
-        :src="show.img"
-        aspect-ratio="1.7778"
-      />
+          <v-img
+            :src="safeShow.img"
+            aspect-ratio="1.7778"
+          />
       <div class="item-info white--text pa-2">
         <!-- Stats -->
         <div
-          v-if="show.stats"
+    v-if="safeShow.stats"
           class="stats d-flex"
         >
           <div
@@ -28,50 +28,50 @@
               {{ stat.label }}
             </div>
             <div class="text-h2 text-right">
-              {{ stat.value }}
+                {{ stat.value }}
             </div>
           </div>
         </div>
 
         <!-- Effect -->
         <div
-          v-if="show.effect"
+    v-if="safeShow.effect"
           class="effect"
         >
           <div class="subtitle-2 text-right">
             Effect
           </div>
           <div class="text-right">
-            {{ show.effect }}
+            {{ safeShow.effect }}
           </div>
         </div>
 
         <!-- Description -->
         <div
-          v-if="show.description"
+    v-if="safeShow.description"
           class="description mt-auto"
         >
           <div class="subtitle-2 text-right">
             Description
           </div>
           <div class="text-right">
-            {{ show.description }}
+            {{ safeShow.description }}
           </div>
         </div>
       </div>
       <div class="name white--text pa-2">
         <h2>
-          {{ show.label }}
-          <span v-if="show.quantity">x{{ show.quantity }}</span>
+          {{ safeShow.label }}
+          <span v-if="safeShow.quantity">x{{ safeShow.quantity }}</span>
         </h2>
-        <h5>{{ show.slot }}</h5>
+        <h5>{{ safeShow.slot }}</h5>
       </div>
       <div class="rarity pa-2">
         <v-chip
           :class="dialogBackground"
           class="caption font-weight-bold d-flex justify-center"
         >
-          {{ show.rarity }}
+          {{ safeShow.rarity }}
         </v-chip>
       </div>
     </v-card>
@@ -95,15 +95,21 @@ const show = computed({
   set: () => emit("close"),
 });
 
-const dialogBackground = computed(() => ({
-  "grey lighten-1 black--text": show.value.rarity.toLowerCase() === "common",
-  "green darken-3 white--text": show.value.rarity.toLowerCase() === "uncommon",
-  "blue accent-3 white--text": show.value.rarity.toLowerCase() === "rare",
-  "deep-purple accent-4 white--text":
-    show.value.rarity.toLowerCase() === "epic",
-  "orange darken-2 white--text":
-    show.value.rarity.toLowerCase() === "legendary",
-}));
+// Safe wrapper used for property access in the template. Keeps dialog
+// visibility controlled by `show` (which may be null) but avoids
+// dereferencing when the parent passed null explicitly.
+const safeShow = computed(() => props.item || {});
+
+const dialogBackground = computed(() => {
+  const r = (safeShow.value && safeShow.value.rarity) ? safeShow.value.rarity.toLowerCase() : "";
+  return {
+    "grey lighten-1 black--text": r === "common",
+    "green darken-3 white--text": r === "uncommon",
+    "blue accent-3 white--text": r === "rare",
+    "deep-purple accent-4 white--text": r === "epic",
+    "orange darken-2 white--text": r === "legendary",
+  };
+});
 </script>
 
 <style>
