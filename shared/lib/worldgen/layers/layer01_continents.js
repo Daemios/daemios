@@ -3,7 +3,6 @@
 
 import { fbm as fbmFactory } from '../noiseUtils.js';
 import { makeSimplex } from '../noiseFactory.js';
-import { worldXZToAxial } from '../../../../client/src/3d2/config/layout.js';
 
 function seedStringToNumber(s) {
   let n = 0;
@@ -23,11 +22,11 @@ function smoothstep(t) {
   return t * t * (3 - 2 * t);
 }
 
-function findNearestPlate(q, r, plateSize, seedNum) {
+function findNearestPlate(x, z, plateSize, seedNum) {
   // plate grid coordinates
   // use rounding so plate centers fall on multiples and origin can be inside a plate
-  const px = Math.round(q / plateSize);
-  const py = Math.round(r / plateSize);
+  const px = Math.round(x / plateSize);
+  const py = Math.round(z / plateSize);
   let best = { dist: Infinity, cx: 0, cy: 0, ix: 0, iy: 0, rand: 0 };
   // search neighboring plate cells (3x3) to approximate Voronoi
   for (let oy = -1; oy <= 1; oy++) {
@@ -38,19 +37,12 @@ function findNearestPlate(q, r, plateSize, seedNum) {
       // jitter center within plate to avoid strict grid artifacts
       const jitterX = (pr - 0.5) * plateSize * 0.5;
       const jitterY = (pseudoRandom(ix, iy + 9999, seedNum) - 0.5) * plateSize * 0.5;
-      // anchor centers on grid multiples so small q/r ranges can intersect plates
+      // anchor centers on grid multiples so small x/z ranges can intersect plates
       const cx = ix * plateSize + jitterX;
       const cy = iy * plateSize + jitterY;
-  // Convert axial coords to an approximate world-space (x,z) for distance
-  // This matches the renderer's flat-top axial->XZ mapping (hex metric anisotropy).
-  const sqrt3 = Math.sqrt(3);
-  const qWorld = 1.5 * q;
-  const rWorld = sqrt3 * (r + q / 2);
-  const cxWorld = 1.5 * cx;
-  const cyWorld = sqrt3 * (cy + cx / 2);
-  const dx = qWorld - cxWorld;
-  const dy = rWorld - cyWorld;
-  const d = Math.sqrt(dx * dx + dy * dy);
+      const dx = x - cx;
+      const dz = z - cy;
+      const d = Math.sqrt(dx * dx + dz * dz);
       if (d < best.dist) best = { dist: d, cx, cy, ix, iy, rand: pr };
     }
   }
@@ -73,10 +65,9 @@ function computeTilePart(ctx) {
   const macroOctaves = Math.max(1, (fbmCfg.octaves ? Math.max(1, Math.floor(fbmCfg.octaves)) : 1));
   const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 1.8, fbmCfg.gain || 0.3);
 
-  // Convert world X/Z to fractional axial coords so hex anisotropy is preserved
-  const { q: qf, r: rf } = worldXZToAxial(ctx.x, ctx.z, { layoutRadius: 1, spacingFactor: 1 });
-  const sx = qf / plateSize;
-  const sy = rf / plateSize;
+  // Simple Cartesian scaling for macro sampler
+  const sx = ctx.x / plateSize;
+  const sy = ctx.z / plateSize;
   // Avoid domain warp for the macro pass (it injects high-frequency energy)
   const v = macroSampler(sx, sy); // -1..1
   const macro = Math.max(0, Math.min(1, (v + 1) / 2));
@@ -117,18 +108,17 @@ function computeTilePart(ctx) {
 
 // fallback deterministic shallow pattern when layer is disabled
 function fallback(ctx) {
-  const { q: qf, r: rf } = worldXZToAxial(ctx.x, ctx.z, { layoutRadius: 1, spacingFactor: 1 });
   const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
   const plateSize = cfg.plateCellSize || 256;
   // cheap deterministic pattern
-  const v = Math.abs(Math.sin((qf * 12.9898 + rf * 78.233) % 1));
+  const v = Math.abs(Math.sin((ctx.x * 12.9898 + ctx.z * 78.233) % 1));
   const base = Math.max(0, Math.min(1, v));
   const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
   const h = base * seaLevel * 0.9; // keep fallback under sea level mostly
   const isWater = h <= seaLevel;
   const depthBand = isWater ? 'shallow' : 'land';
-  const plateId = Math.abs(Math.floor((qf + rf) / plateSize));
-  const edgeDistance = Math.abs((qf + rf) % plateSize - (plateSize / 2)) / plateSize;
+  const plateId = Math.abs(Math.floor((ctx.x + ctx.z) / plateSize));
+  const edgeDistance = Math.abs((ctx.x + ctx.z) % plateSize - (plateSize / 2)) / plateSize;
   return {
     elevation: { raw: h, normalized: h },
     bathymetry: { depthBand, seaLevel },
