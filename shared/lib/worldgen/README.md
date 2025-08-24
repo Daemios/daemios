@@ -4,7 +4,7 @@ Purpose
 - Provide a deterministic, dependency-light API for generating tile data used by both server and client.
 
 API
-- generateTile(seed, q, r, cfgPartial) -> Tile object
+- generateTile(seed, q, r, [x, z,] cfgPartial) -> Tile object
 - getDefaultConfig() -> default config
 
 Tile shape (partial)

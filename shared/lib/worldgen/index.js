@@ -31,9 +31,15 @@ function normalizeConfig(partial) {
   return base;
 }
 
-function generateTile(seed, q, r, cfgPartial) {
+function generateTile(seed, q, r, xOrCfg, zOrCfg, cfgMaybe) {
+  let x; let z; let cfgPartial;
+  if (typeof xOrCfg === 'number' && typeof zOrCfg === 'number') {
+    x = xOrCfg; z = zOrCfg; cfgPartial = cfgMaybe;
+  } else {
+    cfgPartial = xOrCfg;
+    ({ x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 }));
+  }
   const cfg = normalizeConfig(cfgPartial);
-  const { x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
   const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
 
   // run layers in order; parts are partial tile outputs consumed by later layers
