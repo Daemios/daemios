@@ -2,7 +2,7 @@
 // Deterministic RNG helpers used by worldgen. We export two primitives:
 // - SeededRNG: a small LCG that matches the client implementation (useful as a
 //   random source for SimplexNoise or other libraries that expect a RNG).
-// - create(seed,q,r): a tile-scoped xorshift32-based random() helper used for
+// - create(seed,x,z): a tile-scoped xorshift32-based random() helper used for
 //   lightweight value-noise and deterministic choices.
 
 // --- Seeded LCG (client parity) ---
@@ -37,8 +37,8 @@ function xorshift32(seed) {
   };
 }
 
-function create(seed, q, r) {
-  const s = String(seed) + ':' + String(q) + ':' + String(r);
+function create(seed, x, z) {
+  const s = String(seed) + ':' + String(x) + ':' + String(z);
   const h = hashStringToInt(s);
   return { random: xorshift32(h) };
 }

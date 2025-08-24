@@ -5,6 +5,7 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
+import { axialToXZ } from '../../../client/src/3d2/config/layout.js';
 import { computeTilePart as layer00Compute } from './layers/layer00_palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -32,7 +33,8 @@ function normalizeConfig(partial) {
 
 function generateTile(seed, q, r, cfgPartial) {
   const cfg = normalizeConfig(cfgPartial);
-  const ctx = { seed: String(seed), q, r, cfg, rng: createRng(seed, q, r), noise };
+  const { x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
+  const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
 
   // run layers in order; parts are partial tile outputs consumed by later layers
   const parts = {};

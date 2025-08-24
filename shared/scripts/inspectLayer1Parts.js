@@ -1,5 +1,6 @@
 import { fbm as fbmFactory, domainWarp } from '../lib/worldgen/noiseUtils.js';
 import { makeSimplex } from '../lib/worldgen/noiseFactory.js';
+import { axialToXZ } from '../../client/src/3d2/config/layout.js';
 import { getDefaultConfig } from '../lib/worldgen/index.js';
 
 function inspect(seed, qStart, qEnd, rStart, rEnd, cfgOverride = {}) {
@@ -10,7 +11,8 @@ function inspect(seed, qStart, qEnd, rStart, rEnd, cfgOverride = {}) {
     for (let r = rStart; r <= rEnd; r++) {
       const mycfg = cfg.layers.layer1 || {};
       const scale = mycfg.scale || 12.0;
-      const noise = makeSimplex(String(seed), q, r);
+      const { x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
+      const noise = makeSimplex(String(seed), x, z);
       // macro
       const macro = (function(){
         const x = q / (mycfg.plateCellSize || 48);
@@ -59,7 +61,8 @@ console.log('\nInspect with smaller detailWeight (0.12)');
 (function(){
   const cfg = getDefaultConfig();
   for (let q=-2;q<=2;q++) for (let r=-2;r<=2;r++) {
-    const noise = makeSimplex('parity-seed', q, r);
+    const { x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 });
+    const noise = makeSimplex('parity-seed', x, z);
     const scale = cfg.layers.layer1.scale || 12.0;
     const x = q / (cfg.layers.layer1.plateCellSize || 48);
     const y = r / (cfg.layers.layer1.plateCellSize || 48);
