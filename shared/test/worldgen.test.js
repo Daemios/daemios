@@ -7,8 +7,8 @@ const g = await import(path.join(__dirname, '..', 'lib', 'worldgen', 'index.js')
 
 describe('shared worldgen', () => {
   it('generates deterministic tile for fixed seed and coords', () => {
-    const a = g.generateTile('seed-test', 1, 2);
-    const b = g.generateTile('seed-test', 1, 2);
+    const a = g.generateTile('seed-test', { q: 1, r: 2 });
+    const b = g.generateTile('seed-test', { q: 1, r: 2 });
     expect(a).toBeDefined();
     expect(a.q).toBe(1);
     expect(a.r).toBe(2);

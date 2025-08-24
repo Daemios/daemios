@@ -5,7 +5,6 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
-import { axialToXZ } from '../../../client/src/3d2/config/layout.js';
 import { computeTilePart as layer00Compute } from './layers/layer00_palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -14,6 +13,15 @@ import { computeTilePart as layer03_5Compute } from './layers/layer03_5_clutter.
 import { computeTilePart as layer04Compute } from './layers/layer04_specials.js';
 import { computeTilePart as layer05Compute } from './layers/layer05_visual.js';
 import { mergeParts } from './merge.js';
+
+// Local flat-top hex axial->Cartesian helper with fixed layout radius/spacing.
+// This mirrors the client-side conversion but avoids importing client code.
+function axialToXZLocal(q = 0, r = 0) {
+  const hexSize = 2.0; // BASE_HEX_SIZE with layoutRadius=1 and spacingFactor=1
+  const x = hexSize * 1.5 * q;
+  const z = hexSize * Math.sqrt(3) * (r + q / 2);
+  return { x, z };
+}
 
 function getDefaultConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
@@ -31,13 +39,10 @@ function normalizeConfig(partial) {
   return base;
 }
 
-function generateTile(seed, q, r, xOrCfg, zOrCfg, cfgMaybe) {
-  let x; let z; let cfgPartial;
-  if (typeof xOrCfg === 'number' && typeof zOrCfg === 'number') {
-    x = xOrCfg; z = zOrCfg; cfgPartial = cfgMaybe;
-  } else {
-    cfgPartial = xOrCfg;
-    ({ x, z } = axialToXZ(q, r, { layoutRadius: 1, spacingFactor: 1 }));
+function generateTile(seed, coords = {}, cfgPartial) {
+  let { q, r, x, z } = coords || {};
+  if (typeof x !== 'number' || typeof z !== 'number') {
+    ({ x, z } = axialToXZLocal(q, r));
   }
   const cfg = normalizeConfig(cfgPartial);
   const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
@@ -79,7 +84,10 @@ function generateTile(seed, q, r, xOrCfg, zOrCfg, cfgMaybe) {
   ctx.partials.layer5 = parts.layer5;
 
   // Merge partials into final tile
-  const tile = mergeParts({ q, r, seed: String(seed) }, parts, ctx);
+  const base = { seed: String(seed) };
+  if (typeof q === 'number') base.q = q;
+  if (typeof r === 'number') base.r = r;
+  const tile = mergeParts(base, parts, ctx);
   // attach deterministic debug provenance
   tile.debug = tile.debug || {};
   // do not include non-deterministic timestamps here; keep debug deterministic

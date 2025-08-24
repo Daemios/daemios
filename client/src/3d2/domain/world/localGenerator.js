@@ -9,7 +9,7 @@ export function createWorldGenerator(type = 'hex', seed = 'seed', opts = {}) {
   let cfg = opts || {};
   return {
     getByXZ(x, z, q, r) {
-      return shared.generateTile(seed, q, r, x, z, cfg);
+      return shared.generateTile(seed, { q, r, x, z }, cfg);
     },
     // Helper for hex callers: derive world {x,z} from {q,r}
     getByQR(q, r) {

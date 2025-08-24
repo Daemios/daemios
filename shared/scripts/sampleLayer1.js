@@ -4,7 +4,7 @@ function sample(seed, qStart, qEnd, rStart, rEnd, cfgPartial) {
   for (let q = qStart; q <= qEnd; q++) {
     let row = [];
     for (let r = rStart; r <= rEnd; r++) {
-      const tile = generateTile(seed, q, r, cfgPartial);
+      const tile = generateTile(seed, { q, r }, cfgPartial);
       row.push(Number((tile.height ?? (tile.elevation && tile.elevation.normalized) ?? 0).toFixed(3)));
     }
     console.log(`q=${q}:`, row.join(' '));
