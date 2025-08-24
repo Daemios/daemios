@@ -33,6 +33,12 @@ Optional convenience APIs implemented by WorldMapScene:
 - zoomTo(distance)
 - resetView()
 
+Coordinate conventions
+
+- World and renderer components exchange cell positions using world-space Cartesian coordinates `{ x, z }`.
+- Convert to axial `{ q, r }` with `XZToAxial` only at the point of geometry instancing or chunk enumeration.
+- Upstream systems should avoid passing axial coordinates directly to rendering utilities.
+
 Renderer helpers
 
 - createRendererManager(options) -> { renderer, composer?, setSize, render, dispose }
