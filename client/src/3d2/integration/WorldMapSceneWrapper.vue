@@ -347,12 +347,12 @@ function onWorldGenApply(payload) {
       }
     } catch (e) { /* ignore persistence errors */ }
 
-    // construct cfgPartial expected by shared generator: layers.enabled
-    const cfgPartial = { layers: { enabled: {} } };
-    // map layer35 key to layer3_5 expected by generator
+    // forward layer tunables (WorldGen UI handles which layers are active)
+    const cfgPartial = { layers: {} };
+    // map layer35 key to layer3_5 expected by generator and forward values
     for (const k of Object.keys(layers)) {
       const mapped = k === 'layer35' ? 'layer3_5' : k;
-      cfgPartial.layers.enabled[mapped] = !!layers[k];
+      cfgPartial.layers[mapped] = layers[k];
     }
 
     // apply to scene generator

@@ -21,10 +21,7 @@ function getDefaultConfig() {
 function normalizeConfig(partial) {
   const base = getDefaultConfig();
   if (!partial) return base;
-  // shallow merge for layers.enabled and top-level visual_style
-  if (partial.layers && partial.layers.enabled) {
-    base.layers.enabled = Object.assign({}, base.layers.enabled, partial.layers.enabled);
-  }
+  // merge per-layer tunables if provided
   // merge per-layer tunables if provided
   for (const k of Object.keys(base.layers)) {
     if (partial.layers && partial.layers[k]) base.layers[k] = Object.assign({}, base.layers[k], partial.layers[k]);
@@ -41,33 +38,36 @@ function generateTile(seed, q, r, cfgPartial) {
   const parts = {};
 
   // Layer 0: palette defaults
-  if (cfg.layers.enabled.layer0) parts.layer0 = layer00Compute(ctx);
-  else parts.layer0 = { palette: { id: 'fallback', topColor: '#000000', sideColor: '#000000', slopeTint: '#000000' } };
+  parts.layer0 = layer00Compute(ctx);
   ctx.partials = Object.assign({}, parts);
 
   // Layer 1: continents (may be expensive)
-  if (cfg.layers.enabled.layer1) parts.layer1 = layer01Compute(ctx);
-  else parts.layer1 = layer01Fallback(ctx);
+  try {
+    parts.layer1 = layer01Compute(ctx);
+  } catch (e) {
+    // fallback when compute fails or is unavailable
+    parts.layer1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : { elevation: { raw: 0, normalized: 0 } };
+  }
   ctx.partials = Object.assign({}, ctx.partials, { layer1: parts.layer1 });
 
   // Layer 2: regions
-  if (cfg.layers.enabled.layer2) parts.layer2 = layer02Compute(ctx);
+  parts.layer2 = (typeof layer02Compute === 'function') ? layer02Compute(ctx) : undefined;
   ctx.partials.layer2 = parts.layer2;
 
   // Layer 3: biomes
-  if (cfg.layers.enabled.layer3) parts.layer3 = layer03Compute(ctx);
+  parts.layer3 = (typeof layer03Compute === 'function') ? layer03Compute(ctx) : undefined;
   ctx.partials.layer3 = parts.layer3;
 
   // Layer 3.5: clutter hints
-  if (cfg.layers.enabled.layer3_5) parts.layer3_5 = layer03_5Compute(ctx);
+  parts.layer3_5 = (typeof layer03_5Compute === 'function') ? layer03_5Compute(ctx) : undefined;
   ctx.partials.layer3_5 = parts.layer3_5;
 
   // Layer 4: specials
-  if (cfg.layers.enabled.layer4) parts.layer4 = layer04Compute(ctx);
+  parts.layer4 = (typeof layer04Compute === 'function') ? layer04Compute(ctx) : undefined;
   ctx.partials.layer4 = parts.layer4;
 
   // Layer 5: visual adjustments
-  if (cfg.layers.enabled.layer5) parts.layer5 = layer05Compute(ctx);
+  parts.layer5 = (typeof layer05Compute === 'function') ? layer05Compute(ctx) : undefined;
   ctx.partials.layer5 = parts.layer5;
 
   // Merge partials into final tile

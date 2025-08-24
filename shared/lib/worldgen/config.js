@@ -3,22 +3,13 @@
 
 export const DEFAULT_CONFIG = {
   layers: {
-    enabled: {
-      layer0: true,
-      layer1: true,
-      layer2: true,
-      layer3: true,
-      layer3_5: true,
-      layer4: true,
-      layer5: true
-    },
     layer0: {
       paletteId: 'default'
     },
     layer1: {
       continentScale: 1.0,
       seaLevel: 0.52,
-      plateCellSize: 48
+      plateCellSize: 256,
     },
     layer2: {
       regionNoiseScale: 0.02,

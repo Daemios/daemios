@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { axialToXZ } from '../..//3d2/config/layout';
 
 export function offsetToAxial(col, row) {
   const q = col;
@@ -13,10 +14,8 @@ export function axialToOffset(q, r) {
 }
 
 export function getTileWorldPos(q, r, layoutRadius = 0.5, spacingFactor = 1.0) {
-  const hexWidth = layoutRadius * 1.5 * spacingFactor;
-  const hexHeight = Math.sqrt(3) * layoutRadius * spacingFactor;
-  const x = hexWidth * q;
-  const z = hexHeight * (r + q / 2);
+  // Delegate to canonical axialToXZ to ensure a single source of truth for placement
+  const { x, z } = axialToXZ(q, r, { layoutRadius, spacingFactor });
   return { x, z };
 }
 

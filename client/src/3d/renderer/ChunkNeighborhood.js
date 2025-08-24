@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { markRaw } from "vue";
 import { ensureInstanceCapacity } from './instancingUtils';
 import { attachRadialFade, attachRadialFadeDepth } from "./radialFade";
+import { offsetToAxial, axialToXZ } from './hexUtils';
 
 export default class ChunkNeighborhood {
   constructor(opts) {
@@ -568,10 +569,9 @@ export default class ChunkNeighborhood {
       for (let col = 0; col < this.chunkCols; col += 1) {
         const gCol = baseCol + col;
         const gRow = baseRow + row;
-        const q = gCol; // even-q offset -> axial
-        const r = gRow - Math.floor(gCol / 2);
-        const x = hexWidth * q;
-        const z = hexHeight * (r + q / 2);
+        // Convert using canonical helpers to avoid duplicated placement math
+        const { q, r } = offsetToAxial(gCol, gRow);
+        const { x, z } = axialToXZ(q, r, { layoutRadius, spacingFactor: this.spacingFactor });
         // Sampled timing: cell fetch
         let __t0;
         const __doSample = (local & (__SAMPLE_EVERY - 1)) === 0;
@@ -767,10 +767,9 @@ export default class ChunkNeighborhood {
       for (let col = 0; col < this.chunkCols; col += 1) {
         const gCol = st.baseCol + col;
         const gRow = st.baseRow + row;
-        const q = gCol;
-        const r = gRow - Math.floor(gCol / 2);
-        const x = hexWidth * q;
-        const z = hexHeight * (r + q / 2);
+        // Convert using canonical helpers to avoid duplicated placement math
+        const { q, r } = offsetToAxial(gCol, gRow);
+        const { x, z } = axialToXZ(q, r, { layoutRadius, spacingFactor: this.spacingFactor });
         // Sampled timings per ~32 tiles
         const __doSample = (st.local & 31) === 0;
         let __t0;
