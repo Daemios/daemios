@@ -6,6 +6,9 @@
   "scripts": {
     "test": "vitest"
   },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
+  },
   "devDependencies": {
     "vitest": "^3.2.4"
   }
