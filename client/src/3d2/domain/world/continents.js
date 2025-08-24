@@ -3,12 +3,12 @@ import worldConfig from './worldConfig.json';
 
 // Build a continental mask: low-frequency FBM warped to produce large landmasses.
 // Returns normalized height 0..1 where values below seaLevel map into ocean bands.
-export function continentalMask(noise, q, r, scale = 48) {
-  const x = q / scale;
-  const y = r / scale;
+export function continentalMask(noise, x, z, scale) {
+  const sx = x / scale;
+  const sz = z / scale;
 
   const warpCfg = worldConfig.domainWarp || {};
-  const warped = domainWarp(noise, x, y, warpCfg);
+  const warped = domainWarp(noise, sx, sz, warpCfg);
 
   // Use one fewer octave for macro geography to keep it very smooth.
   const fbmCfg = worldConfig.fbm || { octaves: 5, lacunarity: 2.0, gain: 0.5 };
