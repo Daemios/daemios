@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import api from "@/functions/api";
-const cartesian = require('../../mixins/cartesian')
 
 export default {
   namespaced: true,
