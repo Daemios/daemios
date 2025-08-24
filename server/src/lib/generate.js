@@ -1,5 +1,5 @@
 import SimplexNoise from 'simplex-noise';
-import cartesian from './cartesian.js';
+import cartesian from '../../../shared/utils/cartesian.js';
 
 // const seedRandom = require('./seedrandom.cjs');
 
