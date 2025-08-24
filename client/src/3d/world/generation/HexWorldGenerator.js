@@ -6,6 +6,7 @@
 // - computeHex(seed, q, r): convenience wrapper (instantiates generator once per call; heavier)
 
 import SimplexNoise from 'simplex-noise';
+import { initNoise, sampleNoise } from '../../../../../shared/worldgen/noise.js';
 
 // --- Helpers: hashing & PRNG (deterministic in JS number space) ---
 function xmur3(str) {
@@ -247,6 +248,7 @@ function makeNoises(seed) {
 
 export function createHexGenerator(seed) {
   const noises = makeNoises(seed);
+  const baseNoises = initNoise(seed);
   const seedInt = hash2i(0x9e37, 0x85eb, 0xc2b2 ^ (hash2i(13, 17, String(seed).length)));
   // Global parameters (tuned to hex axial-space units with R=1); converted to mutable w/ tuning
   let cellSize = 140; // plate/cell size in hex units (typical 100–300 diameter)
@@ -532,6 +534,7 @@ export function createHexGenerator(seed) {
 
   function get(q, r) {
     const { x, y } = axialToPlane(q, r);
+    const terrain = sampleNoise(baseNoises, x, y);
     const l1 = layer1(x, y);
     const l2 = layer2(x, y, l1.elev);
     const l3 = layer3(l1.elev, l1.slope, l2.clim, l2.archetype);
@@ -546,6 +549,7 @@ export function createHexGenerator(seed) {
       biomeMajor: l3.major,
       biomeSub: l3.sub,
       regionArchetype: l2.archetype,
+      terrain,
       flags,
       render,
       // Extra raw fields for debugging/tuning
