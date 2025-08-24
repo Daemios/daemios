@@ -12,74 +12,12 @@
     </v-main>
 
     <!-- Micro menu -->
-    <div
-      v-if="$route.meta['overlay']"
-      class="d-flex justify-center position-absolute bottom-0 w-100"
-    >
-      <div
-        class="grey pa-1 rounded mb-1 d-flex gap-1"
-        style="z-index: 999999"
-      >
-        <v-btn
-          variant="flat"
-          size="x-small"
-          height="30"
-          width="30"
-          @click="dialogs.toggleEquipment()"
-        >
-          <v-icon size="small">
-            {{ mdiHumanMale }}
-          </v-icon>
-        </v-btn>
-        <v-btn
-          variant="flat"
-          size="x-small"
-          height="30"
-          width="30"
-          @click="dialogs.toggleInventory()"
-        >
-          <v-icon size="small">
-            {{ mdiTreasureChest }}
-          </v-icon>
-        </v-btn>
-        <v-btn
-          variant="flat"
-          size="x-small"
-          height="30"
-          width="30"
-          @click="dialogs.toggleAbilities()"
-        >
-          <v-icon size="small">
-            {{ mdiSword }}
-          </v-icon>
-        </v-btn>
-        <v-btn
-          variant="flat"
-          size="x-small"
-          height="30"
-          width="30"
-          @click="dialogs.toggleOptions()"
-        >
-          <v-icon size="small">
-            {{ mdiCog }}
-          </v-icon>
-        </v-btn>
-      </div>
-    </div>
 
     <!-- Websocket lock -->
-    <v-dialog
-      :model-value="!socket.connection"
-      persistent
-      max-width="400"
-    >
+    <v-dialog :model-value="!socket.connection" persistent max-width="400">
       <v-card class="pa-4">
         <v-card-text class="pa-0 d-flex align-center justify-center">
-          <v-progress-circular
-            size="20"
-            indeterminate
-            class="mr-4"
-          />
+          <v-progress-circular size="20" indeterminate class="mr-4" />
           Attempting to reconnect to Websocket server...
         </v-card-text>
       </v-card>
@@ -88,26 +26,13 @@
 </template>
 
 <script setup>
-import { defineAsyncComponent, onMounted, onBeforeUnmount, ref } from "vue";
+import { onMounted, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
-import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from "@mdi/js";
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { useSocketStore } from "@/stores/socketStore";
 import { useUserStore } from "@/stores/userStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useArenaStore } from "@/stores/arenaStore";
-const Equipment = defineAsyncComponent(() =>
-  import("@/components/dialogs/Equipment.vue")
-);
-const Inventory = defineAsyncComponent(() =>
-  import("@/components/dialogs/Inventory.vue")
-);
-const Abilities = defineAsyncComponent(() =>
-  import("@/components/dialogs/Abilities.vue")
-);
-const Options = defineAsyncComponent(() =>
-  import("@/components/dialogs/Options.vue")
-);
 
 const dialogs = useDialogsStore();
 const socket = useSocketStore();
