@@ -77,10 +77,9 @@ function computeTilePart(ctx) {
   const macroOctaves = Math.max(1, (fbmCfg.octaves ? Math.max(1, Math.floor(fbmCfg.octaves)) : 1));
   const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 1.8, fbmCfg.gain || 0.3);
 
-  // Sample in world-space (flat-top axial->XZ) so wavelengths map to true hex spacing.
-  const sqrt3 = Math.sqrt(3);
-  const worldX = 1.5 * q;
-  const worldZ = sqrt3 * (r + q / 2);
+  // Sample in world-space so wavelengths map to true hex spacing.
+  const worldX = ctx.x;
+  const worldZ = ctx.z;
   const sx = worldX / plateSize;
   const sy = worldZ / plateSize;
   // Avoid domain warp for the macro pass (it injects high-frequency energy)
