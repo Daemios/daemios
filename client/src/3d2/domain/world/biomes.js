@@ -75,12 +75,10 @@ export function biomeFromCell(cell, extras = {}) {
   if (cell.fields) {
     h = cell.fields.h ?? 0;
     slope = cell.fields.slope ?? 0;
-  } else if (typeof cell.height === 'number') {
-  // Prefer unscaled canonical elevation when available
-  if (cell.elevation && typeof cell.elevation.normalized === 'number') h = cell.elevation.normalized;
-  else h = cell.height;
-  } else if (cell.elevation && typeof cell.elevation.normalized === 'number') {
+  } else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') {
     h = cell.elevation.normalized;
+  } else if (cell && typeof cell.height === 'number') {
+    h = cell.height;
   }
   const lat = extras.lat ?? 0;
   return mapBiome({ h, slope, lat });

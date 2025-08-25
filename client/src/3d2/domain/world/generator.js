@@ -23,7 +23,7 @@ function populateEntities(seed, radius) {
       const cell = gen.getByXZ(x, z);
       // heuristic: prefer low slope, mid elevation land
   // Accept tile-shaped cell or legacy fields wrapper
-  const elev = (typeof cell.height === 'number') ? cell.height : (cell.elevation && typeof cell.elevation.normalized === 'number' ? cell.elevation.normalized : (cell.fields && cell.fields.h) || 0);
+  const elev = (cell && cell.elevation && typeof cell.elevation.normalized === 'number') ? cell.elevation.normalized : (typeof cell.height === 'number' ? cell.height : (cell.fields && cell.fields.h) || 0);
   const slope = (cell.fields && typeof cell.fields.slope === 'number') ? cell.fields.slope : 1;
       if (elev > 0.4 && elev < 0.8 && slope < 0.25) {
         // probabilistic placement using seeded RNG. Raised probability so

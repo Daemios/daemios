@@ -5,7 +5,7 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
-import { computeTilePart as layer00Compute } from './layers/layer00_palette.js';
+import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
 import { computeTilePart as layer03Compute } from './layers/layer03_biomes.js';
@@ -61,7 +61,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
   const parts = {};
 
   // Layer 0: palette defaults
-  if (enabled.layer0 !== false) parts.layer0 = layer00Compute(ctx);
+  if (enabled.layer0 !== false) parts.layer0 = PaletteCompute(ctx);
   ctx.partials = Object.assign({}, parts);
 
   // Layer 1: continents (may be expensive)
