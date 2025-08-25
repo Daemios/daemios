@@ -11,9 +11,11 @@ export class EntityPicker {
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     this._hovered = null;
+  this._hoveredInstanceId = null;
     this._selected = null;
     this._selectedMesh = null;
     this._onSelect = null;
+  this._onHover = null;
 
     this._boundPointerMove = null;
     this._boundPointerDown = null;
@@ -61,6 +63,10 @@ export class EntityPicker {
     this._onSelect = typeof cb === 'function' ? cb : null;
   }
 
+  setOnHover(cb) {
+    this._onHover = typeof cb === 'function' ? cb : null;
+  }
+
   getSelected() {
     return this._selected;
   }
@@ -93,8 +99,11 @@ export class EntityPicker {
       const objs = this.getObjects() || [];
       const intersects = objs && objs.length ? this.raycaster.intersectObjects(objs, false) : [];
       if (intersects.length) {
-        const hit = intersects[0].object;
-        if (this._hovered !== hit) {
+  const inter = intersects[0];
+  const hit = inter.object;
+  const instId = (typeof inter.instanceId === 'number' && inter.instanceId >= 0) ? inter.instanceId : null;
+        // If object changed or instanceId changed, update hover
+        if (this._hovered !== hit || this._hoveredInstanceId !== instId) {
           if (this._hovered) {
             try {
               if (!this._hovered.isInstancedMesh) {
@@ -104,14 +113,27 @@ export class EntityPicker {
             this._hovered.scale && !this._hovered.isInstancedMesh && this._hovered.scale.set(1,1,1);
           }
           this._hovered = hit;
+          this._hoveredInstanceId = instId;
           try { if (this._hovered.material && this._hovered.material.emissive && !this._hovered.isInstancedMesh) this._hovered.material.emissive.setHex(0x222222); } catch (e) { /* ignore */ }
           this._hovered.scale && !this._hovered.isInstancedMesh && this._hovered.scale.set(1.2,1.2,1.2);
+          // notify hover callback with instance-aware detail when available
+          try {
+            if (typeof this._onHover === 'function') {
+              if (instId !== null) {
+                this._onHover({ object: hit, instanceId: instId, pos: inter.point });
+              } else {
+                this._onHover(hit.userData ? hit.userData.entity : { object: hit });
+              }
+            }
+          } catch (e) { /* ignore hover callback errors */ }
         }
       } else {
         if (this._hovered) {
           try { if (this._hovered.material && this._hovered.material.emissive && !this._hovered.isInstancedMesh) this._hovered.material.emissive.setHex(0x000000); } catch (e) { /* ignore */ }
           this._hovered.scale && !this._hovered.isInstancedMesh && this._hovered.scale.set(1,1,1);
           this._hovered = null;
+          this._hoveredInstanceId = null;
+          try { if (typeof this._onHover === 'function') this._onHover(null); } catch (e) { /* ignore */ }
         }
       }
     } catch (e) {

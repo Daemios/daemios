@@ -196,7 +196,8 @@ export default class ChunkManager {
   const sideColorsBiome = new Float32Array(positions.length * 3);
   const topColorsChunk = new Float32Array(positions.length * 3);
   const sideColorsChunk = new Float32Array(positions.length * 3);
-    for (let i = 0; i < positions.length; i++) {
+  // temporary object removed (no longer storing per-instance matrices)
+  for (let i = 0; i < positions.length; i++) {
       const p = positions[i];
       let yScale = 1.0;
       let topCol = new THREE.Color(0xeeeeee);
@@ -219,7 +220,7 @@ export default class ChunkManager {
         console.warn('ChunkManager: sampling generator failed', e);
       }
       // Place side centered at world y=0 (height 0.2 -> -0.1..0.1). Place top cap above it.
-      if (usingDefaultGeom) {
+  if (usingDefaultGeom) {
         const sideY = 0; // center of side
         const sideHalf = 0.2 / 2;
         // top is a flat disk (no vertical thickness) so place it just above the
@@ -227,10 +228,14 @@ export default class ChunkManager {
         const topY = sideY + sideHalf + 0.0005; // tiny epsilon gap
         topApi.setInstanceMatrix(i, { x: p.x, y: topY, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: 1.0, z: 1.0 });
         sideApi.setInstanceMatrix(i, { x: p.x, y: sideY, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
+  // no per-instance matrix stored (overlay removed) to reduce memory
       } else {
-        // model-provided geometry: keep original alignment but add tiny epsilon to top to reduce z-fighting
-        topApi.setInstanceMatrix(i, { x: p.x, y: 0.0005, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
-        sideApi.setInstanceMatrix(i, { x: p.x, y: -0.1, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
+        // model-provided geometry: apply modelScaleFactor so geometry matches loader measurements
+        const ms = this.modelScaleFactor || 1.0;
+        // top position and scale uses yScale (tile height) and global model scale
+        topApi.setInstanceMatrix(i, { x: p.x, y: 0.0005, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
+        sideApi.setInstanceMatrix(i, { x: p.x, y: -0.1 * ms, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
+  // no per-instance matrix stored (overlay removed) to reduce memory
       }
       // store biome colors
       topColorsBiome[i * 3 + 0] = topCol.r;
@@ -285,18 +290,16 @@ export default class ChunkManager {
       // fallback handled below
     }
 
-    // simple hover mesh: a single mesh that can be positioned by callers
-    const hoverMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
-    const hoverMesh = new THREE.Mesh(topGeometry.clone(), hoverMat);
-    hoverMesh.visible = false;
-    hoverMesh.matrixAutoUpdate = false;
-
-    // add to scene
+    // No overlay mesh: use per-instance coloring/highlighting instead of adding a separate hover model.
+    const hoverGroup = null;
+    // add instanced meshes to scene (no overlay)
     try {
       if (this.scene) {
-  this.scene.add(topIM);
-  this.scene.add(sideIM);
-  this.scene.add(hoverMesh);
+        this.scene.add(topIM);
+        this.scene.add(sideIM);
+        try { topIM.visible = true; sideIM.visible = true; } catch (e) { /* ignore */ }
+        try { topIM.frustumCulled = false; sideIM.frustumCulled = false; } catch (e) { /* ignore */ }
+        try { console.debug('ChunkManager: added neighborhood to scene', { usingDefaultGeom, count, topGeom: !!topGeom, sideGeom: !!sideGeom }); } catch (e) { /* ignore */ }
       }
     } catch (e) {
       console.warn('ChunkManager: add to scene failed', e);
@@ -304,10 +307,12 @@ export default class ChunkManager {
 
   // chunk border debug helper removed
 
-    const neighborhood = {
+  // overlay hoverY computation removed (overlay deleted earlier)
+
+  const neighborhood = {
       topIM,
       sideIM,
-      hoverMesh,
+  // hoverMesh removed; use per-instance color highlighting instead
       count,
       // keep color buffers for toggling
       _topColorsBiome: topColorsBiome,
@@ -315,14 +320,95 @@ export default class ChunkManager {
       _topColorsChunk: topColorsChunk,
       _sideColorsChunk: sideColorsChunk,
   _positions: positions,
+      // store highlight state and allow efficient per-instance color updates
+      _highlightState: { index: null, prevTop: null, prevSide: null },
+      highlightInstance: (index, hexColor = 0xffcc33) => {
+        try {
+          if (typeof index !== 'number' || index < 0 || index >= count) return;
+          const instTop = topIM;
+          const instSide = sideIM;
+          if (!instTop || !instSide) return;
+          let topAttr = instTop.instanceColor;
+          let sideAttr = instSide.instanceColor;
+          // If instanceColor attributes are not present, try to create them from the cached biome buffers
+          if (!topAttr || !sideAttr) {
+            try {
+              if (neighborhood._topColorsBiome && neighborhood._sideColorsBiome) {
+                try { setInstanceColors(instTop, neighborhood._topColorsBiome); } catch (e) { /* ignore */ }
+                try { setInstanceColors(instSide, neighborhood._sideColorsBiome); } catch (e) { /* ignore */ }
+                topAttr = instTop.instanceColor;
+                sideAttr = instSide.instanceColor;
+              }
+            } catch (e) { /* ignore */ }
+          }
+          if (!topAttr || !sideAttr) return;
+          // If different index is highlighted, clear previous first
+          if (neighborhood._highlightState.index !== null && neighborhood._highlightState.index !== index) {
+            neighborhood.clearHighlight();
+          }
+          // save original colors if not saved
+          if (neighborhood._highlightState.index === null) {
+            neighborhood._highlightState.index = index;
+            neighborhood._highlightState.prevTop = [topAttr.array[index * 3 + 0], topAttr.array[index * 3 + 1], topAttr.array[index * 3 + 2]];
+            neighborhood._highlightState.prevSide = [sideAttr.array[index * 3 + 0], sideAttr.array[index * 3 + 1], sideAttr.array[index * 3 + 2]];
+          }
+          const c = new THREE.Color(hexColor);
+          topAttr.array[index * 3 + 0] = c.r;
+          topAttr.array[index * 3 + 1] = c.g;
+          topAttr.array[index * 3 + 2] = c.b;
+          sideAttr.array[index * 3 + 0] = c.r;
+          sideAttr.array[index * 3 + 1] = c.g;
+          sideAttr.array[index * 3 + 2] = c.b;
+          topAttr.needsUpdate = true;
+          sideAttr.needsUpdate = true;
+        } catch (e) { /* ignore */ }
+      },
+      clearHighlight: () => {
+        try {
+          const idx = neighborhood._highlightState.index;
+          if (idx === null) return;
+          const instTop = topIM;
+          const instSide = sideIM;
+          if (!instTop || !instSide) {
+            neighborhood._highlightState.index = null;
+            neighborhood._highlightState.prevTop = null;
+            neighborhood._highlightState.prevSide = null;
+            return;
+          }
+          const topAttr = instTop.instanceColor;
+          const sideAttr = instSide.instanceColor;
+          if (!topAttr || !sideAttr) {
+            neighborhood._highlightState.index = null;
+            neighborhood._highlightState.prevTop = null;
+            neighborhood._highlightState.prevSide = null;
+            return;
+          }
+          const prevTop = neighborhood._highlightState.prevTop;
+          const prevSide = neighborhood._highlightState.prevSide;
+          if (prevTop) {
+            topAttr.array[idx * 3 + 0] = prevTop[0];
+            topAttr.array[idx * 3 + 1] = prevTop[1];
+            topAttr.array[idx * 3 + 2] = prevTop[2];
+          }
+          if (prevSide) {
+            sideAttr.array[idx * 3 + 0] = prevSide[0];
+            sideAttr.array[idx * 3 + 1] = prevSide[1];
+            sideAttr.array[idx * 3 + 2] = prevSide[2];
+          }
+          topAttr.needsUpdate = true;
+          sideAttr.needsUpdate = true;
+          neighborhood._highlightState.index = null;
+          neighborhood._highlightState.prevTop = null;
+          neighborhood._highlightState.prevSide = null;
+        } catch (e) { /* ignore */ }
+      },
       dispose: () => {
         try { topIM.geometry && topIM.geometry.dispose && topIM.geometry.dispose(); } catch (e) { console.warn('ChunkManager: dispose top geometry failed', e); }
         try { topIM.material && topIM.material.dispose && topIM.material.dispose(); } catch (e) { console.warn('ChunkManager: dispose top material failed', e); }
         try { sideIM.geometry && sideIM.geometry.dispose && sideIM.geometry.dispose(); } catch (e) { console.warn('ChunkManager: dispose side geometry failed', e); }
         try { sideIM.material && sideIM.material.dispose && sideIM.material.dispose(); } catch (e) { console.warn('ChunkManager: dispose side material failed', e); }
-        try { hoverMesh.geometry && hoverMesh.geometry.dispose && hoverMesh.geometry.dispose(); } catch (e) { console.warn('ChunkManager: dispose hover geometry failed', e); }
-  try { hoverMesh.material && hoverMesh.material.dispose && hoverMesh.material.dispose(); } catch (e) { console.warn('ChunkManager: dispose hover material failed', e); }
-  try { if (manager && manager.scene) { manager.scene.remove(topIM); manager.scene.remove(sideIM); manager.scene.remove(hoverMesh); } } catch (e) { console.warn('ChunkManager: remove from scene failed', e); }
+  // no hoverGroup children to dispose; just remove instanced meshes
+  try { if (manager && manager.scene) { manager.scene.remove(topIM); manager.scene.remove(sideIM); } } catch (e) { console.warn('ChunkManager: remove from scene failed', e); }
   // chunk border cleanup removed
       },
       applyChunkColors: (enabled) => {
@@ -357,7 +443,7 @@ export default class ChunkManager {
   // remember last geoms so rebuilds can reuse them
   this._lastTopGeom = topGeom;
   this._lastSideGeom = sideGeom;
-    const built = { topIM, sideIM, hoverMesh, count, neighborhood };
+  const built = { topIM, sideIM, hoverMesh: hoverGroup, count, neighborhood };
 
     // callbacks
   try { this.onBuilt(built); } catch (e) { console.warn('ChunkManager: onBuilt callback error', e); }

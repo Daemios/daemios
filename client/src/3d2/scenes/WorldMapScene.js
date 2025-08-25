@@ -140,6 +140,11 @@ export class WorldMapScene {
         // set a scene-wide layout radius derived from the model's native radius so tiles touch
   // layoutRadius is a unitless multiplier applied to BASE_HEX_SIZE; compute so hexSize == model.nativeRadius
         this._layoutRadius = (model.nativeRadius && BASE_HEX_SIZE) ? (model.nativeRadius / BASE_HEX_SIZE) : 1;
+        // Diagnostic: log model measurements and surface a camera-facing debug copy so we can confirm visibility
+        try {
+          console.debug('WorldMapScene: hex model loaded', { hasTop: !!model.topGeom, hasSide: !!model.sideGeom, hexMaxY: model.hexMaxY, modelScaleFactor: model.modelScaleFactor, nativeRadius: model.nativeRadius });
+          // debug model clone removed in production build
+        } catch (e) { console.debug('WorldMapScene: debug model clone failed', e); }
         // debug: print measured dims and derived spacing
         try {
           const hexSize = BASE_HEX_SIZE * this._layoutRadius;
@@ -155,13 +160,15 @@ export class WorldMapScene {
       // create a chunk manager for chunk-based rendering and delegate instance creation
       // omit explicit chunkCols/chunkRows so ChunkManager can use its defaults
       try {
-  this.chunkManager = createChunkManager({
+        this.chunkManager = createChunkManager({
           scene: this.scene,
           generator: this._generator,
           layoutRadius: this._layoutRadius,
           spacingFactor: 1,
           neighborRadius: this._gridRadius,
           pastelColorForChunk,
+          modelScaleFactor: this._hexModel && this._hexModel.modelScaleFactor,
+          contactScale: this._hexModel && this._hexModel.contactScale,
           onPickMeshes: (meshes) => {
             try { this._pickMeshes = meshes || []; } catch (e) { /* ignore */ }
           }
@@ -182,6 +189,8 @@ export class WorldMapScene {
           }
           this._gridInstancedApi = this.chunkManager;
           console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+          // debug test meshes removed
+          // debug geometry copies removed
           // Ensure click picker is attached so users can click tiles. Attach after build
           try {
             this._ensureClickPickerAttached();
@@ -296,6 +305,35 @@ export class WorldMapScene {
             }
           } catch (e) {
             console.debug('WorldMapScene: onSelect callback failed', e);
+          }
+        });
+        // hover callback: move chunkManager's hoverMesh to the hovered instance and show it
+        this._picker.setOnHover((hover) => {
+          try {
+            // hover can be instance-aware ({ object, instanceId, pos }) or null
+            if (!hover) {
+              try { if (this.chunkManager && this.chunkManager.neighborhood && typeof this.chunkManager.neighborhood.clearHighlight === 'function') this.chunkManager.neighborhood.clearHighlight(); } catch (e) { /* ignore */ }
+              return;
+            }
+            if (hover && typeof hover.instanceId === 'number') {
+              const inst = hover.instanceId;
+              try {
+                const nb = this.chunkManager && this.chunkManager.neighborhood;
+                if (nb && nb._positions && typeof nb._positions[inst] !== 'undefined') {
+                  // Use per-instance color highlight only
+                  if (typeof nb.highlightInstance === 'function') {
+                    try { nb.highlightInstance(inst, 0xffcc33); } catch (e) { /* ignore */ }
+                  }
+                  return;
+                }
+              } catch (e) {
+                /* ignore hover mapping errors */
+              }
+            }
+            // fallback: clear highlight
+            try { if (this.chunkManager && this.chunkManager.neighborhood && typeof this.chunkManager.neighborhood.clearHighlight === 'function') this.chunkManager.neighborhood.clearHighlight(); } catch (e) { /* ignore */ }
+          } catch (e) {
+            console.debug('WorldMapScene: hover handler failed', e);
           }
         });
       } catch (e) {
