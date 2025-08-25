@@ -5,7 +5,7 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
-import { computeTilePart as layer00Compute } from './layers/layer00_palette.js';
+import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
 import { computeTilePart as layer03Compute } from './layers/layer03_biomes.js';
@@ -29,13 +29,22 @@ function getDefaultConfig() {
 
 function normalizeConfig(partial) {
   const base = getDefaultConfig();
-  if (!partial) return base;
-  // merge per-layer tunables if provided
-  // merge per-layer tunables if provided
-  for (const k of Object.keys(base.layers)) {
-    if (partial.layers && partial.layers[k]) base.layers[k] = Object.assign({}, base.layers[k], partial.layers[k]);
+  const enabled = {};
+  for (const k of Object.keys(base.layers)) enabled[k] = true;
+  if (partial && partial.layers) {
+    for (const k of Object.keys(partial.layers)) {
+      const val = partial.layers[k];
+      if (typeof val === 'boolean') {
+        enabled[k] = val;
+      } else if (val && typeof val === 'object') {
+        base.layers[k] = Object.assign({}, base.layers[k], val);
+        if (typeof val.enabled === 'boolean') enabled[k] = val.enabled;
+      }
+    }
   }
-  if (partial.visual_style) base.visual_style = Object.assign({}, base.visual_style, partial.visual_style);
+  if (partial && partial.visual_style) base.visual_style = Object.assign({}, base.visual_style, partial.visual_style);
+  if (partial && typeof partial.scale === 'number') base.scale = partial.scale;
+  base._enabledLayers = enabled;
   return base;
 }
 
@@ -46,41 +55,50 @@ function generateTile(seed, coords = {}, cfgPartial) {
   }
   const cfg = normalizeConfig(cfgPartial);
   const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers
   const parts = {};
 
   // Layer 0: palette defaults
-  parts.layer0 = layer00Compute(ctx);
+  if (enabled.layer0 !== false) parts.layer0 = PaletteCompute(ctx);
   ctx.partials = Object.assign({}, parts);
 
   // Layer 1: continents (may be expensive)
-  try {
-    parts.layer1 = layer01Compute(ctx);
-  } catch (e) {
-    // fallback when compute fails or is unavailable
-    parts.layer1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : { elevation: { raw: 0, normalized: 0 } };
+  if (enabled.layer1 !== false) {
+    try {
+      parts.layer1 = layer01Compute(ctx);
+    } catch (e) {
+      parts.layer1 = (typeof layer01Fallback === 'function')
+        ? layer01Fallback(ctx)
+        : { elevation: { raw: 0, normalized: 0 } };
+    }
+  } else {
+    // When layer1 is explicitly disabled, do not call the fallback (which
+    // can introduce a visible pattern). Leave the part undefined so the
+    // merge step retains the base elevation only.
+    parts.layer1 = undefined;
   }
   ctx.partials = Object.assign({}, ctx.partials, { layer1: parts.layer1 });
 
   // Layer 2: regions
-  parts.layer2 = (typeof layer02Compute === 'function') ? layer02Compute(ctx) : undefined;
+  if (enabled.layer2 !== false && typeof layer02Compute === 'function') parts.layer2 = layer02Compute(ctx);
   ctx.partials.layer2 = parts.layer2;
 
   // Layer 3: biomes
-  parts.layer3 = (typeof layer03Compute === 'function') ? layer03Compute(ctx) : undefined;
+  if (enabled.layer3 !== false && typeof layer03Compute === 'function') parts.layer3 = layer03Compute(ctx);
   ctx.partials.layer3 = parts.layer3;
 
   // Layer 3.5: clutter hints
-  parts.layer3_5 = (typeof layer03_5Compute === 'function') ? layer03_5Compute(ctx) : undefined;
+  if (enabled.layer3_5 !== false && typeof layer03_5Compute === 'function') parts.layer3_5 = layer03_5Compute(ctx);
   ctx.partials.layer3_5 = parts.layer3_5;
 
   // Layer 4: specials
-  parts.layer4 = (typeof layer04Compute === 'function') ? layer04Compute(ctx) : undefined;
+  if (enabled.layer4 !== false && typeof layer04Compute === 'function') parts.layer4 = layer04Compute(ctx);
   ctx.partials.layer4 = parts.layer4;
 
   // Layer 5: visual adjustments
-  parts.layer5 = (typeof layer05Compute === 'function') ? layer05Compute(ctx) : undefined;
+  if (enabled.layer5 !== false && typeof layer05Compute === 'function') parts.layer5 = layer05Compute(ctx);
   ctx.partials.layer5 = parts.layer5;
 
   // Merge partials into final tile

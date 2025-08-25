@@ -204,18 +204,20 @@ export default class ChunkManager {
       let sideCol = new THREE.Color(0xcccccc);
       try {
         if (this.generator) {
-          let tile;
-          if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
-          else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
-          const bio = biomeFromCell(tile);
-          // Expect tile shape: prefer tile.height, then tile.elevation.normalized
-          let elev = 0;
-          if (tile && typeof tile.height === 'number') elev = tile.height;
-          else if (tile && tile.elevation && typeof tile.elevation.normalized === 'number') elev = tile.elevation.normalized;
-          yScale = Math.max(0.001, elev * (this.heightMagnitude || 1.0));
-          topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
-          sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
-        }
+            let tile;
+            if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
+            else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
+            // Classification uses biomeFromCell (which now prefers unscaled elevation).
+            const bio = biomeFromCell(tile);
+            // Use renderHeight for instance scaling (fallback to unscaled height)
+            let elevRender = 0;
+            if (tile && typeof tile.renderHeight === 'number') elevRender = tile.renderHeight;
+            else if (tile && typeof tile.height === 'number') elevRender = tile.height;
+            else if (tile && tile.elevation && typeof tile.elevation.normalized === 'number') elevRender = tile.elevation.normalized;
+            yScale = Math.max(0.001, elevRender * (this.heightMagnitude || 1.0));
+            topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+            sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
+          }
       } catch (e) {
         console.warn('ChunkManager: sampling generator failed', e);
       }

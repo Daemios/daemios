@@ -1,4 +1,4 @@
-// shared/lib/worldgen/layers/layer00_palette.js
+// shared/lib/worldgen/layers/palette.js
 // Layer 0: palette & creative constraints. Minimal implementation returns a palette id and default colors.
 
 const DEFAULT_PALETTES = {

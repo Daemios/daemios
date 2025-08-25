@@ -2,13 +2,17 @@
 // Default configuration and layer toggles (kept minimal and JSON-serializable)
 
 export const DEFAULT_CONFIG = {
+  // Global multiplier applied to the final elevation (rendered height).
+  // This does not change biome/sea classification which is computed from
+  // the unscaled elevation; it only scales the returned tile.height.
+  scale: 4.0,
   layers: {
     layer0: {
       paletteId: 'default'
     },
     layer1: {
       continentScale: 1.0,
-      seaLevel: 0.52,
+      seaLevel: 0.33,
       plateCellSize: 256,
     },
     layer2: {

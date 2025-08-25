@@ -269,7 +269,7 @@ export class WorldMapScene {
                     } catch (e) { /* ignore */ }
                   }
                 }
-                const height = tile && typeof tile.height === 'number' ? tile.height : (tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : null);
+                const height = tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : (tile && typeof tile.height === 'number' ? tile.height : null);
                 console.log(`WorldMap2 tile click instance=${inst} height=`, height, 'pos=', pos, 'mapped=', mapped, 'tile=', tile, 'object=', obj);
               } catch (e) {
                 console.debug('WorldMapScene: instance click sample failed', e);
@@ -294,7 +294,7 @@ export class WorldMapScene {
                     const world = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
                     tile = this._generator.getByXZ(world.x, world.z);
                   }
-                  const height = tile && typeof tile.height === 'number' ? tile.height : (tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : null);
+                  const height = tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : (tile && typeof tile.height === 'number' ? tile.height : null);
                   console.log(`WorldMap2 tile click q=${q} r=${r} height=`, height, 'tile=', tile);
                 } catch (e) {
                   console.debug('WorldMapScene: click sample failed', e);
@@ -377,6 +377,12 @@ export class WorldMapScene {
     try {
       const seed = this._generatorSeed != null ? this._generatorSeed : 1337;
       this._generator = createWorldGenerator('hex', seed, cfg);
+      // Ensure any consumer of the generator (ChunkManager / neighborhood API)
+      // uses the newly-created generator before we rebuild the neighborhood.
+      try {
+        if (this.chunkManager) this.chunkManager.generator = this._generator;
+        if (this._gridInstancedApi && typeof this._gridInstancedApi === 'object') this._gridInstancedApi.generator = this._generator;
+      } catch (e) { /* ignore assignment errors */ }
       // rebuild chunk neighborhood if manager present so instances reflect new tiles
       if (this.chunkManager && typeof this.chunkManager.build === 'function') {
         try {
@@ -456,13 +462,14 @@ export class WorldMapScene {
                 const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
                 cell = gen.get(a.q, a.r);
               }
-              // derive elevation from the canonical tile shape first, fall back to legacy fields.h
-              let elev = 0;
-              if (cell && typeof cell.height === 'number') elev = cell.height;
-          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
-          yScale = Math.max(0.001, elev * 1.0);
-          // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields
-          const bio = biomeFromCell(cell);
+              // derive render elevation for scaling: prefer renderHeight, then canonical normalized elevation, then legacy height
+              let elevRender = 0;
+              if (cell && typeof cell.renderHeight === 'number') elevRender = cell.renderHeight;
+              else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elevRender = cell.elevation.normalized;
+              else if (cell && typeof cell.height === 'number') elevRender = cell.height;
+              yScale = Math.max(0.001, elevRender * 1.0);
+              // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields; classification will prefer unscaled elevation
+              const bio = biomeFromCell(cell);
               topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
               sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
             }
@@ -528,8 +535,8 @@ export class WorldMapScene {
               }
               // prefer tile.height / elevation.normalized
               let elev = 0;
-              if (cell && typeof cell.height === 'number') elev = cell.height;
-          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
+              if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
+              else if (cell && typeof cell.height === 'number') elev = cell.height;
           yScale = Math.max(0.001, elev * 1.0);
           const bio = biomeFromCell(cell);
               col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
