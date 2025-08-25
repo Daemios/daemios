@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { createRendererManager } from '@/3d2/renderer/rendererManager';
-import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
+// instancing helpers removed from this scene; ChunkManager handles instancing now
 import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
 import { createWorldGenerator } from '@/3d2/domain/world';
-import { biomeFromCell } from '@/3d2/domain/world/biomes';
+// biomeFromCell not used in this scene; ChunkManager samples biomes when building
 import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
 import { BASE_HEX_SIZE } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
@@ -28,6 +28,12 @@ export class WorldMapScene {
   // attach optional orbit controls (lazy import to avoid bundling in SSR)
   this._controls = null;
   this.scene = new THREE.Scene();
+  // expose scene on window for short-term dev inspection (safe-guarded)
+  try {
+    if (typeof window !== 'undefined') {
+      window.worldMapScene = this;
+    }
+  } catch (e) { /* ignore */ }
   const width = this.container ? this.container.clientWidth : 800;
     const height = this.container ? this.container.clientHeight : 600;
     this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
@@ -130,8 +136,8 @@ export class WorldMapScene {
     key.position.set(10, 20, 10);
     this.scene.add(ambient, key);
 
-    // create a visible debug grid of hex markers (instanced) at startup
-    this._gridRadius = 4; // default; scene API can expose setter later
+  // create a visible debug grid of hex markers (instanced) at startup
+  this._gridRadius = 4; // default; scene API can expose setter later
     // Try to load the project's hex model for visual parity; fall back to simple geometry
     (async () => {
       try {
@@ -189,6 +195,7 @@ export class WorldMapScene {
           }
           this._gridInstancedApi = this.chunkManager;
           console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+          try { if (typeof window !== 'undefined') window.chunkManager = this.chunkManager; } catch (e) { /* ignore */ }
           // debug test meshes removed
           // debug geometry copies removed
           // Ensure click picker is attached so users can click tiles. Attach after build
@@ -197,15 +204,15 @@ export class WorldMapScene {
           } catch (e) {
             /* ignore click handler attach errors */
           }
-        } catch (e) {
-          // fallback to legacy instanced creation
-          console.debug('WorldMapScene: chunkManager build failed, falling back to legacy grid instances', e);
-          this._createGridInstances(this._gridRadius);
+          } catch (e) {
+          // fallback: do not create legacy debug grid instances. ChunkManager is the
+          // authoritative renderer; if it fails we avoid creating the old small
+          // hard-coded cluster to prevent duplicate/stray geometry on startup.
+          console.debug('WorldMapScene: chunkManager build failed; not creating legacy grid instances', e);
         }
       } catch (e) {
-        // chunk manager creation failed -> fallback
-        console.debug('WorldMapScene: chunkManager creation failed, falling back', e);
-        this._createGridInstances(this._gridRadius);
+        // chunk manager creation failed -> do not create legacy grid instances
+        console.debug('WorldMapScene: chunkManager creation failed; legacy grid instances suppressed', e);
       }
     })();
 
@@ -397,168 +404,10 @@ export class WorldMapScene {
     }
   }
 
-  // Create instanced markers for hex centers (flat-top axial layout -> x,z)
-  _createGridInstances(radius) {
-  // Root-cause protection: if a ChunkManager is active, do not create the
-  // legacy grid instances. This prevents duplicate clusters when both
-  // systems run (was causing stray small patches of cells).
-  if (this.chunkManager) return;
-  const positions = [];
-    for (let q = -radius; q <= radius; q++) {
-      for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-    // flat-top axial to x,z using model-derived layoutRadius so tiles align with geometry
-    const pos = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
-    const axial = XZToAxial(pos.x, pos.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
-    positions.push({ x: pos.x, z: pos.z, q: axial.q, r: axial.r });
-      }
-    }
-
-    if (!positions.length) return;
-
-    // create or reuse a generator for sampling cell fields so we can color/scale instances
-    // Reuse the scene-level generator if present to avoid repeated construction.
-    let gen = this._generator || null;
-    if (!gen) {
-      try {
-        gen = createWorldGenerator('hex', 1337);
-        // Cache for potential reuse later
-        this._generator = gen;
-      } catch (e) {
-        console.debug('WorldMapScene: createWorldGenerator failed, proceeding without generator', e);
-        gen = null;
-      }
-    }
-
-    // If we have a loaded hex model, use its geometries for instanced rendering to match legacy visuals.
-    if (this._hexModel && this._hexModel.topGeom) {
-      const topGeom = this._hexModel.topGeom;
-      const sideGeom = this._hexModel.sideGeom || topGeom;
-      const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-      try {
-        const topApi = createInstancedMesh(topGeom, mat, positions.length);
-        const sideApi = createInstancedMesh(sideGeom, mat, positions.length);
-        const topIM = topApi.instancedMesh;
-        const sideIM = sideApi.instancedMesh;
-        // prepare color arrays for per-instance coloring
-        const topColors = new Float32Array(positions.length * 3);
-        const sideColors = new Float32Array(positions.length * 3);
-        for (let i = 0; i < positions.length; i++) {
-          const p = positions[i];
-          // default scale and color
-        let yScale = 1.0; // Default yScale
-          let topCol = new THREE.Color(0xeeeeee);
-          let sideCol = new THREE.Color(0xcccccc);
-          try {
-            if (gen) {
-              let cell;
-              if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
-              else if (typeof gen.get === 'function') {
-                const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
-                cell = gen.get(a.q, a.r);
-              }
-              // derive elevation from the canonical tile shape first, fall back to legacy fields.h
-              let elev = 0;
-              if (cell && typeof cell.height === 'number') elev = cell.height;
-          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
-          yScale = Math.max(0.001, elev * 1.0);
-          // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields
-          const bio = biomeFromCell(cell);
-              topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
-              sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
-            }
-          } catch (e) {
-            console.debug('WorldMapScene: sampling generator for top/side failed', e);
-          }
-          // set instance matrix with vertical scale
-          topApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
-          sideApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
-          // write colors
-          topColors[i * 3 + 0] = topCol.r;
-          topColors[i * 3 + 1] = topCol.g;
-          topColors[i * 3 + 2] = topCol.b;
-          sideColors[i * 3 + 0] = sideCol.r;
-          sideColors[i * 3 + 1] = sideCol.g;
-          sideColors[i * 3 + 2] = sideCol.b;
-        }
-        // attach instanceColor attributes where supported
-        try {
-          setInstanceColors(topIM, topColors);
-          setInstanceColors(sideIM, sideColors);
-        } catch (e) {
-          // fallback: tint material per mesh if instance colors not supported
-          try { topIM.material.color.setHex(0xeeeeee); sideIM.material.color.setHex(0xcccccc); } catch (ee) { console.debug('WorldMapScene: fallback tint failed', ee); }
-        }
-        this.scene.add(topIM);
-        this.scene.add(sideIM);
-        this._gridInstanced = topIM;
-        this._gridInstancedApi = topApi;
-      } catch (e) {
-        // fallback to simple cylinder if instancing fails
-        const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
-        const mat2 = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-        const group = new THREE.Group();
-        for (let i = 0; i < positions.length; i++) {
-          const p = positions[i];
-          const m = new THREE.Mesh(geom.clone(), mat2.clone());
-          m.position.set(p.x, 0, p.z);
-          group.add(m);
-        }
-        this.scene.add(group);
-        this._gridInstanced = group;
-      }
-    } else {
-      // No model loaded -> simple cylinder markers
-      const geom = new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
-      const mat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-      try {
-        const instanceApi = createInstancedMesh(geom, mat, positions.length);
-        const inst = instanceApi.instancedMesh;
-        const colors = new Float32Array(positions.length * 3);
-        for (let i = 0; i < positions.length; i++) {
-          const p = positions[i];
-          let yScale = 1.0;
-          let col = new THREE.Color(0xeeeeee);
-          try {
-            if (gen) {
-              let cell;
-              if (typeof gen.getByXZ === 'function') cell = gen.getByXZ(p.x, p.z);
-              else if (typeof gen.get === 'function') {
-                const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
-                cell = gen.get(a.q, a.r);
-              }
-              // prefer tile.height / elevation.normalized
-              let elev = 0;
-              if (cell && typeof cell.height === 'number') elev = cell.height;
-          else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
-          yScale = Math.max(0.001, elev * 1.0);
-          const bio = biomeFromCell(cell);
-              col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
-            }
-          } catch (e) { console.debug('WorldMapScene: sampling generator for cylinder failed', e); }
-          instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
-          colors[i * 3 + 0] = col.r;
-          colors[i * 3 + 1] = col.g;
-          colors[i * 3 + 2] = col.b;
-        }
-  try { setInstanceColors(inst, colors); } catch (e) { console.debug('WorldMapScene: set instance color failed', e); }
-        this.scene.add(inst);
-        this._gridInstanced = inst;
-        this._gridInstancedApi = instanceApi;
-      } catch (e) {
-        console.debug('WorldMapScene: instancing creation failed, falling back to group', e);
-        // fallback to non-instanced mesh set in case helper fails
-        const group = new THREE.Group();
-        for (let i = 0; i < positions.length; i++) {
-          const p = positions[i];
-          const m = new THREE.Mesh(geom.clone(), mat.clone());
-          m.position.set(p.x, 0, p.z);
-          group.add(m);
-        }
-        this.scene.add(group);
-        this._gridInstanced = group;
-      }
-    }
-  }
+  // legacy grid instances removed: chunkManager is the single source of truth
+  // for creating visible hex instances. The old fallback created a small
+  // cluster on startup which caused duplicate/stray tiles; remove it entirely
+  // to avoid showing those brief artifacts.
 
   // update the grid radius (recreate instanced markers)
   setGridRadius(radius) {
