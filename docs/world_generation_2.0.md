@@ -30,7 +30,7 @@ Define the creative and technical boundaries for the procedural world generation
   - Player-adjustable clutter density (8 models/tile default, 0–8 range).
   - Aggressive LOD and culling.
 - **Generation:** O(1) per tile, typically ≤10 noise reads (can exceed slightly for major quality gain).
-- **Determinism:** Pure function of `(seed, q, r)`.
+- **Determinism:** Pure function of `(seed, q, r)` — internally the generator converts axial `(q, r)` to world Cartesian `(x, z)` and samples noise using those Cartesian coordinates.
 - **Client-Side Generation:** Server sends `seed` and locations; client renders terrain locally.
 - **Visual Output:** Distinct biome palettes, low-poly clutter, contextual tile patterns.
 - **Tuneability:** All biome definitions, rarity weights, palettes in external config (JSON, etc.).
@@ -59,7 +59,7 @@ Define the creative and technical boundaries for the procedural world generation
 
 ### Objectives
 
-- Target **60–65% ocean** coverage, but only 1/3rd (ideally tunable) of the total height budget of the terrain should be under water.
+- Target **60–65% ocean** coverage, but only 1/3rd (ideally tunable) of the total height budget of the terrain should be under water (i.e. under .33 elevation).
 - Large, contiguous continents with believable structure and no noisy jitter in this pass.
 - Multi-tier bathymetry for visual depth.
 - Tunable, deterministic macro generation.
@@ -73,7 +73,7 @@ Define the creative and technical boundaries for the procedural world generation
 3. **Plate Field:** Voronoi/cellular; stores cell ID & edge distance.
 4. **Shelf/Depth Shaper:** Derived from continental field; no extra reads.
 
-**Noise Budget:** ~4–6 reads for macro pass.
+**Noise Budget:** ~4 reads for macro pass.
 
 ### Elevation Construction
 
@@ -83,7 +83,6 @@ Define the creative and technical boundaries for the procedural world generation
 
 ### Sea Level & Bathymetry
 
-- Sea level default: `0.62` (~62% ocean).
 - Depth bands: Deep Ocean, Abyss, Slope, Shelf.
 
 ### Coastline Quality
