@@ -1,12 +1,22 @@
 // shared/lib/worldgen/layers/layer04_specials.js
-// Layer 4: special/rare regions (stub)
+// Layer 4: special/rare regions
 
-import { fbm } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../noiseUtils.js';
+import { makeSimplex } from '../noiseFactory.js';
 
-const SPECIALS = ['frozen_jungle','volcanic_seafloor','glass_desert','obsidian_flats','mushroom_glade'];
+const SPECIALS = [
+  'frozen_jungle',
+  'volcanic_seafloor',
+  'glass_desert',
+  'obsidian_flats',
+  'mushroom_glade',
+];
 
 function computeTilePart(ctx) {
-  const v = fbm(ctx, ctx.x * 0.002, ctx.z * 0.002, 2);
+  const noise = makeSimplex(String(ctx.seed));
+  const sampler = fbmFactory(noise, 2, 2.0, 0.5);
+  const n = sampler(ctx.x * 0.002, ctx.z * 0.002); // -1..1
+  const v = (n + 1) / 2; // 0..1
   // rarity threshold depends on rarityMultiplier
   const thr = 0.995 * (1 / (ctx.cfg.layers.layer4.rarityMultiplier || 1));
   if (v > thr) {

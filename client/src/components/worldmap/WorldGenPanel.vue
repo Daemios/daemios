@@ -76,7 +76,7 @@
     </div>
 
     <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:8px">
-      Note: enabling/disabling layers here only toggles generation flags; actual generator wiring is a follow-up.
+      Changes apply immediately; disable layers to preview intermediate generation stages.
     </div>
   </div>
 </template>
