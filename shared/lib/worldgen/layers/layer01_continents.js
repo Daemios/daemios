@@ -84,7 +84,30 @@ function computeTilePart(ctx) {
 
   let h = 0;
   if (blended <= threshold) {
-    h = (blended / threshold) * seaLevel;
+    // Apply an optional dampening function so low macro values trend
+    // strongly toward the minimum/base elevation. This produces
+    // gentler slopes out of the seafloor instead of uniformly raised
+    // ocean floors when the macro FBM skews high.
+    const dampThreshold = (typeof cfg.dampThreshold === 'number') ? cfg.dampThreshold : 0.25;
+    const dampPower = (typeof cfg.dampPower === 'number') ? cfg.dampPower : 2.5;
+    const dampScale = (typeof cfg.dampScale === 'number') ? cfg.dampScale : 1.0;
+
+    if (blended <= dampThreshold) {
+      // Strong attenuation near the minimum: normalized t in [0,1]
+      const t = blended / Math.max(1e-9, dampThreshold);
+      const atten = Math.pow(t, dampPower);
+      // Map attenuated value into ocean band (0..seaLevel), scaled by dampScale
+      h = atten * seaLevel * dampScale;
+    } else {
+      // For intermediate ocean values between dampThreshold and threshold,
+      // interpolate smoothly from the attenuated dampThreshold output up to
+      // the previous linear mapping at `threshold` so slopes aren't abrupt.
+      const t = (blended - dampThreshold) / Math.max(1e-9, threshold - dampThreshold);
+      const dampedBase = Math.pow(dampThreshold / Math.max(1e-9, dampThreshold), dampPower) * seaLevel * dampScale; // effectively 0 but kept for clarity
+      const linearAtThreshold = (threshold / threshold) * seaLevel; // equals seaLevel
+      // lerp between dampedBase and linearAtThreshold
+      h = dampedBase + t * (linearAtThreshold - dampedBase);
+    }
   } else {
     const t = (blended - threshold) / (1 - threshold);
     const s = smoothstep(t);

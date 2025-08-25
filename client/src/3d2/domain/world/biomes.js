@@ -76,7 +76,9 @@ export function biomeFromCell(cell, extras = {}) {
     h = cell.fields.h ?? 0;
     slope = cell.fields.slope ?? 0;
   } else if (typeof cell.height === 'number') {
-    h = cell.height;
+  // Prefer unscaled canonical elevation when available
+  if (cell.elevation && typeof cell.elevation.normalized === 'number') h = cell.elevation.normalized;
+  else h = cell.height;
   } else if (cell.elevation && typeof cell.elevation.normalized === 'number') {
     h = cell.elevation.normalized;
   }

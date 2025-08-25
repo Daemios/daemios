@@ -32,12 +32,13 @@ function mergeParts(base, parts, ctx) {
     if (part.plate) tile.plate = Object.assign({}, part.plate);
   }
 
-  // Clamp and normalize final elevation to 0..1
-  tile.elevation.raw = Math.max(0, Math.min(1, tile.elevation.raw));
-  tile.elevation.normalized = tile.elevation.raw;
-
-  // Ensure a tile.height that scales directly with elevation (normalized 0..1)
-  tile.height = tile.elevation.normalized;
+  // Clamp final unscaled elevation to 0..1 for classification purposes
+  const unscaled = Math.max(0, Math.min(1, tile.elevation.raw));
+  // Keep canonical elevation values unscaled so palette and classification
+  // remain deterministic and unaffected by visual scaling.
+  tile.elevation = tile.elevation || {};
+  tile.elevation.raw = unscaled;
+  tile.elevation.normalized = unscaled;
 
   // After merging, compute a minimal, deterministic palette based on elevation
   // so the initial world is colored by height only. Anything under seaLevel
@@ -84,6 +85,20 @@ function mergeParts(base, parts, ctx) {
     }
   } catch (e) {
     // if color computation fails, leave palette as-is
+  }
+
+  // Finally, apply global visual scale only to the rendered height. Keep
+  // tile.elevation.* as the canonical, unscaled values used for classification.
+  try {
+    const scale = (ctx && ctx.cfg && typeof ctx.cfg.scale === 'number') ? ctx.cfg.scale : 1.0;
+    const scaled = Math.max(0, Math.min(1, (tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : 0) * scale));
+  tile.renderHeight = scaled; // explicit field for renderers
+  // Preserve tile.height as the canonical, unscaled elevation so
+  // classification and palette decisions are unaffected by visual scale.
+  tile.height = tile.elevation.normalized;
+  } catch (e) {
+    // ignore scale application errors and keep original height
+    tile.renderHeight = tile.height;
   }
 
   return tile;

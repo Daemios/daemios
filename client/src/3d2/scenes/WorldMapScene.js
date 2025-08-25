@@ -377,6 +377,12 @@ export class WorldMapScene {
     try {
       const seed = this._generatorSeed != null ? this._generatorSeed : 1337;
       this._generator = createWorldGenerator('hex', seed, cfg);
+      // Ensure any consumer of the generator (ChunkManager / neighborhood API)
+      // uses the newly-created generator before we rebuild the neighborhood.
+      try {
+        if (this.chunkManager) this.chunkManager.generator = this._generator;
+        if (this._gridInstancedApi && typeof this._gridInstancedApi === 'object') this._gridInstancedApi.generator = this._generator;
+      } catch (e) { /* ignore assignment errors */ }
       // rebuild chunk neighborhood if manager present so instances reflect new tiles
       if (this.chunkManager && typeof this.chunkManager.build === 'function') {
         try {

@@ -43,6 +43,7 @@ function normalizeConfig(partial) {
     }
   }
   if (partial && partial.visual_style) base.visual_style = Object.assign({}, base.visual_style, partial.visual_style);
+  if (partial && typeof partial.scale === 'number') base.scale = partial.scale;
   base._enabledLayers = enabled;
   return base;
 }
@@ -73,7 +74,10 @@ function generateTile(seed, coords = {}, cfgPartial) {
         : { elevation: { raw: 0, normalized: 0 } };
     }
   } else {
-    parts.layer1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : undefined;
+    // When layer1 is explicitly disabled, do not call the fallback (which
+    // can introduce a visible pattern). Leave the part undefined so the
+    // merge step retains the base elevation only.
+    parts.layer1 = undefined;
   }
   ctx.partials = Object.assign({}, ctx.partials, { layer1: parts.layer1 });
 
