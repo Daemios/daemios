@@ -155,7 +155,17 @@ export class WorldMapScene {
       // create a chunk manager for chunk-based rendering and delegate instance creation
       // omit explicit chunkCols/chunkRows so ChunkManager can use its defaults
       try {
-  this.chunkManager = createChunkManager({ scene: this.scene, generator: this._generator, layoutRadius: this._layoutRadius, spacingFactor: 1, neighborRadius: this._gridRadius, pastelColorForChunk });
+  this.chunkManager = createChunkManager({
+          scene: this.scene,
+          generator: this._generator,
+          layoutRadius: this._layoutRadius,
+          spacingFactor: 1,
+          neighborRadius: this._gridRadius,
+          pastelColorForChunk,
+          onPickMeshes: (meshes) => {
+            try { this._pickMeshes = meshes || []; } catch (e) { /* ignore */ }
+          }
+        });
         try {
           const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
           // expose neighborhood's top instanced mesh for compatibility
@@ -172,6 +182,12 @@ export class WorldMapScene {
           }
           this._gridInstancedApi = this.chunkManager;
           console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+          // Ensure click picker is attached so users can click tiles. Attach after build
+          try {
+            this._ensureClickPickerAttached();
+          } catch (e) {
+            /* ignore click handler attach errors */
+          }
         } catch (e) {
           // fallback to legacy instanced creation
           console.debug('WorldMapScene: chunkManager build failed, falling back to legacy grid instances', e);
@@ -191,9 +207,101 @@ export class WorldMapScene {
   // interaction: use EntityPicker to manage raycast/hover/selection
   this._picker = new EntityPicker({
     camera: this.camera,
-    getObjects: () => (this._entityGroup ? this._entityGroup.children : []),
+    getObjects: () => {
+      const objs = [];
+      if (this._entityGroup && Array.isArray(this._entityGroup.children)) objs.push(...this._entityGroup.children);
+      if (this._pickMeshes && Array.isArray(this._pickMeshes)) objs.push(...this._pickMeshes);
+      return objs;
+    },
     container: this.container,
   });
+
+    // click handler helper: attach picker and setOnSelect to log tile height
+    this._ensureClickPickerAttached = () => {
+      try {
+        const dom = this.manager && this.manager.renderer && this.manager.renderer.domElement;
+        if (dom) this._picker.attach(dom);
+        // selection callback receives the selected entity (as added via showEntities)
+        this._picker.setOnSelect((sel) => {
+          try {
+            if (!sel) return;
+            // selection can be either a raw entity or an instance-aware detail
+            // Instance detail shape: { object, instanceId, pos }
+            if (sel && typeof sel === 'object' && typeof sel.instanceId === 'number') {
+              try {
+                const inst = sel.instanceId;
+                const obj = sel.object;
+                // attempt to use chunkManager.neighborhood._positions mapping if available
+                let pos = sel.pos || null;
+                let mapped = null;
+                try {
+                  const nb = this.chunkManager && this.chunkManager.neighborhood;
+                  if (nb && Array.isArray(nb._positions) && typeof nb._positions[inst] !== 'undefined') {
+                    mapped = nb._positions[inst];
+                    // prefer stored worldX/worldZ if present
+                    if (mapped && typeof mapped.worldX === 'number' && typeof mapped.worldZ === 'number') {
+                      pos = { x: mapped.worldX, z: mapped.worldZ };
+                    } else if (mapped && typeof mapped.x === 'number' && typeof mapped.z === 'number') {
+                      pos = { x: mapped.x, z: mapped.z };
+                    }
+                  }
+                } catch (e) {
+                  // ignore mapping errors
+                }
+
+                let tile = null;
+                if (pos && this._generator) {
+                  // prefer getByXZ when available
+                  if (typeof this._generator.getByXZ === 'function') tile = this._generator.getByXZ(pos.x, pos.z);
+                  else if (typeof this._generator.get === 'function') {
+                    try {
+                      const a = XZToAxial(pos.x, pos.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                      tile = this._generator.get(a.q, a.r);
+                    } catch (e) { /* ignore */ }
+                  }
+                }
+                const height = tile && typeof tile.height === 'number' ? tile.height : (tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : null);
+                console.log(`WorldMap2 tile click instance=${inst} height=`, height, 'pos=', pos, 'mapped=', mapped, 'tile=', tile, 'object=', obj);
+              } catch (e) {
+                console.debug('WorldMapScene: instance click sample failed', e);
+              }
+            } else {
+              // fallback: entity-style selection (may contain q/r or pos fields)
+              let q = null;
+              let r = null;
+              if (sel.q != null && sel.r != null) {
+                q = sel.q; r = sel.r;
+              } else if (sel.pos && typeof sel.pos.x === 'number' && typeof sel.pos.z === 'number') {
+                try {
+                  const a = XZToAxial(sel.pos.x, sel.pos.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                  q = a.q; r = a.r;
+                } catch (e) { /* ignore mapping errors */ }
+              }
+              if (q != null && r != null) {
+                try {
+                  let tile = null;
+                  if (this._generator && typeof this._generator.get === 'function') tile = this._generator.get(q, r);
+                  else if (this._generator && typeof this._generator.getByXZ === 'function') {
+                    const world = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                    tile = this._generator.getByXZ(world.x, world.z);
+                  }
+                  const height = tile && typeof tile.height === 'number' ? tile.height : (tile && tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : null);
+                  console.log(`WorldMap2 tile click q=${q} r=${r} height=`, height, 'tile=', tile);
+                } catch (e) {
+                  console.debug('WorldMapScene: click sample failed', e);
+                }
+              } else {
+                console.log('WorldMap2 selection', sel);
+              }
+            }
+          } catch (e) {
+            console.debug('WorldMapScene: onSelect callback failed', e);
+          }
+        });
+      } catch (e) {
+        console.debug('WorldMapScene: ensureClickPicker attach failed', e);
+      }
+    };
 
     // create orbit controls via wrapper (dynamic import inside wrapper)
     try {
@@ -615,7 +723,7 @@ export class WorldMapScene {
             const g = profiler._gpu || null;
             if (g && typeof g.begin === 'function') g.begin();
           }
-        } catch (e) {}
+        } catch (e) { console.debug('WorldMapScene: profiler begin failed', e); }
 
         profiler.start('frame.render');
         this.manager.render();
@@ -627,7 +735,7 @@ export class WorldMapScene {
             const g2 = profiler._gpu || null;
             if (g2 && typeof g2.end === 'function') g2.end();
           }
-        } catch (e) {}
+        } catch (e) { console.debug('WorldMapScene: profiler end failed', e); }
       }
       profiler.endFrame();
     } catch (e) {
