@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { createInstancedMesh } from '@/3d2/renderer/instancing';
 import { ensureInstanceCapacity } from '@/3d/renderer/instancingUtils';
-import { axialToXZ, getHexSize } from '@/3d2/config/layout';
 
 // Lightweight ClutterManager for 3d2. Intentionally simplified: it
 // provides the same external API surface the scenes expect but avoids
@@ -77,39 +76,46 @@ export default class ClutterManager {
     this.world = worldGrid;
   }
 
-  // Simplified commitInstances: synchronously generate placements for axialRect or world bounds.
-  commitInstances({ layoutRadius = 1, contactScale = 0.6, hexMaxY = 1, modelScaleY = () => 1, filter = null, offsetRect = null, axialRect = null } = {}) {
+  // Simplified commitInstances: synchronously generate placements for cellRect or world bounds.
+  commitInstances({ layoutRadius = 1, contactScale = 0.6, hexMaxY = 1, modelScaleY = () => 1, filter = null, offsetRect = null, cellRect = null } = {}) {
     if (!this.scene || !this.world) return;
     // Build a small sample of placements per type using a deterministic RNG derived from worldSeed
     const placements = new Map();
     for (const t of this.types) placements.set(t.id, []);
 
-  const bounds = this.world.bounds ? this.world.bounds() : { minQ: -1, maxQ: 1, minR: -1, maxR: 1 };
-  // support either offsetRect or axialRect; prefer axialRect if provided
-  const qMin = axialRect?.qMin ?? (offsetRect?.colMin ?? bounds.minQ);
-  const qMax = axialRect?.qMax ?? (offsetRect?.colMax ?? bounds.maxQ);
-  const rMin = axialRect?.rMin ?? (offsetRect?.rowMin ?? bounds.minR);
-  const rMax = axialRect?.rMax ?? (offsetRect?.rowMax ?? bounds.maxR);
+    const bounds = this.world.bounds ? this.world.bounds() : { minX: -1, maxX: 1, minZ: -1, maxZ: 1 };
+    // support either offsetRect or cellRect; prefer cellRect if provided
+    const xMin = cellRect?.xMin ?? (offsetRect?.colMin ?? bounds.minX);
+    const xMax = cellRect?.xMax ?? (offsetRect?.colMax ?? bounds.maxX);
+    const zMin = cellRect?.zMin ?? (offsetRect?.rowMin ?? bounds.minZ);
+    const zMax = cellRect?.zMax ?? (offsetRect?.rowMax ?? bounds.maxZ);
 
     // lightweight deterministic RNG
     let seed = this.worldSeed >>> 0;
     function next() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
 
-  // compute a world-space hex size and use axialToXZ for positions
-  const hexSizeWorld = getHexSize({ layoutRadius, spacingFactor: contactScale });
-    for (let q = qMin; q <= qMax; q++) {
-      for (let r = rMin; r <= rMax; r++) {
-        if (typeof filter === 'function' && !filter(q, r)) continue;
-  for (const t of this.types) {
+    // compute a world-space cell size
+    let cellSizeWorld;
+    if (typeof this.world._hexSize === 'function') {
+      cellSizeWorld = this.world._hexSize() * contactScale;
+    } else {
+      const a = this.world.cellToWorld({ x: 0, z: 0 });
+      const b = this.world.cellToWorld({ x: 1, z: 0 });
+      cellSizeWorld = Math.hypot(b.x - a.x, b.z - a.z) * contactScale;
+    }
+    for (let x = xMin; x <= xMax; x++) {
+      for (let z = zMin; z <= zMax; z++) {
+        if (typeof filter === 'function' && !filter(x, z)) continue;
+        for (const t of this.types) {
           // sample cheaply: a low probability placement per tile scaled by density (if provided)
           const density = (t.density ?? 0.12);
           if (next() < density) {
-            // offsets are a fraction of one hex in world units
-            const offx = (next() - 0.5) * hexSizeWorld;
-            const offz = (next() - 0.5) * hexSizeWorld;
+            // offsets are a fraction of one cell in world units
+            const offx = (next() - 0.5) * cellSizeWorld;
+            const offz = (next() - 0.5) * cellSizeWorld;
             const yaw = next() * Math.PI * 2;
             const scl = (t.scale?.min ?? 0.6) + next() * ((t.scale?.max ?? 1.2) - (t.scale?.min ?? 0.6));
-            placements.get(t.id).push({ q, r, offx, offz, yaw, scl });
+            placements.get(t.id).push({ x, z, offx, offz, yaw, scl });
           }
         }
       }
@@ -137,10 +143,10 @@ export default class ClutterManager {
       let dst = 0;
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
-    const tilePos = axialToXZ(it.q, it.r, { layoutRadius, spacingFactor: contactScale });
-    const x = tilePos.x + it.offx;
-    const z = tilePos.z + it.offz;
-    const baseY = hexMaxY * modelScaleY(it.q, it.r) + 0.005 * hexSizeWorld;
+        const tilePos = this.world.cellToWorld({ x: it.x, z: it.z });
+        const x = tilePos.x + it.offx;
+        const z = tilePos.z + it.offz;
+        const baseY = hexMaxY * modelScaleY(it.x, it.z) + 0.005 * cellSizeWorld;
     vecPos.set(x, baseY, z);
         quat.setFromAxisAngle(axisY, it.yaw);
 
