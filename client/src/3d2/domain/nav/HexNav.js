@@ -3,48 +3,48 @@
 
 import { WorldGrid } from '../grid/WorldGrid';
 
-// Axial cube distance helper
+// Axial cube distance helper using common {x,z} cell coords
 function distance(a, b) {
-  const ax = a.q;
-  const az = a.r;
+  const ax = a.x;
+  const az = a.z;
   const ay = -ax - az;
-  const bx = b.q;
-  const bz = b.r;
+  const bx = b.x;
+  const bz = b.z;
   const by = -bx - bz;
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
 }
 
-// Internal axial neighbor offsets
+// Internal axial neighbor offsets expressed with {x,z}
 const OFFSETS = [
-  { q: 1, r: 0 }, { q: -1, r: 0 },
-  { q: 0, r: 1 }, { q: 0, r: -1 },
-  { q: 1, r: -1 }, { q: -1, r: 1 },
+  { x: 1, z: 0 }, { x: -1, z: 0 },
+  { x: 0, z: 1 }, { x: 0, z: -1 },
+  { x: 1, z: -1 }, { x: -1, z: 1 },
 ];
 
 /**
  * A* pathfinder operating on a WorldGrid.
- * @param {{q:number,r:number}|{x:number,z:number}} start
- * @param {{q:number,r:number}|{x:number,z:number}} goal
+ * @param {{x:number,z:number}} start start cell coordinates
+ * @param {{x:number,z:number}} goal goal cell coordinates
  * @param {WorldGrid} grid
  * @param {(a:object,b:object)=>number} [costFn]
- * @returns {Array<{q:number,r:number}>|null}
+ * @returns {Array<{x:number,z:number}>|null}
  */
 export function findPath(start, goal, grid, costFn) {
   if (!grid) return null;
-  const startCell = ('q' in start && 'r' in start) ? start : grid.worldToCell(start.x, start.z);
-  const goalCell = ('q' in goal && 'r' in goal) ? goal : grid.worldToCell(goal.x, goal.z);
+  const startCell = start;
+  const goalCell = goal;
 
-  const startKey = `${startCell.q},${startCell.r}`;
-  const goalKey = `${goalCell.q},${goalCell.r}`;
+  const startKey = `${startCell.x},${startCell.z}`;
+  const goalKey = `${goalCell.x},${goalCell.z}`;
   const open = new Map();
   const closed = new Set();
   const cameFrom = new Map();
   const gScore = new Map();
   const fScore = new Map();
 
-  function keyOf(p) { return `${p.q},${p.r}`; }
+  function keyOf(p) { return `${p.x},${p.z}`; }
   function neighbors(p) {
-    return OFFSETS.map(o => ({ q: p.q + o.q, r: p.r + o.r }));
+    return OFFSETS.map(o => ({ x: p.x + o.x, z: p.z + o.z }));
   }
 
   gScore.set(startKey, 0);
@@ -58,14 +58,14 @@ export function findPath(start, goal, grid, costFn) {
       const f = fScore.get(k) ?? Infinity;
       if (f < currentF) { currentF = f; currentKey = k; }
     }
-    const [cq, cr] = currentKey.split(',').map(Number);
-    const current = { q: cq, r: cr };
+    const [cx, cz] = currentKey.split(',').map(Number);
+    const current = { x: cx, z: cz };
     if (currentKey === goalKey) {
       const path = [];
       let k = currentKey;
       while (k) {
-        const [q, r] = k.split(',').map(Number);
-        path.unshift({ q, r });
+        const [x, z] = k.split(',').map(Number);
+        path.unshift({ x, z });
         k = cameFrom.get(k);
       }
       return path;
