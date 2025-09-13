@@ -41,7 +41,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap:8px">
         <input type="checkbox" v-model="layers.layer3" @change="applyImmediate" />
-        Layer 3 — Biome Blending, Palette & Clutter Rules
+        Layer 3 — Biome Blending & Palette
       </label>
 
       <label class="d-flex align-center cursor-pointer" style="gap:8px">
@@ -56,7 +56,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap:8px">
         <input type="checkbox" v-model="layers.layer5" @change="applyImmediate" />
-        Layer 5 — Visual Cohesion & Fantasy Push
+        Layer 5 — Visual Cohesion & Style
       </label>
     </div>
 

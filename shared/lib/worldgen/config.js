@@ -1,6 +1,24 @@
 // shared/lib/worldgen/config.js
 // Default configuration and layer toggles (kept minimal and JSON-serializable)
 
+let layersConfig = {};
+try {
+  // Try JSON import with assertion (works in bundlers and Node with support)
+  // @ts-ignore
+  const mod = await import('./layers_config.json', { assert: { type: 'json' } });
+  layersConfig = mod.default || mod;
+} catch (e) {
+  try {
+    // Fallback: read file directly (Node runtime). Use import.meta.url to resolve path.
+    const fs = await import('fs');
+    const url = new URL('./layers_config.json', import.meta.url);
+    const txt = fs.readFileSync(url, 'utf8');
+    layersConfig = JSON.parse(txt);
+  } catch (err) {
+    layersConfig = {};
+  }
+}
+
 export const DEFAULT_CONFIG = {
   // Global multiplier applied to the final elevation (rendered height).
   // This does not change biome/sea classification which is computed from
@@ -10,15 +28,9 @@ export const DEFAULT_CONFIG = {
     layer0: {
       paletteId: 'default'
     },
-    layer1: {
-      continentScale: 1.0,
-      seaLevel: 0.33,
-      plateCellSize: 256,
-    },
-    layer2: {
-      regionNoiseScale: 0.02,
-      maxInlandDistance: 100
-    },
+  // Layer defaults are centralized in layers_config.json to make tuning easier.
+  layer1: Object.assign({}, (layersConfig.layer1 || {})),
+  layer2: Object.assign({}, (layersConfig.layer2 || {})),
     layer3: {
       ecotoneThreshold: 0.25
     },

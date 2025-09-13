@@ -1,0 +1,20 @@
+{
+  "layer1": {
+    "continentScale": 1.0,
+    "seaLevel": 0.33,
+    "plateCellSize": 256,
+    "warp": {
+      "slow": { "freq": 0.08, "amp": 0.25 },
+      "fast": { "freq": 0.6, "amp": 0.05 }
+    },
+    "detail": { "freq": 0.6, "amp": 0.15 }
+  },
+  "layer2": {
+    "regionNoiseScale": 0.02,
+    "maxInlandDistance": 100,
+    "amplitude": 0.6,
+    "frequency": 0.02,
+    "octaves": 3,
+    "roughnessScale": 0.5
+  }
+}

@@ -32,13 +32,16 @@ function mergeParts(base, parts, ctx) {
     if (part.plate) tile.plate = Object.assign({}, part.plate);
   }
 
-  // Clamp final unscaled elevation to 0..1 for classification purposes
-  const unscaled = Math.max(0, Math.min(1, tile.elevation.raw));
-  // Keep canonical elevation values unscaled so palette and classification
-  // remain deterministic and unaffected by visual scaling.
+  // Preserve the accumulated raw elevation (do NOT clamp here). Some
+  // subsequent layers are expected to increase absolute height beyond the
+  // initial layer1 cap. Keep a clamped normalized value for classification
+  // and palette decisions, but retain the unclamped raw as the authoritative
+  // physical height before visual scaling.
+  const rawUnclamped = tile.elevation.raw;
+  const normalized = Math.max(0, Math.min(1, rawUnclamped));
   tile.elevation = tile.elevation || {};
-  tile.elevation.raw = unscaled;
-  tile.elevation.normalized = unscaled;
+  tile.elevation.raw = rawUnclamped;
+  tile.elevation.normalized = normalized;
 
   // After merging, compute a minimal, deterministic palette based on elevation
   // so the initial world is colored by height only. Anything under seaLevel
@@ -90,11 +93,14 @@ function mergeParts(base, parts, ctx) {
   // Finally, apply global visual scale only to the rendered height. Keep
   // tile.elevation.* as the canonical, unscaled values used for classification.
   try {
-    const scale = (ctx && ctx.cfg && typeof ctx.cfg.scale === 'number') ? ctx.cfg.scale : 1.0;
-    const scaled = Math.max(0, Math.min(1, (tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : 0) * scale));
-  tile.renderHeight = scaled; // explicit field for renderers
-  // Preserve tile.height as the canonical, unscaled elevation so
-  // classification and palette decisions are unaffected by visual scale.
+  const scale = (ctx && ctx.cfg && typeof ctx.cfg.scale === 'number') ? ctx.cfg.scale : 1.0;
+  // Compute renderHeight from the unclamped raw elevation so layers can
+  // visibly exceed the original cap; clamp to >=0 but do not artificially
+  // cap at 1.0. The renderer can interpret values >1 as taller geometry.
+  const scaled = Math.max(0, (tile.elevation && typeof tile.elevation.raw === 'number' ? tile.elevation.raw : 0) * scale);
+  tile.renderHeight = scaled; // explicit field for renderers (may exceed 1)
+  // Preserve tile.height as the canonical, clamped elevation used for
+  // classification and palette decisions.
   tile.height = tile.elevation.normalized;
   } catch (e) {
     // ignore scale application errors and keep original height
