@@ -1,280 +1,264 @@
-# Hex World Generation – Fantasy but Plausible, Highly Varied, Mobile-Friendly
+# Hex World Generation – Technical Specification
 
-**Version:** 2.1  
-**Purpose:** Define a deterministic, performant, and visually cohesive method for generating continent-scale, **visually dramatic and varied** terrain on a hex grid.  
-Generation prioritizes **map quality first**, with performance as a close second, and is designed to run on phones through scalable settings and player-adjustable clutter density.
-
----
-
-## Creative Constraints & Palette
-
-### Purpose
-
-Define the creative and technical boundaries for the procedural world generation system to ensure:
-
-- **Fantasy but plausible** worlds with bold terrain variety.
-- Deterministic, seed-based generation.
-- High variety and replay value before any handcrafted content is added.
-- Tuneable biome and terrain rules via config files without code changes.
-
-### Tone & Identity
-
-- **Fantasy Plausibility:** Geographic logic respected but compressed and exaggerated for gameplay variety.
-- **Bold Geography:** Strong vertical contrast, but no floating landmasses or implausible shapes in baseline generation.
-- **Mixed Origin Story:** Features may have subtle mythical or fantastical influence.
-
-### Technical Constraints
-
-- **Map Quality Priority:** Performance tuned after terrain quality targets are met.
-- **Performance Levers:**
-  - Player-adjustable clutter density (8 models/tile default, 0–8 range).
-  - Aggressive LOD and culling.
-- **Generation:** O(1) per tile, typically ≤10 noise reads (can exceed slightly for major quality gain).
-- **Determinism:** Pure function of `(seed, q, r)` — internally the generator converts axial `(q, r)` to world Cartesian `(x, z)` and samples noise using those Cartesian coordinates.
-- **Client-Side Generation:** Server sends `seed` and locations; client renders terrain locally.
-- **Visual Output:** Distinct biome palettes, low-poly clutter, contextual tile patterns.
-- **Tuneability:** All biome definitions, rarity weights, palettes in external config (JSON, etc.).
-
-### Biome Palette Philosophy
-
-- **Sprawling List:** Large set of biomes for variety and spice.
-- **Rarity Tiers:** Common, Uncommon, Rare.
-- **Special Biomes:** Unusual but plausible variants tied to climate/terrain.
-
-### Wonders & Special Regions
-
-- Created by baseline generator, not location system.
-- Rare, biome-consistent, fantastical scaling with rarity.
-- Blend naturally into parent biomes.
-
-### Exploration Goals
-
-- Biome shifts recognizable at a glance.
-- Continent sizes allow multiple regions but avoid trapping players inland.
-- Oceans deep and expansive enough to justify traversal mechanics.
+**Version:** 2.0  
+**Purpose:** Define the technical implementation details for the procedural hex world generation system.  
+**Scope:** Server/client integration, data flow, algorithmic layers, performance targets, configuration structure, and extensibility.
 
 ---
 
-## Layer 1 – Continents & Oceans (Macro Geography)
+## **0. System Overview**
 
-### Objectives
+### **Architecture**
 
-- Target **60–65% ocean** coverage, but only 1/3rd (ideally tunable) of the total height budget of the terrain should be under water (i.e. under .33 elevation).
-- Large, contiguous continents with believable structure and no noisy jitter in this pass.
-- Multi-tier bathymetry for visual depth.
-- Tunable, deterministic macro generation.
-
-### Field Stack
-
-1. **Macro Continents:** Low-frequency base noise (FBM/simplex). Goal is to have mostly unattached continents.
-2. **Dual Domain Warp:**
-   - Warp A: Ultra-low frequency for bending continents.
-   - Warp B: Mid-frequency for crenulated coasts.
-3. **Plate Field:** Voronoi/cellular; stores cell ID & edge distance.
-4. **Shelf/Depth Shaper:** Derived from continental field; no extra reads.
-
-**Noise Budget:** ~4 reads for macro pass.
-
-### Elevation Construction
-
-- Combine continent base, plate edge ridges, basin depressions, and detail noise.
-- Apply encapsulation to push oceans down and land up.
-- Normalize and apply sea level.
-
-### Sea Level & Bathymetry
-
-- Depth bands: Deep Ocean, Abyss, Slope, Shelf.
-
-### Coastline Quality
-
-- Balanced mix of broad peninsulas and crenulated edges.
-- Shelf width varies by plate orientation.
-
-### Plate Archetypes
-
-- Shield Plateau, Rift Basin, Collisional Belt, Island Arc, Floodplain.
-- Archetypes bias elevation and later biome selection.
-
-### Tunables
-
-- All major parameters configurable at runtime.
+- **Deterministic Generation:** Every tile is a pure function of `(seed, q, r)`.
+- **Client-Side Generation:**
+  - Server sends world `seed` + list of **locations** in render range.
+  - Client uses seed + coordinates to generate base terrain.
+  - Locations override base tiles as needed (for dungeons, POIs, etc.).
+- **Performance Target:**
+  - O(1) time per tile.
+  - ≤10 noise reads per tile on default settings; slightly higher allowed if quality gain is significant.
+  - All features must be scalable for mobile clients.
 
 ---
 
-## Layer 2 – Mesoscale & Regional Identity
+## **1. Data Flow**
 
-### Purpose
+```
+Server:
+  - Sends (seed, player_position, locations_in_range)
 
-Break up continents into distinct regions with unique relief and biome bias.
-
-### Approach
-
-- Use plate field + 1 extra low-frequency region breakup noise (+1 read).
-- Assign regional archetype to each region cell.
-
-### Regional Archetypes
-
-- Megaplain, Badlands, High Plateau, Broken Highlands, Basins, Inland Ridge, Coastal Shelf.
-- Archetype influences elevation bias and biome weighting.
-
-### Player Experience
-
-- Regions change feel before biome shifts.
-- No flat, monotonous interiors.
+Client:
+  1. For each visible hex (q, r):
+     - Generate macro geography (Layer 1)
+     - Apply mesoscale regional variation (Layer 2)
+     - Select biome + blending (Layer 3)
+     - Place clutter assets (Layer 3.5)
+     - Apply special/rare region overrides (Layer 4)
+     - Apply global visual adjustments (Layer 5)
+  2. Render using low-poly tiles + clutter + shaders
+```
 
 ---
 
-## Layer 3 – Biome Blending, Palette Distinctness & Clutter Rules
+## **2. Noise & Math Budget**
 
-### Purpose
+- **Shared Noise Sources:**
 
-- Smooth biome transitions with ecotones.
-- Make each biome visually distinct.
-- Convey biome identity through palette and clutter.
+  - **Low-frequency continental mask** (FBM/simplex)
+  - **Warp fields** (slow & fast)
+  - **Plate Voronoi**
+  - **Medium detail noise**
+  - **Region breakup noise**
+  - **Special region mask**
 
-### Biome Selection
-
-1. Calculate base weights from elevation, temp, moisture.
-2. Apply regional biases.
-3. Pick top two candidates.
-4. Blend colors and clutter if secondary weight > threshold.
-
-### Ecotones
-
-On-the-fly composites of neighboring biomes:
-
-- Color lerp.
-- Mixed clutter sets.
-
-### Palette Distinctness
-
-- Base color, slope tint, microvariation per biome.
-- All stored in HSV; normalized for cohesion.
-
-### Clutter Rules
-
-- Default: 8/tile; player-adjustable 0–8.
-- Per-biome clutter sets; blended in ecotones.
-- Model reuse with palette swaps.
+- **Target:**  
+  | Layer | Reads | Notes |
+  |---------|-------|-------|
+  | Layer 1 | 5–6 | Includes warps, plates, macro, detail |
+  | Layer 2 | +1 | Region breakup noise |
+  | Layer 4 | +1 | Shared special region mask |
+  | Total | 7–8 | Leaves headroom for climate fields |
 
 ---
 
-## Layer 3.5 – Ground Clutter System
+## **3. Configuration System**
 
-### Purpose
+- **Format:** JSON
+- **Load:** At runtime; reloadable for tuning without recompilation.
+- **Categories:**
+  - Macro geography (`macro`, `warp`, `plates`, `detail`, `archipelago`)
+  - Region archetypes
+  - Biomes (base palettes, clutter sets)
+  - Clutter assets (dimensions, poly budget, palette variants)
+  - Special/rare regions
+  - Visual style parameters
 
-Biome readability and visual richness without heavy geometry.
-
-### Clutter Budget
-
-- Default density: 8/tile.
-- Adjustable by player.
-- GPU instancing, LOD, culling.
-
-### Asset Guidelines
-
-- Low-poly, single material slot, atlas-compatible.
-- Large: 150–300 tris, Medium: 80–200 tris, Small: 20–80 tris.
-- Consistent scaling between types.
-
-### Categories & Dimensions
-
-**Trees & Large Flora:** Height 6–10m, canopy width 3–6m.  
-**Bushes & Medium Flora:** Height 1–2.5m, width 1–2.5m.  
-**Rocks & Terrain Features:** Height 0.5–2m, width 0.5–3m.  
-**Specialty Clutter:** Varies by asset; scaled to context.
-
-### Placement Rules
-
-- Per-biome density multipliers.
-- Slope checks.
-- Ecotone blending (50/50 sets).
-- Random yaw, ±15% scale, ±5% hue shift.
-
-### Performance
-
-- Instancing per type/chunk.
-- 3 LOD levels: full mesh, simplified, billboard/cull.
-
----
-
-## Layer 4 – Special & Rare Regions
-
-### Purpose
-
-Rare, biome-consistent subregions with strong visual impact.
-
-### Principles
-
-- Biomes first, plausible placement, rarity configurable.
-- Implemented as palette/clutter overrides — no heavy new fields.
-
-### Examples
-
-- Frozen Jungle (snowy tropical highlands).
-- Volcanic Seafloor (deep ocean near plate boundaries).
-- Glass Desert (crystal-studded dunes).
-- Obsidian Flats, Salt Flats, Mushroom Glade, Coral Shelf, Ice Forest.
-
-### Placement
-
-- Eligibility check → shared low-frequency mask → thresholded rarity.
-- Neighboring eligible tiles pulled into same region.
-
-### Performance
-
-- +1 noise read total for all specials.
-- Palette/clutter swaps only.
-
----
-
-## Aspirational Goal: Visual Cohesion & Fantasy Push
-
-### Purpose
-
-Tie all layers together into a unified, intentional style.
-
-### Goals
-
-- Cohesive color and shape language.
-- Fantasy-first palette with consistent saturation/brightness.
-- Readable at all zoom levels.
-- Works within hex-grid constraints.
-
-### Palette Cohesion
-
-- Normalize HSV ranges.
-- Accent colors for fantasy tone.
-- Optional LUT for global grading.
-
-### Shape Language
-
-- Consistent poly density and style across assets.
-
-### Height Exaggeration
-
-- Exaggerate relief for zoomed-out silhouettes; normalize up close.
-- Lower snowline for visual drama.
-
-### Atmosphere & Shading
-
-- Simple biome-tinted fog gradient.
-- Slope tint for cliffs.
-- Fixed sun angle for shadow readability.
-
-### Clutter Integration
-
-- Consistent scaling across biomes.
-- Color grading applies equally to clutter and ground.
-
-### Configurable Global Style
+**Example:**
 
 ```json
-"visual_style": {
-  "global_saturation": 1.15,
-  "global_contrast": 1.10,
-  "fog_strength": 0.4,
-  "mountain_exaggeration": 1.5,
-  "snowline_bias": -0.08
+{
+  "macro": { "ocean_target_pct": 0.62, "sea_level": 0.52 },
+  "warp": { "slow": { "freq": 0.08, "amp": 0.25 } },
+  "plates": { "freq": 0.1, "ridge_amp": 0.45 },
+  "detail": { "freq": 0.6, "amp": 0.15 }
 }
 ```
+
+---
+
+## **4. Layer Implementation**
+
+### **Layer 1 – Continents & Oceans**
+
+**Purpose:** Generate macro-scale land/ocean distribution, major ridges, and bathymetry.
+
+**Algorithm:**
+
+1. Warp coordinates:
+   ```
+   pw = p + warpA(p) * A_amp + warpB(p) * B_amp
+   ```
+2. Continental mask:
+   ```
+   C0 = fbm(seed+3, pw, lf)
+   ```
+3. Plate Voronoi:
+   - Store `cellId` and `distanceToEdge`.
+4. Ridge/Basin shaping:
+   - Ridge: `ridgeShape(distanceToEdge)`
+   - Basin: `basinShape(distanceToCenter)`
+5. Add medium detail noise to break uniformity.
+6. Encapsulation:
+   - Push oceans down, land up using `C0` as mask.
+7. Normalize and apply sea level threshold.
+
+---
+
+### **Layer 2 – Mesoscale & Regional Identity**
+
+**Purpose:** Break continents into smaller, distinct regions.
+
+**Algorithm:**
+
+1. Region breakup noise (low-frequency cellular) generates subregions within plates.
+2. Assign regional archetype by weighted random per region cell.
+3. Apply elevation/relief bias from archetype:
+   - Megaplain: flatten toward slightly-above sea level.
+   - Badlands: add medium relief.
+   - High Plateau: raise elevation.
+   - etc.
+4. Store biome weight multipliers for Layer 3.
+
+---
+
+### **Layer 3 – Biome Blending & Palette**
+
+**Purpose:** Assign biome per tile and create smooth transitions.
+
+**Algorithm:**
+
+1. Compute base biome weights from `(elevation_band, temperature, moisture)`.
+2. Apply regional archetype bias.
+3. Select top 2 candidates.
+4. Blend if secondary weight > threshold:
+   ```
+   final_color = lerp(primary.color, secondary.color, blend_factor)
+   final_clutter = mixSets(primary.clutter, secondary.clutter)
+   ```
+5. Store biome assignment + blend factor for rendering.
+
+---
+
+### **Layer 3.5 – Ground Clutter**
+
+**Purpose:** Add low-poly biome-specific clutter for visual identity.
+
+**Rules:**
+
+- Per-biome clutter sets.
+- Placement respects slope limits (flora only).
+- Ecotone zones mix clutter from both parents.
+- Variance in rotation, scale, hue.
+
+**Performance:**
+
+- GPU instancing; one draw call per clutter type per chunk.
+- LOD levels:
+  - LOD0: full mesh
+  - LOD1: simplified mesh (~50% tris)
+  - LOD2: billboard impostor or culled
+
+---
+
+### **Layer 4 – Special & Rare Regions**
+
+**Purpose:** Add rare subregions within biomes.
+
+**Algorithm:**
+
+1. Check if tile biome + climate match special region rules.
+2. Sample special region mask; compare to rarity threshold.
+3. If eligible, expand to neighbors (1–3 hex radius).
+4. Apply palette/clutter overrides.
+
+**Performance:**
+
+- One shared noise mask for all specials.
+
+---
+
+### **Layer 5 – Visual Cohesion & Style**
+
+**Purpose:** Apply global adjustments to unify look.
+
+**Implementation:**
+
+- Palette normalization (global saturation/contrast).
+- Snowline bias applied to high elevations.
+- Fog gradient by biome moisture/temperature.
+- Height exaggeration scaling by zoom.
+- Slope tint application for elevation contrast.
+
+---
+
+## **5. Climate Fields**
+
+- **Temperature:** Derived from latitude + altitude lapse rate.
+- **Moisture:** Based on ocean proximity, plate orientation, rain shadow from ridges.
+- **Wind bands:** Latitudinal; smoothed to avoid seams.
+
+---
+
+## **6. Elevation Bands**
+
+For biome and visual classification:
+
+- DeepOcean, Abyss, Slope, Shelf
+- Coast, Lowland, Highland, Mountain, Peak
+
+---
+
+## **7. Performance Considerations**
+
+- **Noise Optimization:** Reuse values where possible; avoid resampling same field.
+- **Memory:** No tile caching; stateless per tile generation.
+- **GPU:** Batch clutter instances by type; share materials via atlas.
+- **Client Scaling:** Allow clutter density scaling, LOD distances adjustment, and disabling advanced shading.
+
+---
+
+## **8. Extensibility**
+
+- **Adding New Biomes:** Update config with palette, clutter set, climate rules.
+- **Adding Special Regions:** Define biome compatibility, rarity, palette/clutter overrides.
+- **Changing Geography:** Adjust macro/plate config frequencies and amplitudes.
+
+---
+
+## **9. Server/Client Integration**
+
+- **Server:**
+  - Holds authoritative location data.
+  - Sends `seed` and locations in render range.
+- **Client:**
+  - Generates base terrain from seed locally.
+  - Overlays locations on base terrain.
+  - Renders result with clutter and visual adjustments.
+
+---
+
+## **10. Debug & Tuning Tools**
+
+- **Runtime Debug Panel:**
+  - Sliders for continent size, warp frequency, ridge amplitude, climate band width, sea level, encapsulation strength.
+  - Changes apply live without affecting determinism for current `(seed, q, r)`.
+
+---
+
+## **11. Key Constants**
+
+- Default ocean coverage: `0.62`
+- Max inland distance: `100` tiles (runtime configurable)
+- Clutter density default: `8` models/tile
+- Noise reads target: ≤10 per tile
