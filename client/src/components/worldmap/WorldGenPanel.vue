@@ -23,39 +23,92 @@
       <div style="font-size:11px; opacity:0.8">Layers</div>
     </div>
 
-    <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer0" @change="applyImmediate" />
+    <div
+      style="display:grid; grid-template-columns: 1fr; gap:8px;"
+    >
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer0"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 0 — Creative Constraints & Palette
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer1" @change="applyImmediate" />
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer1"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 1 — Continents & Oceans
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer2" @change="applyImmediate" />
+  <!-- seaLevel is configured in shared/lib/worldgen/config.js and is not editable at runtime -->
+
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer2"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 2 — Mesoscale & Regional Identity
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer3" @change="applyImmediate" />
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer3"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 3 — Biome Blending & Palette
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer35" @change="applyImmediate" />
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer35"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 3.5 — Ground Clutter System
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer4" @change="applyImmediate" />
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer4"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 4 — Special & Rare Regions
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap:8px">
-        <input type="checkbox" v-model="layers.layer5" @change="applyImmediate" />
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap:8px"
+      >
+        <input
+          v-model="layers.layer5"
+          type="checkbox"
+          @change="applyImmediate"
+        >
         Layer 5 — Visual Cohesion & Style
       </label>
     </div>
@@ -117,7 +170,11 @@ export default {
       this.$emit('apply', payload);
     },
     applyImmediate() {
-      try { this.apply(); } catch (e) {}
+      try {
+        this.apply();
+      } catch (e) {
+        // ignore failures applying immediately
+      }
     },
     reset() {
       this.layers = { layer0: true, layer1: true, layer2: true, layer3: true, layer35: true, layer4: true, layer5: true };

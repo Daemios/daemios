@@ -207,8 +207,13 @@ export default class ChunkManager {
             let tile;
             if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
             else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
-            // Classification uses biomeFromCell (which now prefers unscaled elevation).
-            const bio = biomeFromCell(tile);
+            // Prefer canonical palette supplied on the tile; fallback to biomeFromCell.
+            let bio = null;
+            if (tile && tile.palette && tile.palette.topColor) {
+              bio = { top: tile.palette.topColor, side: tile.palette.sideColor || tile.palette.topColor };
+            } else {
+              bio = biomeFromCell(tile);
+            }
             // Use renderHeight for instance scaling (fallback to unscaled height)
             let elevRender = 0;
             if (tile && typeof tile.renderHeight === 'number') elevRender = tile.renderHeight;

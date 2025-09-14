@@ -143,7 +143,7 @@ function computeTilePart(ctx) {
   // produce unrealistic seafloor relief. Use layer1 bathymetry if available.
   const seaLevel = (ctx && ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
     ? ctx.partials.layer1.bathymetry.seaLevel
-    : ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1 && typeof ctx.cfg.layers.layer1.seaLevel === 'number') ? ctx.cfg.layers.layer1.seaLevel : 0.52);
+    : ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number') ? ctx.cfg.layers.global.seaLevel : 0.52);
   const isSea = (baseLayer1 <= seaLevel);
   const seaMultiplier = isSea ? 0.3 : 1.0;
   const elevationContributionSeaAdjusted = elevationContribution * seaMultiplier;

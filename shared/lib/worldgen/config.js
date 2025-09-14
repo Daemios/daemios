@@ -1,36 +1,36 @@
 // shared/lib/worldgen/config.js
-// Default configuration and layer toggles (kept minimal and JSON-serializable)
-
-let layersConfig = {};
-try {
-  // Try JSON import with assertion (works in bundlers and Node with support)
-  // @ts-ignore
-  const mod = await import('./layers_config.json', { assert: { type: 'json' } });
-  layersConfig = mod.default || mod;
-} catch (e) {
-  try {
-    // Fallback: read file directly (Node runtime). Use import.meta.url to resolve path.
-    const fs = await import('fs');
-    const url = new URL('./layers_config.json', import.meta.url);
-    const txt = fs.readFileSync(url, 'utf8');
-    layersConfig = JSON.parse(txt);
-  } catch (err) {
-    layersConfig = {};
-  }
-}
+// Default configuration and layer toggles
 
 export const DEFAULT_CONFIG = {
   // Global multiplier applied to the final elevation (rendered height).
   // This does not change biome/sea classification which is computed from
   // the unscaled elevation; it only scales the returned tile.height.
-  scale: 4.0,
+  scale: 5,
   layers: {
+    // Global tuning values that affect multiple layers (authoritative sea level)
+    global: {
+      seaLevel: .20
+    },
     layer0: {
       paletteId: 'default'
     },
-  // Layer defaults are centralized in layers_config.json to make tuning easier.
-  layer1: Object.assign({}, (layersConfig.layer1 || {})),
-  layer2: Object.assign({}, (layersConfig.layer2 || {})),
+    layer1: {
+      continentScale: 1.0,
+      plateCellSize: 256,
+      warp: {
+        slow: { freq: 0.08, amp: 0.25 },
+        fast: { freq: 0.6, amp: 0.05 }
+      },
+      detail: { freq: 0.6, amp: 0.15 }
+    },
+    layer2: {
+      regionNoiseScale: 0.02,
+      maxInlandDistance: 100,
+      amplitude: 0.6,
+      frequency: 0.02,
+      octaves: 3,
+      roughnessScale: 0.5
+    },
     layer3: {
       ecotoneThreshold: 0.25
     },
@@ -53,5 +53,3 @@ export const DEFAULT_CONFIG = {
     snowline_bias: -0.08
   }
 };
-
-// ESM export already provided above.

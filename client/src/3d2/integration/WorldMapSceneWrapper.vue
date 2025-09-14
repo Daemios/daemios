@@ -340,10 +340,11 @@ function onWorldGenApply(payload) {
   try {
     if (!payload || !payload.layers) return;
     const layers = payload.layers;
-    // persist to settings store
+    // persist to settings store (layers only)
     try {
       if (settings && typeof settings.mergeAtPath === 'function') {
-        settings.mergeAtPath({ path: 'worldMap', value: { generation: { layers: { ...layers } } } });
+        const saveVal = { generation: { layers: { ...layers } } };
+        settings.mergeAtPath({ path: 'worldMap', value: saveVal });
       }
     } catch (e) { /* ignore persistence errors */ }
 
@@ -355,7 +356,7 @@ function onWorldGenApply(payload) {
       cfgPartial.layers[mapped] = layers[k];
     }
 
-    // apply to scene generator
+  // seaLevel is authoritative in DEFAULT_CONFIG.layers.global and not forwarded at runtime
     try {
       if (sceneInst && typeof sceneInst.setGeneratorConfig === 'function') {
         sceneInst.setGeneratorConfig(cfgPartial);

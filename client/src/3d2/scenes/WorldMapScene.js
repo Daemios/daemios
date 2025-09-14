@@ -468,10 +468,16 @@ export class WorldMapScene {
               else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elevRender = cell.elevation.normalized;
               else if (cell && typeof cell.height === 'number') elevRender = cell.height;
               yScale = Math.max(0.001, elevRender * 1.0);
-              // biomeFromCell accepts tile-shaped cells (height/elevation) or legacy fields; classification will prefer unscaled elevation
-              const bio = biomeFromCell(cell);
-              topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
-              sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
+              // Prefer canonical palette supplied by the generator (tile.palette).
+              // Fallback to biomeFromCell for legacy behavior.
+              if (cell && cell.palette && cell.palette.topColor) {
+                topCol = new THREE.Color(cell.palette.topColor);
+                sideCol = new THREE.Color(cell.palette.sideColor || cell.palette.topColor);
+              } else {
+                const bio = biomeFromCell(cell);
+                topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+                sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
+              }
             }
           } catch (e) {
             console.debug('WorldMapScene: sampling generator for top/side failed', e);
@@ -538,8 +544,12 @@ export class WorldMapScene {
               if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elev = cell.elevation.normalized;
               else if (cell && typeof cell.height === 'number') elev = cell.height;
           yScale = Math.max(0.001, elev * 1.0);
-          const bio = biomeFromCell(cell);
-              col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+          if (cell && cell.palette && cell.palette.topColor) {
+            col = new THREE.Color(cell.palette.topColor);
+          } else {
+            const bio = biomeFromCell(cell);
+            col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+          }
             }
           } catch (e) { console.debug('WorldMapScene: sampling generator for cylinder failed', e); }
           instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
