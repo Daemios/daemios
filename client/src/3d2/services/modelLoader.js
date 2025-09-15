@@ -70,21 +70,28 @@ function computeContactScaleFromGeom(topGeom, layoutRadius, modelScaleFactor, ga
 
 export async function loadHexModel(options = {}) {
   const {
-    path = '/models/hex-can.glb',
+    // Require explicit separate top/side paths only
+    topPath = null,
+    sidePath = null,
     layoutRadius = 0.5,
     gapFraction = 0.0,
     orientation = 'flat',
   } = options;
 
-  if (modelMeasureCache.has(path)) {
-    return Object.assign({}, modelMeasureCache.get(path));
-  }
+  if (!topPath || !sidePath) throw new Error('loadHexModel: topPath and sidePath are required');
 
-  const gltf = await loadGLTF(path);
-  const scene = gltf.scene || gltf.scenes && gltf.scenes[0] || null;
-  if (!scene) {
-    return { topGeom: null, sideGeom: null, modelCenter: new THREE.Vector3(), hexMaxY: 1, modelScaleFactor: 1, contactScale: 1, scene: null };
-  }
+  // Compose cache key for top+side pair
+  const cacheKey = `${topPath}|${sidePath}`;
+  if (modelMeasureCache.has(cacheKey)) return Object.assign({}, modelMeasureCache.get(cacheKey));
+
+  // Load top and side GLTFs
+  const [gltfTop, gltfSide] = await Promise.all([loadGLTF(topPath), loadGLTF(sidePath)]);
+  const topScene = gltfTop.scene || (gltfTop.scenes && gltfTop.scenes[0]) || null;
+  const sideScene = gltfSide.scene || (gltfSide.scenes && gltfSide.scenes[0]) || null;
+  if (!topScene || !sideScene) throw new Error(`loadHexModel: missing scene in either topPath=${topPath} or sidePath=${sidePath}`);
+  // Compose a group for measurement/center
+  const scene = new THREE.Group();
+  scene.add(topScene); scene.add(sideScene);
 
   // If author expects 'flat' layout, rotate the model by 30deg so flats face X (legacy behavior)
   if (orientation === 'flat') {
@@ -92,34 +99,23 @@ export async function loadHexModel(options = {}) {
   }
   scene.updateWorldMatrix(true, true);
 
-  // Extract mesh geometries and bake world transforms
+  // Extract mesh geometries and bake world transforms. If separate top/side
+  // scenes were provided, prefer the first mesh found in each scene.
   let topGeom = null;
   let sideGeom = null;
-  let meshCount = 0;
-  scene.traverse((child) => {
-    if (child.isMesh && child.geometry) {
-      try {
-        meshCount += 1;
-        const g = child.geometry.clone();
-        g.applyMatrix4(child.matrixWorld);
-        if (!topGeom) topGeom = g;
-        else if (!sideGeom) sideGeom = g;
-      } catch (e) {
-        // ignore geometry extraction errors
-      }
+  // find first mesh in topScene and first mesh in sideScene
+  topScene.traverse((child) => {
+    if (!topGeom && child.isMesh && child.geometry) {
+      try { topGeom = child.geometry.clone(); topGeom.applyMatrix4(child.matrixWorld); } catch (e) { /* ignore */ }
     }
   });
-
-  // If the model only provided a single mesh, treat it as the side geometry only
-  // and leave topGeom null so renderers will use a flat fallback top. This
-  // prevents instancing the exact same mesh twice (top + side) which causes
-  // coplanar overlap and z-fighting.
-  if (meshCount === 1 && topGeom && !sideGeom) {
-    sideGeom = topGeom;
-    topGeom = null;
-  } else {
-    if (!topGeom && sideGeom) topGeom = sideGeom.clone();
-    if (!sideGeom && topGeom) sideGeom = topGeom.clone();
+  sideScene.traverse((child) => {
+    if (!sideGeom && child.isMesh && child.geometry) {
+      try { sideGeom = child.geometry.clone(); sideGeom.applyMatrix4(child.matrixWorld); } catch (e) { /* ignore */ }
+    }
+  });
+  if (!topGeom || !sideGeom) {
+    throw new Error(`loadHexModel: expected both topPath and sidePath to contain a mesh; found top=${!!topGeom} side=${!!sideGeom}`);
   }
 
   // Recenter and compute geometry metrics
@@ -169,7 +165,7 @@ export async function loadHexModel(options = {}) {
     nativeEdgeWidth,
   };
 
-  modelMeasureCache.set(path, result);
+  modelMeasureCache.set(cacheKey, result);
   return Object.assign({}, result);
 }
 

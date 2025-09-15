@@ -7,7 +7,7 @@ export const DEFAULT_CONFIG = {
   // the unscaled elevation; it only scales the returned tile.height.
   // maximum world height (units). Normalized elevations (0..1) are
   // interpreted as a percentage of this value.
-  maxHeight: 10,
+  maxHeight: 100,
   // Global multiplier applied to the final elevation (rendered height).
   // Final world units = normalized * maxHeight * scale
   scale: 1,
@@ -34,7 +34,7 @@ export const DEFAULT_CONFIG = {
     layer2: {
       regionNoiseScale: 0.02,
       maxInlandDistance: 100,
-      amplitude: 0.6,
+      amplitude: 0.1,
       frequency: 0.02,
       octaves: 3,
       roughnessScale: 0.5

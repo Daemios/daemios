@@ -180,6 +180,12 @@ async function initScene() {
         /* ignore */
       }
     }
+    // apply persisted wireframe flag if present so the wireframe re-renders on reload
+    try {
+      if (typeof features.wireframe !== 'undefined' && sceneInst && typeof sceneInst.setWireframe === 'function') {
+        try { sceneInst.setWireframe(!!features.wireframe); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* ignore */ }
   } catch (e) {
     /* ignore settings application errors */
   }
@@ -259,6 +265,11 @@ async function initScene() {
 
   function _loop(t) {
     try {
+      // auto-request rendering when an animated water material is present
+      try {
+        const hasAnimatedWater = sceneInst && sceneInst._water && sceneInst._water.material && sceneInst._water.material.uniforms && sceneInst._water.material.uniforms.uTime;
+        if (hasAnimatedWater) renderRequested = true;
+      } catch (e) { /* ignore */ }
       if (renderRequested) {
         try {
           if (sceneInst && sceneInst.tick) sceneInst.tick(t);
@@ -308,6 +319,10 @@ function onDebugApply(payload) {
     } catch (e) {
       /*ignore*/
     }
+    // wireframe toggle
+    try {
+      if (sceneInst && typeof sceneInst.setWireframe === 'function') sceneInst.setWireframe(!!payload.wireframe);
+    } catch (e) { /* ignore */ }
     // persist the same values to settings store as a single source of truth
     try {
       if (settings && typeof settings.mergeAtPath === "function") {

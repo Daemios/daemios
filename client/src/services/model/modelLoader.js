@@ -312,14 +312,15 @@ function computeContactScaleFromGeom(
 }
 
 export async function loadHexModel(options = {}) {
-  const {
-    path = "/models/hex-can.glb",
-    layoutRadius = 0.5,
-    gapFraction = 0.0,
-    orientation = "flat",
-  } = options;
-  const gltf = await loadGLTF(path);
-  const scene = gltf.scene;
+  const { topPath = null, sidePath = null, layoutRadius = 0.5, gapFraction = 0.0, orientation = "flat" } = options;
+  if (!topPath || !sidePath) throw new Error('loadHexModel: topPath and sidePath are required');
+  const [gltfTop, gltfSide] = await Promise.all([loadGLTF(topPath), loadGLTF(sidePath)]);
+  const topScene = gltfTop.scene || (gltfTop.scenes && gltfTop.scenes[0]);
+  const sideScene = gltfSide.scene || (gltfSide.scenes && gltfSide.scenes[0]);
+  if (!topScene || !sideScene) throw new Error(`loadHexModel: missing scene in either topPath=${topPath} or sidePath=${sidePath}`);
+  const scene = new THREE.Group();
+  scene.add(topScene);
+  scene.add(sideScene);
   if (orientation === "flat") {
     scene.rotation.y = Math.PI / 6;
   }
@@ -353,24 +354,22 @@ export async function loadHexModel(options = {}) {
     }
   });
 
-  // Extract geometries
+  // Extract geometries: prefer explicit topScene/sideScene meshes
   let topGeom = null;
   let sideGeom = null;
-  scene.traverse((child) => {
-    if (child.isMesh) {
-      const name = (child.name || "").toLowerCase();
-      const g = child.geometry.clone();
-      g.applyMatrix4(child.matrixWorld.clone());
-      if (name.includes("top")) topGeom = g;
-      else sideGeom = g;
+  topScene.traverse((child) => {
+    if (!topGeom && child.isMesh && child.geometry) {
+      try { topGeom = child.geometry.clone(); topGeom.applyMatrix4(child.matrixWorld); } catch (e) { /* ignore */ }
     }
   });
-  if (!topGeom && sideGeom) {
-    topGeom = sideGeom.clone();
-  }
-  if (!sideGeom && topGeom) {
-    sideGeom = topGeom.clone();
-  }
+  sideScene.traverse((child) => {
+    if (!sideGeom && child.isMesh && child.geometry) {
+      try { sideGeom = child.geometry.clone(); sideGeom.applyMatrix4(child.matrixWorld); } catch (e) { /* ignore */ }
+    }
+  });
+  // Fallback: if one missing, clone the other so we always return two geoms
+  if (!topGeom && sideGeom) topGeom = sideGeom.clone();
+  if (!sideGeom && topGeom) sideGeom = topGeom.clone();
 
   // Normalize
   recenterGeometry(topGeom);

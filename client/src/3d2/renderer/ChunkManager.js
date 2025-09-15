@@ -18,6 +18,8 @@ export default class ChunkManager {
     this.layoutRadius = opts.layoutRadius || 1;
     this.spacingFactor = opts.spacingFactor || 0.85;
     this.modelScaleFactor = opts.modelScaleFactor || 1;
+  // native geometry max Y (in model units) after any loader normalization
+  this.hexMaxYNative = typeof opts.hexMaxY === 'number' ? opts.hexMaxY : 1.0;
     this.contactScale = opts.contactScale || 1;
     this.sideInset = opts.sideInset ?? 0.996;
     this.chunkCols = opts.chunkCols || 8;
@@ -179,28 +181,20 @@ export default class ChunkManager {
   // capture manager context for closures so dispose can remove from the correct scene
   const manager = this;
   // computed positions count removed (diagnostics cleaned)
-    // create simple instanced top mesh
-    // Choose geometries. If no model-provided geoms are supplied, use a thin top cap
-    // positioned above the side geometry to avoid z-fighting.
-    const usingDefaultGeom = !topGeom || !sideGeom;
-    const sideGeometry = sideGeom || new THREE.CylinderGeometry(0.7, 0.7, 0.2, 6);
+    // Expect model-provided top and side geometries. Fail-fast if missing so
+    // upstream code can surface model export issues instead of silently
+    // rendering fallback geometry.
+    if (!topGeom || !sideGeom) {
+      throw new Error('ChunkManager.build: topGeom and sideGeom required');
+    }
+    const sideGeometry = sideGeom;
     const sideMaterial = new THREE.MeshLambertMaterial({ color: 0xcccccc });
     const sideApi = createInstancedMesh(sideGeometry, sideMaterial, count);
     const sideIM = sideApi.instancedMesh;
-
-    let topGeometry;
-    let topMaterial = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-    if (usingDefaultGeom) {
-  // Use a flat disk for the top cap to avoid creating side faces that overlap
-  // the side geometry (which caused z-fighting). CircleGeometry is created
-  // in the XY plane; rotate it into the XZ plane so its normal points up.
-  topGeometry = new THREE.CircleGeometry(0.7, 6);
-  topGeometry.rotateX(-Math.PI / 2);
-    } else {
-      topGeometry = topGeom;
-    }
-  const topApi = createInstancedMesh(topGeometry, topMaterial, count);
-  const topIM = topApi.instancedMesh;
+    const topGeometry = topGeom;
+    const topMaterial = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+    const topApi = createInstancedMesh(topGeometry, topMaterial, count);
+    const topIM = topApi.instancedMesh;
 
   // prepare color arrays for per-instance coloring and per-instance scaling
   const topColorsBiome = new Float32Array(positions.length * 3);
@@ -250,25 +244,27 @@ export default class ChunkManager {
       console.warn('ChunkManager: sampling generator failed', e);
     }
       // Place side centered at world y=0 (height 0.2 -> -0.1..0.1). Place top cap above it.
-  if (usingDefaultGeom) {
-        const sideY = 0; // center of side
-        const sideHalf = 0.2 / 2;
-        // top is a flat disk (no vertical thickness) so place it just above the
-        // side's top surface by a tiny epsilon to avoid coplanar overlap.
-        const topY = sideY + sideHalf + 0.0005; // tiny epsilon gap
-        topApi.setInstanceMatrix(i, { x: p.x, y: topY, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: 1.0, z: 1.0 });
-        sideApi.setInstanceMatrix(i, { x: p.x, y: sideY, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
-  // no per-instance matrix stored (overlay removed) to reduce memory
-      } else {
-        // model-provided geometry: apply modelScaleFactor so geometry matches loader measurements
-          const ms = this.modelScaleFactor || 1.0;
-          // Loader recenters geometries so geometry minY == 0 (base at world Y=0).
-          // Therefore place model instances with no additional downward offset.
-          // top position and scale uses yScale (tile height) and global model scale
-          topApi.setInstanceMatrix(i, { x: p.x, y: 0.0005, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
-          // Place side geometry at world Y = 0 so its base aligns with scene ground
-          sideApi.setInstanceMatrix(i, { x: p.x, y: 0.0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
-  // no per-instance matrix stored (overlay removed) to reduce memory
+      // Model-provided geometry expected: sideGeom and topGeom. We assume the
+      // loader has normalized X/Z footprint if desired. Compute desired world
+      // top and apply pure vertical scaling to the side. Place the cap at the
+      // computed top so its bevel is preserved (cap is not scaled vertically).
+      try {
+  const ms = this.modelScaleFactor || 1.0;
+  const desiredTop = yScale; // already computed as elevRender * heightMagnitude in yScale variable
+  if (i === 0) {
+    try { console.debug('ChunkManager: debug sample', { modelScaleFactor: ms, hexMaxYNative: this.hexMaxYNative, desiredTopSample: desiredTop, layoutRadius: this.layoutRadius }); } catch (ee) { /* ignore */ }
+  }
+        // Compute vertical scale so sideHeight_native * verticalScale = desiredTop
+        const sideHeightNative = this.hexMaxYNative || 1.0;
+        let sideVerticalScale = 1.0;
+        if (sideHeightNative > 0) sideVerticalScale = Math.max(0.001, desiredTop / sideHeightNative);
+        // Side: X/Z scaling assumed baked (ms == 1) or applied uniformly via modelScaleFactor
+        sideApi.setInstanceMatrix(i, { x: p.x, y: 0.0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * sideVerticalScale, z: ms });
+        // Cap: do not scale vertically; place cap at the computed top with small epsilon
+        const capY = desiredTop + 0.0005;
+        topApi.setInstanceMatrix(i, { x: p.x, y: capY, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms, z: ms });
+      } catch (e) {
+        console.warn('ChunkManager: instancing model-provided geometry failed', e);
       }
       // store biome colors
       topColorsBiome[i * 3 + 0] = topCol.r;
@@ -334,7 +330,7 @@ export default class ChunkManager {
         this.scene.add(sideIM);
         try { topIM.visible = true; sideIM.visible = true; } catch (e) { /* ignore */ }
         try { topIM.frustumCulled = false; sideIM.frustumCulled = false; } catch (e) { /* ignore */ }
-        try { console.debug('ChunkManager: added neighborhood to scene', { usingDefaultGeom, count, topGeom: !!topGeom, sideGeom: !!sideGeom }); } catch (e) { /* ignore */ }
+  try { console.debug('ChunkManager: added neighborhood to scene', { count, topGeom: !!topGeom, sideGeom: !!sideGeom }); } catch (e) { /* ignore */ }
       }
     } catch (e) {
       console.warn('ChunkManager: add to scene failed', e);

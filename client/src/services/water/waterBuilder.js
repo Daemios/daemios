@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import createRealisticWaterMaterial from "@/3d/renderer/materials/RealisticWaterMaterial";
+import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
-import { BIOME_THRESHOLDS } from "@/3d/terrain/biomes";
+import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
 // Build water plane, mask and distance textures for a neighborhood.
 // ctx: { world, layoutRadius, spacingFactor, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, modelScaleFactor, heightMagnitude, elevation, profilerEnabled, profiler }
@@ -20,7 +20,6 @@ export function buildWater(ctx) {
     centerChunk,
     neighborRadius,
     hexMaxY,
-    modelScaleFactor,
     elevation,
   } = ctx;
 
@@ -173,9 +172,11 @@ export function buildWater(ctx) {
   let minTop = Infinity;
   let minTopWater = Infinity;
   let waterCount = 0;
+  // modelScaleFactor should not be applied here: vertical scaling is driven by
+  // measured hexMaxY (in world units) and per-tile yScale from the generator.
   const modelScaleY = (q, r) => {
     const c = world.getCell(q, r);
-    return modelScaleFactor * (c ? c.yScale : 1);
+    return (c ? c.yScale : 1);
   };
   world.forEach((q, r) => {
     const cell = world.getCell(q, r);
@@ -188,7 +189,7 @@ export function buildWater(ctx) {
       waterCount += 1;
     }
   });
-  if (!isFinite(minTop)) minTop = hexMaxY * modelScaleFactor;
+  if (!isFinite(minTop)) minTop = hexMaxY;
   if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
 
   const totalCols = (2 * radius + 1) * chunkCols;

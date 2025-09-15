@@ -30,8 +30,8 @@ const pastelColorForChunk = (x = 0, y = 0) => {
 };
 import { profiler } from '@/utils/profiler';
 import createRealisticWaterMaterial from '@/3d2/renderer/materials/RealisticWaterMaterial';
-// Temporary debug flag: show a magenta plane at maxHeight*scale
-const DEBUG_MAX_HEIGHT_PLANE = true;
+import { buildWater } from '@/services/water/waterBuilder';
+// Wireframe debug box state handled at runtime via setWireframe(enabled).
 
 export class WorldMapScene {
   constructor(container) {
@@ -40,6 +40,9 @@ export class WorldMapScene {
     this.scene = null;
     this.camera = null;
     this.grid = null;
+  // wireframe debug helpers
+  this._wireframeBox = null;
+  this._wireframeEnabled = false;
   }
 
   init() {
@@ -154,83 +157,48 @@ export class WorldMapScene {
     this._gridRadius = 4; // default; scene API can expose setter later
     // Try to load the project's hex model for visual parity; fall back to simple geometry
     (async () => {
-      try {
-        const model = await loadHexModel({ path: '/models/hex-can.glb', layoutRadius: 1, orientation: 'flat' });
-        this._hexModel = model; // contains topGeom, sideGeom, modelScaleFactor, contactScale, hexMaxY, nativeRadius
-        // set a scene-wide layout radius derived from the model's native radius so tiles touch
-  // layoutRadius is a unitless multiplier applied to BASE_HEX_SIZE; compute so hexSize == model.nativeRadius
-        this._layoutRadius = (model.nativeRadius && BASE_HEX_SIZE) ? (model.nativeRadius / BASE_HEX_SIZE) : 1;
-        // Diagnostic: log model measurements and surface a camera-facing debug copy so we can confirm visibility
-        try {
-          console.debug('WorldMapScene: hex model loaded', { hasTop: !!model.topGeom, hasSide: !!model.sideGeom, hexMaxY: model.hexMaxY, modelScaleFactor: model.modelScaleFactor, nativeRadius: model.nativeRadius });
-          // debug model clone removed in production build
-        } catch (e) { console.debug('WorldMapScene: debug model clone failed', e); }
-        // debug: print measured dims and derived spacing
-        try {
-          const hexSize = BASE_HEX_SIZE * this._layoutRadius;
-          const pos0 = axialToXZ(0, 0, { layoutRadius: this._layoutRadius, spacingFactor: 1 });
-          const pos1 = axialToXZ(1, 0, { layoutRadius: this._layoutRadius, spacingFactor: 1 });
-          console.debug('WorldMapScene: hex dims', { nativeRadius: model.nativeRadius, baseHex: BASE_HEX_SIZE, layoutRadius: this._layoutRadius, hexSize, centerSpacing: Math.hypot(pos1.x - pos0.x, pos1.z - pos0.z) });
-        } catch (e) { /* ignore */ }
-      } catch (e) {
-        // model not available; continue with fallback
-        this._hexModel = null;
-        this._layoutRadius = 1;
-      }
+  // Only load explicit top/side models. Fail-fast if missing so issues surface.
+  let model = null;
+  model = await loadHexModel({ topPath: '/models/hex-top.glb', sidePath: '/models/hex-side.glb', layoutRadius: 1, orientation: 'flat' });
+  this._hexModel = model;
+  this._layoutRadius = (model.nativeRadius && BASE_HEX_SIZE) ? (model.nativeRadius / BASE_HEX_SIZE) : 1;
+  try { console.debug('WorldMapScene: hex model loaded', { hasTop: !!model.topGeom, hasSide: !!model.sideGeom, hexMaxY: model.hexMaxY, modelScaleFactor: model.modelScaleFactor, nativeRadius: model.nativeRadius }); } catch (e) { /* ignore */ }
+
       // create a chunk manager for chunk-based rendering and delegate instance creation
-      // omit explicit chunkCols/chunkRows so ChunkManager can use its defaults
       try {
         this.chunkManager = createChunkManager({
           scene: this.scene,
           generator: this._generator,
           layoutRadius: this._layoutRadius,
-          spacingFactor: 1,
+          spacingFactor: (this._hexModel && this._hexModel.contactScale) ? this._hexModel.contactScale : 1,
           neighborRadius: this._gridRadius,
           pastelColorForChunk,
-          modelScaleFactor: this._hexModel && this._hexModel.modelScaleFactor,
+          // Prevent double-scaling: use layoutRadius for X/Z footprint and
+          // avoid applying the loader's modelScaleFactor here (set 1).
+          modelScaleFactor: 1,
           contactScale: this._hexModel && this._hexModel.contactScale,
-          onPickMeshes: (meshes) => {
-            try { this._pickMeshes = meshes || []; } catch (e) { /* ignore */ }
-          }
+          // pass native hex height so the chunk manager can compute pure vertical scales
+          hexMaxY: this._hexModel && this._hexModel.hexMaxY,
+          onPickMeshes: (meshes) => { this._pickMeshes = meshes || []; }
         });
-        try {
-          const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
-          // expose neighborhood's top instanced mesh for compatibility
-          if (built && built.neighborhood && built.neighborhood.topIM) {
-            // if a legacy grid instanced object exists, remove it to avoid duplicate geometry
-            try {
-              if (this._gridInstanced && this._gridInstanced !== built.neighborhood.topIM) {
-                try { this.scene.remove(this._gridInstanced); } catch (e2) { /* ignore */ }
-                try { this._gridInstanced.geometry && this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose(); } catch (e2) { /* ignore */ }
-                try { this._gridInstanced.material && this._gridInstanced.material.dispose && this._gridInstanced.material.dispose(); } catch (e2) { /* ignore */ }
-              }
-            } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
-            this._gridInstanced = built.neighborhood.topIM;
-          }
-          this._gridInstancedApi = this.chunkManager;
-          console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
-          // create water plane now that layout/model measurements are known
+
+        const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+        if (built && built.neighborhood && built.neighborhood.topIM) {
           try {
-            this._ensureWaterCreated();
-            // adjust height using sampled tiles/scale
-            this._updateWaterHeightFromNeighborhood();
-          } catch (e) { console.debug('WorldMapScene: ensureWaterCreated failed', e); }
-          // debug test meshes removed
-          // debug geometry copies removed
-          // Ensure click picker is attached so users can click tiles. Attach after build
-          try {
-            this._ensureClickPickerAttached();
-          } catch (e) {
-            /* ignore click handler attach errors */
-          }
-        } catch (e) {
-          // fallback to legacy instanced creation
-          console.debug('WorldMapScene: chunkManager build failed, falling back to legacy grid instances', e);
-          this._createGridInstances(this._gridRadius);
+            if (this._gridInstanced && this._gridInstanced !== built.neighborhood.topIM) {
+              try { this.scene.remove(this._gridInstanced); } catch (e2) { /* ignore */ }
+              try { this._gridInstanced.geometry && this._gridInstanced.geometry.dispose && this._gridInstanced.geometry.dispose(); } catch (e2) { /* ignore */ }
+              try { this._gridInstanced.material && this._gridInstanced.material.dispose && this._gridInstanced.material.dispose(); } catch (e2) { /* ignore */ }
+            }
+          } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
+          this._gridInstanced = built.neighborhood.topIM;
         }
+        this._gridInstancedApi = this.chunkManager;
+        console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+        try { this._ensureWaterCreated(); this._updateWaterHeightFromNeighborhood(); } catch (e) { console.debug('WorldMapScene: ensureWaterCreated failed', e); }
+        try { this._ensureClickPickerAttached(); } catch (e) { /* ignore */ }
       } catch (e) {
-        // chunk manager creation failed -> fallback
-        console.debug('WorldMapScene: chunkManager creation failed, falling back', e);
+        console.debug('WorldMapScene: chunkManager creation/build failed, falling back', e);
         this._createGridInstances(this._gridRadius);
       }
     })();
@@ -244,48 +212,158 @@ export class WorldMapScene {
         try { this.scene.remove(this._water); } catch (e) { console.debug('WorldMapScene: remove previous water failed', e); }
         try { this._water.geometry && this._water.geometry.dispose && this._water.geometry.dispose(); } catch (e) { console.debug('WorldMapScene: dispose water geometry failed', e); }
         try { this._water.material && this._water.material.dispose && this._water.material.dispose(); } catch (e) { console.debug('WorldMapScene: dispose water material failed', e); }
-        // Debug: add a magenta plane at max world height for quick visual verification
-        if (DEBUG_MAX_HEIGHT_PLANE) {
-          try {
-            const { maxHeight, scale } = DEFAULT_CONFIG;
-            const debugY = maxHeight * scale;
-            const geo = new THREE.PlaneGeometry(2000, 2000);
-            const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-            const debugPlane = new THREE.Mesh(geo, mat);
-            debugPlane.rotation.x = -Math.PI / 2;
-            debugPlane.position.set(0, debugY, 0);
-            debugPlane.name = 'DEBUG_MAX_HEIGHT_PLANE';
-            this.scene.add(debugPlane);
-            console.debug('WORLD_MAP_SCENE: added DEBUG_MAX_HEIGHT_PLANE at Y=', debugY);
-          } catch (e) {
-            console.warn('WORLD_MAP_SCENE: failed to add debug max-height plane', e);
-          }
-        }
+    // previously added magenta debug plane removed; use wireframe box via DebugPanel toggle
         this._water = null;
       }
-      // create material and plane sized to cover a generous area around the neighborhood
-      const mat = createRealisticWaterMaterial();
-  // set a few useful uniforms from scene/model config when available
-      const hexMaxY = (this._hexModel && typeof this._hexModel.hexMaxY === 'number') ? this._hexModel.hexMaxY : 1.0;
-      const modelScale = (this._hexModel && typeof this._hexModel.modelScaleFactor === 'number') ? this._hexModel.modelScaleFactor : 1.0;
-      const hexMaxYScaled = hexMaxY * modelScale;
-  // Place the water plane at authoritative global sea level (world units) using shared config
-  const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
-  const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
-  const seaNorm = (DEFAULT_CONFIG && DEFAULT_CONFIG.layers && DEFAULT_CONFIG.layers.global && typeof DEFAULT_CONFIG.layers.global.seaLevel === 'number') ? DEFAULT_CONFIG.layers.global.seaLevel : 0.20;
-  const authoritativeSeaY = seaNorm * cfgMaxH * cfgScale;
-  // assign uniforms if present
-  try { if (mat.uniforms && mat.uniforms.uHexMaxYScaled) mat.uniforms.uHexMaxYScaled.value = hexMaxYScaled; } catch (e) { console.debug('WorldMapScene: set uHexMaxYScaled failed', e); }
-  try { if (mat.uniforms && mat.uniforms.uSeaLevelY) mat.uniforms.uSeaLevelY.value = authoritativeSeaY; } catch (e) { console.debug('WorldMapScene: set uSeaLevelY failed', e); }
-  try { if (mat.uniforms && mat.uniforms.uDepthMax) mat.uniforms.uDepthMax.value = Math.max(0.1, authoritativeSeaY * 0.5 + hexMaxYScaled); } catch (e) { console.debug('WorldMapScene: set uDepthMax failed', e); }
+      // Build water using the neighborhood so distance/coverage/seabed textures
+      // and proper grid params are provided to the shader. This produces a
+      // mesh and a ShaderMaterial wired with uDist/uCoverage/uSeabed and grid
+      // uniforms which the shore/foam logic depends on.
+      let built = null;
+      try {
+        // assemble minimal ctx using chunkManager and generator
+        const cm = this.chunkManager || {};
+        const ctx = {
+          world: {
+            getCell: (q, r) => {
+              try {
+                if (this._generator && typeof this._generator.get === 'function') return this._generator.get(q, r);
+                if (this._generator && typeof this._generator.getByQR === 'function') return this._generator.getByQR(q, r);
+              } catch (e) { /* ignore */ }
+              return null;
+            },
+            // forEach iterates an axial rect for neighborhood so waterBuilder's
+            // min/top scan has data to work with. We iterate the same axial
+            // bounds that buildWater will sample based on chunkManager props.
+            forEach: (cb) => {
+              try {
+                const cols = cm.chunkCols || 8;
+                const rows = cm.chunkRows || 8;
+                const radius = cm.neighborRadius != null ? cm.neighborRadius : 1;
+                const baseCol = (cm.centerChunk && typeof cm.centerChunk.x === 'number' ? cm.centerChunk.x : 0) - radius;
+                const baseRow = (cm.centerChunk && typeof cm.centerChunk.y === 'number' ? cm.centerChunk.y : 0) - radius;
+                const qStart = baseCol * cols;
+                const qEnd = (baseCol + 2 * radius) * cols + (cols - 1);
+                for (let q = qStart; q <= qEnd; q++) {
+                  const rStart = baseRow * rows - Math.floor(q / 2);
+                  const rEnd = (baseRow + 2 * radius) * rows + (rows - 1) - Math.floor(q / 2);
+                  for (let r = rStart; r <= rEnd; r++) {
+                    try { cb(q, r); } catch (e) { /* ignore cell callback errors */ }
+                  }
+                }
+              } catch (e) { /* ignore */ }
+            },
+          },
+          layoutRadius: this._layoutRadius || 1,
+          spacingFactor: cm.spacingFactor || 1,
+          chunkCols: cm.chunkCols || 8,
+          chunkRows: cm.chunkRows || 8,
+          centerChunk: cm.centerChunk || { x: 0, y: 0 },
+          neighborRadius: cm.neighborRadius || 1,
+          hexMaxY: (this._hexModel && typeof this._hexModel.hexMaxY === 'number') ? this._hexModel.hexMaxY : (cm.hexMaxYNative || 1.0),
+          elevation: null,
+          profilerEnabled: false,
+        };
+        built = buildWater(ctx);
+      } catch (e) {
+        // buildWater failed; fall back to simple material (silently)
+        built = null;
+      }
 
-      // create large plane geometry (XZ plane) and rotate into XZ
-      const size = 4096; // large enough to cover world view
-      const geom = new THREE.PlaneGeometry(size, size, 1, 1);
-      geom.rotateX(-Math.PI / 2);
-      const mesh = new THREE.Mesh(geom, mat);
-  // position at authoritative sea level (will be refined by _updateWaterHeightFromNeighborhood)
-  mesh.position.set(0, authoritativeSeaY + 0.001, 0);
+      let mesh = null;
+      let mat = null;
+      let authoritativeSeaY = 0;
+      if (built && built.material && built.mesh) {
+        mat = built.material;
+        mesh = built.mesh;
+        // ensure uTime starts at 0
+        try { if (mat.uniforms && typeof mat.uniforms.uTime !== 'undefined') mat.uniforms.uTime.value = 0; } catch (e) { /* ignore */ }
+        try { mat.needsUpdate = true; } catch (e) { /* ignore */ }
+        // Boost visibility-related uniforms for debugging so shore foam/specular are visible
+        try {
+          if (mat.uniforms) {
+            if (typeof mat.uniforms.uNormalAmp !== 'undefined') mat.uniforms.uNormalAmp.value = Math.max(0.4, mat.uniforms.uNormalAmp.value || 0.4);
+            // slow the visible panning so it feels natural
+            if (typeof mat.uniforms.uFlowSpeed1 !== 'undefined') mat.uniforms.uFlowSpeed1.value = Math.min(0.035, Math.max(0.005, mat.uniforms.uFlowSpeed1.value || 0.02));
+            if (typeof mat.uniforms.uFlowSpeed2 !== 'undefined') mat.uniforms.uFlowSpeed2.value = Math.min(0.025, Math.max(0.004, mat.uniforms.uFlowSpeed2.value || 0.015));
+            if (typeof mat.uniforms.uSpecularStrength !== 'undefined') mat.uniforms.uSpecularStrength.value = Math.max(0.9, mat.uniforms.uSpecularStrength.value || 0.9);
+            if (typeof mat.uniforms.uShoreWaveStrength !== 'undefined') mat.uniforms.uShoreWaveStrength.value = Math.max(1.6, mat.uniforms.uShoreWaveStrength.value || 1.6);
+            if (typeof mat.uniforms.uOpacity !== 'undefined') mat.uniforms.uOpacity.value = Math.max(1.0, mat.uniforms.uOpacity.value || 1.0);
+            if (typeof mat.uniforms.uNearAlpha !== 'undefined') mat.uniforms.uNearAlpha.value = Math.max(0.35, mat.uniforms.uNearAlpha.value || 0.35);
+            if (typeof mat.uniforms.uFarAlpha !== 'undefined') mat.uniforms.uFarAlpha.value = Math.max(1.0, mat.uniforms.uFarAlpha.value || 1.0);
+          }
+          try { mat.needsUpdate = true; } catch (e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
+
+        // Diagnostic: report whether the distance texture is present and its type
+          try {
+            // intentionally silent diagnostic: distance/coverage textures may be attached
+            // const hasDist = !!(mat.uniforms && mat.uniforms.uDist && mat.uniforms.uDist.value);
+            // const distInfo = hasDist && mat.uniforms.uDist.value ? { width: mat.uniforms.uDist.value.image && mat.uniforms.uDist.value.image.width, height: mat.uniforms.uDist.value.image && mat.uniforms.uDist.value.image.height, type: mat.uniforms.uDist.value.type } : null;
+          } catch (e) { /* ignore */ }
+      } else {
+        // fallback to naive material so scene still renders when build fails
+        mat = createRealisticWaterMaterial();
+        try { if (mat && mat.uniforms) { if (typeof mat.uniforms.uTime !== 'undefined') mat.uniforms.uTime.value = 0; if (typeof mat.uniforms.uHexW !== 'undefined') mat.uniforms.uHexW.value = mat.uniforms.uHexW.value || 1.0; if (typeof mat.uniforms.uHexH !== 'undefined') mat.uniforms.uHexH.value = mat.uniforms.uHexH.value || 1.0; } mat.needsUpdate = true; } catch (e) { /* ignore */ }
+        // compute authoritative sea level (same as previous logic)
+        const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+        const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+        const seaNorm = (DEFAULT_CONFIG && DEFAULT_CONFIG.layers && DEFAULT_CONFIG.layers.global && typeof DEFAULT_CONFIG.layers.global.seaLevel === 'number') ? DEFAULT_CONFIG.layers.global.seaLevel : 0.20;
+        authoritativeSeaY = seaNorm * cfgMaxH * cfgScale;
+        const size = 4096;
+        const geom = new THREE.PlaneGeometry(size, size, 1, 1);
+        geom.rotateX(-Math.PI / 2);
+        mesh = new THREE.Mesh(geom, mat);
+        mesh.position.set(0, authoritativeSeaY + 0.001, 0);
+      }
+      // Before finalizing, if we have neighborhood metadata, size/position the plane
+      // to match the square sampling area used by ChunkManager so it tightly
+      // covers the created cells instead of using a giant fixed plane.
+      try {
+        const nb = this.chunkManager && this.chunkManager._lastNeighborhood;
+        let desiredCenterX = null;
+        let desiredCenterZ = null;
+        let desiredWidth = null;
+        let desiredDepth = null;
+        if (nb) {
+          // Prefer the tight union bbox computed per-chunk when available
+          if (Array.isArray(nb.chunkRange) && nb.chunkRange.length) {
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            for (const c of nb.chunkRange) {
+              if (!c || !c.bbox) continue;
+              const bb = c.bbox;
+              if (typeof bb.minX === 'number') minX = Math.min(minX, bb.minX);
+              if (typeof bb.maxX === 'number') maxX = Math.max(maxX, bb.maxX);
+              if (typeof bb.minZ === 'number') minZ = Math.min(minZ, bb.minZ);
+              if (typeof bb.maxZ === 'number') maxZ = Math.max(maxZ, bb.maxZ);
+            }
+            if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
+              desiredWidth = Math.max(0.1, maxX - minX);
+              desiredDepth = Math.max(0.1, maxZ - minZ);
+              desiredCenterX = (minX + maxX) / 2;
+              desiredCenterZ = (minZ + maxZ) / 2;
+            }
+          }
+          // Fallback to square side from nb.half
+          if (desiredWidth == null && typeof nb.half === 'number') {
+            const side = nb.half * 2;
+            desiredWidth = side; desiredDepth = side; desiredCenterX = nb.centerX || 0; desiredCenterZ = nb.centerZ || 0;
+          }
+        }
+        if (desiredWidth != null && mesh) {
+          try {
+            // compute authoritative sea Y from the mesh if possible
+            let finalSeaY = mesh.position && typeof mesh.position.y === 'number' ? (mesh.position.y - 0.001) : 0.0;
+            // Replace geometry with sized plane and preserve material
+            try { if (mesh.geometry && typeof mesh.geometry.dispose === 'function') mesh.geometry.dispose(); } catch (e) { /* ignore */ }
+            const sizedGeom = new THREE.PlaneGeometry(desiredWidth, desiredDepth, 1, 1);
+            sizedGeom.rotateX(-Math.PI / 2);
+            mesh.geometry = sizedGeom;
+            mesh.position.set(desiredCenterX || 0, finalSeaY + 0.001, desiredCenterZ || 0);
+          } catch (e) { console.debug('WorldMapScene: resize water plane failed', e); }
+        }
+      } catch (e) { /* ignore sizing errors */ }
+
       // Try to avoid z-fighting: render after tiles, disable depthWrite for blending,
       // and enable polygonOffset so fragments are slightly offset in the depth buffer.
       try {
@@ -307,36 +385,11 @@ export class WorldMapScene {
       // render after terrain and UI layers; larger renderOrder helps blending order
       mesh.renderOrder = 200;
       mesh.frustumCulled = false;
-      this.scene.add(mesh);
-      this._water = mesh;
-      // Also add debug plane on initial creation (in case no previous water existed)
-      if (DEBUG_MAX_HEIGHT_PLANE) {
-        try {
-          if (!this.scene.getObjectByName || !this.scene.getObjectByName('DEBUG_MAX_HEIGHT_PLANE')) {
-            const { maxHeight, scale } = DEFAULT_CONFIG;
-            const debugY = maxHeight * scale;
-            const geo2 = new THREE.PlaneGeometry(2000, 2000);
-            const mat2 = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-            const debugPlane2 = new THREE.Mesh(geo2, mat2);
-            debugPlane2.rotation.x = -Math.PI / 2;
-            debugPlane2.position.set(0, debugY, 0);
-            debugPlane2.name = 'DEBUG_MAX_HEIGHT_PLANE';
-            this.scene.add(debugPlane2);
-            console.debug('WORLD_MAP_SCENE: added DEBUG_MAX_HEIGHT_PLANE at Y=', debugY);
-          }
-        } catch (e) {
-          console.warn('WORLD_MAP_SCENE: failed to add debug max-height plane on create', e);
-        }
-      }
+    this.scene.add(mesh);
+  this._water = mesh;
+  // no magenta debug plane; wireframe box may be used instead via setWireframe
       try {
-        console.debug('WORLD_MAP_SCENE: created water plane', {
-          authoritativeSeaY,
-          meshY: mesh.position.y,
-          hexMaxYScaled,
-          hexMaxY,
-          modelScale,
-          heightMag: (this.chunkManager && typeof this.chunkManager.heightMagnitude === 'number') ? this.chunkManager.heightMagnitude : null,
-        });
+        // suppressed verbose water creation logging
       } catch (e) { /* ignore */ }
   // Simplified: no camera-proportional offsets. Plane will be placed at authoritative seaY.
   this._waterOffsetMode = 'none';
@@ -371,6 +424,74 @@ export class WorldMapScene {
       };
     } catch (e) {
       console.debug('WorldMapScene: create water plane failed', e);
+    }
+  };
+
+  // Toggle a wireframe bounding box that shows the allowed tile render space.
+  // When enabled, a green wireframe box is created and positioned to cover the
+  // current neighborhood bounds (if available) and the authoritative max height.
+  this.setWireframe = (enable) => {
+    try {
+      this._wireframeEnabled = !!enable;
+      if (!this._wireframeEnabled) {
+        if (this._wireframeBox) {
+          try { this.scene.remove(this._wireframeBox); } catch (e) { /* ignore */ }
+          try { this._wireframeBox.geometry.dispose(); } catch (e) { /* ignore */ }
+          try { this._wireframeBox.material.dispose(); } catch (e) { /* ignore */ }
+          this._wireframeBox = null;
+        }
+        return;
+      }
+      if (this._wireframeBox) return; // already present
+      // determine extents from chunk manager if possible. Prefer the exact
+      // union bbox computed per-chunk (nb.chunkRange) so the wireframe matches
+      // the true neighborhood bounds. Fallback to the previous square side
+      // (nb.half) if chunkRange isn't available.
+      let width = 2000, depth = 2000, centerX = 0, centerZ = 0;
+      if (this.chunkManager && this.chunkManager._lastNeighborhood) {
+        const nb = this.chunkManager._lastNeighborhood;
+        if (nb) {
+          // If chunkRange is available, derive a tight union bbox from stored bboxes
+          if (Array.isArray(nb.chunkRange) && nb.chunkRange.length) {
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            for (const c of nb.chunkRange) {
+              if (!c || !c.bbox) continue;
+              const bb = c.bbox;
+              if (typeof bb.minX === 'number') minX = Math.min(minX, bb.minX);
+              if (typeof bb.maxX === 'number') maxX = Math.max(maxX, bb.maxX);
+              if (typeof bb.minZ === 'number') minZ = Math.min(minZ, bb.minZ);
+              if (typeof bb.maxZ === 'number') maxZ = Math.max(maxZ, bb.maxZ);
+            }
+            if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
+              width = Math.max(0.1, maxX - minX);
+              depth = Math.max(0.1, maxZ - minZ);
+              centerX = (minX + maxX) / 2;
+              centerZ = (minZ + maxZ) / 2;
+            } else if (typeof nb.half === 'number') {
+              const side = nb.half * 2;
+              width = side; depth = side; centerX = nb.centerX || 0; centerZ = nb.centerZ || 0;
+            }
+          } else if (typeof nb.half === 'number') {
+            const side = nb.half * 2;
+            width = side; depth = side; centerX = nb.centerX || 0; centerZ = nb.centerZ || 0;
+          }
+        }
+      }
+      const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+      const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+      const height = Math.max(0.1, cfgMaxH * cfgScale);
+
+      const geom = new THREE.BoxGeometry(width, height, depth);
+      const wire = new THREE.WireframeGeometry(geom);
+      const mat = new THREE.LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.9 });
+      const mesh = new THREE.LineSegments(wire, mat);
+      mesh.position.set(centerX, height / 2, centerZ);
+      mesh.name = 'DEBUG_WIREFRAME_BOX';
+      mesh.frustumCulled = false;
+      try { this.scene.add(mesh); } catch (e) { /* ignore */ }
+      this._wireframeBox = mesh;
+    } catch (e) {
+      console.debug('WorldMapScene: setWireframe failed', e);
     }
   };
 
@@ -988,6 +1109,8 @@ export class WorldMapScene {
           this._water.material.uniforms.uTime.value += dt;
         }
       } catch (e) { /* ignore */ }
+      // diagnostic: log uTime once per second so we can confirm animation
+  // periodic uTime logging removed to reduce console noise
       if (this.manager) {
         try {
           // start GPU timer if supported and enabled
