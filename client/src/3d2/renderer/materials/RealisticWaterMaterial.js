@@ -20,10 +20,10 @@ export default function createRealisticWaterMaterial(options = {}) {
     coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
     hexW: 1.0,
     hexH: 1.0,
-    gridN: 1,
-    gridOffset: 0,
-    gridQ0: 0,
-    gridR0: 0, // axial origin (center) that the mask/seabed/coverage textures are built around
+  gridW: 1,
+  gridH: 1,
+  gridQMin: 0,
+  gridRMin: 0,
     shoreWidth: 0.12, // kept for API compatibility
     // Animation
     timeScale: 1.0,
@@ -63,10 +63,10 @@ export default function createRealisticWaterMaterial(options = {}) {
     uSeabed: { value: opt.seabedTexture },
     uHexW: { value: opt.hexW },
     uHexH: { value: opt.hexH },
-    uGridN: { value: opt.gridN },
-    uGridOffset: { value: opt.gridOffset },
-    uGridQ0: { value: opt.gridQ0 },
-    uGridR0: { value: opt.gridR0 },
+  uGridW: { value: opt.gridW },
+  uGridH: { value: opt.gridH },
+  uGridQMin: { value: opt.gridQMin },
+  uGridRMin: { value: opt.gridRMin },
     uSpecularStrength: { value: opt.specularStrength },
     uShininess: { value: opt.shininess },
     uNormalAmp: { value: opt.normalAmp },
@@ -80,6 +80,8 @@ export default function createRealisticWaterMaterial(options = {}) {
   uMaskEps: { value: 0.02 }, // epsilon to hide water under tiles near sea level
     uNearAlpha: { value: opt.nearAlpha },
     uFarAlpha: { value: opt.farAlpha },
+  // Debug grid overlay to validate axial mapping scale
+  uDebugGrid: { value: opt.debugGrid ? 1.0 : 0.0 },
     // Shore waves
     uShoreWaveStrength: { value: opt.shoreWaveStrength },
     uShoreWaveSpacing: { value: opt.shoreWaveSpacing },
@@ -113,7 +115,9 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform sampler2D uDist; // R: signed distance (land+, water-)
   uniform sampler2D uCoverage; // R:1 inside rendered hex area, 0 outside
   uniform sampler2D uSeabed; // R: normalized yScale for seabed top
-  uniform float uHexW, uHexH; uniform float uGridN, uGridOffset; uniform float uGridQ0, uGridR0;
+  uniform float uHexW, uHexH;
+  uniform float uGridW, uGridH;
+  uniform float uGridQMin, uGridRMin;
     uniform float uSpecularStrength, uShininess;
     uniform float uNormalAmp;
     uniform vec2 uFlowDir1, uFlowDir2;
@@ -121,6 +125,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform float uHexMaxYScaled, uSeaLevelY, uDepthMax;
   uniform float uMaskEps;
   uniform float uNearAlpha, uFarAlpha;
+  uniform float uDebugGrid;
   // Shore waves
   uniform float uShoreWaveStrength;
   uniform float uShoreWaveSpacing;
@@ -135,20 +140,22 @@ export default function createRealisticWaterMaterial(options = {}) {
 
     vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
   float sampleDistXZ(vec2 xz){
-    float N=uGridN; float S=uGridOffset; if(N<=0.5) return -100.0;
-    vec2 qr=worldToAxial(xz);
-    float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S;
-    float u=(iq+0.5)/N; float v=(ir+0.5)/N;
+  float W=uGridW, H=uGridH; if(W<=0.5||H<=0.5) return -100.0;
+  vec2 qr=worldToAxial(xz);
+  float iq = (qr.x - uGridQMin);
+  float ir = (qr.y - uGridRMin);
+  float u=(iq+0.5)/W; float v=(ir+0.5)/H;
     if(u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return -100.0;
     return texture2D(uDist, vec2(u,v)).r;
   }
   // Coverage is ignored; always treat as fully inside
   float sampleCoverageXZ(vec2 xz){ return 1.0; }
   float sampleSeabedXZ(vec2 xz){
-    float N=uGridN; float S=uGridOffset; if(N<=0.5) return 0.0;
-    vec2 qr=worldToAxial(xz);
-    float iq=(qr.x - uGridQ0)+S; float ir=(qr.y - uGridR0)+S;
-    float u=(iq+0.5)/N; float v=(ir+0.5)/N;
+  float W=uGridW, H=uGridH; if(W<=0.5||H<=0.5) return 0.0;
+  vec2 qr=worldToAxial(xz);
+  float iq = (qr.x - uGridQMin);
+  float ir = (qr.y - uGridRMin);
+  float u=(iq+0.5)/W; float v=(ir+0.5)/H;
     if(u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return 0.0;
     float sb = texture2D(uSeabed, vec2(u,v)).r;
     return sb;
@@ -158,7 +165,7 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec2 xz = vWorldPos.xz;
       vec3 V = normalize(-vViewPos);
 
-      // Sample seabed once for depth-based color and transparency
+  // Sample seabed once for depth-based color and transparency
       float yScale = sampleSeabedXZ(xz);
       float seabedY = yScale * uHexMaxYScaled;
       float depth = max(0.0, uSeaLevelY - seabedY);
@@ -186,6 +193,17 @@ export default function createRealisticWaterMaterial(options = {}) {
       vec3 L = normalize(vec3(0.4, 1.0, 0.35));
       vec3 H = normalize(L + V);
       float spec = pow(max(0.0, dot(N, H)), uShininess) * uSpecularStrength;
+
+  // Optional debug axial grid overlay: show lines at integer q/r to verify scale
+  if(uDebugGrid > 0.5){
+    vec2 qr = worldToAxial(xz);
+    float lineQ = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.x) - 0.5));
+    float lineR = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.y) - 0.5));
+    float grid = clamp(max(lineQ, lineR), 0.0, 1.0);
+    vec3 gridCol = mix(vec3(0.0), vec3(1.0, 1.0, 0.2), grid);
+    gl_FragColor = vec4(gridCol, 0.75);
+    return;
+  }
 
   // Signed distance into water side
   float signedDist = sampleDistXZ(xz);
@@ -218,7 +236,10 @@ export default function createRealisticWaterMaterial(options = {}) {
       // coverage texture indicates where hex tiles exist; if provided, use it to avoid masking in gaps
       float cov = 1.0;
       #ifdef USE_COVERAGE
-      cov = texture2D(uCoverage, vec2((vWorldPos.x/uHexW + uGridQ0 + uGridOffset)/uGridN, (vWorldPos.z/uHexH + uGridR0 + uGridOffset)/uGridN)).r;
+  vec2 qr_cov = worldToAxial(xz);
+  float u_cov = ((qr_cov.x - uGridQMin) + 0.5) / max(1.0, uGridW);
+  float v_cov = ((qr_cov.y - uGridRMin) + 0.5) / max(1.0, uGridH);
+  cov = texture2D(uCoverage, vec2(u_cov, v_cov)).r;
       #endif
       float tileTopY = seabedY; // seabedY encodes top-of-seabed normalized; conservative proxy
       if (cov > 0.5 && tileTopY >= (uSeaLevelY - uMaskEps)) {
