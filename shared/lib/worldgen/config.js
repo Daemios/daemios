@@ -1,23 +1,43 @@
 // shared/lib/worldgen/config.js
-// Default configuration and layer toggles (kept minimal and JSON-serializable)
+// Default configuration and layer toggles
 
 export const DEFAULT_CONFIG = {
   // Global multiplier applied to the final elevation (rendered height).
   // This does not change biome/sea classification which is computed from
   // the unscaled elevation; it only scales the returned tile.height.
-  scale: 4.0,
+  // maximum world height (units). Normalized elevations (0..1) are
+  // interpreted as a percentage of this value.
+  maxHeight: 100,
+  // Global multiplier applied to the final elevation (rendered height).
+  // Final world units = normalized * maxHeight * scale
+  scale: 1,
+  // Optional additional renderer-side exaggeration factor historically
+  // used by clients; keep here for centralized tuning.
+  heightMagnitude: 1,
   layers: {
+    // Global tuning values that affect multiple layers (authoritative sea level)
+    global: {
+      seaLevel: .20
+    },
     layer0: {
       paletteId: 'default'
     },
     layer1: {
       continentScale: 1.0,
-      seaLevel: 0.33,
       plateCellSize: 256,
+      warp: {
+        slow: { freq: 0.08, amp: 0.25 },
+        fast: { freq: 0.6, amp: 0.05 }
+      },
+      detail: { freq: 0.6, amp: 0.15 }
     },
     layer2: {
       regionNoiseScale: 0.02,
-      maxInlandDistance: 100
+      maxInlandDistance: 100,
+      amplitude: 0.1,
+      frequency: 0.02,
+      octaves: 3,
+      roughnessScale: 0.5
     },
     layer3: {
       ecotoneThreshold: 0.25
@@ -41,5 +61,3 @@ export const DEFAULT_CONFIG = {
     snowline_bias: -0.08
   }
 };
-
-// ESM export already provided above.

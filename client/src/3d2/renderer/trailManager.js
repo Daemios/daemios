@@ -1,5 +1,5 @@
 /* eslint-disable no-param-reassign */
-import { ensureInstanceCapacity } from '@/3d/renderer/instancingUtils';
+import { ensureInstanceCapacity } from '@/3d2/renderer/instancingUtils';
 
 export function snapshotTrail(ctx, delayMs = 3000) {
   if (!ctx || !ctx.topIM || !ctx.sideIM || !ctx.trailTopIM || !ctx.trailSideIM)

@@ -24,7 +24,7 @@ function inspect(seed, qStart, qEnd, rStart, rEnd, cfgOverride = {}) {
         const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 2.0, fbmCfg.gain || 0.5);
         const v = macroSampler(warped.x, warped.y);
         const base = (v + 1) / 2;
-        const seaLevel = typeof mycfg.seaLevel === 'number' ? mycfg.seaLevel : 0.52;
+  const seaLevel = (typeof mycfg.seaLevel === 'number') ? mycfg.seaLevel : ((mycfg && mycfg.layers && mycfg.layers.global && typeof mycfg.layers.global.seaLevel === 'number') ? mycfg.layers.global.seaLevel : 0.52);
         const shallowBand = 0.26;
         let h;
         if (base < seaLevel) h = (base / seaLevel) * shallowBand;
@@ -74,7 +74,7 @@ console.log('\nInspect with smaller detailWeight (0.12)');
       const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 2.0, fbmCfg.gain || 0.5);
       const v = macroSampler(warped.x, warped.y);
       const base = (v + 1) / 2;
-      const seaLevel = typeof cfg.layers.layer1.seaLevel === 'number' ? cfg.layers.layer1.seaLevel : 0.52;
+  const seaLevel = (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number') ? cfg.layers.global.seaLevel : 0.52;
       const shallowBand = 0.26;
       let h;
       if (base < seaLevel) h = (base / seaLevel) * shallowBand;

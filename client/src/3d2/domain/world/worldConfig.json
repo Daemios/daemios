@@ -1,8 +1,0 @@
-{
-  "seaLevel": 0.52,
-  "oceanTarget": 0.62,
-  "fbm": { "octaves": 5, "lacunarity": 2.0, "gain": 0.5 },
-  "domainWarp": { "ampA": 0.8, "freqA": 0.3, "ampB": 0.25, "freqB": 2.0 },
-  "voronoiCellSize": 48,
-  "plateCellSize": 128
-}

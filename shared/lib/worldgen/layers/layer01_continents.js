@@ -77,8 +77,15 @@ function computeTilePart(ctx) {
 
   // Optional slight smoothing by nudging toward neighbor plate centers is possible later
 
-  // remap into water vs land bands (same as before)
-  const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
+  // remap into water vs land bands
+  // prefer global sea level from ctx.cfg.layers.global.seaLevel for authoritative value
+  const seaLevel = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+    ? ctx.cfg.layers.global.seaLevel
+    : (typeof cfg.seaLevel === 'number' ? cfg.seaLevel : 0.52);
+  // shallowBand is the fixed top of the water gradient (0..1). Use a small
+  // constant so that changing seaLevel only affects classification thresholds
+  // and palette blending, not absolute tile heights.
+  const shallowBand = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
   const landMax = (typeof cfg.landMax === 'number') ? cfg.landMax : 0.55; // cap for this layer
   const threshold = (typeof cfg.threshold === 'number') ? cfg.threshold : 0.46; // start of land band
 
@@ -92,26 +99,28 @@ function computeTilePart(ctx) {
     const dampPower = (typeof cfg.dampPower === 'number') ? cfg.dampPower : 2.5;
     const dampScale = (typeof cfg.dampScale === 'number') ? cfg.dampScale : 1.0;
 
-    if (blended <= dampThreshold) {
+  if (blended <= dampThreshold) {
       // Strong attenuation near the minimum: normalized t in [0,1]
       const t = blended / Math.max(1e-9, dampThreshold);
       const atten = Math.pow(t, dampPower);
       // Map attenuated value into ocean band (0..seaLevel), scaled by dampScale
-      h = atten * seaLevel * dampScale;
+  h = atten * shallowBand * dampScale;
     } else {
       // For intermediate ocean values between dampThreshold and threshold,
       // interpolate smoothly from the attenuated dampThreshold output up to
       // the previous linear mapping at `threshold` so slopes aren't abrupt.
       const t = (blended - dampThreshold) / Math.max(1e-9, threshold - dampThreshold);
-      const dampedBase = Math.pow(dampThreshold / Math.max(1e-9, dampThreshold), dampPower) * seaLevel * dampScale; // effectively 0 but kept for clarity
-      const linearAtThreshold = (threshold / threshold) * seaLevel; // equals seaLevel
+      const dampedBase = Math.pow(dampThreshold / Math.max(1e-9, dampThreshold), dampPower) * shallowBand * dampScale; // effectively 0 but kept for clarity
+      const linearAtThreshold = shallowBand; // top of shallow/ocean band
       // lerp between dampedBase and linearAtThreshold
       h = dampedBase + t * (linearAtThreshold - dampedBase);
     }
   } else {
     const t = (blended - threshold) / (1 - threshold);
     const s = smoothstep(t);
-    h = seaLevel + s * (landMax - seaLevel);
+    // Map land portion into shallowBand..landMax so heights remain in a
+    // consistent scale regardless of seaLevel value.
+    h = shallowBand + s * (landMax - shallowBand);
   }
 
   h = Math.max(0, Math.min(1, h));
@@ -137,7 +146,8 @@ function fallback(ctx) {
   const v = Math.abs(Math.sin((ctx.x * 12.9898 + ctx.z * 78.233) % 1));
   const base = Math.max(0, Math.min(1, v));
   const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
-  const h = base * seaLevel * 0.9; // keep fallback under sea level mostly
+  const shallowBandFallback = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
+  const h = base * shallowBandFallback * 0.9; // keep fallback under shallowBand mostly
   const isWater = h <= seaLevel;
   const depthBand = isWater ? 'shallow' : 'land';
   const plateId = Math.abs(Math.floor((ctx.x + ctx.z) / plateSize));

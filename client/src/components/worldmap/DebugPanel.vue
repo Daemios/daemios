@@ -31,46 +31,59 @@
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px">
-      <label class="d-flex align-center cursor-pointer" style="gap: 6px">
-        <input
-          v-model="state.clutter"
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.clutter"
           type="checkbox"
-          @change="applyImmediate"
-        />
+          @change="applyImmediate">
+        </input>
         Clutter
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap: 6px">
-        <input
-          v-model="state.shadows"
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.shadows"
           type="checkbox"
-          @change="applyImmediate"
-        />
+          @change="applyImmediate">
+        </input>
         Shadows
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap: 6px">
-        <input v-model="state.water" type="checkbox" @change="applyImmediate" />
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.water"
+          type="checkbox"
+          @change="applyImmediate">
+        </input>
         Water
       </label>
 
-      <label class="d-flex align-center cursor-pointer" style="gap: 6px">
-        <input
-          v-model="state.chunkColors"
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.chunkColors"
           type="checkbox"
-          @change="applyImmediate"
-        />
+          @change="applyImmediate">
+        </input>
         Chunk colors
+      </label>
+
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.wireframe"
+          type="checkbox"
+          @change="applyImmediate">
+        </input>
+        Show wireframe
       </label>
 
       <!-- showChunkBorders option removed -->
 
-      <label class="d-flex align-center cursor-pointer" style="gap: 6px">
-        <input
-          v-model="state.directions"
+      <label class="d-flex align-center cursor-pointer"
+        style="gap: 6px">
+        <input v-model="state.directions"
           type="checkbox"
-          @change="applyImmediate"
-        />
+          @change="applyImmediate">
+        </input>
         Directions
       </label>
     </div>
@@ -231,6 +244,8 @@ export default {
         water: this.value.water ?? savedFeatures.water ?? true,
         chunkColors:
           this.value.chunkColors ?? savedFeatures.chunkColors ?? false,
+        wireframe:
+          this.value.wireframe ?? savedFeatures.wireframe ?? false,
         directions: this.value.directions ?? savedFeatures.directions ?? false,
         sizePreset:
           this.value.sizePreset ?? savedGeneration.sizePreset ?? "medium",
@@ -251,6 +266,7 @@ export default {
         shadows: !!this.state.shadows,
         water: !!this.state.water,
         chunkColors: !!this.state.chunkColors,
+  wireframe: !!this.state.wireframe,
         directions: !!this.state.directions,
         sizePreset: this.state.sizePreset,
         mapRadius: radius,
@@ -267,6 +283,7 @@ export default {
                 shadows: !!this.state.shadows,
                 water: !!this.state.water,
                 chunkColors: !!this.state.chunkColors,
+                wireframe: !!this.state.wireframe,
                 // showChunkBorders option removed
                 directions: !!this.state.directions,
               },

@@ -1,6 +1,8 @@
 // shared/lib/worldgen/merge.js
 // Merge partial outputs from layers into a final Tile object. Simple deterministic merge order.
 
+import { interpretPalette } from './paletteInterpreter.js';
+
 function mergeParts(base, parts, ctx) {
   const tile = Object.assign({}, base);
   // Start with a very low base elevation so subsequent layers add on to it.
@@ -32,74 +34,74 @@ function mergeParts(base, parts, ctx) {
     if (part.plate) tile.plate = Object.assign({}, part.plate);
   }
 
-  // Clamp final unscaled elevation to 0..1 for classification purposes
-  const unscaled = Math.max(0, Math.min(1, tile.elevation.raw));
-  // Keep canonical elevation values unscaled so palette and classification
-  // remain deterministic and unaffected by visual scaling.
+  // Preserve the accumulated raw elevation (do NOT clamp here). Some
+  // subsequent layers are expected to increase absolute height beyond the
+  // initial layer1 cap. Keep a clamped normalized value for classification
+  // and palette decisions, but retain the unclamped raw as the authoritative
+  // physical height before visual scaling.
+  const rawUnclamped = tile.elevation.raw;
+  const normalized = Math.max(0, Math.min(1, rawUnclamped));
   tile.elevation = tile.elevation || {};
-  tile.elevation.raw = unscaled;
-  tile.elevation.normalized = unscaled;
+  tile.elevation.raw = rawUnclamped;
+  tile.elevation.normalized = normalized;
 
-  // After merging, compute a minimal, deterministic palette based on elevation
-  // so the initial world is colored by height only. Anything under seaLevel
-  // is treated as water and receives a gradient from deep blue (low) to sand (near sea).
+  // Recompute bathymetry depthBand using the final normalized elevation
+  // so that downstream palette logic and clients see authoritative bands
+  // after all layers have been merged.
   try {
-    const seaLevel = (tile.bathymetry && typeof tile.bathymetry.seaLevel === 'number') ? tile.bathymetry.seaLevel : 0.52;
-    const elev = (tile.elevation && typeof tile.elevation.normalized === 'number') ? tile.elevation.normalized : 0;
+    if (!tile.bathymetry) tile.bathymetry = {};
+    const seaLevel = (typeof tile.bathymetry.seaLevel === 'number')
+      ? tile.bathymetry.seaLevel
+      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+        ? ctx.cfg.layers.global.seaLevel
+        : 0.22;
+    const isWaterFinal = normalized <= seaLevel;
+    const depthBand = isWaterFinal ? (normalized < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
+    tile.bathymetry.depthBand = depthBand;
+    tile.bathymetry.seaLevel = seaLevel;
+  } catch (e) {
+    // ignore bathymetry recompute errors
+  }
 
-    // helper: lerp between two hex colors by t in [0,1]
-    const hexToRgb = (hex) => {
-      const h = hex.replace('#','');
-      const r = parseInt(h.substring(0,2),16);
-      const g = parseInt(h.substring(2,4),16);
-      const b = parseInt(h.substring(4,6),16);
-      return { r, g, b };
-    };
-    const rgbToHex = (c) => '#' + [c.r,c.g,c.b].map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
-    const lerpColor = (a, b, t) => ({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t });
-
-    // Define sand and deep blue anchors
-    const sandHex = '#e3d3b8'; // sandy tan near shore
-    const deepHex = '#013a6b'; // deep ocean blue
-    const sand = hexToRgb(sandHex);
-    const deep = hexToRgb(deepHex);
-
-    if (elev <= seaLevel) {
-      const t = seaLevel <= 0 ? 0 : (elev / seaLevel);
-      // at t=0 -> deep, t=1 -> sand
-      const c = lerpColor(deep, sand, t);
-      tile.palette.topColor = rgbToHex(c);
-      // side color: slightly darker
-      const side = { r: c.r * 0.7, g: c.g * 0.75, b: c.b * 0.8 };
-      tile.palette.sideColor = rgbToHex(side);
-      tile.flags = tile.flags || [];
-      if (!tile.flags.includes('water')) tile.flags.push('water');
-    } else {
-      // Land: keep palette from layer0 if present, otherwise use sand for now
-      if (!tile.palette || !tile.palette.topColor || tile.palette.topColor === '#000000') {
-        tile.palette.topColor = sandHex;
-        tile.palette.sideColor = '#cbb89d';
+  // After merging the semantic fields, compute the canonical palette using
+  // the palette interpreter. The interpreter is responsible for mapping
+  // semantic biomes and archetype biases into concrete colors. It may also
+  // set flags (for example 'water') on the returned palette; merge will
+  // respect those.
+  try {
+    const computed = interpretPalette(tile, parts, ctx) || {};
+    // apply computed palette fields onto tile.palette
+    tile.palette = Object.assign({}, tile.palette, computed);
+    // if the computed palette indicates water by having a deep ocean anchor
+    // we still rely on tile.bathymetry and semantic parts for water flags.
+    if (tile.bathymetry && typeof tile.bathymetry.seaLevel === 'number') {
+      if (tile.elevation && typeof tile.elevation.normalized === 'number' && tile.elevation.normalized <= tile.bathymetry.seaLevel) {
+        tile.flags = tile.flags || [];
+        if (!tile.flags.includes('water')) tile.flags.push('water');
+      } else {
+        tile.flags = (tile.flags || []).filter(f => f !== 'water');
       }
-      // ensure water flag not present
-      tile.flags = (tile.flags || []).filter(f => f !== 'water');
     }
   } catch (e) {
-    // if color computation fails, leave palette as-is
+    // if interpreter fails, keep existing palette
   }
 
-  // Finally, apply global visual scale only to the rendered height. Keep
-  // tile.elevation.* as the canonical, unscaled values used for classification.
-  try {
-    const scale = (ctx && ctx.cfg && typeof ctx.cfg.scale === 'number') ? ctx.cfg.scale : 1.0;
-    const scaled = Math.max(0, Math.min(1, (tile.elevation && typeof tile.elevation.normalized === 'number' ? tile.elevation.normalized : 0) * scale));
-  tile.renderHeight = scaled; // explicit field for renderers
-  // Preserve tile.height as the canonical, unscaled elevation so
-  // classification and palette decisions are unaffected by visual scale.
+  // Finally, compute canonical world-space height and the renderer's
+  // renderHeight using the centralized maxHeight and scale.
+  // Contract: worldHeight = normalized * maxHeight
+  //           renderHeight = worldHeight * scale
+  // Per request: no fallbacks — throw if required values missing so errors surface.
+  if (!ctx || !ctx.cfg || typeof ctx.cfg.maxHeight !== 'number') throw new Error('mergeParts: cfg.maxHeight is required');
+  if (!ctx || !ctx.cfg || typeof ctx.cfg.scale !== 'number') throw new Error('mergeParts: cfg.scale is required');
+  if (!tile.elevation || typeof tile.elevation.normalized !== 'number') throw new Error('mergeParts: tile.elevation.normalized is required');
+  const maxH = ctx.cfg.maxHeight;
+  const scale = ctx.cfg.scale;
+  // world-space height in units (0..maxHeight)
+  tile.worldHeight = Math.max(0, tile.elevation.normalized * maxH);
+  // final render height after applying visual scale
+  tile.renderHeight = tile.worldHeight * scale;
+  // Preserve tile.height as the canonical, clamped elevation used for classification
   tile.height = tile.elevation.normalized;
-  } catch (e) {
-    // ignore scale application errors and keep original height
-    tile.renderHeight = tile.height;
-  }
 
   return tile;
 }

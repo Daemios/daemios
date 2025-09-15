@@ -77,6 +77,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uHexMaxYScaled: { value: opt.hexMaxYScaled },
     uSeaLevelY: { value: opt.seaLevelY },
     uDepthMax: { value: opt.depthMax },
+  uMaskEps: { value: 0.02 }, // epsilon to hide water under tiles near sea level
     uNearAlpha: { value: opt.nearAlpha },
     uFarAlpha: { value: opt.farAlpha },
     // Shore waves
@@ -118,6 +119,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniform vec2 uFlowDir1, uFlowDir2;
     uniform float uFlowSpeed1, uFlowSpeed2;
   uniform float uHexMaxYScaled, uSeaLevelY, uDepthMax;
+  uniform float uMaskEps;
   uniform float uNearAlpha, uFarAlpha;
   // Shore waves
   uniform float uShoreWaveStrength;
@@ -211,7 +213,19 @@ export default function createRealisticWaterMaterial(options = {}) {
   // Keep specular off on the white bands
   col += spec * (1.0 - waveMask);
 
-  // Depth-based transparency using precomputed depth factor
+      // Mask out fragments under tiles whose computed top is at-or-above sea level
+      float maskVal = 1.0;
+      // coverage texture indicates where hex tiles exist; if provided, use it to avoid masking in gaps
+      float cov = 1.0;
+      #ifdef USE_COVERAGE
+      cov = texture2D(uCoverage, vec2((vWorldPos.x/uHexW + uGridQ0 + uGridOffset)/uGridN, (vWorldPos.z/uHexH + uGridR0 + uGridOffset)/uGridN)).r;
+      #endif
+      float tileTopY = seabedY; // seabedY encodes top-of-seabed normalized; conservative proxy
+      if (cov > 0.5 && tileTopY >= (uSeaLevelY - uMaskEps)) {
+        discard; // do not draw water under tiles above sea level (prevents z-fight)
+      }
+
+      // Depth-based transparency using precomputed depth factor
   float aDepth = mix(uNearAlpha, uFarAlpha, depthFac);
   float alpha = clamp(aDepth * uOpacity, 0.0, 1.0);
   // Opaque where stripes are; base water alpha elsewhere
@@ -224,7 +238,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
+  transparent: true,
     depthWrite: false,
     depthTest: true,
   });

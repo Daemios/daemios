@@ -1,0 +1,32 @@
+Files recommended for deletion to remove legacy WorldMap (keep WorldMap2 and all `3d2` code):
+
+Safe-to-delete (exclusive to legacy WorldMap):
+- client/src/views/primary/WorldMap.vue
+  Reason: Legacy view replaced by WorldMap2. useWorldMap import existed only here.
+
+- client/src/composables/useWorldMap.js
+  Reason: Composable used only by the legacy WorldMap view and now stubbed; WorldMap2 doesn't use it.
+
+Likely safe-to-delete (verify if you have backups):
+- (none discovered as exclusive) — note: many legacy `@/3d/*` modules are still referenced by other code (services/water) or have modern equivalents in `3d2`.
+
+Files to KEEP (used by WorldMap2 / `3d2` integration):
+- client/src/components/worldmap/ControlPanel.vue
+- client/src/components/worldmap/DebugPanel.vue
+- client/src/components/worldmap/WorldGenPanel.vue
+  Reason: Imported by `client/src/3d2/integration/WorldMapSceneWrapper.vue` used by WorldMap2.
+
+- client/src/3d2/** (all files and folders)
+  Reason: This is the new 3D stack (scenes, integration, renderer) used by WorldMap2.
+
+Files referenced from other areas (do NOT delete unless confirmed):
+- client/src/services/water/waterBuilder.js
+  - imports: @/3d/renderer/materials/RealisticWaterMaterial and @/3d/terrain/biomes
+  Reason: Service still exists and references legacy `@/3d` modules; deleting `@/3d/*` may break this.
+
+Notes and next steps:
+1) I stubbed `WorldMap.vue` and `useWorldMap.js` earlier to surface remaining imports. If you want, I can now delete the two safe-to-delete files above.
+2) Before deleting any `@/3d/*` modules (renderer materials, terrain, utils), run a full repo lint/build to find all importers. I found some references in `client/src/services/water/waterBuilder.js`.
+3) After deletion I recommend running: `npm --prefix client run lint` and a dev build to catch any missed references.
+
+If you confirm I should proceed, I will delete the safe-to-delete files now and run lint. If you'd like the list exported in a different format (JSON, PR patch, or a git branch with deletions), tell me which and I'll do it.
