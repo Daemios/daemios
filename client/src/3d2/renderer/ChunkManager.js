@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
 import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
-import { offsetToAxial } from '@/3d/utils/hexUtils';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
+import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 
 // Simplified ChunkManager for 3d2. This is intentionally smaller than the legacy
 // version: it provides the same external API surface (build, scheduleProgressiveExpand,
@@ -24,7 +24,9 @@ export default class ChunkManager {
     this.chunkRows = opts.chunkRows || 8;
     this.neighborRadius = opts.neighborRadius ?? 1;
     this.features = opts.features || {};
-    this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : 1.0;
+  // Use centralized DEFAULT_CONFIG.heightMagnitude as renderer exaggeration.
+  // Allow opts to override for testing; fall back to 1.0 if not present.
+  this.heightMagnitude = opts.heightMagnitude != null ? opts.heightMagnitude : (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.heightMagnitude === 'number' ? DEFAULT_CONFIG.heightMagnitude : 1.0);
     this.centerChunk = { x: opts.centerChunk?.x ?? 0, y: opts.centerChunk?.y ?? 0 };
   // optional generator for sampling cell data (expects getByXZ(x,z) -> cell)
   this.generator = opts.generator || null;
@@ -63,6 +65,15 @@ export default class ChunkManager {
     const cols = this.chunkCols || 8;
     const rows = this.chunkRows || 8;
     const nr = this.neighborRadius != null ? this.neighborRadius : 1;
+
+    // Helper: convert even-q offset (col,row) to axial (q,r)
+    // We used to import this from the legacy `@/3d/utils/hexUtils` but that
+    // module has been removed; provide a tiny local implementation here.
+    const offsetToAxial = (col, row) => {
+      const q = col;
+      const r = row - Math.floor(col / 2);
+      return { q, r };
+    };
 
     // Helper: compute world-space bbox for a given chunk index by sampling
     // all axial coords that belong to that chunk. This yields robust chunk
@@ -198,34 +209,46 @@ export default class ChunkManager {
   const sideColorsChunk = new Float32Array(positions.length * 3);
   // temporary object removed (no longer storing per-instance matrices)
   for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      let yScale = 1.0;
-      let topCol = new THREE.Color(0xeeeeee);
-      let sideCol = new THREE.Color(0xcccccc);
-      try {
-        if (this.generator) {
-            let tile;
-            if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
-            else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
-            // Prefer canonical palette supplied on the tile; fallback to biomeFromCell.
-            let bio = null;
-            if (tile && tile.palette && tile.palette.topColor) {
-              bio = { top: tile.palette.topColor, side: tile.palette.sideColor || tile.palette.topColor };
-            } else {
-              bio = biomeFromCell(tile);
-            }
-            // Use renderHeight for instance scaling (fallback to unscaled height)
-            let elevRender = 0;
-            if (tile && typeof tile.renderHeight === 'number') elevRender = tile.renderHeight;
-            else if (tile && typeof tile.height === 'number') elevRender = tile.height;
-            else if (tile && tile.elevation && typeof tile.elevation.normalized === 'number') elevRender = tile.elevation.normalized;
-            yScale = Math.max(0.001, elevRender * (this.heightMagnitude || 1.0));
-            topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
-            sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
-          }
-      } catch (e) {
-        console.warn('ChunkManager: sampling generator failed', e);
+    const p = positions[i];
+    let yScale = 1.0;
+    let topCol = new THREE.Color(0xeeeeee);
+    let sideCol = new THREE.Color(0xcccccc);
+    try {
+      if (this.generator) {
+        let tile = null;
+        if (typeof this.generator.getByXZ === 'function') tile = this.generator.getByXZ(p.worldX, p.worldZ);
+        else if (typeof this.generator.get === 'function') tile = this.generator.get(p.q, p.r);
+        // Prefer canonical palette supplied on the tile; fallback to biomeFromCell.
+        let bio = null;
+        if (tile && tile.palette && tile.palette.topColor) {
+          bio = { top: tile.palette.topColor, side: tile.palette.sideColor || tile.palette.topColor };
+        } else {
+          bio = biomeFromCell(tile);
+        }
+        // Use canonical renderHeight if provided (tile.renderHeight == worldHeight * cfg.scale).
+        // If renderHeight is missing, construct it from tile.worldHeight or normalized elevation
+        // using centralized DEFAULT_CONFIG values so we remain strict and predictable.
+        let elevRender = 0;
+        if (tile && typeof tile.renderHeight === 'number') {
+          elevRender = tile.renderHeight;
+        } else if (tile && typeof tile.worldHeight === 'number') {
+          const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+          elevRender = tile.worldHeight * cfgScale;
+        } else if (tile && tile.elevation && typeof tile.elevation.normalized === 'number') {
+          const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+          const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+          elevRender = tile.elevation.normalized * cfgMaxH * cfgScale;
+        }
+        // Apply renderer exaggeration (heightMagnitude) to the computed render height
+        yScale = Math.max(0.001, elevRender * (this.heightMagnitude || 1.0));
+        // Base colors from palette/biome
+        topCol = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
+        sideCol = new THREE.Color(bio && bio.side ? bio.side : 0xcccccc);
+  // use palette/biome colors (no debug override)
       }
+    } catch (e) {
+      console.warn('ChunkManager: sampling generator failed', e);
+    }
       // Place side centered at world y=0 (height 0.2 -> -0.1..0.1). Place top cap above it.
   if (usingDefaultGeom) {
         const sideY = 0; // center of side
@@ -238,10 +261,13 @@ export default class ChunkManager {
   // no per-instance matrix stored (overlay removed) to reduce memory
       } else {
         // model-provided geometry: apply modelScaleFactor so geometry matches loader measurements
-        const ms = this.modelScaleFactor || 1.0;
-        // top position and scale uses yScale (tile height) and global model scale
-        topApi.setInstanceMatrix(i, { x: p.x, y: 0.0005, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
-        sideApi.setInstanceMatrix(i, { x: p.x, y: -0.1 * ms, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
+          const ms = this.modelScaleFactor || 1.0;
+          // Loader recenters geometries so geometry minY == 0 (base at world Y=0).
+          // Therefore place model instances with no additional downward offset.
+          // top position and scale uses yScale (tile height) and global model scale
+          topApi.setInstanceMatrix(i, { x: p.x, y: 0.0005, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
+          // Place side geometry at world Y = 0 so its base aligns with scene ground
+          sideApi.setInstanceMatrix(i, { x: p.x, y: 0.0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: ms, y: ms * yScale, z: ms });
   // no per-instance matrix stored (overlay removed) to reduce memory
       }
       // store biome colors
@@ -286,6 +312,8 @@ export default class ChunkManager {
         sideColorsChunk[i * 3 + 2] = sideCol.b;
       }
     }
+
+  // no debug coloration; use original palette colors
 
     // attach instanceColor attributes where supported
     // initially use biome colors for instanceColor; store both buffers on neighborhood

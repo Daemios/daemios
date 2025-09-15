@@ -5,7 +5,15 @@ export const DEFAULT_CONFIG = {
   // Global multiplier applied to the final elevation (rendered height).
   // This does not change biome/sea classification which is computed from
   // the unscaled elevation; it only scales the returned tile.height.
-  scale: 5,
+  // maximum world height (units). Normalized elevations (0..1) are
+  // interpreted as a percentage of this value.
+  maxHeight: 10,
+  // Global multiplier applied to the final elevation (rendered height).
+  // Final world units = normalized * maxHeight * scale
+  scale: 1,
+  // Optional additional renderer-side exaggeration factor historically
+  // used by clients; keep here for centralized tuning.
+  heightMagnitude: 1,
   layers: {
     // Global tuning values that affect multiple layers (authoritative sea level)
     global: {

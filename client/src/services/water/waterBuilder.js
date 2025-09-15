@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d/renderer/materials/RealisticWaterMaterial";
+import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d/terrain/biomes";
 
 // Build water plane, mask and distance textures for a neighborhood.
@@ -20,7 +21,6 @@ export function buildWater(ctx) {
     neighborRadius,
     hexMaxY,
     modelScaleFactor,
-    heightMagnitude,
     elevation,
   } = ctx;
 
@@ -198,15 +198,23 @@ export function buildWater(ctx) {
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
-  const seaH = BIOME_THRESHOLDS.shallowWater;
-  const base = elevation && elevation.base != null ? elevation.base : 0.08;
-  const maxH = elevation && elevation.max != null ? elevation.max : 1.2;
-  const seaLevelYScale = base + seaH * maxH;
-  const hexMaxYScaled =
-    hexMaxY *
-    modelScaleFactor *
-    (heightMagnitude != null ? heightMagnitude : 1.0);
-  const seaLevelY = hexMaxYScaled * seaLevelYScale;
+  // sea level will be derived from generator elevation or DEFAULT_CONFIG fallback below
+  // Compute world-space elevation magnitude from centralized config so
+  // generator-normalized values map unambiguously to world units.
+  const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+  const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+  // hexMaxYScaled is the maximum elevation we expose to the water material
+  // in world units (maxHeight * scale).
+  const hexMaxYScaled = cfgMaxH * cfgScale;
+  // Determine normalized sea level. Prefer explicit config global seaLevel when present
+  // to ensure deterministic placement; otherwise fall back to generator elevation or 0.20.
+  let seaLevelNormalized = 0.2;
+  if (DEFAULT_CONFIG && DEFAULT_CONFIG.layers && typeof DEFAULT_CONFIG.layers.global?.seaLevel === 'number') {
+    seaLevelNormalized = DEFAULT_CONFIG.layers.global.seaLevel;
+  } else if (elevation && typeof elevation.base === 'number' && typeof elevation.max === 'number') {
+    seaLevelNormalized = (elevation.base + BIOME_THRESHOLDS.shallowWater * elevation.max) || seaLevelNormalized;
+  }
+  const seaLevelY_final = seaLevelNormalized * cfgMaxH * cfgScale;
 
   const centerQ0 = qOrigin;
   const centerR0 = rOrigin;
@@ -223,8 +231,8 @@ export function buildWater(ctx) {
     gridR0: centerR0,
     shoreWidth: 0.12,
     hexMaxYScaled,
-    seaLevelY,
-    depthMax: hexMaxYScaled * 0.3,
+  seaLevelY: seaLevelY_final,
+    depthMax: Math.max(0.1, hexMaxYScaled * 0.3),
     nearAlpha: 0.08,
     farAlpha: 0.9,
   });
@@ -242,7 +250,7 @@ export function buildWater(ctx) {
   const zBR = hexH_est * (brAx.r + brAx.q * 0.5);
   const centerX = 0.5 * (xTL + xBR);
   const centerZ = 0.5 * (zTL + zBR);
-  const waterY = seaLevelY + 0.001;
+  const waterY = seaLevelY_final + 0.001;
   mesh.position.set(centerX, waterY, centerZ);
   mesh.renderOrder = 1;
   mesh.frustumCulled = false;

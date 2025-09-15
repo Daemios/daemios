@@ -86,22 +86,22 @@ function mergeParts(base, parts, ctx) {
     // if interpreter fails, keep existing palette
   }
 
-  // Finally, apply global visual scale only to the rendered height. Keep
-  // tile.elevation.* as the canonical, unscaled values used for classification.
-  try {
-  const scale = (ctx && ctx.cfg && typeof ctx.cfg.scale === 'number') ? ctx.cfg.scale : 1.0;
-  // Compute renderHeight from the unclamped raw elevation so layers can
-  // visibly exceed the original cap; clamp to >=0 but do not artificially
-  // cap at 1.0. The renderer can interpret values >1 as taller geometry.
-  const scaled = Math.max(0, (tile.elevation && typeof tile.elevation.raw === 'number' ? tile.elevation.raw : 0) * scale);
-  tile.renderHeight = scaled; // explicit field for renderers (may exceed 1)
-  // Preserve tile.height as the canonical, clamped elevation used for
-  // classification and palette decisions.
+  // Finally, compute canonical world-space height and the renderer's
+  // renderHeight using the centralized maxHeight and scale.
+  // Contract: worldHeight = normalized * maxHeight
+  //           renderHeight = worldHeight * scale
+  // Per request: no fallbacks — throw if required values missing so errors surface.
+  if (!ctx || !ctx.cfg || typeof ctx.cfg.maxHeight !== 'number') throw new Error('mergeParts: cfg.maxHeight is required');
+  if (!ctx || !ctx.cfg || typeof ctx.cfg.scale !== 'number') throw new Error('mergeParts: cfg.scale is required');
+  if (!tile.elevation || typeof tile.elevation.normalized !== 'number') throw new Error('mergeParts: tile.elevation.normalized is required');
+  const maxH = ctx.cfg.maxHeight;
+  const scale = ctx.cfg.scale;
+  // world-space height in units (0..maxHeight)
+  tile.worldHeight = Math.max(0, tile.elevation.normalized * maxH);
+  // final render height after applying visual scale
+  tile.renderHeight = tile.worldHeight * scale;
+  // Preserve tile.height as the canonical, clamped elevation used for classification
   tile.height = tile.elevation.normalized;
-  } catch (e) {
-    // ignore scale application errors and keep original height
-    tile.renderHeight = tile.height;
-  }
 
   return tile;
 }

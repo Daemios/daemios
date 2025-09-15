@@ -48,16 +48,6 @@ export default [
     },
   },
   {
-    path: "/worldmap",
-    name: "World Map",
-    component: () => import("@/views/primary/WorldMap.vue"),
-    meta: {
-      requiresAuth: false,
-      overlay: false,
-      combat_lock: false,
-    },
-  },
-  {
     path: "/worldmap2",
     name: "World Map 2",
     component: () => import("@/views/primary/WorldMap2.vue"),

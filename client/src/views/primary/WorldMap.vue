@@ -1,8 +1,5 @@
 <template>
-  <div
-    ref="sceneContainer"
-    class="world-map position-relative w-100 h-screen"
-  >
+  <div ref="sceneContainer" class="world-map position-relative w-100 h-screen">
     <!-- Current tile panel (left) -->
     <TileInfoPanel
       :tile="currentTileInfo"
@@ -491,7 +488,8 @@ export default {
         try {
           if (this.profilerEnabled) profiler.push(label, ms);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("startup first.frame logging failed", e);
+          if (import.meta.env.DEV)
+            console.debug("startup first.frame logging failed", e);
         }
       };
     }
@@ -570,7 +568,7 @@ export default {
       if (this.worldStore && this.worldStore.fetchTowns)
         this.worldStore.fetchTowns();
     } catch (e) {
-  if (import.meta.env.DEV) console.debug("fetchTowns failed", e);
+      if (import.meta.env.DEV) console.debug("fetchTowns failed", e);
     }
     window.addEventListener("resize", this.onResize);
     // Initialize pointer controls module which will register all pointer/wheel listeners
@@ -609,7 +607,8 @@ export default {
       try {
         this.chunkManager.cancelProgressiveExpand();
       } catch (e) {
-  if (import.meta.env.DEV) console.debug("cancelProgressiveExpand failed on unmount", e);
+        if (import.meta.env.DEV)
+          console.debug("cancelProgressiveExpand failed on unmount", e);
       }
     }
     // Clear any pending timers used by the view
@@ -619,7 +618,7 @@ export default {
         this._radiusTimer = null;
       }
     } catch (e) {
-  if (import.meta.env.DEV) console.debug("clear radiusTimer failed", e);
+      if (import.meta.env.DEV) console.debug("clear radiusTimer failed", e);
     }
     try {
       if (this._progressiveCheckId) {
@@ -627,7 +626,8 @@ export default {
         this._progressiveCheckId = null;
       }
     } catch (e) {
-  if (import.meta.env.DEV) console.debug("cancelAnimationFrame failed during unmount", e);
+      if (import.meta.env.DEV)
+        console.debug("cancelAnimationFrame failed during unmount", e);
     }
   },
   methods: {
@@ -1046,7 +1046,8 @@ export default {
             this.scene.remove(l);
             l.geometry?.dispose?.();
           } catch (e) {
-            if (import.meta.env.DEV) console.debug("addLabel internals failed", e);
+            if (import.meta.env.DEV)
+              console.debug("addLabel internals failed", e);
           }
         });
         this.dirFrameLines = null;
@@ -1056,7 +1057,8 @@ export default {
         try {
           n.remove();
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("cameraTween pixelRatio restore failed", e);
+          if (import.meta.env.DEV)
+            console.debug("cameraTween pixelRatio restore failed", e);
         }
       });
     },
@@ -1127,7 +1129,8 @@ export default {
         try {
           this.chunkManager.applyChunkColors(!!enabled);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("chunkManager.applyChunkColors failed", e);
+          if (import.meta.env.DEV)
+            console.debug("chunkManager.applyChunkColors failed", e);
         }
         return;
       }
@@ -1135,13 +1138,15 @@ export default {
         try {
           this.neighborhood.applyChunkColors(!!enabled);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("neighborhood.applyChunkColors failed", e);
+          if (import.meta.env.DEV)
+            console.debug("neighborhood.applyChunkColors failed", e);
         }
         return;
       }
-  if (import.meta.env.DEV) console.debug(
-        "applyChunkColors: no chunkManager or neighborhood available; no-op"
-      );
+      if (import.meta.env.DEV)
+        console.debug(
+          "applyChunkColors: no chunkManager or neighborhood available; no-op"
+        );
     },
     // Generate a stable pastel color per chunk coordinate (wx, wy)
     pastelColorForChunk(wx, wy) {
@@ -1183,7 +1188,8 @@ export default {
         try {
           this.chunkManager.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("chunkManager.neighborhood.fillChunk failed", e);
+          if (import.meta.env.DEV)
+            console.debug("chunkManager.neighborhood.fillChunk failed", e);
         }
         return;
       }
@@ -1191,11 +1197,13 @@ export default {
         try {
           this.neighborhood.fillChunk(slotIndex, wx, wy);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("neighborhood.fillChunk failed", e);
+          if (import.meta.env.DEV)
+            console.debug("neighborhood.fillChunk failed", e);
         }
         return;
       }
-  if (import.meta.env.DEV) console.debug("fillChunk: no neighborhood available; no-op");
+      if (import.meta.env.DEV)
+        console.debug("fillChunk: no neighborhood available; no-op");
       return;
     },
     // Position neighborhood; delegate to manager
@@ -1242,7 +1250,8 @@ export default {
         try {
           this.chunkManager.neighborRadius = radius;
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("set neighborRadius on manager failed", e);
+          if (import.meta.env.DEV)
+            console.debug("set neighborRadius on manager failed", e);
         }
       } else {
         this._neighborRadius = radius; // cache for bounds
@@ -1252,7 +1261,8 @@ export default {
         try {
           this.chunkManager.dispose();
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("chunkManager.dispose failed", e);
+          if (import.meta.env.DEV)
+            console.debug("chunkManager.dispose failed", e);
         }
       }
       this.chunkManager = createChunkManager({
@@ -1409,7 +1419,8 @@ export default {
         try {
           api.post("world/move", { q: startQ, r: startR });
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("buildWater promise handling failed", e);
+          if (import.meta.env.DEV)
+            console.debug("buildWater promise handling failed", e);
         }
         this.playerSpawnSeeded = true;
       }
@@ -1424,7 +1435,8 @@ export default {
               onComplete: () => this.buildWater(),
             });
           } catch (e) {
-            if (import.meta.env.DEV) console.debug("startProgressive failed", e);
+            if (import.meta.env.DEV)
+              console.debug("startProgressive failed", e);
           }
         } else {
           // Fallback: schedule a local progressive expand
@@ -1499,7 +1511,8 @@ export default {
         try {
           this.scene.remove(m);
         } catch (e) {
-          if (import.meta.env.DEV) console.debug("remove worldLocation mesh failed", e);
+          if (import.meta.env.DEV)
+            console.debug("remove worldLocation mesh failed", e);
         }
         try {
           m.geometry && m.geometry.dispose();
@@ -1550,7 +1563,8 @@ export default {
               try {
                 this.chunkManager.neighborRadius = r;
               } catch (e) {
-                if (import.meta.env.DEV) console.debug("set neighborRadius on manager failed", e);
+                if (import.meta.env.DEV)
+                  console.debug("set neighborRadius on manager failed", e);
               }
             } else {
               this._neighborRadius = r;
@@ -1923,6 +1937,25 @@ export default {
           this.waterMesh.parent.remove(this.waterMesh);
         this.waterMesh = res.waterMesh;
         this.waterMaterial = res.waterMaterial;
+        // Diagnostic: log numeric waterBuilder outputs for comparison with WorldMapScene calculations
+        try {
+          console.debug("WATERBUILDER-DEBUG", {
+            seaLevelY:
+              res.waterMaterial &&
+              res.waterMaterial.uniforms &&
+              res.waterMaterial.uniforms.uSeaLevelY
+                ? res.waterMaterial.uniforms.uSeaLevelY.value
+                : res.seaLevelY || null,
+            hexMaxY: this.hexMaxY,
+            modelScaleFactor: this.modelScaleFactor,
+            heightMagnitude: this.heightMagnitude,
+            waterMeshY: res.waterMesh ? res.waterMesh.position.y : null,
+            waterPlaneW: res.waterPlaneW,
+            waterPlaneH: res.waterPlaneH,
+          });
+        } catch (e) {
+          /* ignore logging errors */
+        }
         this.waterMaskTex = res.waterMaskTex;
         this.waterDistanceTex = res.waterDistanceTex;
         this.waterCoverageTex = res.waterCoverageTex;
@@ -1931,7 +1964,33 @@ export default {
         this.waterPlaneW = res.waterPlaneW;
         this.waterPlaneH = res.waterPlaneH;
         this.waterTileCount = res.waterTileCount;
-        if (this.waterMesh && this.scene) this.scene.add(this.waterMesh);
+        if (this.waterMesh && this.scene) {
+          this.scene.add(this.waterMesh);
+          try {
+            console.debug("WORLDMAP-VIEW: added waterMesh", {
+              y: this.waterMesh.position.y,
+              planeW: this.waterPlaneW,
+              planeH: this.waterPlaneH,
+            });
+            // enumerate other large plane meshes in scene for quick diagnostic
+            try {
+              const planes = (this.scene.children || []).filter(
+                (c) => c && c.geometry && c.geometry.type === "PlaneGeometry"
+              );
+              console.debug(
+                "WORLDMAP-VIEW: scene plane meshes",
+                planes.map((p) => ({
+                  uuid: p.uuid,
+                  y: p.position && p.position.y,
+                }))
+              );
+            } catch (ee) {
+              /* ignore */
+            }
+          } catch (e) {
+            /* ignore */
+          }
+        }
         if (this.waterMesh) this.waterMesh.visible = !!this.features.water;
       } catch (err) {
         console.error("[WorldMap] buildWater failed", err);

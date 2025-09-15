@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { createInstancedMesh } from '@/3d2/renderer/instancing';
-import { ensureInstanceCapacity } from '@/3d/renderer/instancingUtils';
+import { ensureInstanceCapacity } from '@/3d2/renderer/instancingUtils';
 import { axialToXZ, getHexSize } from '@/3d2/config/layout';
+
+// ...existing code...
 
 // Lightweight ClutterManager for 3d2. Intentionally simplified: it
 // provides the same external API surface the scenes expect but avoids

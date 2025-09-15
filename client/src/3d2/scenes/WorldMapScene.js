@@ -5,6 +5,7 @@ import { createComposer } from '@/3d2/renderer/composer';
 import { WorldGrid } from '@/3d2/domain/grid/WorldGrid';
 import { createWorldGenerator } from '@/3d2/domain/world';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
+import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
 import { BASE_HEX_SIZE } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
@@ -12,8 +13,25 @@ import { createOrbitControls } from '@/3d2/interaction/orbitControls';
 import ClutterManager from '@/3d2/world/ClutterManager';
 import { loadHexModel } from '@/3d2/services/modelLoader';
 import { createChunkManager } from '@/3d2/renderer/ChunkManager';
-import { pastelColorForChunk } from '@/3d/utils/hexUtils';
+// local fallback for pastel chunk colors (avoids reference to removed legacy utils)
+const pastelColorForChunk = (x = 0, y = 0) => {
+  try {
+    // simple seeded-ish pastel generator based on coordinates
+    const seed = ((x * 374761393 + y * 668265263) >>> 0) >>> 0;
+    const h = (seed % 360) / 360; // normalized hue 0..1
+    const s = (40 + ((x + y) % 20)) / 100; // 0..1
+    const l = 0.6; // 60%
+    const c = new THREE.Color();
+    c.setHSL(h, s, l);
+    return c;
+  } catch (e) {
+    return new THREE.Color(0xdddddd);
+  }
+};
 import { profiler } from '@/utils/profiler';
+import createRealisticWaterMaterial from '@/3d2/renderer/materials/RealisticWaterMaterial';
+// Temporary debug flag: show a magenta plane at maxHeight*scale
+const DEBUG_MAX_HEIGHT_PLANE = true;
 
 export class WorldMapScene {
   constructor(container) {
@@ -42,7 +60,7 @@ export class WorldMapScene {
       camera: this.camera,
     });
 
-    // attempt to create a postprocessing composer; non-fatal if unavailable
+  // attempt to create a postprocessing composer; non-fatal if unavailable
     try {
       createComposer(this.manager.renderer, this.scene, this.camera).then((c) => {
         if (c) this.manager.composer = c;
@@ -93,6 +111,8 @@ export class WorldMapScene {
     }
 
     this.grid = new WorldGrid(1);
+  // clock for animations (water)
+  this._clock = new THREE.Clock();
     // create a world generator early so renderers can sample cell data
     try {
       this._generatorSeed = 1337;
@@ -189,6 +209,12 @@ export class WorldMapScene {
           }
           this._gridInstancedApi = this.chunkManager;
           console.debug('WorldMapScene: chunkManager build succeeded', { neighborhoodCount: built && built.count });
+          // create water plane now that layout/model measurements are known
+          try {
+            this._ensureWaterCreated();
+            // adjust height using sampled tiles/scale
+            this._updateWaterHeightFromNeighborhood();
+          } catch (e) { console.debug('WorldMapScene: ensureWaterCreated failed', e); }
           // debug test meshes removed
           // debug geometry copies removed
           // Ensure click picker is attached so users can click tiles. Attach after build
@@ -208,6 +234,173 @@ export class WorldMapScene {
         this._createGridInstances(this._gridRadius);
       }
     })();
+
+  // create or update the water plane. Called after model load so modelScaleFactor/hexMaxY are available
+  this._water = null;
+  this._ensureWaterCreated = () => {
+    try {
+      // remove previous water if exists
+      if (this._water) {
+        try { this.scene.remove(this._water); } catch (e) { console.debug('WorldMapScene: remove previous water failed', e); }
+        try { this._water.geometry && this._water.geometry.dispose && this._water.geometry.dispose(); } catch (e) { console.debug('WorldMapScene: dispose water geometry failed', e); }
+        try { this._water.material && this._water.material.dispose && this._water.material.dispose(); } catch (e) { console.debug('WorldMapScene: dispose water material failed', e); }
+        // Debug: add a magenta plane at max world height for quick visual verification
+        if (DEBUG_MAX_HEIGHT_PLANE) {
+          try {
+            const { maxHeight, scale } = DEFAULT_CONFIG;
+            const debugY = maxHeight * scale;
+            const geo = new THREE.PlaneGeometry(2000, 2000);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+            const debugPlane = new THREE.Mesh(geo, mat);
+            debugPlane.rotation.x = -Math.PI / 2;
+            debugPlane.position.set(0, debugY, 0);
+            debugPlane.name = 'DEBUG_MAX_HEIGHT_PLANE';
+            this.scene.add(debugPlane);
+            console.debug('WORLD_MAP_SCENE: added DEBUG_MAX_HEIGHT_PLANE at Y=', debugY);
+          } catch (e) {
+            console.warn('WORLD_MAP_SCENE: failed to add debug max-height plane', e);
+          }
+        }
+        this._water = null;
+      }
+      // create material and plane sized to cover a generous area around the neighborhood
+      const mat = createRealisticWaterMaterial();
+  // set a few useful uniforms from scene/model config when available
+      const hexMaxY = (this._hexModel && typeof this._hexModel.hexMaxY === 'number') ? this._hexModel.hexMaxY : 1.0;
+      const modelScale = (this._hexModel && typeof this._hexModel.modelScaleFactor === 'number') ? this._hexModel.modelScaleFactor : 1.0;
+      const hexMaxYScaled = hexMaxY * modelScale;
+  // Place the water plane at authoritative global sea level (world units) using shared config
+  const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+  const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+  const seaNorm = (DEFAULT_CONFIG && DEFAULT_CONFIG.layers && DEFAULT_CONFIG.layers.global && typeof DEFAULT_CONFIG.layers.global.seaLevel === 'number') ? DEFAULT_CONFIG.layers.global.seaLevel : 0.20;
+  const authoritativeSeaY = seaNorm * cfgMaxH * cfgScale;
+  // assign uniforms if present
+  try { if (mat.uniforms && mat.uniforms.uHexMaxYScaled) mat.uniforms.uHexMaxYScaled.value = hexMaxYScaled; } catch (e) { console.debug('WorldMapScene: set uHexMaxYScaled failed', e); }
+  try { if (mat.uniforms && mat.uniforms.uSeaLevelY) mat.uniforms.uSeaLevelY.value = authoritativeSeaY; } catch (e) { console.debug('WorldMapScene: set uSeaLevelY failed', e); }
+  try { if (mat.uniforms && mat.uniforms.uDepthMax) mat.uniforms.uDepthMax.value = Math.max(0.1, authoritativeSeaY * 0.5 + hexMaxYScaled); } catch (e) { console.debug('WorldMapScene: set uDepthMax failed', e); }
+
+      // create large plane geometry (XZ plane) and rotate into XZ
+      const size = 4096; // large enough to cover world view
+      const geom = new THREE.PlaneGeometry(size, size, 1, 1);
+      geom.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(geom, mat);
+  // position at authoritative sea level (will be refined by _updateWaterHeightFromNeighborhood)
+  mesh.position.set(0, authoritativeSeaY + 0.001, 0);
+      // Try to avoid z-fighting: render after tiles, disable depthWrite for blending,
+      // and enable polygonOffset so fragments are slightly offset in the depth buffer.
+      try {
+        if (mesh.material) {
+          mesh.material.polygonOffset = true;
+          // stronger offset to combat stubborn z-fight
+          mesh.material.polygonOffsetFactor = -3;
+          mesh.material.polygonOffsetUnits = -8;
+          // try disabling depthWrite so transparent water doesn't clobber depth buffer
+          mesh.material.depthWrite = false;
+          mesh.material.depthTest = true;
+          mesh.material.transparent = true;
+          // if shader exposes an alpha cutoff uniform, set a conservative value
+          try { if (mesh.material.uniforms && mesh.material.uniforms.uAlphaCutoff) mesh.material.uniforms.uAlphaCutoff.value = 0.05; } catch (ee) { /* ignore */ }
+          // depth function: allow equal so small offsets don't fail depth test
+          try { mesh.material.depthFunc = THREE.LessEqualDepth; } catch (ee) { /* ignore */ }
+        }
+      } catch (e) { /* ignore if material doesn't support these props */ }
+      // render after terrain and UI layers; larger renderOrder helps blending order
+      mesh.renderOrder = 200;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this._water = mesh;
+      // Also add debug plane on initial creation (in case no previous water existed)
+      if (DEBUG_MAX_HEIGHT_PLANE) {
+        try {
+          if (!this.scene.getObjectByName || !this.scene.getObjectByName('DEBUG_MAX_HEIGHT_PLANE')) {
+            const { maxHeight, scale } = DEFAULT_CONFIG;
+            const debugY = maxHeight * scale;
+            const geo2 = new THREE.PlaneGeometry(2000, 2000);
+            const mat2 = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+            const debugPlane2 = new THREE.Mesh(geo2, mat2);
+            debugPlane2.rotation.x = -Math.PI / 2;
+            debugPlane2.position.set(0, debugY, 0);
+            debugPlane2.name = 'DEBUG_MAX_HEIGHT_PLANE';
+            this.scene.add(debugPlane2);
+            console.debug('WORLD_MAP_SCENE: added DEBUG_MAX_HEIGHT_PLANE at Y=', debugY);
+          }
+        } catch (e) {
+          console.warn('WORLD_MAP_SCENE: failed to add debug max-height plane on create', e);
+        }
+      }
+      try {
+        console.debug('WORLD_MAP_SCENE: created water plane', {
+          authoritativeSeaY,
+          meshY: mesh.position.y,
+          hexMaxYScaled,
+          hexMaxY,
+          modelScale,
+          heightMag: (this.chunkManager && typeof this.chunkManager.heightMagnitude === 'number') ? this.chunkManager.heightMagnitude : null,
+        });
+      } catch (e) { /* ignore */ }
+  // Simplified: no camera-proportional offsets. Plane will be placed at authoritative seaY.
+  this._waterOffsetMode = 'none';
+  this.setWaterOffsetMode = () => { try { this._waterOffsetMode = 'none'; } catch (e) { /* ignore */ } };
+
+      // Helper: try to obtain authoritative seaLevel from generator config (0..1). Falls back to 0.20
+      this._getGeneratorSeaLevel = () => {
+        try {
+          if (this._generator && typeof this._generator._getConfig === 'function') {
+            const cfg = this._generator._getConfig();
+            if (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number') return cfg.layers.global.seaLevel;
+            if (cfg && typeof cfg.seaLevel === 'number') return cfg.seaLevel;
+          }
+        } catch (e) { /* ignore */ }
+        return 0.20;
+      };
+
+  this.computeWaterOffset = () => 0.0;
+      // runtime debug toggle for more aggressive z-fight mitigation
+      this._waterDebugMode = false;
+      this.toggleWaterZFix = (aggressive) => {
+        try {
+          this._waterDebugMode = !!aggressive;
+          const m = this._water && this._water.material;
+          if (!m) return;
+          if (this._waterDebugMode) {
+            m.polygonOffsetFactor = -8; m.polygonOffsetUnits = -16; m.depthWrite = false; m.transparent = true; this._water.renderOrder = 300;
+          } else {
+            m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -8; m.depthWrite = false; m.transparent = true; this._water.renderOrder = 200;
+          }
+        } catch (e) { /* ignore */ }
+      };
+    } catch (e) {
+      console.debug('WorldMapScene: create water plane failed', e);
+    }
+  };
+
+  // Compute effective vertical scale from generator and update water height accordingly
+  this._updateWaterHeightFromNeighborhood = () => {
+    try {
+      if (!this._water) return;
+      const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+      const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+      const seaNorm = (DEFAULT_CONFIG && DEFAULT_CONFIG.layers && DEFAULT_CONFIG.layers.global && typeof DEFAULT_CONFIG.layers.global.seaLevel === 'number') ? DEFAULT_CONFIG.layers.global.seaLevel : 0.20;
+      const seaY = seaNorm * cfgMaxH * cfgScale;
+      // place plane strictly at authoritative sea Y (small epsilon above to avoid exact coplanar issues)
+      const finalSeaY = seaY + 0.001;
+      this._water.position.y = finalSeaY;
+      try { if (this._water && this._water.material && this._water.material.uniforms && this._water.material.uniforms.uSeaLevelY) this._water.material.uniforms.uSeaLevelY.value = finalSeaY; } catch (e) { /* ignore */ }
+      try { if (this._water && this._water.material && this._water.material.uniforms && this._water.material.uniforms.uHexMaxYScaled) this._water.material.uniforms.uHexMaxYScaled.value = cfgMaxH * cfgScale; } catch (e) { /* ignore */ }
+      try { if (this._water && this._water.material && this._water.material.uniforms && this._water.material.uniforms.uDepthMax) this._water.material.uniforms.uDepthMax.value = Math.max(0.1, Math.abs(finalSeaY) * 0.5 + (cfgMaxH * cfgScale)); } catch (e) { /* ignore */ }
+    } catch (e) { console.debug('WorldMapScene: updateWaterHeight failed', e); }
+  };
+
+  // Toggle debug logging for water height calculations
+  this._waterDebugLogging = true; // left enabled for initial diagnostics
+  this.setWaterDebugLogging = (enabled) => { try { this._waterDebugLogging = !!enabled; } catch (e) { /* ignore */ } };
+
+  // Exact sea-level mode: when true, place the water plane exactly at
+  // genSea * WORLD_ELEVATION_SCALE (no epsilon, no camera offset).
+  // Default to false so the proportional camera-based offset can assist
+  // in locating z-fighting issues during interactive debugging.
+  this._waterExactSeaLevel = false;
+  this.setWaterExactSeaLevel = (enabled) => { try { this._waterExactSeaLevel = !!enabled; } catch (e) { /* ignore */ } };
 
   // entity group for runtime markers
   this._entityGroup = new THREE.Group();
@@ -387,6 +580,7 @@ export class WorldMapScene {
       if (this.chunkManager && typeof this.chunkManager.build === 'function') {
         try {
           await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+          try { this._updateWaterHeightFromNeighborhood && this._updateWaterHeightFromNeighborhood(); } catch (e) { /* ignore */ }
         } catch (e) {
           // bubbling rebuild failed; ignore
         }
@@ -462,12 +656,21 @@ export class WorldMapScene {
                 const a = XZToAxial(p.x, p.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
                 cell = gen.get(a.q, a.r);
               }
-              // derive render elevation for scaling: prefer renderHeight, then canonical normalized elevation, then legacy height
+              // derive render elevation for scaling: prefer renderHeight (world units),
+              // then tile.worldHeight * cfg.scale, then normalized*maxHeight*scale as a last resort.
               let elevRender = 0;
-              if (cell && typeof cell.renderHeight === 'number') elevRender = cell.renderHeight;
-              else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') elevRender = cell.elevation.normalized;
-              else if (cell && typeof cell.height === 'number') elevRender = cell.height;
-              yScale = Math.max(0.001, elevRender * 1.0);
+              if (cell && typeof cell.renderHeight === 'number') {
+                elevRender = cell.renderHeight;
+              } else if (cell && typeof cell.worldHeight === 'number') {
+                const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+                elevRender = cell.worldHeight * cfgScale;
+              } else if (cell && cell.elevation && typeof cell.elevation.normalized === 'number') {
+                const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
+                const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
+                elevRender = cell.elevation.normalized * cfgMaxH * cfgScale;
+              }
+              const heightMag = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.heightMagnitude === 'number') ? DEFAULT_CONFIG.heightMagnitude : 1.0;
+              yScale = Math.max(0.001, elevRender * heightMag);
               // Prefer canonical palette supplied by the generator (tile.palette).
               // Fallback to biomeFromCell for legacy behavior.
               if (cell && cell.palette && cell.palette.topColor) {
@@ -550,6 +753,12 @@ export class WorldMapScene {
             const bio = biomeFromCell(cell);
             col = new THREE.Color(bio && bio.top ? bio.top : 0xeeeeee);
           }
+          // Debug hot pink for water tiles
+          try {
+            const sea = (cell && cell.bathymetry && typeof cell.bathymetry.seaLevel === 'number') ? cell.bathymetry.seaLevel : 0.20;
+            const hN = (cell && cell.elevation && typeof cell.elevation.normalized === 'number') ? cell.elevation.normalized : (typeof cell.height === 'number' ? cell.height : null);
+            if (hN != null && hN <= sea) col = new THREE.Color(0xff00ff);
+          } catch (e) { /* ignore */ }
             }
           } catch (e) { console.debug('WorldMapScene: sampling generator for cylinder failed', e); }
           instanceApi.setInstanceMatrix(i, { x: p.x, y: 0, z: p.z }, { x: 0, y: 0, z: 0 }, { x: 1.0, y: yScale, z: 1.0 });
@@ -609,6 +818,7 @@ export class WorldMapScene {
               }
             } catch (cleanupErr) { console.debug('WorldMapScene: cleanup previous grid instances failed', cleanupErr); }
             this._gridInstanced = built.neighborhood.topIM;
+      try { this._updateWaterHeightFromNeighborhood && this._updateWaterHeightFromNeighborhood(); } catch (e) { /* ignore */ }
           }
         } catch (e) {
           // fallback to recreate legacy grid instances
@@ -771,6 +981,13 @@ export class WorldMapScene {
     try {
       // Start frame profiling (CPU) and enqueue GPU timer if available.
       profiler.beginFrame();
+      // advance water time
+      try {
+        if (this._water && this._water.material && this._water.material.uniforms && this._water.material.uniforms.uTime) {
+          const dt = this._clock ? this._clock.getDelta() : 1/60;
+          this._water.material.uniforms.uTime.value += dt;
+        }
+      } catch (e) { /* ignore */ }
       if (this.manager) {
         try {
           // start GPU timer if supported and enabled
