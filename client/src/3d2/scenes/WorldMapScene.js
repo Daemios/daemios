@@ -232,6 +232,17 @@ export class WorldMapScene {
               } catch (e) { /* ignore */ }
               return null;
             },
+            // expose bulk-sampling when supported by the generator to avoid
+            // per-cell generator calls in the water builder. Signature:
+            // sampleBlock(qOrigin, rOrigin, S) => { isWaterBuf, yScaleBuf, N }
+            sampleBlock: (q0, r0, S) => {
+              try {
+                if (this._generator && typeof this._generator.sampleBlock === 'function') {
+                  return this._generator.sampleBlock(q0, r0, S);
+                }
+              } catch (e) { /* ignore */ }
+              return null;
+            },
             // forEach iterates an axial rect for neighborhood so waterBuilder's
             // min/top scan has data to work with. We iterate the same axial
             // bounds that buildWater will sample based on chunkManager props.
@@ -264,7 +275,9 @@ export class WorldMapScene {
           elevation: null,
           profilerEnabled: false,
         };
-        built = buildWater(ctx);
+  // For visual testing, request the new Ghibli 'vivid' material preset.
+  // To revert to the previous material, remove materialType/materialPreset.
+  built = buildWater(Object.assign({}, ctx, { materialType: 'ghibli', materialPreset: 'vivid', debugShowDist: true }));
       } catch (e) {
         // buildWater failed; fall back to simple material (silently)
         built = null;

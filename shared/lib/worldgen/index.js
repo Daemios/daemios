@@ -113,3 +113,88 @@ function generateTile(seed, coords = {}, cfgPartial) {
 }
 
 export { generateTile, getDefaultConfig, normalizeConfig };
+
+// Bulk sampling helper for callers that want compact typed buffers instead
+// of full Tile objects. This defaults to the same behavior as repeated
+// generateTile calls but centralizes the loop so consumers can optimize
+// or replace this implementation later with a lighter-weight fast-path.
+function sampleBlock(seed, qOrigin, rOrigin, S, cfgPartial) {
+  const N = 2 * S + 1;
+  const len = N * N;
+  const isWaterBuf = new Uint8Array(len);
+  const yScaleBuf = new Float32Array(len);
+  let idx = 0;
+  const cfg = normalizeConfig(cfgPartial);
+  for (let r = -S; r <= S; r++) {
+    for (let q = -S; q <= S; q++) {
+      const qW = q + qOrigin;
+      const rW = r + rOrigin;
+      const tile = generateTile(seed, { q: qW, r: rW }, cfg);
+      let isWater = false;
+      try {
+        if (tile) {
+          if (tile.flags && Array.isArray(tile.flags) && tile.flags.includes('water')) isWater = true;
+          else if (tile.bathymetry && typeof tile.bathymetry.depthBand === 'string') {
+            const db = tile.bathymetry.depthBand;
+            isWater = (db === 'deep' || db === 'shallow');
+          }
+        }
+      } catch (e) {
+        isWater = false;
+      }
+      isWaterBuf[idx] = isWater ? 1 : 0;
+      const ys = (tile && tile.elevation && typeof tile.elevation.normalized === 'number') ? Math.max(0, Math.min(1, tile.elevation.normalized)) : 0;
+      yScaleBuf[idx] = ys;
+      idx += 1;
+    }
+  }
+  // Small diagnostic: do not spam in normal runs; keep concise sample for debugging
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[shared.worldgen] sampleBlock: sample', { qOrigin, rOrigin, S, N, sampleFirst: Array.prototype.slice.call(isWaterBuf.subarray(0, Math.min(12, len))), yFirst: Array.prototype.slice.call(yScaleBuf.subarray(0, Math.min(6, len))) });
+  } catch (e) { /* ignore */ }
+  return { isWaterBuf, yScaleBuf, N };
+}
+
+export { sampleBlock };
+
+// Lightweight block sampler: run only the expensive-but-sufficient layer01
+// (continents/bathymetry) per-tile and produce compact buffers. This avoids
+// the full merge/palette/interpreter work and is a good fast-path for
+// clients that only need water/elevation info for a neighborhood.
+function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
+  const N = 2 * S + 1;
+  const len = N * N;
+  const isWaterBuf = new Uint8Array(len);
+  const yScaleBuf = new Float32Array(len);
+  let idx = 0;
+  const cfg = normalizeConfig(cfgPartial);
+  for (let r = -S; r <= S; r++) {
+    for (let q = -S; q <= S; q++) {
+      const qW = q + qOrigin;
+      const rW = r + rOrigin;
+      // local x,z for layer samplers
+      const { x, z } = axialToXZLocal(qW, rW);
+      const ctx = { seed: String(seed), q: qW, r: rW, x, z, cfg, rng: createRng(seed, x, z), noise };
+      let part1 = null;
+      try {
+        part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : (typeof layer01Fallback === 'function' ? layer01Fallback(ctx) : null);
+      } catch (e) {
+        try { part1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : null; } catch (e2) { part1 = null; }
+      }
+      const elev = (part1 && part1.elevation && typeof part1.elevation.normalized === 'number') ? part1.elevation.normalized : 0;
+      const seaLevel = (part1 && part1.bathymetry && typeof part1.bathymetry.seaLevel === 'number') ? part1.bathymetry.seaLevel : (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number' ? cfg.layers.global.seaLevel : 0.22);
+      const isWater = elev <= seaLevel;
+      isWaterBuf[idx] = isWater ? 1 : 0;
+      yScaleBuf[idx] = Math.max(0, Math.min(1, elev));
+      idx += 1;
+    }
+  }
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[shared.worldgen] sampleBlockLight: sample', { qOrigin, rOrigin, S, N, sampleFirst: Array.prototype.slice.call(isWaterBuf.subarray(0, Math.min(12, len))), yFirst: Array.prototype.slice.call(yScaleBuf.subarray(0, Math.min(6, len))) });
+  } catch (e) { /* ignore */ }
+  return { isWaterBuf, yScaleBuf, N };
+}
+
+export { sampleBlockLight };
