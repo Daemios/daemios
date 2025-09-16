@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
+import { BASE_HEX_SIZE } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
@@ -25,8 +26,9 @@ export function buildWater(ctx) {
   } = ctx;
 
   const radius = neighborRadius != null ? neighborRadius : 1;
-  const hexW_est = layoutRadius * 1.5 * spacingFactor;
-  const hexH_est = Math.sqrt(3) * layoutRadius * spacingFactor;
+  const baseSize = BASE_HEX_SIZE || 1;
+  const hexW_est = baseSize * layoutRadius * spacingFactor * 1.5;
+  const hexH_est = baseSize * layoutRadius * spacingFactor * Math.sqrt(3);
   const totalCols_est = (2 * radius + 1) * chunkCols;
   const totalRows_est = (2 * radius + 1) * chunkRows;
 
