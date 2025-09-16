@@ -7,7 +7,7 @@ import { createWorldGenerator } from '@/3d2/domain/world';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
-import { BASE_HEX_SIZE } from '@/3d2/config/layout';
+import { BASE_HEX_SIZE, getHexSize } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
 import { createOrbitControls } from '@/3d2/interaction/orbitControls';
 import ClutterManager from '@/3d2/world/ClutterManager';
@@ -220,9 +220,9 @@ export class WorldMapScene {
       // mesh and a ShaderMaterial wired with uDist/uCoverage/uSeabed and grid
       // uniforms which the shore/foam logic depends on.
       let built = null;
+      const cm = this.chunkManager || {};
       try {
         // assemble minimal ctx using chunkManager and generator
-        const cm = this.chunkManager || {};
         const ctx = {
           world: {
             getCell: (q, r) => {
@@ -369,7 +369,13 @@ export class WorldMapScene {
             let finalSeaY = mesh.position && typeof mesh.position.y === 'number' ? (mesh.position.y - 0.001) : 0.0;
             // Replace geometry with sized plane and preserve material
             try { if (mesh.geometry && typeof mesh.geometry.dispose === 'function') mesh.geometry.dispose(); } catch (e) { /* ignore */ }
-            const sizedGeom = new THREE.PlaneGeometry(desiredWidth, desiredDepth, 1, 1);
+            const spacing = (typeof cm.spacingFactor === 'number' && cm.spacingFactor > 0) ? cm.spacingFactor : 1;
+            const hexSize = getHexSize({ layoutRadius: this._layoutRadius || 1, spacingFactor: spacing });
+            const hexW = hexSize * 1.5;
+            const hexH = hexSize * Math.sqrt(3);
+            const paddedWidth = Math.max(0.1, desiredWidth + hexW);
+            const paddedDepth = Math.max(0.1, desiredDepth + hexH);
+            const sizedGeom = new THREE.PlaneGeometry(paddedWidth, paddedDepth, 1, 1);
             sizedGeom.rotateX(-Math.PI / 2);
             mesh.geometry = sizedGeom;
             mesh.position.set(desiredCenterX || 0, finalSeaY + 0.001, desiredCenterZ || 0);
