@@ -410,15 +410,29 @@ export function buildWater(ctx) {
       });
     }
   } catch (e) { /* ignore */ }
-  // Fallback if bbox couldn't be computed
-  if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
+  const hasBBox = Number.isFinite(minX) && Number.isFinite(maxX) && Number.isFinite(minZ) && Number.isFinite(maxZ);
+  const hexRadius = __hexSize || 0;
+  const hexHalfHeight = (hexH_est || 0) * 0.5;
+
+  let planeW;
+  let planeH;
+  if (hasBBox) {
+    const paddedMinX = minX - hexRadius;
+    const paddedMaxX = maxX + hexRadius;
+    const paddedMinZ = minZ - hexHalfHeight;
+    const paddedMaxZ = maxZ + hexHalfHeight;
+    planeW = Math.max(1e-4, Math.abs(paddedMaxX - paddedMinX));
+    planeH = Math.max(1e-4, Math.abs(paddedMaxZ - paddedMinZ));
+    minX = paddedMinX;
+    maxX = paddedMaxX;
+    minZ = paddedMinZ;
+    maxZ = paddedMaxZ;
+  } else {
     const totalCols = (2 * radius + 1) * chunkCols;
     const totalRows = (2 * radius + 1) * chunkRows;
-    minX = 0; maxX = totalCols * hexW_est;
-    minZ = 0; maxZ = totalRows * hexH_est;
+    planeW = Math.max(1e-4, totalCols * hexW_est + 2 * hexRadius);
+    planeH = Math.max(1e-4, totalRows * hexH_est + (hexHalfHeight * 2));
   }
-  const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est * 0.001);
-  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est * 0.001);
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
@@ -497,7 +511,7 @@ export function buildWater(ctx) {
   const zBR = hexH_est * (brAx.r + brAx.q * 0.5);
   let centerX = 0.5 * (xTL + xBR);
   let centerZ = 0.5 * (zTL + zBR);
-  if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
+  if (hasBBox) {
     centerX = 0.5 * (minX + maxX);
     centerZ = 0.5 * (minZ + maxZ);
   }
