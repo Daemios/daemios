@@ -1,8 +1,9 @@
 <template>
   <v-dialog
     v-model="dialogState"
-    persistent
-    max-width="600px"
+    :persistent="persistent"
+    :max-width="maxWidth"
+    scrollable
   >
     <v-card>
       <v-card-title>
@@ -43,6 +44,14 @@ const props = defineProps({
   keybind: {
     type: String,
     default: "Not Set",
+  },
+  maxWidth: {
+    type: [Number, String],
+    default: 600,
+  },
+  persistent: {
+    type: Boolean,
+    default: false,
   },
 });
 const emit = defineEmits(["update:modelValue"]);

@@ -3,8 +3,11 @@
     v-model="isEquipmentOpen"
     title="Equipment"
     keybind="C"
+    :max-width="760"
   >
-    <PaperDoll />
+    <div class="d-flex justify-center px-2 py-2">
+      <PaperDoll />
+    </div>
   </BasicDialog>
 </template>
 

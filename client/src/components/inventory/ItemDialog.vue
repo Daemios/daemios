@@ -1,22 +1,21 @@
 <template>
   <!-- Gear Slot Dialog -->
   <v-dialog
-    v-if="show"
-    v-model="show"
+    v-model="open"
     max-width="800px"
     content-class="item-dialog"
   >
     <v-card class="item-slot-dialog">
       <!-- TODO make this img only be a small part and animate it to float -->
       <!-- TODO background color based on rarity with a circular darken effect on edges -->
-          <v-img
-            :src="safeShow.img"
-            aspect-ratio="1.7778"
-          />
+      <v-img
+        :src="safeShow.img"
+        aspect-ratio="1.7778"
+      />
       <div class="item-info white--text pa-2">
         <!-- Stats -->
         <div
-    v-if="safeShow.stats"
+          v-if="safeShow.stats"
           class="stats d-flex"
         >
           <div
@@ -28,14 +27,14 @@
               {{ stat.label }}
             </div>
             <div class="text-h2 text-right">
-                {{ stat.value }}
+              {{ stat.value }}
             </div>
           </div>
         </div>
 
         <!-- Effect -->
         <div
-    v-if="safeShow.effect"
+          v-if="safeShow.effect"
           class="effect"
         >
           <div class="subtitle-2 text-right">
@@ -48,7 +47,7 @@
 
         <!-- Description -->
         <div
-    v-if="safeShow.description"
+          v-if="safeShow.description"
           class="description mt-auto"
         >
           <div class="subtitle-2 text-right">
@@ -90,14 +89,15 @@ const props = defineProps({
 
 const emit = defineEmits(["close"]);
 
-const show = computed({
-  get: () => props.item,
-  set: () => emit("close"),
+// Boolean state for dialog open/close — computed from item presence.
+const open = computed({
+  get: () => !!props.item,
+  set: (val) => {
+    if (!val) emit("close");
+  },
 });
 
-// Safe wrapper used for property access in the template. Keeps dialog
-// visibility controlled by `show` (which may be null) but avoids
-// dereferencing when the parent passed null explicitly.
+// Safe wrapper for template access
 const safeShow = computed(() => props.item || {});
 
 const dialogBackground = computed(() => {
