@@ -4,7 +4,7 @@
     <Equipment />
     <Inventory />
     <Abilities />
-    <Options />
+  <Settings />
 
     <!-- Main Content -->
     <v-main class="fill-height">
@@ -32,7 +32,7 @@ import { useRoute } from "vue-router";
 import Equipment from "@/components/dialogs/Equipment.vue";
 import Inventory from "@/components/dialogs/Inventory.vue";
 import Abilities from "@/components/dialogs/Abilities.vue";
-import Options from "@/components/dialogs/Options.vue";
+import Settings from "@/components/dialogs/Settings.vue";
 import MicroMenu from "@/components/overlay/MicroMenu.vue";
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { useSocketStore } from "@/stores/socketStore";
@@ -57,14 +57,14 @@ function handleKeypress(event) {
         dialogs.isEquipmentOpen ||
         dialogs.isInventoryOpen ||
         dialogs.isAbilitiesOpen ||
-        dialogs.isOptionsOpen
+  dialogs.isSettingsOpen
       ) {
         dialogs.closeEquipment();
         dialogs.closeInventory();
         dialogs.closeAbilities();
-        dialogs.closeOptions();
+  dialogs.closeSettings();
       } else {
-        dialogs.toggleOptions();
+  dialogs.toggleSettings();
       }
       break;
     case "KeyC":

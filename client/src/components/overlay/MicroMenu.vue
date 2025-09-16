@@ -42,7 +42,7 @@
         size="x-small"
         height="30"
         width="30"
-        @click="dialogs.toggleOptions()"
+        @click="dialogs.toggleSettings()"
       >
         <v-icon size="small">
           {{ mdiCog }}

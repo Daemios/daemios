@@ -5,7 +5,7 @@ export const useDialogsStore = defineStore("dialogs", {
     isEquipmentOpen: false,
     isInventoryOpen: false,
     isAbilitiesOpen: false,
-    isOptionsOpen: false,
+  isSettingsOpen: false,
   }),
   actions: {
     closeEquipment() {
@@ -17,8 +17,8 @@ export const useDialogsStore = defineStore("dialogs", {
     closeAbilities() {
       this.isAbilitiesOpen = false;
     },
-    closeOptions() {
-      this.isOptionsOpen = false;
+    closeSettings() {
+      this.isSettingsOpen = false;
     },
     toggleEquipment() {
       this.isEquipmentOpen = !this.isEquipmentOpen;
@@ -29,8 +29,8 @@ export const useDialogsStore = defineStore("dialogs", {
     toggleInventory() {
       this.isInventoryOpen = !this.isInventoryOpen;
     },
-    toggleOptions() {
-      this.isOptionsOpen = !this.isOptionsOpen;
+    toggleSettings() {
+      this.isSettingsOpen = !this.isSettingsOpen;
     },
   },
 });

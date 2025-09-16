@@ -1,3 +1,4 @@
+import { useSettingsStore } from '@/stores/settingsStore';
 import * as THREE from 'three';
 import { createRendererManager } from '@/3d2/renderer/rendererManager';
 import { createInstancedMesh, setInstanceColors } from '@/3d2/renderer/instancing';
@@ -314,6 +315,12 @@ export class WorldMapScene {
             // const hasDist = !!(mat.uniforms && mat.uniforms.uDist && mat.uniforms.uDist.value);
             // const distInfo = hasDist && mat.uniforms.uDist.value ? { width: mat.uniforms.uDist.value.image && mat.uniforms.uDist.value.image.width, height: mat.uniforms.uDist.value.image && mat.uniforms.uDist.value.image.height, type: mat.uniforms.uDist.value.type } : null;
           } catch (e) { /* ignore */ }
+          // Set water visibility based on settings
+          try {
+            const settingsStore = useSettingsStore();
+            const showWater = settingsStore.get && settingsStore.get('worldMap.features.water', true);
+            mesh.visible = !!showWater;
+          } catch (e) { /* ignore */ }
       } else {
         // fallback to naive material so scene still renders when build fails
         mat = createRealisticWaterMaterial();
@@ -328,6 +335,12 @@ export class WorldMapScene {
         geom.rotateX(-Math.PI / 2);
         mesh = new THREE.Mesh(geom, mat);
         mesh.position.set(0, authoritativeSeaY + 0.001, 0);
+          // Set water visibility based on settings
+          try {
+            const settingsStore = useSettingsStore();
+            const showWater = settingsStore.get && settingsStore.get('worldMap.features.water', true);
+            mesh.visible = !!showWater;
+          } catch (e) { /* ignore */ }
       }
       // Before finalizing, if we have neighborhood metadata, size/position the plane
       // to match the square sampling area used by ChunkManager so it tightly

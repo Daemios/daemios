@@ -9,26 +9,26 @@
       <v-row>
         <v-col cols="12">
           <v-expansion-panels multiple>
-            <v-expansion-panel title="General Settings">
+            <v-expansion-panel title="General">
               <v-expansion-panel-text>
                 <!-- Add general settings here -->
                 <div class="text-grey">No general settings yet.</div>
               </v-expansion-panel-text>
             </v-expansion-panel>
-            <v-expansion-panel title="Audio Settings">
+            <v-expansion-panel title="Audio">
               <v-expansion-panel-text>
                 <!-- Add audio settings here -->
                 <div class="text-grey">No audio settings yet.</div>
               </v-expansion-panel-text>
             </v-expansion-panel>
-            <v-expansion-panel title="Graphics Settings">
+            <v-expansion-panel title="Graphics">
               <v-expansion-panel-text>
                 <!-- Add graphics settings here -->
                 <div class="text-grey">No graphics settings yet.</div>
               </v-expansion-panel-text>
             </v-expansion-panel>
             <!-- Add more categories as needed -->
-            <v-expansion-panel title="World Map Settings">
+            <v-expansion-panel title="World Map">
               <v-expansion-panel-text>
                 <div class="mb-2 font-weight-bold">Water</div>
                 <v-switch
@@ -54,9 +54,9 @@ import { computed } from "vue";
 
 const dialogsStore = useDialogsStore();
 const settingsStore = useSettingsStore();
-const isOptionsOpen = computed({
-  get: () => dialogsStore.isOptionsOpen,
-  set: (v) => (dialogsStore.isOptionsOpen = v),
+const isSettingsOpen = computed({
+  get: () => dialogsStore.isSettingsOpen,
+  set: (v) => (dialogsStore.isSettingsOpen = v),
 });
 
 const waterEnabled = computed({
