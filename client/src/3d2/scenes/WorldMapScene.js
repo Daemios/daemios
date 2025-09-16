@@ -277,7 +277,7 @@ export class WorldMapScene {
         };
   // For visual testing, request the new Ghibli 'vivid' material preset.
   // To revert to the previous material, remove materialType/materialPreset.
-  built = buildWater(Object.assign({}, ctx, { materialType: 'ghibli', materialPreset: 'vivid', debugShowDist: true }));
+  built = buildWater(Object.assign({}, ctx, { materialType: 'ghibli', materialPreset: 'vivid', debugShowDist: false }));
       } catch (e) {
         // buildWater failed; fall back to simple material (silently)
         built = null;

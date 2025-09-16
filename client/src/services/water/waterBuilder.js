@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
-import { BASE_HEX_SIZE } from "@/3d2/config/layout";
+import { getHexSize } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
@@ -26,44 +26,37 @@ export function buildWater(ctx) {
   } = ctx;
 
   const radius = neighborRadius != null ? neighborRadius : 1;
-  const baseSize = BASE_HEX_SIZE || 1;
-  const hexW_est = baseSize * layoutRadius * spacingFactor * 1.5;
-  const hexH_est = baseSize * layoutRadius * spacingFactor * Math.sqrt(3);
-  const totalCols_est = (2 * radius + 1) * chunkCols;
-  const totalRows_est = (2 * radius + 1) * chunkRows;
+  
+  // IMPORTANT: match renderer's axialToXZ mapping by using the centralized hex size
+  const __hexSize = getHexSize({ layoutRadius, spacingFactor });
+  const hexW_est = __hexSize * 1.5;
+  const hexH_est = __hexSize * Math.sqrt(3);
 
-  const halfW = 0.5 * hexW_est * Math.max(1, totalCols_est - 1);
-  const halfH = 0.5 * hexH_est * Math.max(1, totalRows_est - 1);
-  const corners = [
-    { x: -halfW, z: -halfH },
-    { x: -halfW, z: halfH },
-    { x: halfW, z: -halfH },
-    { x: halfW, z: halfH },
-  ];
-  let maxQAbs = 0,
-    maxRAbs = 0;
-  for (const c of corners) {
-    const q = c.x / Math.max(1e-6, hexW_est);
-    const r = c.z / Math.max(1e-6, hexH_est) - q * 0.5;
-    maxQAbs = Math.max(maxQAbs, Math.abs(q));
-    maxRAbs = Math.max(maxRAbs, Math.abs(r));
-  }
-  const chunkMargin = Math.max(chunkCols, chunkRows);
-  const pad = Math.max(
-    chunkMargin + 8,
-    Math.ceil(Math.max(maxQAbs, maxRAbs) * 0.35)
-  );
-  // Allow developer fast-mode to clamp the generated grid size for quicker iteration
+  // Compute exact axial bounds for the chunk neighborhood
+  const nbBaseCol = (centerChunk.x - radius) * chunkCols; // qMin
+  const nbBaseRow = (centerChunk.y - radius) * chunkRows; // rowMin (offset coords)
+  const qMin = nbBaseCol;
+  const qMax = (centerChunk.x + radius) * chunkCols + (chunkCols - 1);
+  // For flat-top even-q offset -> axial, r ranges depend on q via floor(q/2)
+  const rMin = nbBaseRow - Math.floor(qMax / 2);
+  const rMax = (centerChunk.y + radius) * chunkRows + (chunkRows - 1) - Math.floor(qMin / 2);
+  const qCenter = Math.floor((qMin + qMax) / 2);
+  const rCenter = Math.floor((rMin + rMax) / 2);
+  const dQ = Math.max(qMax - qCenter, qCenter - qMin);
+  const dR = Math.max(rMax - rCenter, rCenter - rMin);
+  // Tight S based on true axial extents (no extra pad to avoid texture shrink)
   const defaultMaxGridS = 2048;
   const maxGridS = typeof ctx.maxGridS === 'number' ? ctx.maxGridS : defaultMaxGridS;
-  const S_uncapped = Math.ceil(Math.max(maxQAbs, maxRAbs)) + pad;
+  const S_uncapped = Math.max(dQ, dR);
   const S = Math.min(maxGridS, S_uncapped);
   const N = 2 * S + 1;
 
-  const nbBaseCol = (centerChunk.x - radius) * chunkCols;
-  const nbBaseRow = (centerChunk.y - radius) * chunkRows;
-  const qOrigin = nbBaseCol;
-  const rOrigin = nbBaseRow - Math.floor(qOrigin / 2);
+  // Use axial center as grid origin so [-S..S] covers [qMin..qMax] and [rMin..rMax]
+  const qOrigin = qCenter;
+  const rOrigin = rCenter;
+  // Compute per-axis padding inside the square texture domain
+  const padQ = Math.max(0, S - dQ);
+  const padR = Math.max(0, S - dR);
 
   const data = new Uint8Array(N * N * 4);
   const seabed = new Uint8Array(N * N * 4);
@@ -325,17 +318,31 @@ export function buildWater(ctx) {
     // Also log grid mapping parameters we pass to the material
     // eslint-disable-next-line no-console
     console.log(
-      `[waterBuilder] gridParams: gridN=${N} gridOffset=${S} gridQ0=${qOrigin} gridR0=${rOrigin} hexW=${hexW_est.toFixed(4)} hexH=${hexH_est.toFixed(4)} hexMaxYScaled=${hexMaxYScaled.toFixed(4)}`
+      `[waterBuilder] gridParams: gridN=${N} S=${S} q0=${qOrigin} r0=${rOrigin} qMin=${qMin} rMin=${rMin} dQ=${dQ} dR=${dR} padQ=${padQ} padR=${padR} hexW=${hexW_est.toFixed(4)} hexH=${hexH_est.toFixed(4)}`
     );
   } catch (e) {
     // swallow diagnostics errors to avoid breaking production flow
     // eslint-disable-next-line no-console
     console.warn('[waterBuilder] debug logging failed', e && e.message ? e.message : e);
   }
+  // Crop square textures to the exact rectangular neighborhood to avoid any pad-induced scaling
+  const gridW = 2 * dQ + 1;
+  const gridH = 2 * dR + 1;
+  // Crop signed distance (Float32, R)
+  const sdfRect = new Float32Array(gridW * gridH);
+  for (let ry = 0; ry < gridH; ry++) {
+    const srcY = padR + ry;
+    const srcBase = srcY * N;
+    const dstBase = ry * gridW;
+    for (let rx = 0; rx < gridW; rx++) {
+      const srcX = padQ + rx;
+      sdfRect[dstBase + rx] = sdfArr[srcBase + srcX];
+    }
+  }
   const distTex = new THREE.DataTexture(
-    sdfArr,
-    N,
-    N,
+    sdfRect,
+    gridW,
+    gridH,
     THREE.RedFormat,
     THREE.FloatType
   );
@@ -357,7 +364,22 @@ export function buildWater(ctx) {
   coverageTex.wrapS = THREE.ClampToEdgeWrapping;
   coverageTex.wrapT = THREE.ClampToEdgeWrapping;
 
-  const seabedTex = new THREE.DataTexture(seabed, N, N, THREE.RGBAFormat);
+  // Crop seabed (Uint8 RGBA)
+  const seabedRect = new Uint8Array(gridW * gridH * 4);
+  for (let ry = 0; ry < gridH; ry++) {
+    const srcY = padR + ry;
+    const dstBase = ry * gridW * 4;
+    for (let rx = 0; rx < gridW; rx++) {
+      const srcX = padQ + rx;
+      const srcIdx4 = (srcY * N + srcX) * 4;
+      const di = dstBase + rx * 4;
+      seabedRect[di] = seabed[srcIdx4];
+      seabedRect[di + 1] = seabed[srcIdx4 + 1];
+      seabedRect[di + 2] = seabed[srcIdx4 + 2];
+      seabedRect[di + 3] = seabed[srcIdx4 + 3];
+    }
+  }
+  const seabedTex = new THREE.DataTexture(seabedRect, gridW, gridH, THREE.RGBAFormat);
   seabedTex.needsUpdate = true;
   seabedTex.magFilter = THREE.LinearFilter;
   seabedTex.minFilter = THREE.LinearFilter;
@@ -368,10 +390,29 @@ export function buildWater(ctx) {
   if (!isFinite(minTop)) minTop = hexMaxY;
   if (waterCount > 0 && isFinite(minTopWater)) minTop = minTopWater;
 
-  const totalCols = (2 * radius + 1) * chunkCols;
-  const totalRows = (2 * radius + 1) * chunkRows;
-  const planeW = totalCols * hexW_est;
-  const planeH = totalRows * hexH_est;
+  // Compute world-space bbox of the exact neighborhood the tiles occupy to size the plane precisely
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  try {
+    if (world && typeof world.forEach === 'function') {
+      world.forEach((q, r) => {
+        const x = hexW_est * q;
+        const z = hexH_est * (r + q * 0.5);
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+      });
+    }
+  } catch (e) { /* ignore */ }
+  // Fallback if bbox couldn't be computed
+  if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
+    const totalCols = (2 * radius + 1) * chunkCols;
+    const totalRows = (2 * radius + 1) * chunkRows;
+    minX = 0; maxX = totalCols * hexW_est;
+    minZ = 0; maxZ = totalRows * hexH_est;
+  }
+  const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est * 0.001);
+  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est * 0.001);
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
@@ -393,8 +434,6 @@ export function buildWater(ctx) {
   }
   const seaLevelY_final = seaLevelNormalized * cfgMaxH * cfgScale;
 
-  const centerQ0 = qOrigin;
-  const centerR0 = rOrigin;
   // Allow opting into alternative materials (e.g., 'ghibli') via ctx.materialType
   const materialType = ctx.materialType || 'realistic';
   let mat = null;
@@ -406,32 +445,36 @@ export function buildWater(ctx) {
       seabedTexture: seabedTex,
       hexW: hexW_est,
       hexH: hexH_est,
-      gridN: N,
-      gridOffset: S,
-      gridQ0: centerQ0,
-      gridR0: centerR0,
+  gridW,
+  gridH,
+  gridQMin: qMin,
+  gridRMin: rMin,
+  gridHasPad: false,
       seaLevelY: seaLevelY_final,
       hexMaxYScaled,
+      debugGrid: false,
     });
   } else {
     mat = createRealisticWaterMaterial({
-    opacity: 0.96,
-    distanceTexture: distTex,
-    coverageTexture: coverageTex,
-    seabedTexture: seabedTex,
-    hexW: hexW_est,
-    hexH: hexH_est,
-    gridN: N,
-    gridOffset: S,
-    gridQ0: centerQ0,
-    gridR0: centerR0,
-    shoreWidth: 0.12,
-    hexMaxYScaled,
-  seaLevelY: seaLevelY_final,
-    depthMax: Math.max(0.1, hexMaxYScaled * 0.3),
-    nearAlpha: 0.08,
-    farAlpha: 0.9,
-  });
+      opacity: 0.96,
+      distanceTexture: distTex,
+      coverageTexture: coverageTex,
+      seabedTexture: seabedTex,
+      hexW: hexW_est,
+      hexH: hexH_est,
+  gridW,
+  gridH,
+  gridQMin: qMin,
+  gridRMin: rMin,
+  gridHasPad: false,
+      shoreWidth: 0.12,
+      hexMaxYScaled,
+      seaLevelY: seaLevelY_final,
+      depthMax: Math.max(0.1, hexMaxYScaled * 0.3),
+      nearAlpha: 0.08,
+      farAlpha: 0.9,
+      debugGrid: false,
+    });
   }
 
   const mesh = new THREE.Mesh(geom, mat);
@@ -441,12 +484,17 @@ export function buildWater(ctx) {
   const brCol = (centerChunk.x + radius) * chunkCols + (chunkCols - 1);
   const brRow = (centerChunk.y + radius) * chunkRows + (chunkRows - 1);
   const brAx = { q: brCol, r: brRow - Math.floor(brCol / 2) };
+  // Prefer placing plane at the bbox center for exact alignment
   const xTL = hexW_est * tlAx.q;
   const zTL = hexH_est * (tlAx.r + tlAx.q * 0.5);
   const xBR = hexW_est * brAx.q;
   const zBR = hexH_est * (brAx.r + brAx.q * 0.5);
-  const centerX = 0.5 * (xTL + xBR);
-  const centerZ = 0.5 * (zTL + zBR);
+  let centerX = 0.5 * (xTL + xBR);
+  let centerZ = 0.5 * (zTL + zBR);
+  if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
+    centerX = 0.5 * (minX + maxX);
+    centerZ = 0.5 * (minZ + maxZ);
+  }
   const waterY = seaLevelY_final + 0.001;
   mesh.position.set(centerX, waterY, centerZ);
   mesh.renderOrder = 1;

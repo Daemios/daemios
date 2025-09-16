@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // options: {
 //   preset: 'vivid'|'soft',
 //   distanceTexture, coverageTexture, seabedTexture,
-//   hexW, hexH, gridN, gridOffset, gridQ0, gridR0,
+//   hexW, hexH, gridW, gridH, gridQMin, gridRMin,
 //   seaLevelY, hexMaxYScaled
 // }
 export default function createGhibliWaterMaterial(opts = {}) {
@@ -59,11 +59,12 @@ export default function createGhibliWaterMaterial(opts = {}) {
     uSeaLevelY: { value: opts.seaLevelY || 0.0 },
     uHexMaxYScaled: { value: opts.hexMaxYScaled || 1.0 },
   uHasDist: { value: opts.distanceTexture ? 1.0 : 0.0 },
-  uGridN: { value: opts.gridN || 1 },
-  uGridOffset: { value: opts.gridOffset || 0 },
-  uGridQ0: { value: opts.gridQ0 || 0 },
-  uGridR0: { value: opts.gridR0 || 0 },
+  uGridW: { value: opts.gridW || 1 },
+  uGridH: { value: opts.gridH || 1 },
+  uGridQMin: { value: opts.gridQMin || 0 },
+  uGridRMin: { value: opts.gridRMin || 0 },
   uDebugShowDist: { value: opts.debugShowDist ? 1.0 : 0.0 },
+  uDebugGrid: { value: opts.debugGrid ? 1.0 : 0.0 },
   };
 
   // simple hash / noise helpers (classic 2D)
@@ -110,13 +111,14 @@ export default function createGhibliWaterMaterial(opts = {}) {
   varying vec3 vWorldPos;
   uniform float uTime;
   uniform float uHasDist;
-  uniform float uGridN;
-  uniform float uGridOffset;
-  uniform float uGridQ0;
-  uniform float uGridR0;
+  uniform float uGridW;
+  uniform float uGridH;
+  uniform float uGridQMin;
+  uniform float uGridRMin;
   uniform float uHexW;
   uniform float uHexH;
   uniform float uDebugShowDist;
+  uniform float uDebugGrid;
     uniform vec3 uBaseColor;
     uniform vec3 uAccentColor;
     uniform vec3 uRimColor;
@@ -156,20 +158,32 @@ export default function createGhibliWaterMaterial(opts = {}) {
       // base color modulation by bands
   float shore = 0.0;
   float dist = 0.0;
+  // optional debug axial grid overlay to validate mapping scale
+  if(uDebugGrid > 0.5){
+    vec2 qr;
+    qr.x = vWorldPos.x / uHexW;
+    qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+    float lineQ = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.x) - 0.5));
+    float lineR = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.y) - 0.5));
+    float grid = clamp(max(lineQ, lineR), 0.0, 1.0);
+    vec3 gridCol = mix(vec3(0.0), vec3(1.0, 1.0, 0.2), grid);
+    gl_FragColor = vec4(gridCol, 0.75);
+    return;
+  }
       // sample signed-distance by mapping world XZ to the precomputed grid UV
       if (uHasDist > 0.5) {
         // convert world xz to axial coords similar to RealisticWaterMaterial
-        float N = uGridN;
-        float S = uGridOffset;
         vec2 qr;
         qr.x = vWorldPos.x / uHexW;
         qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
-        float iq = (qr.x - uGridQ0) + S;
-        float ir = (qr.y - uGridR0) + S;
-        vec2 uv = vec2((iq + 0.5) / N, (ir + 0.5) / N);
+  float iq = (qr.x - uGridQMin);
+  float ir = (qr.y - uGridRMin);
+  float u = (iq + 0.5) / max(1.0, uGridW);
+  float v = (ir + 0.5) / max(1.0, uGridH);
+  vec2 uv = vec2(u, v);
   dist = 0.0;
         if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) dist = texture2D(uDist, uv).r;
-        shore = smoothstep(uShoreSoftness, 0.0, dist);
+  shore = smoothstep(uShoreSoftness, 0.0, dist);
         // debug: optionally output the raw distance as color
         if (uDebugShowDist > 0.5) {
           float dvis = clamp(dist / 10.0 + 0.5, 0.0, 1.0);
