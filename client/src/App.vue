@@ -29,6 +29,11 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
+import Equipment from "@/components/dialogs/Equipment.vue";
+import Inventory from "@/components/dialogs/Inventory.vue";
+import Abilities from "@/components/dialogs/Abilities.vue";
+import Options from "@/components/dialogs/Options.vue";
+import MicroMenu from "@/components/overlay/MicroMenu.vue";
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { useSocketStore } from "@/stores/socketStore";
 import { useUserStore } from "@/stores/userStore";
