@@ -53,7 +53,7 @@ export default [
     component: () => import("@/views/primary/WorldMap2.vue"),
     meta: {
       requiresAuth: false,
-      overlay: false,
+  overlay: true,
       combat_lock: false,
     },
   },
