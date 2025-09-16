@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
-import { getHexSize } from "@/3d2/config/layout";
+import { axialToXZ, getHexSize } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
@@ -332,8 +332,32 @@ export function buildWater(ctx) {
     console.warn('[waterBuilder] debug logging failed', e && e.message ? e.message : e);
   }
   // Crop square textures to the exact rectangular neighborhood to avoid any pad-induced scaling
-  const gridW = Math.max(1, N - padQMin - padQMax);
-  const gridH = Math.max(1, N - padRMin - padRMax);
+  const gridQMin = fullQMin + padQMin;
+  const gridQMax = fullQMax - padQMax;
+  const gridRMin = fullRMin + padRMin;
+  const gridRMax = fullRMax - padRMax;
+  const gridW = Math.max(1, gridQMax - gridQMin + 1);
+  const gridH = Math.max(1, gridRMax - gridRMin + 1);
+
+  let gridOriginXZ = { x: 0, z: 0 };
+  let gridInvRow0 = { x: 0, z: 0 };
+  let gridInvRow1 = { x: 0, z: 0 };
+  let gridUseMatrix = false;
+  try {
+    const origin = axialToXZ(gridQMin, gridRMin, { layoutRadius, spacingFactor });
+    const qStep = axialToXZ(gridQMin + 1, gridRMin, { layoutRadius, spacingFactor });
+    const rStep = axialToXZ(gridQMin, gridRMin + 1, { layoutRadius, spacingFactor });
+    const axisQ = { x: qStep.x - origin.x, z: qStep.z - origin.z };
+    const axisR = { x: rStep.x - origin.x, z: rStep.z - origin.z };
+    const det = axisQ.x * axisR.z - axisQ.z * axisR.x;
+    if (isFinite(det) && Math.abs(det) > 1e-8) {
+      const invDet = 1 / det;
+      gridOriginXZ = origin;
+      gridInvRow0 = { x: axisR.z * invDet, z: -axisR.x * invDet };
+      gridInvRow1 = { x: -axisQ.z * invDet, z: axisQ.x * invDet };
+      gridUseMatrix = true;
+    }
+  } catch (e) { /* ignore transform errors */ }
   // Crop signed distance (Float32, R)
   const sdfRect = new Float32Array(gridW * gridH);
   for (let ry = 0; ry < gridH; ry++) {
@@ -451,11 +475,15 @@ export function buildWater(ctx) {
       seabedTexture: seabedTex,
       hexW: hexW_est,
       hexH: hexH_est,
-  gridW,
-  gridH,
-  gridQMin: qMin,
-  gridRMin: rMin,
-  gridHasPad: false,
+      gridW,
+      gridH,
+      gridQMin,
+      gridRMin,
+      gridOrigin: gridOriginXZ,
+      gridInvRow0,
+      gridInvRow1,
+      gridUseMatrix,
+      gridHasPad: false,
       seaLevelY: seaLevelY_final,
       hexMaxYScaled,
       debugGrid: false,
@@ -468,11 +496,15 @@ export function buildWater(ctx) {
       seabedTexture: seabedTex,
       hexW: hexW_est,
       hexH: hexH_est,
-  gridW,
-  gridH,
-  gridQMin: qMin,
-  gridRMin: rMin,
-  gridHasPad: false,
+      gridW,
+      gridH,
+      gridQMin,
+      gridRMin,
+      gridOrigin: gridOriginXZ,
+      gridInvRow0,
+      gridInvRow1,
+      gridUseMatrix,
+      gridHasPad: false,
       shoreWidth: 0.12,
       hexMaxYScaled,
       seaLevelY: seaLevelY_final,
@@ -519,6 +551,8 @@ export function buildWater(ctx) {
     waterPlaneH: planeH,
     waterTexSize: N,
     waterTileCount: waterCount,
+    gridQMin,
+    gridRMin,
   };
 
   const endTs =

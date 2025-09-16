@@ -24,6 +24,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   gridH: 1,
   gridQMin: 0,
   gridRMin: 0,
+  gridOrigin: null,
+  gridInvRow0: null,
+  gridInvRow1: null,
+  gridUseMatrix: false,
     shoreWidth: 0.12, // kept for API compatibility
     // Animation
     timeScale: 1.0,
@@ -50,6 +54,16 @@ export default function createRealisticWaterMaterial(options = {}) {
     ...options,
   };
 
+  const gridOriginVec = opt.gridOrigin && typeof opt.gridOrigin.x === 'number' && typeof opt.gridOrigin.z === 'number'
+    ? new THREE.Vector2(opt.gridOrigin.x, opt.gridOrigin.z)
+    : new THREE.Vector2(0, 0);
+  const gridInvRow0Vec = opt.gridInvRow0 && typeof opt.gridInvRow0.x === 'number' && typeof opt.gridInvRow0.z === 'number'
+    ? new THREE.Vector2(opt.gridInvRow0.x, opt.gridInvRow0.z)
+    : new THREE.Vector2(0, 0);
+  const gridInvRow1Vec = opt.gridInvRow1 && typeof opt.gridInvRow1.x === 'number' && typeof opt.gridInvRow1.z === 'number'
+    ? new THREE.Vector2(opt.gridInvRow1.x, opt.gridInvRow1.z)
+    : new THREE.Vector2(0, 0);
+
   const uniforms = {
     uTime: { value: 0 },
     uBase: { value: opt.baseColor },
@@ -67,6 +81,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   uGridH: { value: opt.gridH },
   uGridQMin: { value: opt.gridQMin },
   uGridRMin: { value: opt.gridRMin },
+  uGridOrigin: { value: gridOriginVec },
+  uGridInvRow0: { value: gridInvRow0Vec },
+  uGridInvRow1: { value: gridInvRow1Vec },
+  uGridUseMatrix: { value: opt.gridUseMatrix ? 1.0 : 0.0 },
     uSpecularStrength: { value: opt.specularStrength },
     uShininess: { value: opt.shininess },
     uNormalAmp: { value: opt.normalAmp },
@@ -118,6 +136,10 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform float uHexW, uHexH;
   uniform float uGridW, uGridH;
   uniform float uGridQMin, uGridRMin;
+  uniform vec2 uGridOrigin;
+  uniform vec2 uGridInvRow0;
+  uniform vec2 uGridInvRow1;
+  uniform float uGridUseMatrix;
     uniform float uSpecularStrength, uShininess;
     uniform float uNormalAmp;
     uniform vec2 uFlowDir1, uFlowDir2;
@@ -138,7 +160,15 @@ export default function createRealisticWaterMaterial(options = {}) {
     float valueNoise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); float a=hash12(i); float b=hash12(i+vec2(1.0,0.0)); float c=hash12(i+vec2(0.0,1.0)); float d=hash12(i+vec2(1.0,1.0)); vec2 u=f*f*(3.0-2.0*f); return mix(mix(a,b,u.x), mix(c,d,u.x), u.y); }
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
-    vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
+    vec2 worldToAxial(vec2 xz){
+  if(uGridUseMatrix > 0.5){
+    vec2 diff = xz - uGridOrigin;
+    float qOff = dot(uGridInvRow0, diff);
+    float rOff = dot(uGridInvRow1, diff);
+    return vec2(qOff + uGridQMin, rOff + uGridRMin);
+  }
+  float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r);
+}
   float sampleDistXZ(vec2 xz){
   float W=uGridW, H=uGridH; if(W<=0.5||H<=0.5) return -100.0;
   vec2 qr=worldToAxial(xz);

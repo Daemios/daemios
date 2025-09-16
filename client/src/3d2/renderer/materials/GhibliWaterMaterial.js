@@ -39,6 +39,16 @@ export default function createGhibliWaterMaterial(opts = {}) {
 
   const p = presets[preset] || presets.vivid;
 
+  const gridOriginVec = opts.gridOrigin && typeof opts.gridOrigin.x === 'number' && typeof opts.gridOrigin.z === 'number'
+    ? new THREE.Vector2(opts.gridOrigin.x, opts.gridOrigin.z)
+    : new THREE.Vector2(0, 0);
+  const gridInvRow0Vec = opts.gridInvRow0 && typeof opts.gridInvRow0.x === 'number' && typeof opts.gridInvRow0.z === 'number'
+    ? new THREE.Vector2(opts.gridInvRow0.x, opts.gridInvRow0.z)
+    : new THREE.Vector2(0, 0);
+  const gridInvRow1Vec = opts.gridInvRow1 && typeof opts.gridInvRow1.x === 'number' && typeof opts.gridInvRow1.z === 'number'
+    ? new THREE.Vector2(opts.gridInvRow1.x, opts.gridInvRow1.z)
+    : new THREE.Vector2(0, 0);
+
   const uniforms = {
     uTime: { value: 0.0 },
     uBaseColor: { value: p.uBaseColor.clone() },
@@ -63,6 +73,10 @@ export default function createGhibliWaterMaterial(opts = {}) {
   uGridH: { value: opts.gridH || 1 },
   uGridQMin: { value: opts.gridQMin || 0 },
   uGridRMin: { value: opts.gridRMin || 0 },
+  uGridOrigin: { value: gridOriginVec },
+  uGridInvRow0: { value: gridInvRow0Vec },
+  uGridInvRow1: { value: gridInvRow1Vec },
+  uGridUseMatrix: { value: opts.gridUseMatrix ? 1.0 : 0.0 },
   uDebugShowDist: { value: opts.debugShowDist ? 1.0 : 0.0 },
   uDebugGrid: { value: opts.debugGrid ? 1.0 : 0.0 },
   };
@@ -117,6 +131,10 @@ export default function createGhibliWaterMaterial(opts = {}) {
   uniform float uGridRMin;
   uniform float uHexW;
   uniform float uHexH;
+  uniform vec2 uGridOrigin;
+  uniform vec2 uGridInvRow0;
+  uniform vec2 uGridInvRow1;
+  uniform float uGridUseMatrix;
   uniform float uDebugShowDist;
   uniform float uDebugGrid;
     uniform vec3 uBaseColor;
@@ -161,8 +179,15 @@ export default function createGhibliWaterMaterial(opts = {}) {
   // optional debug axial grid overlay to validate mapping scale
   if(uDebugGrid > 0.5){
     vec2 qr;
-    qr.x = vWorldPos.x / uHexW;
-    qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+    if(uGridUseMatrix > 0.5){
+      vec2 diff = vWorldPos.xz - uGridOrigin;
+      float qOff = dot(uGridInvRow0, diff);
+      float rOff = dot(uGridInvRow1, diff);
+      qr = vec2(qOff + uGridQMin, rOff + uGridRMin);
+    } else {
+      qr.x = vWorldPos.x / uHexW;
+      qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+    }
     float lineQ = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.x) - 0.5));
     float lineR = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.y) - 0.5));
     float grid = clamp(max(lineQ, lineR), 0.0, 1.0);
@@ -174,8 +199,15 @@ export default function createGhibliWaterMaterial(opts = {}) {
       if (uHasDist > 0.5) {
         // convert world xz to axial coords similar to RealisticWaterMaterial
         vec2 qr;
-        qr.x = vWorldPos.x / uHexW;
-        qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+        if(uGridUseMatrix > 0.5){
+          vec2 diff = vWorldPos.xz - uGridOrigin;
+          float qOff = dot(uGridInvRow0, diff);
+          float rOff = dot(uGridInvRow1, diff);
+          qr = vec2(qOff + uGridQMin, rOff + uGridRMin);
+        } else {
+          qr.x = vWorldPos.x / uHexW;
+          qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+        }
   float iq = (qr.x - uGridQMin);
   float ir = (qr.y - uGridRMin);
   float u = (iq + 0.5) / max(1.0, uGridW);
