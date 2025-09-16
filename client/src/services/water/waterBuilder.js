@@ -26,6 +26,7 @@ export function buildWater(ctx) {
   } = ctx;
 
   const radius = neighborRadius != null ? neighborRadius : 1;
+  
   // IMPORTANT: match renderer's axialToXZ mapping by using the centralized hex size
   const __hexSize = getHexSize({ layoutRadius, spacingFactor });
   const hexW_est = __hexSize * 1.5;
