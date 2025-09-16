@@ -166,21 +166,24 @@ export class WorldMapScene {
 
       // create a chunk manager for chunk-based rendering and delegate instance creation
       try {
-        this.chunkManager = createChunkManager({
-          scene: this.scene,
-          generator: this._generator,
-          layoutRadius: this._layoutRadius,
-          spacingFactor: (this._hexModel && this._hexModel.contactScale) ? this._hexModel.contactScale : 1,
-          neighborRadius: this._gridRadius,
-          pastelColorForChunk,
-          // Prevent double-scaling: use layoutRadius for X/Z footprint and
-          // avoid applying the loader's modelScaleFactor here (set 1).
-          modelScaleFactor: 1,
-          contactScale: this._hexModel && this._hexModel.contactScale,
-          // pass native hex height so the chunk manager can compute pure vertical scales
-          hexMaxY: this._hexModel && this._hexModel.hexMaxY,
-          onPickMeshes: (meshes) => { this._pickMeshes = meshes || []; }
-        });
+          this.chunkManager = createChunkManager({
+            scene: this.scene,
+            generator: this._generator,
+            layoutRadius: this._layoutRadius,
+            spacingFactor: (this._hexModel && this._hexModel.contactScale) ? this._hexModel.contactScale : 1,
+            neighborRadius: this._gridRadius,
+            pastelColorForChunk,
+            // Apply the loader-provided modelScaleFactor so geometry matches the
+            // layout radius that drives chunk placement and water textures.
+            modelScaleFactor:
+              (this._hexModel && typeof this._hexModel.modelScaleFactor === 'number')
+                ? this._hexModel.modelScaleFactor
+                : 1,
+            contactScale: this._hexModel && this._hexModel.contactScale,
+            // pass native hex height so the chunk manager can compute pure vertical scales
+            hexMaxY: this._hexModel && this._hexModel.hexMaxY,
+            onPickMeshes: (meshes) => { this._pickMeshes = meshes || []; }
+          });
 
         const built = await this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
         if (built && built.neighborhood && built.neighborhood.topIM) {
