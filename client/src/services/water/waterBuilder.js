@@ -34,9 +34,11 @@ export function buildWater(ctx) {
     typeof modelScaleFactor === "number" && Number.isFinite(modelScaleFactor) && modelScaleFactor > 0
       ? modelScaleFactor
       : 1;
+  // World-space hex radius derived from centralized layout helpers.
+  const hexSizeWorld = baseHexSize * scaleXZ;
   // Hex footprint in world units (center-to-center distance along axial basis)
-  const hexW_est = baseHexSize * scaleXZ * 1.5;
-  const hexH_est = baseHexSize * scaleXZ * Math.sqrt(3);
+  const hexW_est = hexSizeWorld * 1.5;
+  const hexH_est = hexSizeWorld * Math.sqrt(3);
 
   const axialToWorld = (q, r) => {
     const pos = axialToXZ(q, r, layoutOpts);
@@ -468,6 +470,7 @@ export function buildWater(ctx) {
       distanceTexture: distTex,
       coverageTexture: coverageTex,
       seabedTexture: seabedTex,
+      hexSize: hexSizeWorld,
       hexW: hexW_est,
       hexH: hexH_est,
   gridW,
@@ -485,6 +488,7 @@ export function buildWater(ctx) {
       distanceTexture: distTex,
       coverageTexture: coverageTex,
       seabedTexture: seabedTex,
+      hexSize: hexSizeWorld,
       hexW: hexW_est,
       hexH: hexH_est,
   gridW,

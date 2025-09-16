@@ -325,7 +325,13 @@ export class WorldMapScene {
       } else {
         // fallback to naive material so scene still renders when build fails
         mat = createRealisticWaterMaterial();
-        try { if (mat && mat.uniforms) { if (typeof mat.uniforms.uTime !== 'undefined') mat.uniforms.uTime.value = 0; if (typeof mat.uniforms.uHexW !== 'undefined') mat.uniforms.uHexW.value = mat.uniforms.uHexW.value || 1.0; if (typeof mat.uniforms.uHexH !== 'undefined') mat.uniforms.uHexH.value = mat.uniforms.uHexH.value || 1.0; } mat.needsUpdate = true; } catch (e) { /* ignore */ }
+        try {
+          if (mat && mat.uniforms) {
+            if (typeof mat.uniforms.uTime !== 'undefined') mat.uniforms.uTime.value = 0;
+            if (typeof mat.uniforms.uHexSize !== 'undefined') mat.uniforms.uHexSize.value = mat.uniforms.uHexSize.value || 1.0;
+          }
+          mat.needsUpdate = true;
+        } catch (e) { /* ignore */ }
         // compute authoritative sea level (same as previous logic)
         const cfgMaxH = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.maxHeight === 'number') ? DEFAULT_CONFIG.maxHeight : 1000;
         const cfgScale = (DEFAULT_CONFIG && typeof DEFAULT_CONFIG.scale === 'number') ? DEFAULT_CONFIG.scale : 1.0;
