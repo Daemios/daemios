@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
 // Build water plane, mask and distance textures for a neighborhood.
-// ctx: { world, layoutRadius, spacingFactor, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, modelScaleFactor, heightMagnitude, elevation, profilerEnabled, profiler }
+// ctx: { world, layoutRadius, spacingFactor, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, elevation, profilerEnabled, profiler }
 export function buildWater(ctx) {
   const startTs =
     typeof performance !== "undefined" && performance.now
@@ -23,26 +23,21 @@ export function buildWater(ctx) {
     neighborRadius,
     hexMaxY,
     elevation,
-    modelScaleFactor,
   } = ctx;
 
   const radius = neighborRadius != null ? neighborRadius : 1;
 
   const layoutOpts = { layoutRadius, spacingFactor };
   const baseHexSize = getHexSize(layoutOpts);
-  const scaleXZ =
-    typeof modelScaleFactor === "number" && Number.isFinite(modelScaleFactor) && modelScaleFactor > 0
-      ? modelScaleFactor
-      : 1;
   // Hex footprint in world units (center-to-center distance along axial basis)
-  const hexW_est = baseHexSize * scaleXZ * 1.5;
-  const hexH_est = baseHexSize * scaleXZ * Math.sqrt(3);
+  const hexW_est = baseHexSize * 1.5;
+  const hexH_est = baseHexSize * Math.sqrt(3);
 
   const axialToWorld = (q, r) => {
     const pos = axialToXZ(q, r, layoutOpts);
     return {
-      x: pos.x * scaleXZ,
-      z: pos.z * scaleXZ,
+      x: pos.x,
+      z: pos.z,
     };
   };
 
