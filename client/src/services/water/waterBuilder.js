@@ -55,8 +55,14 @@ export function buildWater(ctx) {
   const qOrigin = qCenter;
   const rOrigin = rCenter;
   // Compute per-axis padding inside the square texture domain
-  const padQ = Math.max(0, S - dQ);
-  const padR = Math.max(0, S - dR);
+  const fullQMin = qOrigin - S;
+  const fullQMax = qOrigin + S;
+  const fullRMin = rOrigin - S;
+  const fullRMax = rOrigin + S;
+  const padQMin = Math.max(0, qMin - fullQMin);
+  const padQMax = Math.max(0, fullQMax - qMax);
+  const padRMin = Math.max(0, rMin - fullRMin);
+  const padRMax = Math.max(0, fullRMax - rMax);
 
   const data = new Uint8Array(N * N * 4);
   const seabed = new Uint8Array(N * N * 4);
@@ -318,7 +324,7 @@ export function buildWater(ctx) {
     // Also log grid mapping parameters we pass to the material
     // eslint-disable-next-line no-console
     console.log(
-      `[waterBuilder] gridParams: gridN=${N} S=${S} q0=${qOrigin} r0=${rOrigin} qMin=${qMin} rMin=${rMin} dQ=${dQ} dR=${dR} padQ=${padQ} padR=${padR} hexW=${hexW_est.toFixed(4)} hexH=${hexH_est.toFixed(4)}`
+      `[waterBuilder] gridParams: gridN=${N} S=${S} q0=${qOrigin} r0=${rOrigin} qMin=${qMin} qMax=${qMax} rMin=${rMin} rMax=${rMax} dQ=${dQ} dR=${dR} padQL=${padQMin} padQR=${padQMax} padRL=${padRMin} padRR=${padRMax} hexW=${hexW_est.toFixed(4)} hexH=${hexH_est.toFixed(4)}`
     );
   } catch (e) {
     // swallow diagnostics errors to avoid breaking production flow
@@ -326,16 +332,16 @@ export function buildWater(ctx) {
     console.warn('[waterBuilder] debug logging failed', e && e.message ? e.message : e);
   }
   // Crop square textures to the exact rectangular neighborhood to avoid any pad-induced scaling
-  const gridW = 2 * dQ + 1;
-  const gridH = 2 * dR + 1;
+  const gridW = Math.max(1, N - padQMin - padQMax);
+  const gridH = Math.max(1, N - padRMin - padRMax);
   // Crop signed distance (Float32, R)
   const sdfRect = new Float32Array(gridW * gridH);
   for (let ry = 0; ry < gridH; ry++) {
-    const srcY = padR + ry;
+    const srcY = padRMin + ry;
     const srcBase = srcY * N;
     const dstBase = ry * gridW;
     for (let rx = 0; rx < gridW; rx++) {
-      const srcX = padQ + rx;
+      const srcX = padQMin + rx;
       sdfRect[dstBase + rx] = sdfArr[srcBase + srcX];
     }
   }
@@ -367,10 +373,10 @@ export function buildWater(ctx) {
   // Crop seabed (Uint8 RGBA)
   const seabedRect = new Uint8Array(gridW * gridH * 4);
   for (let ry = 0; ry < gridH; ry++) {
-    const srcY = padR + ry;
+    const srcY = padRMin + ry;
     const dstBase = ry * gridW * 4;
     for (let rx = 0; rx < gridW; rx++) {
-      const srcX = padQ + rx;
+      const srcX = padQMin + rx;
       const srcIdx4 = (srcY * N + srcX) * 4;
       const di = dstBase + rx * 4;
       seabedRect[di] = seabed[srcIdx4];
