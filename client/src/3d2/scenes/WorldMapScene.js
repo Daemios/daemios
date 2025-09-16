@@ -266,8 +266,9 @@ export class WorldMapScene {
               } catch (e) { /* ignore */ }
             },
           },
-          layoutRadius: this._layoutRadius || 1,
-          spacingFactor: cm.spacingFactor || 1,
+          layoutRadius: (cm && typeof cm.layoutRadius === 'number') ? cm.layoutRadius : (this._layoutRadius || 1),
+          spacingFactor: (cm && typeof cm.spacingFactor === 'number') ? cm.spacingFactor : 1,
+          modelScaleFactor: (cm && typeof cm.modelScaleFactor === 'number') ? cm.modelScaleFactor : 1,
           chunkCols: cm.chunkCols || 8,
           chunkRows: cm.chunkRows || 8,
           centerChunk: cm.centerChunk || { x: 0, y: 0 },
