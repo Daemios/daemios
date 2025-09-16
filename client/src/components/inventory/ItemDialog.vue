@@ -1,28 +1,14 @@
 <template>
   <!-- Gear Slot Dialog -->
-  <v-dialog
-    v-model="open"
-    max-width="800px"
-    content-class="item-dialog"
-  >
+  <v-dialog v-model="open" max-width="800px" content-class="item-dialog">
     <v-card class="item-slot-dialog">
       <!-- TODO make this img only be a small part and animate it to float -->
       <!-- TODO background color based on rarity with a circular darken effect on edges -->
-      <v-img
-        :src="safeShow.img"
-        aspect-ratio="1.7778"
-      />
+      <v-img :src="safeShow.img" aspect-ratio="1.7778" />
       <div class="item-info white--text pa-2">
         <!-- Stats -->
-        <div
-          v-if="safeShow.stats"
-          class="stats d-flex"
-        >
-          <div
-            v-for="(stat, n) in show.stats"
-            :key="n"
-            class="stat mb-3"
-          >
+        <div v-if="safeShow.stats" class="stats d-flex">
+          <div v-for="(stat, n) in show.stats" :key="n" class="stat mb-3">
             <div class="subtitle-2 text-right">
               {{ stat.label }}
             </div>
@@ -33,26 +19,16 @@
         </div>
 
         <!-- Effect -->
-        <div
-          v-if="safeShow.effect"
-          class="effect"
-        >
-          <div class="subtitle-2 text-right">
-            Effect
-          </div>
+        <div v-if="safeShow.effect" class="effect">
+          <div class="subtitle-2 text-right">Effect</div>
           <div class="text-right">
             {{ safeShow.effect }}
           </div>
         </div>
 
         <!-- Description -->
-        <div
-          v-if="safeShow.description"
-          class="description mt-auto"
-        >
-          <div class="subtitle-2 text-right">
-            Description
-          </div>
+        <div v-if="safeShow.description" class="description mt-auto">
+          <div class="subtitle-2 text-right">Description</div>
           <div class="text-right">
             {{ safeShow.description }}
           </div>
@@ -101,7 +77,10 @@ const open = computed({
 const safeShow = computed(() => props.item || {});
 
 const dialogBackground = computed(() => {
-  const r = (safeShow.value && safeShow.value.rarity) ? safeShow.value.rarity.toLowerCase() : "";
+  const r =
+    safeShow.value && safeShow.value.rarity
+      ? safeShow.value.rarity.toLowerCase()
+      : "";
   return {
     "grey lighten-1 black--text": r === "common",
     "green darken-3 white--text": r === "uncommon",
