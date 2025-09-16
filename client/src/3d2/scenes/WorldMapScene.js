@@ -171,7 +171,7 @@ export class WorldMapScene {
           scene: this.scene,
           generator: this._generator,
           layoutRadius: this._layoutRadius,
-          spacingFactor: (this._hexModel && this._hexModel.contactScale) ? this._hexModel.contactScale : 1,
+          spacingFactor: 1,
           neighborRadius: this._gridRadius,
           pastelColorForChunk,
           // Prevent double-scaling: use layoutRadius for X/Z footprint and

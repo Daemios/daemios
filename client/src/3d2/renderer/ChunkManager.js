@@ -16,7 +16,7 @@ export default class ChunkManager {
     this.scene = opts.scene;
     this.world = opts.world;
     this.layoutRadius = opts.layoutRadius || 1;
-    this.spacingFactor = opts.spacingFactor || 0.85;
+    this.spacingFactor = (typeof opts.spacingFactor === 'number') ? opts.spacingFactor : 1;
     this.modelScaleFactor = opts.modelScaleFactor || 1;
   // native geometry max Y (in model units) after any loader normalization
   this.hexMaxYNative = typeof opts.hexMaxY === 'number' ? opts.hexMaxY : 1.0;
