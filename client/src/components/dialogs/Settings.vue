@@ -182,16 +182,17 @@
 <script setup>
 // Mute toggles for each slider
 const muteMaster = computed({
-  get: () => settingsStore.get('audio.muteMaster', false),
-  set: v => settingsStore.setAtPath({ path: 'audio.muteMaster', value: v })
+  get: () => settingsStore.get("audio.muteMaster", false),
+  set: (v) => settingsStore.setAtPath({ path: "audio.muteMaster", value: v }),
 });
 const muteTileAmbiance = computed({
-  get: () => settingsStore.get('audio.muteTileAmbiance', false),
-  set: v => settingsStore.setAtPath({ path: 'audio.muteTileAmbiance', value: v })
+  get: () => settingsStore.get("audio.muteTileAmbiance", false),
+  set: (v) =>
+    settingsStore.setAtPath({ path: "audio.muteTileAmbiance", value: v }),
 });
 const muteCombat = computed({
-  get: () => settingsStore.get('audio.muteCombat', false),
-  set: v => settingsStore.setAtPath({ path: 'audio.muteCombat', value: v })
+  get: () => settingsStore.get("audio.muteCombat", false),
+  set: (v) => settingsStore.setAtPath({ path: "audio.muteCombat", value: v }),
 });
 // Turn alert switch
 const turnAlert = computed({
@@ -217,7 +218,7 @@ import BasicDialog from "@/components/dialogs/BasicDialog.vue";
 // place the path string inside the <v-icon> content. This ensures Vuetify's
 // mdi-svg iconset renders the correct SVG and avoids passing font names where
 // a path is expected.
-import { mdiVolumeHigh, mdiVolumeOff } from '@mdi/js'
+import { mdiVolumeHigh, mdiVolumeOff } from "@mdi/js";
 
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { useSettingsStore } from "@/stores/settingsStore";

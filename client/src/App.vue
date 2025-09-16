@@ -4,7 +4,7 @@
     <Equipment />
     <Inventory />
     <Abilities />
-  <Settings />
+    <Settings />
 
     <!-- Main Content -->
     <v-main class="fill-height">
@@ -57,14 +57,14 @@ function handleKeypress(event) {
         dialogs.isEquipmentOpen ||
         dialogs.isInventoryOpen ||
         dialogs.isAbilitiesOpen ||
-  dialogs.isSettingsOpen
+        dialogs.isSettingsOpen
       ) {
         dialogs.closeEquipment();
         dialogs.closeInventory();
         dialogs.closeAbilities();
-  dialogs.closeSettings();
+        dialogs.closeSettings();
       } else {
-  dialogs.toggleSettings();
+        dialogs.toggleSettings();
       }
       break;
     case "KeyC":
