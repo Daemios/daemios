@@ -8,7 +8,7 @@ import { createWorldGenerator } from '@/3d2/domain/world';
 import { biomeFromCell } from '@/3d2/domain/world/biomes';
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { axialToXZ, XZToAxial } from '@/3d2/renderer/coordinates';
-import { BASE_HEX_SIZE } from '@/3d2/config/layout';
+import { BASE_HEX_SIZE, getHexSize } from '@/3d2/config/layout';
 import { EntityPicker } from '@/3d2/interaction/EntityPicker';
 import { createOrbitControls } from '@/3d2/interaction/orbitControls';
 import ClutterManager from '@/3d2/world/ClutterManager';
@@ -374,6 +374,15 @@ export class WorldMapScene {
           if (desiredWidth == null && typeof nb.half === 'number') {
             const side = nb.half * 2;
             desiredWidth = side; desiredDepth = side; desiredCenterX = nb.centerX || 0; desiredCenterZ = nb.centerZ || 0;
+          }
+          if (typeof desiredWidth === 'number' && typeof desiredDepth === 'number') {
+            const layoutRadiusForBounds = this._layoutRadius || 1;
+            const spacingForBounds = cm.spacingFactor || 1;
+            const hexSizeForBounds = getHexSize({ layoutRadius: layoutRadiusForBounds, spacingFactor: spacingForBounds });
+            const expandX = hexSizeForBounds;
+            const expandZ = hexSizeForBounds * Math.sqrt(3) * 0.5;
+            desiredWidth = Math.max(0.1, desiredWidth + expandX * 2);
+            desiredDepth = Math.max(0.1, desiredDepth + expandZ * 2);
           }
         }
         if (desiredWidth != null && mesh) {
