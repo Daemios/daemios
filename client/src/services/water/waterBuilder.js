@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
-import { getHexSize } from "@/3d2/config/layout";
+import { axialToXZ, getHexSize } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
@@ -23,14 +23,28 @@ export function buildWater(ctx) {
     neighborRadius,
     hexMaxY,
     elevation,
+    modelScaleFactor,
   } = ctx;
 
   const radius = neighborRadius != null ? neighborRadius : 1;
-  
-  // IMPORTANT: match renderer's axialToXZ mapping by using the centralized hex size
-  const __hexSize = getHexSize({ layoutRadius, spacingFactor });
-  const hexW_est = __hexSize * 1.5;
-  const hexH_est = __hexSize * Math.sqrt(3);
+
+  const layoutOpts = { layoutRadius, spacingFactor };
+  const baseHexSize = getHexSize(layoutOpts);
+  const scaleXZ =
+    typeof modelScaleFactor === "number" && Number.isFinite(modelScaleFactor) && modelScaleFactor > 0
+      ? modelScaleFactor
+      : 1;
+  // Hex footprint in world units (center-to-center distance along axial basis)
+  const hexW_est = baseHexSize * scaleXZ * 1.5;
+  const hexH_est = baseHexSize * scaleXZ * Math.sqrt(3);
+
+  const axialToWorld = (q, r) => {
+    const pos = axialToXZ(q, r, layoutOpts);
+    return {
+      x: pos.x * scaleXZ,
+      z: pos.z * scaleXZ,
+    };
+  };
 
   // Compute exact axial bounds for the chunk neighborhood
   const nbBaseCol = (centerChunk.x - radius) * chunkCols; // qMin
@@ -401,8 +415,7 @@ export function buildWater(ctx) {
   try {
     if (world && typeof world.forEach === 'function') {
       world.forEach((q, r) => {
-        const x = hexW_est * q;
-        const z = hexH_est * (r + q * 0.5);
+        const { x, z } = axialToWorld(q, r);
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (z < minZ) minZ = z;
@@ -412,10 +425,16 @@ export function buildWater(ctx) {
   } catch (e) { /* ignore */ }
   // Fallback if bbox couldn't be computed
   if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
-    const totalCols = (2 * radius + 1) * chunkCols;
-    const totalRows = (2 * radius + 1) * chunkRows;
-    minX = 0; maxX = totalCols * hexW_est;
-    minZ = 0; maxZ = totalRows * hexH_est;
+    const fallbackCorners = [
+      axialToWorld(qMin, rMin),
+      axialToWorld(qMin, rMax),
+      axialToWorld(qMax, rMin),
+      axialToWorld(qMax, rMax),
+    ];
+    minX = Math.min(...fallbackCorners.map((c) => c.x));
+    maxX = Math.max(...fallbackCorners.map((c) => c.x));
+    minZ = Math.min(...fallbackCorners.map((c) => c.z));
+    maxZ = Math.max(...fallbackCorners.map((c) => c.z));
   }
   const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est * 0.001);
   const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est * 0.001);
@@ -491,10 +510,8 @@ export function buildWater(ctx) {
   const brRow = (centerChunk.y + radius) * chunkRows + (chunkRows - 1);
   const brAx = { q: brCol, r: brRow - Math.floor(brCol / 2) };
   // Prefer placing plane at the bbox center for exact alignment
-  const xTL = hexW_est * tlAx.q;
-  const zTL = hexH_est * (tlAx.r + tlAx.q * 0.5);
-  const xBR = hexW_est * brAx.q;
-  const zBR = hexH_est * (brAx.r + brAx.q * 0.5);
+  const { x: xTL, z: zTL } = axialToWorld(tlAx.q, tlAx.r);
+  const { x: xBR, z: zBR } = axialToWorld(brAx.q, brAx.r);
   let centerX = 0.5 * (xTL + xBR);
   let centerZ = 0.5 * (zTL + zBR);
   if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
