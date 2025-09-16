@@ -170,6 +170,15 @@
                   color="primary"
                   hide-details
                 />
+                <v-select
+                  v-model="waterMaterial"
+                  :items="materialOptions"
+                  item-title="text"
+                  item-value="value"
+                  label="Water Material"
+                  dense
+                  hide-details
+                />
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
@@ -242,5 +251,21 @@ const waterEnabled = computed({
   get: () => settingsStore.get("worldMap.features.water", true),
   set: (v) =>
     settingsStore.setAtPath({ path: "worldMap.features.water", value: v }),
+});
+
+// Water material options and persisted selection
+const materialOptions = [
+  { text: "Realistic", value: "realistic" },
+  { text: "Ghibli (stylized)", value: "ghibli" },
+  { text: "Shadertoy", value: "shadertoy" },
+];
+
+const waterMaterial = computed({
+  get: () => settingsStore.get("worldMap.features.waterMaterial", "realistic"),
+  set: (v) =>
+    settingsStore.setAtPath({
+      path: "worldMap.features.waterMaterial",
+      value: v,
+    }),
 });
 </script>

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
+import createShadertoyWaterMaterial from '@/3d2/renderer/materials/ShadertoyWaterMaterial';
 import { axialToXZ, getHexSize } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
@@ -499,6 +500,21 @@ export function buildWater(ctx) {
       nearAlpha: 0.08,
       farAlpha: 0.9,
       debugGrid: false,
+    });
+  }
+
+  // shadertoy variant: stylized procedural water using supplied shader as inspiration
+  if (ctx.materialType === 'shadertoy') {
+    mat = createShadertoyWaterMaterial({
+      distanceTexture: distTex,
+      coverageTexture: coverageTex,
+      seabedTexture: seabedTex,
+      hexW: hexW_est,
+      hexH: hexH_est,
+      gridW,
+      gridH,
+      gridQMin: qMin,
+      gridRMin: rMin,
     });
   }
 

@@ -277,9 +277,16 @@ export class WorldMapScene {
           elevation: null,
           profilerEnabled: false,
         };
-  // For visual testing, request the new Ghibli 'vivid' material preset.
-  // To revert to the previous material, remove materialType/materialPreset.
-  built = buildWater(Object.assign({}, ctx, { materialType: 'ghibli', materialPreset: 'vivid', debugShowDist: false }));
+  // Respect user's chosen water material from settings (fallback to 'realistic')
+  try {
+    const settingsStore = useSettingsStore();
+    const chosen = settingsStore.get && settingsStore.get('worldMap.features.waterMaterial', 'realistic');
+    const preset = settingsStore.get && settingsStore.get('worldMap.features.waterPreset', 'vivid');
+    built = buildWater(Object.assign({}, ctx, { materialType: chosen, materialPreset: preset, debugShowDist: false }));
+  } catch (e) {
+    // if reading settings fails for any reason, fall back to ghibli vivid for parity
+    built = buildWater(Object.assign({}, ctx, { materialType: 'ghibli', materialPreset: 'vivid', debugShowDist: false }));
+  }
       } catch (e) {
         // buildWater failed; fall back to simple material (silently)
         built = null;

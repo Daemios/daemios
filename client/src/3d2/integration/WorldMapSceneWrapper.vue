@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
+import { onMounted, onBeforeUnmount, ref, nextTick, watch } from "vue";
 import * as THREE from "three";
 import DebugPanel from "@/components/worldmap/DebugPanel.vue";
 import ControlPanel from "@/components/worldmap/ControlPanel.vue";
@@ -71,6 +71,8 @@ function toggleWorldGen() {
 import { useSettingsStore } from "@/stores/settingsStore";
 
 const settings = useSettingsStore();
+
+// Watch for changes to water material selection and rebuild water when it changes
 
 async function initScene() {
   await nextTick();
@@ -417,13 +419,27 @@ function onWorldGenApply(payload) {
 onMounted(() => initScene());
 
 // Reactively update water visibility when settings change
-import { watch } from "vue";
 watch(
   () => settings.get("worldMap.features.water", true),
   (enabled) => {
     if (sceneInst && sceneInst._water) {
       sceneInst._water.visible = !!enabled;
       requestRender();
+    }
+  }
+);
+
+// Rebuild the water plane when the selected material changes
+watch(
+  () => settings.get('worldMap.features.waterMaterial', 'realistic'),
+  () => {
+    try {
+      if (sceneInst && typeof sceneInst._ensureWaterCreated === 'function') {
+        sceneInst._ensureWaterCreated();
+        requestRender();
+      }
+    } catch (e) {
+      /* ignore */
     }
   }
 );
