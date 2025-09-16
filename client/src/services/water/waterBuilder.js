@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
 // Build water plane, mask and distance textures for a neighborhood.
-// ctx: { world, layoutRadius, spacingFactor, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, modelScaleFactor, heightMagnitude, elevation, profilerEnabled, profiler }
+// ctx: { world, layoutRadius, spacingFactor, contactScale, chunkCols, chunkRows, centerChunk, neighborRadius, hexMaxY, modelScaleFactor, heightMagnitude, elevation, profilerEnabled, profiler }
 export function buildWater(ctx) {
   const startTs =
     typeof performance !== "undefined" && performance.now
@@ -15,8 +15,9 @@ export function buildWater(ctx) {
 
   const {
     world,
-    layoutRadius,
-    spacingFactor,
+    layoutRadius: layoutRadiusIn,
+    spacingFactor: spacingFactorIn,
+    contactScale: contactScaleIn,
     chunkCols,
     chunkRows,
     centerChunk,
@@ -25,10 +26,17 @@ export function buildWater(ctx) {
     elevation,
   } = ctx;
 
+  const layoutRadius = Number.isFinite(layoutRadiusIn) ? layoutRadiusIn : 1;
+  const effectiveSpacing = Number.isFinite(spacingFactorIn)
+    ? spacingFactorIn
+    : Number.isFinite(contactScaleIn)
+      ? contactScaleIn
+      : 1;
+
   const radius = neighborRadius != null ? neighborRadius : 1;
-  
+
   // IMPORTANT: match renderer's axialToXZ mapping by using the centralized hex size
-  const __hexSize = getHexSize({ layoutRadius, spacingFactor });
+  const __hexSize = getHexSize({ layoutRadius, spacingFactor: effectiveSpacing });
   const hexW_est = __hexSize * 1.5;
   const hexH_est = __hexSize * Math.sqrt(3);
 

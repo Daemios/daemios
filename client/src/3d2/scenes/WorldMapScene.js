@@ -223,6 +223,18 @@ export class WorldMapScene {
       try {
         // assemble minimal ctx using chunkManager and generator
         const cm = this.chunkManager || {};
+        const spacingFromManager = Number.isFinite(cm.spacingFactor) ? cm.spacingFactor : null;
+        const contactScale = Number.isFinite(cm.contactScale)
+          ? cm.contactScale
+          : (this._hexModel && Number.isFinite(this._hexModel.contactScale))
+            ? this._hexModel.contactScale
+            : null;
+        const spacingForWater = spacingFromManager != null
+          ? spacingFromManager
+          : contactScale != null
+            ? contactScale
+            : 1;
+        const layoutRadius = Number.isFinite(this._layoutRadius) ? this._layoutRadius : 1;
         const ctx = {
           world: {
             getCell: (q, r) => {
@@ -265,8 +277,9 @@ export class WorldMapScene {
               } catch (e) { /* ignore */ }
             },
           },
-          layoutRadius: this._layoutRadius || 1,
-          spacingFactor: cm.spacingFactor || 1,
+          layoutRadius,
+          spacingFactor: spacingForWater,
+          contactScale,
           chunkCols: cm.chunkCols || 8,
           chunkRows: cm.chunkRows || 8,
           centerChunk: cm.centerChunk || { x: 0, y: 0 },
