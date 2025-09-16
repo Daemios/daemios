@@ -182,10 +182,28 @@ async function initScene() {
     }
     // apply persisted wireframe flag if present so the wireframe re-renders on reload
     try {
-      if (typeof features.wireframe !== 'undefined' && sceneInst && typeof sceneInst.setWireframe === 'function') {
-        try { sceneInst.setWireframe(!!features.wireframe); } catch (e) { /* ignore */ }
+      if (
+        typeof features.wireframe !== "undefined" &&
+        sceneInst &&
+        typeof sceneInst.setWireframe === "function"
+      ) {
+        try {
+          sceneInst.setWireframe(!!features.wireframe);
+        } catch (e) {
+          /* ignore */
+        }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
+    // apply water visibility
+    if (
+      typeof features.water !== "undefined" &&
+      sceneInst &&
+      sceneInst._water
+    ) {
+      sceneInst._water.visible = !!features.water;
+    }
   } catch (e) {
     /* ignore settings application errors */
   }
@@ -267,9 +285,16 @@ async function initScene() {
     try {
       // auto-request rendering when an animated water material is present
       try {
-        const hasAnimatedWater = sceneInst && sceneInst._water && sceneInst._water.material && sceneInst._water.material.uniforms && sceneInst._water.material.uniforms.uTime;
+        const hasAnimatedWater =
+          sceneInst &&
+          sceneInst._water &&
+          sceneInst._water.material &&
+          sceneInst._water.material.uniforms &&
+          sceneInst._water.material.uniforms.uTime;
         if (hasAnimatedWater) renderRequested = true;
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
       if (renderRequested) {
         try {
           if (sceneInst && sceneInst.tick) sceneInst.tick(t);
@@ -321,8 +346,11 @@ function onDebugApply(payload) {
     }
     // wireframe toggle
     try {
-      if (sceneInst && typeof sceneInst.setWireframe === 'function') sceneInst.setWireframe(!!payload.wireframe);
-    } catch (e) { /* ignore */ }
+      if (sceneInst && typeof sceneInst.setWireframe === "function")
+        sceneInst.setWireframe(!!payload.wireframe);
+    } catch (e) {
+      /* ignore */
+    }
     // persist the same values to settings store as a single source of truth
     try {
       if (settings && typeof settings.mergeAtPath === "function") {
@@ -357,30 +385,48 @@ function onWorldGenApply(payload) {
     const layers = payload.layers;
     // persist to settings store (layers only)
     try {
-      if (settings && typeof settings.mergeAtPath === 'function') {
+      if (settings && typeof settings.mergeAtPath === "function") {
         const saveVal = { generation: { layers: { ...layers } } };
-        settings.mergeAtPath({ path: 'worldMap', value: saveVal });
+        settings.mergeAtPath({ path: "worldMap", value: saveVal });
       }
-    } catch (e) { /* ignore persistence errors */ }
+    } catch (e) {
+      /* ignore persistence errors */
+    }
 
     // forward layer tunables (WorldGen UI handles which layers are active)
     const cfgPartial = { layers: {} };
     // map layer35 key to layer3_5 expected by generator and forward values
     for (const k of Object.keys(layers)) {
-      const mapped = k === 'layer35' ? 'layer3_5' : k;
+      const mapped = k === "layer35" ? "layer3_5" : k;
       cfgPartial.layers[mapped] = layers[k];
     }
 
-  // seaLevel is authoritative in DEFAULT_CONFIG.layers.global and not forwarded at runtime
+    // seaLevel is authoritative in DEFAULT_CONFIG.layers.global and not forwarded at runtime
     try {
-      if (sceneInst && typeof sceneInst.setGeneratorConfig === 'function') {
+      if (sceneInst && typeof sceneInst.setGeneratorConfig === "function") {
         sceneInst.setGeneratorConfig(cfgPartial);
       }
-    } catch (e) { /* ignore */ }
-  } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 onMounted(() => initScene());
+
+// Reactively update water visibility when settings change
+import { watch } from "vue";
+watch(
+  () => settings.get("worldMap.features.water", true),
+  (enabled) => {
+    if (sceneInst && sceneInst._water) {
+      sceneInst._water.visible = !!enabled;
+      requestRender();
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   if (sceneInst && sceneInst.dispose) sceneInst.dispose();

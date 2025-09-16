@@ -42,12 +42,6 @@ export default [
     },
   },
   {
-    meta: {
-      overlay: false,
-      combat_lock: false,
-    },
-  },
-  {
     path: "/worldmap2",
     name: "World Map 2",
     component: () => import("@/views/primary/WorldMap2.vue"),

@@ -3,7 +3,7 @@
     v-if="$route.meta['overlay']"
     class="d-flex justify-center position-absolute bottom-0 w-100"
   >
-    <div class="grey pa-1 rounded mb-1 d-flex gap-1" style="z-index: 999999">
+    <v-btn-group class="grey pa-1 rounded mb-1">
       <v-btn
         variant="flat"
         size="x-small"
@@ -48,7 +48,7 @@
           {{ mdiCog }}
         </v-icon>
       </v-btn>
-    </div>
+    </v-btn-group>
   </div>
 </template>
 
