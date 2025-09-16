@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import createRealisticWaterMaterial from "@/3d2/renderer/materials/RealisticWaterMaterial";
 import createGhibliWaterMaterial from "@/3d2/renderer/materials/GhibliWaterMaterial";
-import { getHexSize } from "@/3d2/config/layout";
+import { getHexSize, axialToXZ } from "@/3d2/config/layout";
 import { DEFAULT_CONFIG } from '../../../../shared/lib/worldgen/config.js';
 import { BIOME_THRESHOLDS } from "@/3d2/domain/world/biomes";
 
@@ -401,24 +401,61 @@ export function buildWater(ctx) {
   try {
     if (world && typeof world.forEach === 'function') {
       world.forEach((q, r) => {
-        const x = hexW_est * q;
-        const z = hexH_est * (r + q * 0.5);
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (z < minZ) minZ = z;
-        if (z > maxZ) maxZ = z;
+        const pos = axialToXZ(q, r, { layoutRadius, spacingFactor });
+        if (pos.x < minX) minX = pos.x;
+        if (pos.x > maxX) maxX = pos.x;
+        if (pos.z < minZ) minZ = pos.z;
+        if (pos.z > maxZ) maxZ = pos.z;
       });
     }
   } catch (e) { /* ignore */ }
-  // Fallback if bbox couldn't be computed
+  // Fallback if bbox couldn't be computed via forEach
+  if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
+    try {
+      const cols = chunkCols;
+      const rows = chunkRows;
+      const radiusSteps = radius;
+      const baseCol = (centerChunk?.x ?? 0) - radiusSteps;
+      const baseRow = (centerChunk?.y ?? 0) - radiusSteps;
+      const qStart = baseCol * cols;
+      const qEnd = (baseCol + 2 * radiusSteps) * cols + (cols - 1);
+      for (let q = qStart; q <= qEnd; q += 1) {
+        const rStart = baseRow * rows - Math.floor(q / 2);
+        const rEnd = (baseRow + 2 * radiusSteps) * rows + (rows - 1) - Math.floor(q / 2);
+        for (let r = rStart; r <= rEnd; r += 1) {
+          const pos = axialToXZ(q, r, { layoutRadius, spacingFactor });
+          if (pos.x < minX) minX = pos.x;
+          if (pos.x > maxX) maxX = pos.x;
+          if (pos.z < minZ) minZ = pos.z;
+          if (pos.z > maxZ) maxZ = pos.z;
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  // Final fallback if still invalid: approximate rectangle based on chunk counts
   if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
     const totalCols = (2 * radius + 1) * chunkCols;
     const totalRows = (2 * radius + 1) * chunkRows;
-    minX = 0; maxX = totalCols * hexW_est;
-    minZ = 0; maxZ = totalRows * hexH_est;
+    minX = 0;
+    maxX = totalCols * hexW_est;
+    minZ = 0;
+    maxZ = totalRows * hexH_est;
   }
-  const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est * 0.001);
-  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est * 0.001);
+
+  // Expand bounds to include full hex footprint (centers +/- radius)
+  if (isFinite(minX) && isFinite(maxX)) {
+    const xRadius = __hexSize;
+    minX -= xRadius;
+    maxX += xRadius;
+  }
+  if (isFinite(minZ) && isFinite(maxZ)) {
+    const zRadius = __hexSize * Math.sqrt(3) * 0.5;
+    minZ -= zRadius;
+    maxZ += zRadius;
+  }
+
+  const planeW = Math.max(1e-4, Math.abs(maxX - minX));
+  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ));
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
@@ -491,12 +528,10 @@ export function buildWater(ctx) {
   const brRow = (centerChunk.y + radius) * chunkRows + (chunkRows - 1);
   const brAx = { q: brCol, r: brRow - Math.floor(brCol / 2) };
   // Prefer placing plane at the bbox center for exact alignment
-  const xTL = hexW_est * tlAx.q;
-  const zTL = hexH_est * (tlAx.r + tlAx.q * 0.5);
-  const xBR = hexW_est * brAx.q;
-  const zBR = hexH_est * (brAx.r + brAx.q * 0.5);
-  let centerX = 0.5 * (xTL + xBR);
-  let centerZ = 0.5 * (zTL + zBR);
+  const topLeft = axialToXZ(tlAx.q, tlAx.r, { layoutRadius, spacingFactor });
+  const bottomRight = axialToXZ(brAx.q, brAx.r, { layoutRadius, spacingFactor });
+  let centerX = 0.5 * (topLeft.x + bottomRight.x);
+  let centerZ = 0.5 * (topLeft.z + bottomRight.z);
   if (isFinite(minX) && isFinite(maxX) && isFinite(minZ) && isFinite(maxZ)) {
     centerX = 0.5 * (minX + maxX);
     centerZ = 0.5 * (minZ + maxZ);
