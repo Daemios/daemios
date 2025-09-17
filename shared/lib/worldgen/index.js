@@ -5,6 +5,9 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
+import { WorldCoord } from './utils/worldCoord.js';
+import { TileCache } from './utils/tileCache.js';
+import { initNoise as initNoiseRegistry } from '../../worldgen/noise.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -13,15 +16,6 @@ import { computeTilePart as layer03_5Compute } from './layers/layer03_5_clutter.
 import { computeTilePart as layer04Compute } from './layers/layer04_specials.js';
 import { computeTilePart as layer05Compute } from './layers/layer05_visual.js';
 import { mergeParts } from './merge.js';
-
-// Local flat-top hex axial->Cartesian helper with fixed layout radius/spacing.
-// This mirrors the client-side conversion but avoids importing client code.
-function axialToXZLocal(q = 0, r = 0) {
-  const hexSize = 2.0; // BASE_HEX_SIZE with layoutRadius=1 and spacingFactor=1
-  const x = hexSize * 1.5 * q;
-  const z = hexSize * Math.sqrt(3) * (r + q / 2);
-  return { x, z };
-}
 
 function getDefaultConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
@@ -48,13 +42,84 @@ function normalizeConfig(partial) {
   return base;
 }
 
-function generateTile(seed, coords = {}, cfgPartial) {
-  let { q, r, x, z } = coords || {};
-  if (typeof x !== 'number' || typeof z !== 'number') {
-    ({ x, z } = axialToXZLocal(q, r));
+function resolveCoordInputs(coords = {}) {
+  const {
+    q,
+    r,
+    x,
+    z,
+    layoutRadius,
+    spacingFactor,
+    hexSize,
+    latitudeScale,
+    latitudeMethod
+  } = coords || {};
+
+  const options = { layoutRadius, spacingFactor, hexSize, latitudeScale, latitudeMethod };
+  let resolvedQ = typeof q === 'number' ? q : undefined;
+  let resolvedR = typeof r === 'number' ? r : undefined;
+  let resolvedX = typeof x === 'number' ? x : undefined;
+  let resolvedZ = typeof z === 'number' ? z : undefined;
+  let coord = null;
+
+  if (typeof resolvedQ === 'number' && typeof resolvedR === 'number') {
+    coord = new WorldCoord({ q: resolvedQ, r: resolvedR, ...options });
+    if (!Number.isFinite(resolvedX) || !Number.isFinite(resolvedZ)) {
+      resolvedX = coord.x;
+      resolvedZ = coord.z;
+    }
+  } else if (Number.isFinite(resolvedX) && Number.isFinite(resolvedZ)) {
+    coord = WorldCoord.fromWorld(resolvedX, resolvedZ, options);
+    if (!Number.isFinite(resolvedQ)) resolvedQ = coord.q;
+    if (!Number.isFinite(resolvedR)) resolvedR = coord.r;
+  } else {
+    coord = new WorldCoord({
+      q: Number.isFinite(resolvedQ) ? resolvedQ : 0,
+      r: Number.isFinite(resolvedR) ? resolvedR : 0,
+      ...options
+    });
+    resolvedQ = coord.q;
+    resolvedR = coord.r;
+    resolvedX = coord.x;
+    resolvedZ = coord.z;
   }
+
+  return { coord, q: resolvedQ, r: resolvedR, x: resolvedX, z: resolvedZ };
+}
+
+function buildContext(seed, coordInfo, cfg, opts = {}) {
+  const { coord, q, r, x, z } = coordInfo;
+  const cache = (opts && opts.cache instanceof TileCache) ? opts.cache : new TileCache();
+  const noiseFields = (opts && opts.noiseFields) ? opts.noiseFields : initNoiseRegistry(seed);
+  const context = {
+    seed: String(seed),
+    q,
+    r,
+    x,
+    z,
+    cfg,
+    rng: createRng(seed, x, z),
+    noise,
+    coord,
+    world: coord ? coord.world : { x, y: z },
+    latitude: coord ? coord.latitude01 : 0.5,
+    latitudeNormalized: coord ? coord.latitudeNormalized : 0,
+    cache,
+    noiseFields,
+    noiseRegistry: noiseFields,
+    noises: noiseFields
+  };
+  context.cacheWarp = cache.getWarp.bind(cache);
+  context.cacheVoronoi = cache.getVoronoi.bind(cache);
+  context.cacheValue = cache.getValue.bind(cache);
+  return context;
+}
+
+function generateTile(seed, coords = {}, cfgPartial) {
+  const coordInfo = resolveCoordInputs(coords);
   const cfg = normalizeConfig(cfgPartial);
-  const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  const ctx = buildContext(seed, coordInfo, cfg);
+  const { q, r } = coordInfo;
   const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers
@@ -112,7 +177,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
   return tile;
 }
 
-export { generateTile, getDefaultConfig, normalizeConfig };
+export { generateTile, getDefaultConfig, normalizeConfig, WorldCoord, TileCache };
 
 // Bulk sampling helper for callers that want compact typed buffers instead
 // of full Tile objects. This defaults to the same behavior as repeated
@@ -169,13 +234,13 @@ function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
   const yScaleBuf = new Float32Array(len);
   let idx = 0;
   const cfg = normalizeConfig(cfgPartial);
+  const noiseFields = initNoiseRegistry(seed);
   for (let r = -S; r <= S; r++) {
     for (let q = -S; q <= S; q++) {
       const qW = q + qOrigin;
       const rW = r + rOrigin;
-      // local x,z for layer samplers
-      const { x, z } = axialToXZLocal(qW, rW);
-      const ctx = { seed: String(seed), q: qW, r: rW, x, z, cfg, rng: createRng(seed, x, z), noise };
+      const coordInfo = resolveCoordInputs({ q: qW, r: rW });
+      const ctx = buildContext(seed, coordInfo, cfg, { noiseFields });
       let part1 = null;
       try {
         part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : (typeof layer01Fallback === 'function' ? layer01Fallback(ctx) : null);
