@@ -1,161 +1,144 @@
 // shared/lib/worldgen/layers/layer02_regions.js
-// Layer 2: mesoscale regions and archetype assignment
+// Layer 2: mesoscale archetype assignment and regional adjustments.
+// Consumes layer1 macro fields and emits archetype metadata, small elevation
+// deltas, and relief/climate biases for downstream layers.
 
 import { fbm as fbmFactory } from '../noiseUtils.js';
 import { makeSimplex } from '../noiseFactory.js';
 
-// Mesoscale archetypes and their canonical elevation/relief biases.
-const ARCHETYPES = [
-  'Megaplain',
-  'Badlands',
-  'HighPlateau',
-  'BrokenHighlands',
-  'Basins',
-  'InlandRidge',
-  'CoastalShelf',
-];
-
-const ARCH_BIASES = {
-  Megaplain: { elevation: -0.02, relief: -0.15 },
-  Badlands: { elevation: 0.02, relief: 0.45 },
-  HighPlateau: { elevation: 0.12, relief: 0.25 },
-  BrokenHighlands: { elevation: 0.08, relief: 0.35 },
-  Basins: { elevation: -0.12, relief: -0.05 },
-  InlandRidge: { elevation: 0.06, relief: 0.4 },
-  CoastalShelf: { elevation: 0.01, relief: -0.02 },
-};
-
-function pickArchetype(v) {
-  const idx = Math.floor(v * ARCHETYPES.length) % ARCHETYPES.length;
-  return ARCHETYPES[idx];
+function clamp01(v) {
+  if (Number.isNaN(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
 }
 
-function distributeBiomeWeights(base, bias) {
-  // base is an object of canonical biome list -> base weight (0..1)
-  // bias is archetype influence; we nudge weights toward archetype preferences.
-  // For simplicity, map archetype relief/elevation into four coarse biome weights.
-  const plains = Math.max(0, 0.6 - bias.relief * 0.5 - Math.abs(bias.elevation) * 0.3 + (base.plains || 0));
-  const forest = Math.max(0, 0.5 - Math.abs(bias.elevation) * 0.2 + (base.forest || 0));
-  const hill = Math.max(0, 0.3 + bias.relief * 0.4 + (base.hill || 0));
-  const mountain = Math.max(0, 0.1 + Math.max(0, bias.elevation) * 0.6 + (base.mountain || 0));
-  const sum = plains + forest + hill + mountain || 1;
+function ensureShared(ctx) {
+  if (!ctx.shared) ctx.shared = { caches: { noise: new Map() }, fields: {} };
+  if (!ctx.shared.caches) ctx.shared.caches = { noise: new Map() };
+  if (!ctx.shared.caches.noise) ctx.shared.caches.noise = new Map();
+  if (!ctx.shared.fields) ctx.shared.fields = {};
+  return ctx.shared;
+}
+
+function getNamedNoise(ctx, key) {
+  const shared = ensureShared(ctx);
+  const cache = shared.caches.noise;
+  if (cache.has(key)) return cache.get(key);
+  const noise = makeSimplex(`${ctx.seed}:${key}`);
+  cache.set(key, noise);
+  return noise;
+}
+
+function hashToNumber(str = '') {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function pickArchetype(cfg, value) {
+  if (!cfg || !Array.isArray(cfg.archetypes) || cfg.archetypes.length === 0) {
+    return { id: 'Generic', elevationOffset: 0, reliefWeight: 1, reliefBias: 0, temperatureBias: 0, moistureBias: 0 };
+  }
+  const list = cfg.archetypes;
+  const idx = Math.floor(value * list.length) % list.length;
+  return list[idx];
+}
+
+function computeBiomeWeights(archetype) {
+  const elev = archetype.elevationOffset || 0;
+  const reliefWeight = archetype.reliefWeight || 1;
+  const reliefBias = archetype.reliefBias || 0;
+  const moistureBias = archetype.moistureBias || 0;
+  const plains = clamp01(0.6 - Math.max(0, reliefWeight - 1) * 0.25 - Math.abs(elev) * 0.4);
+  const forest = clamp01(0.4 + moistureBias * 0.5 - Math.abs(elev) * 0.2);
+  const hill = clamp01(0.3 + Math.max(0, reliefWeight - 1) * 0.35 + reliefBias * 0.25);
+  const mountain = clamp01(Math.max(0, elev) * 1.1 + Math.max(0, reliefBias) * 0.6);
+  const desert = clamp01(0.2 - moistureBias * 0.5 + Math.max(0, elev) * 0.2);
+  const sum = plains + forest + hill + mountain + desert || 1;
   return {
     plains: plains / sum,
     forest: forest / sum,
     hill: hill / sum,
     mountain: mountain / sum,
+    desert: desert / sum,
   };
 }
 
 function computeTilePart(ctx) {
-  // read layer2 config like other layers
+  const shared = ensureShared(ctx);
   const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer2) ? ctx.cfg.layers.layer2 : {};
-  // large scale FBM to break continents into regions
-  const scale = (typeof cfg.regionNoiseScale === 'number') ? cfg.regionNoiseScale : 0.02;
-  const noise = makeSimplex(String(ctx.seed));
-  const sampler = fbmFactory(noise, (typeof cfg.octaves === 'number' ? Math.max(1, Math.floor(cfg.octaves)) : 2), cfg.lacunarity || 2.0, cfg.gain || 0.5);
-  const n = sampler(ctx.x * scale, ctx.z * scale); // -1..1
-  const v = (n + 1) / 2; // 0..1
+  const breakupCfg = cfg.breakup || {};
+  const freq = typeof breakupCfg.freq === 'number' ? breakupCfg.freq : 0.014;
+  const octaves = Math.max(1, Math.floor(breakupCfg.octaves || 2));
+  const lacunarity = breakupCfg.lacunarity || 1.9;
+  const gain = breakupCfg.gain || 0.6;
+  const noise = getNamedNoise(ctx, 'regionBreakup');
+  const sampler = fbmFactory(noise, octaves, lacunarity, gain);
 
-  // derive a deterministic region id using plate id + noise value
-  const plateId = ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.plate
-    ? ctx.partials.layer1.plate.id || 0
-    : 0;
-  const regionId = Math.abs(Math.floor(plateId * 1000 + v * 999));
-  const archetype = pickArchetype(v);
+  let sampleX = ctx.x * freq;
+  let sampleZ = ctx.z * freq;
+  if (cfg.regionWarp && typeof cfg.regionWarp.amp === 'number') {
+    const warpAmp = cfg.regionWarp.amp;
+    const warpFreq = cfg.regionWarp.freq || 0.08;
+    sampleX += Math.sin(ctx.x * warpFreq + ctx.z * 0.3) * warpAmp;
+    sampleZ += Math.cos(ctx.z * warpFreq + ctx.x * 0.5) * warpAmp;
+  }
 
-  // Archetype bias influences elevation and relief for downstream layers
-  const bias = ARCH_BIASES[archetype] || { elevation: 0, relief: 0 };
+  const breakup = sampler(sampleX, sampleZ);
+  const v = clamp01((breakup + 1) / 2);
 
-  // Provide a small local jitter so neighboring tiles in the same archetype
-  // aren't perfectly identical. Use a second, lower-frequency FBM sample.
-  const jitterOctaves = (typeof cfg.jitterOctaves === 'number') ? Math.max(1, Math.floor(cfg.jitterOctaves)) : 1;
-  const jitterGain = (typeof cfg.jitterGain === 'number') ? cfg.jitterGain : 0.5;
-  const jitterLacunarity = (typeof cfg.jitterLacunarity === 'number') ? cfg.jitterLacunarity : 2.0;
-  const jitter = (fbmFactory(noise, jitterOctaves, jitterLacunarity, jitterGain)(ctx.x * scale * 0.6, ctx.z * scale * 0.6) || 0) * ((typeof cfg.jitterAmplitude === 'number') ? cfg.jitterAmplitude : 0.02);
+  const archetype = pickArchetype(cfg, v);
+  const reliefWeight = typeof archetype.reliefWeight === 'number' ? archetype.reliefWeight : 1;
+  const reliefBias = typeof archetype.reliefBias === 'number' ? archetype.reliefBias : 0;
+  const elevationOffset = typeof archetype.elevationOffset === 'number' ? archetype.elevationOffset : 0;
+  const tempBias = typeof archetype.temperatureBias === 'number' ? archetype.temperatureBias : 0;
+  const moistureBias = typeof archetype.moistureBias === 'number' ? archetype.moistureBias : 0;
 
-  // Compose elevation bias and relief multiplier
-  const elevationBias = bias.elevation + jitter;
-  const reliefMultiplier = 1 + bias.relief;
+  const plateId = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.plate && ctx.partials.layer1.plate.id)
+    ? ctx.partials.layer1.plate.id
+    : 'plate0';
+  const regionId = hashToNumber(`${plateId}:${Math.floor(v * 4096)}`);
 
-  // Compute a simple biome base prototype (coarse) and then distribute weights
-  const baseBiome = {
-    plains: Math.max(0, 0.6 - v * 0.3),
-    forest: Math.max(0, 0.4 + (1 - Math.abs(v - 0.5)) * 0.4 - v * 0.1),
-    hill: Math.max(0, 0.2 + v * 0.3),
-    mountain: Math.max(0, v * 0.25),
+  const localDetailNoise = getNamedNoise(ctx, 'regionLocal');
+  const localSampler = fbmFactory(localDetailNoise, 2, 2.2, 0.55);
+  const localFreq = typeof breakupCfg.localFreq === 'number' ? breakupCfg.localFreq : 0.09;
+  const detailSample = localSampler(ctx.x * localFreq, ctx.z * localFreq);
+  const amplitude = (typeof breakupCfg.amplitude === 'number' ? breakupCfg.amplitude : 0.04) * (1 + Math.abs(elevationOffset) * 0.6);
+
+  const baseElevation = (ctx.shared && ctx.shared.fields && typeof ctx.shared.fields.macroElevation === 'number')
+    ? ctx.shared.fields.macroElevation
+    : (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation && typeof ctx.partials.layer1.elevation.normalized === 'number'
+      ? ctx.partials.layer1.elevation.normalized
+      : 0.5);
+  const seaLevel = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+    ? ctx.cfg.layers.global.seaLevel
+    : 0.32;
+  const seaMultiplier = baseElevation <= seaLevel ? 0.3 : 1;
+
+  const elevationDelta = (detailSample * amplitude + elevationOffset * 0.35) * seaMultiplier;
+  const slopeContribution = clamp01(Math.abs(detailSample) * 0.35 + Math.max(0, reliefBias) * 0.35);
+
+  shared.region = {
+    id: regionId,
+    archetype: archetype.id || 'Generic',
+    reliefWeight,
+    reliefBias,
+    elevationOffset,
+    temperatureBias: tempBias,
+    moistureBias,
   };
+  shared.fields.regionElevationDelta = elevationDelta;
 
-  const biomeWeights = distributeBiomeWeights(baseBiome, { elevation: elevationBias, relief: bias.relief });
-
-  // Instead of replacing elevation, layer2 should provide a small additive
-  // delta that modulates layer1. Use a local FBM at a configurable frequency
-  // to produce high-quality variation. Archetype biases nudge the amplitude
-  // and roughness but do not override layer1's canonical elevation.
-  const areaFreq = (typeof cfg.frequency === 'number') ? cfg.frequency : 0.02;
-  const areaOctaves = (typeof cfg.octaves === 'number') ? Math.max(1, Math.floor(cfg.octaves)) : 3;
-  const areaGain = (typeof cfg.gain === 'number') ? cfg.gain : 0.5;
-  const areaLacunarity = (typeof cfg.lacunarity === 'number') ? cfg.lacunarity : 2.0;
-  const areaSampler = fbmFactory(noise, areaOctaves, areaLacunarity, areaGain);
-  // sample in -1..1 and convert to -1..1 range preserved by fbmFactory
-  const areaSample = areaSampler(ctx.x * areaFreq, ctx.z * areaFreq) || 0;
-
-  // amplitude base (configurable) scaled by archetype elevation bias as a modifier
-  const baseAmp = (typeof cfg.amplitude === 'number') ? cfg.amplitude : 0.02;
-  // archetype elev bias shifts local amplitude slightly (not absolute height)
-  const ampModifier = 1 + (bias.elevation || 0) * 0.5;
-  let finalAmp = baseAmp * ampModifier;
-
-  // Weight layer2's effect by layer1's canonical elevation so layer2
-  // adds fine detail following the macro shape rather than overriding it.
-  // If layer1 is unavailable, assume neutral weight (0.5).
-  const baseLayer1 = (ctx && ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation && typeof ctx.partials.layer1.elevation.normalized === 'number')
-    ? ctx.partials.layer1.elevation.normalized
-    : 0.5;
-  // map baseLayer1 [0..1] into a multiplier range [0.2 .. 1.0]
-  const layer1Weight = 0.2 + Math.max(0, Math.min(1, baseLayer1)) * 0.8;
-  finalAmp *= layer1Weight;
-
-  // Avoid sampling symmetry at origin by adding a deterministic region jitter
-  // so neighboring tiles within the same archetype still vary but we avoid
-  // many tiles sampling an exact zero. Derive jitter from regionId.
-  const regionJitter = ((regionId % 997) / 997) * Math.PI * 2;
-  const ox = Math.cos(regionJitter) * 13.37;
-  const oz = Math.sin(regionJitter) * 7.91;
-
-  // Multi-band detail: combine areaSample with a higher-frequency band to
-  // avoid frequent exact-zero outputs on symmetric coordinates.
-  const highSampler = fbmFactory(noise, Math.max(1, areaOctaves - 1), areaLacunarity * 2.0, Math.max(0.3, areaGain * 0.5));
-  const sampleX = (ctx.x + ox) * areaFreq;
-  const sampleZ = (ctx.z + oz) * areaFreq;
-  const hf = highSampler(sampleX * 2.3, sampleZ * 2.3) || 0;
-  const combinedSample = (areaSample * 0.7) + (hf * 0.3);
-
-  // final additive elevation delta (signed small value)
-  const elevationContribution = combinedSample * finalAmp;
-
-  // slope/roughness contribution: provide a multiplier hint derived from
-  // archetype relief and the absolute fbm roughness (0..1)
-  const roughScale = (typeof cfg.roughnessScale === 'number') ? cfg.roughnessScale : 0.5;
-  const slopeContribution = Math.abs(bias.relief || 0) * roughScale + Math.abs(combinedSample) * 0.25;
-
-  // Reduce amplitude over water so layer2 does not override shorelines or
-  // produce unrealistic seafloor relief. Use layer1 bathymetry if available.
-  const seaLevel = (ctx && ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
-    ? ctx.partials.layer1.bathymetry.seaLevel
-    : ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number') ? ctx.cfg.layers.global.seaLevel : 0.52);
-  const isSea = (baseLayer1 <= seaLevel);
-  const seaMultiplier = isSea ? 0.3 : 1.0;
-  const elevationContributionSeaAdjusted = elevationContribution * seaMultiplier;
+  const biomeWeights = computeBiomeWeights(archetype);
 
   return {
-    region: { id: regionId, archetype },
-    // elevation is additive: small raw delta; normalized is left equal to raw
-  elevation: { raw: elevationContributionSeaAdjusted, normalized: elevationContributionSeaAdjusted },
-  slope: slopeContribution,
-    // archetypeBias remains informative for downstream layers but no longer
-    // acts as absolute elevation values.
-    archetypeBias: { elevation: elevationBias, reliefMultiplier },
+    region: { id: regionId, archetype: archetype.id || 'Generic' },
+    elevation: { raw: elevationDelta, normalized: elevationDelta },
+    slope: slopeContribution,
+    archetypeBias: { elevation: elevationOffset, reliefMultiplier: reliefWeight },
     biomeWeights,
   };
 }

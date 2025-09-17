@@ -15,6 +15,7 @@ const generate = {
             moisture: n.moisture,
             flora: n.flora,
             passable: n.passable,
+            biome: n.territory,
           },
           effects: [],
         };
@@ -36,6 +37,7 @@ const generate = {
             moisture: n.moisture,
             flora: n.flora,
             territory: n.territory,
+            passable: n.passable,
           },
           effects: [],
         };
