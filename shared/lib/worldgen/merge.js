@@ -11,6 +11,8 @@ function mergeParts(base, parts, ctx) {
   tile.slope = 0;
   tile.palette = { id: 'fallback', topColor: '#000000', sideColor: '#000000', slopeTint: '#000000' };
   tile.biome = { major: 'plains' };
+  tile.climate = { temperature: 0.5, moisture: 0.5 };
+  tile.relief = { index: 0 };
   tile.flags = [];
 
   // apply layer0
@@ -62,6 +64,12 @@ function mergeParts(base, parts, ctx) {
   } catch (e) {
     // ignore bathymetry recompute errors
   }
+
+  if (parts.layer3 && parts.layer3.biome) tile.biome = Object.assign({}, parts.layer3.biome);
+  if (parts.layer3 && parts.layer3.climate) tile.climate = Object.assign({}, parts.layer3.climate);
+  if (parts.layer3 && typeof parts.layer3.reliefIndex === 'number') tile.relief = { index: parts.layer3.reliefIndex };
+  if (parts.layer3_5 && parts.layer3_5.clutter) tile.clutter = Object.assign({}, parts.layer3_5.clutter);
+  if (parts.layer4 && parts.layer4.special) tile.special = parts.layer4.special;
 
   // After merging the semantic fields, compute the canonical palette using
   // the palette interpreter. The interpreter is responsible for mapping

@@ -1,91 +1,168 @@
 // shared/lib/worldgen/layers/layer03_biomes.js
-// Layer 3: biome attributes (data-only)
-// This layer must not include any direct visual assignments. Instead it
-// returns semantic attributes that the palette interpreter will convert into
-// concrete colors later in the merge step.
+// Layer 3: biome selection and micro-relief decoration.
+// Evaluates biome probability curves using macro elevation, climate, and relief
+// derived fields, then applies biome-specific micro variation.
 
-import { fbm as fbmFactory, valueNoise } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../noiseUtils.js';
 import { makeSimplex } from '../noiseFactory.js';
 
-// Major biome candidates used for semantic classification. Keep this list
-// intentionally small; downstream palette interpreter will map these to
-// visual palettes or to richer biome definitions.
-const MAJOR = ['ocean','beach','plains','forest','hill','mountain','snow'];
+function clamp01(v) {
+  if (Number.isNaN(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
 
-function chooseMajor(h, seaLevel) {
-  // Use the authoritative seaLevel when available; fall back to sensible defaults
-  const sl = (typeof seaLevel === 'number') ? seaLevel : 0.33;
-  // beach band is narrow: just above seaLevel up to +0.05
-  const beachMax = sl + 0.05;
-  if (h < sl) return 'ocean';
-  if (h < beachMax) return 'beach';
-  if (h < 0.55) return 'plains';
-  if (h < 0.72) return 'forest';
-  if (h < 0.88) return 'hill';
-  return 'mountain';
+function ensureShared(ctx) {
+  if (!ctx.shared) ctx.shared = { caches: { noise: new Map() }, fields: {} };
+  if (!ctx.shared.caches) ctx.shared.caches = { noise: new Map() };
+  if (!ctx.shared.caches.noise) ctx.shared.caches.noise = new Map();
+  if (!ctx.shared.fields) ctx.shared.fields = {};
+  return ctx.shared;
+}
+
+function getNamedNoise(ctx, key) {
+  const shared = ensureShared(ctx);
+  const cache = shared.caches.noise;
+  if (cache.has(key)) return cache.get(key);
+  const noise = makeSimplex(`${ctx.seed}:${key}`);
+  cache.set(key, noise);
+  return noise;
+}
+
+function evaluateCurve(curve, value) {
+  if (!Array.isArray(curve) || curve.length === 0) return 1;
+  const pts = curve.slice().sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+  const v = clamp01(value);
+  if (v <= pts[0].x) return pts[0].w ?? 1;
+  if (v >= pts[pts.length - 1].x) return pts[pts.length - 1].w ?? 1;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (v >= a.x && v <= b.x) {
+      const t = (v - a.x) / Math.max(1e-6, b.x - a.x);
+      const wa = a.w ?? 1;
+      const wb = b.w ?? 1;
+      return wa + t * (wb - wa);
+    }
+  }
+  return 1;
+}
+
+function resolveElevationBand(cfg, elev) {
+  const bands = (cfg && cfg.elevationBands) || {};
+  const value = clamp01(elev);
+  if (value < (bands.deepOcean ?? 0.12)) return 'deepOcean';
+  if (value < (bands.abyss ?? 0.2)) return 'abyss';
+  if (value < (bands.shelf ?? 0.3)) return 'shelf';
+  if (value < (bands.coast ?? 0.36)) return 'coast';
+  if (value < (bands.lowland ?? 0.52)) return 'lowland';
+  if (value < (bands.highland ?? 0.68)) return 'highland';
+  if (value < (bands.mountain ?? 0.82)) return 'mountain';
+  if (value < (bands.peak ?? 0.92)) return 'peak';
+  return 'peak';
+}
+
+function mapRegionWeights(regionWeights, biomeName) {
+  if (!regionWeights) return 1;
+  if (!biomeName) return 1;
+  const rw = regionWeights;
+  if (biomeName === 'Grassland') return 0.6 + (rw.plains || 0.4);
+  if (biomeName === 'Forest' || biomeName === 'Wetland') return 0.6 + (rw.forest || 0.4);
+  if (biomeName === 'Highland' || biomeName === 'Alpine' || biomeName === 'Tundra' || biomeName === 'Glacier') return 0.5 + (rw.mountain || 0.3);
+  if (biomeName === 'Desert') return 0.5 + (rw.desert || 0.2);
+  if (biomeName === 'Coast') return 0.6 + (rw.plains || 0.3);
+  return 1;
+}
+
+function computeBiomeScore(name, biomeCfg, ctx, elevationNorm, climate, reliefIndex, regionWeights) {
+  const baseWeight = typeof biomeCfg.baseWeight === 'number' ? Math.max(0, biomeCfg.baseWeight) : 1;
+  const band = resolveElevationBand(ctx.cfg.layers.layer3, elevationNorm);
+  const bandWeight = biomeCfg.elevationBands && typeof biomeCfg.elevationBands[band] === 'number'
+    ? biomeCfg.elevationBands[band]
+    : 1;
+  const tempWeight = evaluateCurve(biomeCfg.temperatureCurve, climate.temperature);
+  const moistureWeight = evaluateCurve(biomeCfg.moistureCurve, climate.moisture);
+  const reliefWeight = evaluateCurve(biomeCfg.reliefCurve, reliefIndex);
+  const regionWeight = mapRegionWeights(regionWeights, name);
+  return Math.max(0, baseWeight * bandWeight * tempWeight * moistureWeight * reliefWeight * regionWeight);
+}
+
+function computeMicroRelief(ctx, biomeKey, microCfg, reliefIndex) {
+  if (!microCfg) return { delta: 0, roughness: clamp01(reliefIndex) };
+  const amplitude = typeof microCfg.amp === 'number' ? microCfg.amp : 0.08;
+  const frequency = typeof microCfg.frequency === 'number' ? microCfg.frequency : 1.8;
+  const octaves = Math.max(1, Math.floor(microCfg.octaves || 2));
+  const lacunarity = microCfg.lacunarity || 2.2;
+  const gain = microCfg.gain || 0.55;
+  const reliefScale = typeof microCfg.reliefScale === 'number' ? microCfg.reliefScale : 1;
+  const slopeBias = typeof microCfg.slopeBias === 'number' ? microCfg.slopeBias : 0;
+  const noise = getNamedNoise(ctx, `biome:${biomeKey}`);
+  const sampler = fbmFactory(noise, octaves, lacunarity, gain);
+  const sample = sampler(ctx.x * frequency, ctx.z * frequency);
+  const scaledRelief = Math.pow(clamp01(reliefIndex), microCfg.reliefExponent ? Math.max(0.2, microCfg.reliefExponent) : 1);
+  const delta = sample * amplitude * scaledRelief * reliefScale + slopeBias * scaledRelief;
+  const roughness = clamp01(Math.abs(sample) * 0.5 + scaledRelief * 0.6);
+  return { delta, roughness };
 }
 
 function computeTilePart(ctx) {
-  // deterministic noise sources for local variety
-  const noise = makeSimplex(String(ctx.seed));
-  const baseSampler = fbmFactory(noise, 3, 2.0, 0.5);
-  const secSampler = fbmFactory(noise, 2, 2.2, 0.55);
+  const shared = ensureShared(ctx);
+  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer3) ? ctx.cfg.layers.layer3 : {};
+  const biomes = cfg.biomes || {};
+  const climate = (ctx.shared && ctx.shared.climate) || { temperature: 0.5, moisture: 0.5 };
+  const reliefIndex = (typeof ctx.shared?.reliefIndex === 'number') ? ctx.shared.reliefIndex : 0.5;
+  const baseElevation = (ctx.shared && ctx.shared.fields && typeof ctx.shared.fields.macroElevation === 'number')
+    ? ctx.shared.fields.macroElevation
+    : (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation && typeof ctx.partials.layer1.elevation.normalized === 'number'
+      ? ctx.partials.layer1.elevation.normalized
+      : 0.5);
+  const regionWeights = ctx.partials && ctx.partials.layer2 ? ctx.partials.layer2.biomeWeights : null;
 
-  // elevation used only to decide biome bands; prefer layer1 normalized if present
-  let h = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation)
-    ? ctx.partials.layer1.elevation.normalized
-    : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2;
+  let best = { name: 'Grassland', score: 0.01 };
+  let runner = { name: 'Forest', score: 0.01 };
+  const weights = {};
 
-  // Do NOT mutate elevation here. Instead return an archetypeBias object
-  // describing semantic nudges (small numbers) that the palette interpreter
-  // may use when resolving final palette. Keep bias values tiny.
-  const archetypeBias = {};
-  if (ctx.partials && ctx.partials.layer2 && ctx.partials.layer2.archetypeBias) {
-    // propagate the layer2 archetypeBias through so downstream systems can use it
-    archetypeBias.elevation = ctx.partials.layer2.archetypeBias.elevation;
-  }
-
-  // Determine authoritative seaLevel from layer1/bathymetry or from cfg
-  const seaLevel = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
-    ? ctx.partials.layer1.bathymetry.seaLevel
-    : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-      ? ctx.cfg.layers.global.seaLevel
-      : 0.33;
-  const major = chooseMajor(h, seaLevel);
-
-  // Determine a secondary candidate using a second noise sampler and
-  // optional bias from layer2 biomeWeights. We return biomeWeights so the
-  // interpreter can make richer decisions (transitions, blending, rarity).
-  let secIdx = Math.floor((secSampler(ctx.x * 0.03, ctx.z * 0.03) + 1) / 2 * MAJOR.length) % MAJOR.length;
-  let biomeWeights = null;
-  if (ctx.partials && ctx.partials.layer2 && ctx.partials.layer2.biomeWeights) {
-    biomeWeights = Object.assign({}, ctx.partials.layer2.biomeWeights);
-    // bias the secondary index probabilistically using the weights but do
-    // not modify any visual outputs here.
-    const bw = biomeWeights;
-    const prefs = MAJOR.map((m) => {
-      if (m === 'plains') return bw.plains || 0;
-      if (m === 'forest') return bw.forest || 0;
-      if (m === 'hill') return bw.hill || 0;
-      if (m === 'mountain' || m === 'snow') return bw.mountain || 0.1;
-      return 0.1; // beach/ocean baseline
-    });
-    const rnd = (secSampler(ctx.x * 0.03, ctx.z * 0.03) + 1) / 2;
-    const total = prefs.reduce((s, v) => s + v, 0) || 1;
-    let acc = 0;
-    let chosen = 0;
-    for (let i = 0; i < prefs.length; i++) {
-      acc += (prefs[i] / total);
-      if (rnd <= acc) { chosen = i; break; }
+  for (const [name, biomeCfg] of Object.entries(biomes)) {
+    const score = computeBiomeScore(name, biomeCfg, ctx, baseElevation, climate, reliefIndex, regionWeights);
+    weights[name] = score;
+    if (score >= best.score) {
+      runner = best;
+      best = { name, score };
+    } else if (score > runner.score) {
+      runner = { name, score };
     }
-    secIdx = chosen;
   }
 
-  const secondary = MAJOR[secIdx];
-  const blend = Math.abs(valueNoise(ctx, ctx.x * 0.07, ctx.z * 0.07) - 0.5) * 2 * 0.5; // 0..0.5
+  if (!biomes[best.name]) {
+    best = { name: 'Grassland', score: 1 };
+  }
+  if (!biomes[runner.name]) {
+    runner = { name: best.name === 'Forest' ? 'Grassland' : 'Forest', score: Math.max(0.01, best.score * 0.5) };
+  }
 
-  // Return only semantic data. No colors, no yScale, no visual hints here.
-  return { biome: { major, secondary, blend }, archetypeBias, biomeWeights };
+  const ecotoneRatio = best.score > 0 ? clamp01((runner.score || 0) / (best.score + 1e-6)) : 0;
+  const blendBase = clamp01(ecotoneRatio * (cfg.ecotoneThreshold || 0.24));
+
+  const microCfg = biomes[best.name] ? biomes[best.name].microRelief : null;
+  const micro = computeMicroRelief(ctx, best.name, microCfg, reliefIndex);
+
+  shared.biome = { major: best.name, secondary: runner.name, blend: blendBase };
+  shared.fields.microReliefDelta = micro.delta;
+  shared.fields.microReliefRoughness = micro.roughness;
+
+  return {
+    biome: {
+      major: best.name,
+      secondary: runner.name,
+      blend: blendBase,
+      weights,
+    },
+    climate,
+    reliefIndex,
+    elevation: { raw: micro.delta, normalized: micro.delta },
+    slope: clamp01((ctx.shared?.fields?.macroSlope || 0) * 0.6 + micro.roughness * 0.4),
+  };
 }
 
 export { computeTilePart };

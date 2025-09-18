@@ -5,6 +5,7 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
+import { computeDerivedFields } from './derived.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -54,7 +55,25 @@ function generateTile(seed, coords = {}, cfgPartial) {
     ({ x, z } = axialToXZLocal(q, r));
   }
   const cfg = normalizeConfig(cfgPartial);
-  const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  const sharedState = {
+    caches: {
+      noise: new Map(),
+      warps: new Map(),
+      voronoi: new Map(),
+    },
+    fields: {},
+  };
+  const ctx = {
+    seed: String(seed),
+    q,
+    r,
+    x,
+    z,
+    cfg,
+    rng: createRng(seed, x, z),
+    noise,
+    shared: sharedState,
+  };
   const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers
@@ -84,6 +103,13 @@ function generateTile(seed, coords = {}, cfgPartial) {
   // Layer 2: regions
   if (enabled.layer2 !== false && typeof layer02Compute === 'function') parts.layer2 = layer02Compute(ctx);
   ctx.partials.layer2 = parts.layer2;
+
+  // Derived shared fields (relief index, climate, etc.)
+  computeDerivedFields(ctx);
+  ctx.partials.derived = Object.assign({}, ctx.shared.fields, {
+    reliefIndex: ctx.shared.reliefIndex,
+    climate: ctx.shared.climate,
+  });
 
   // Layer 3: biomes
   if (enabled.layer3 !== false && typeof layer03Compute === 'function') parts.layer3 = layer03Compute(ctx);
