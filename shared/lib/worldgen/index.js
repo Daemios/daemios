@@ -5,6 +5,9 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
+import { ensureWorldCoord } from './utils/worldCoord.js';
+import { ensureTileCache } from './utils/tileCache.js';
+import { getNoiseRegistry } from './noiseRegistry.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -55,6 +58,9 @@ function generateTile(seed, coords = {}, cfgPartial) {
   }
   const cfg = normalizeConfig(cfgPartial);
   const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  ctx.coord = ensureWorldCoord(ctx);
+  ctx.tileCache = ensureTileCache(ctx);
+  ctx.noiseRegistry = getNoiseRegistry(seed);
   const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers
@@ -176,6 +182,9 @@ function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
       // local x,z for layer samplers
       const { x, z } = axialToXZLocal(qW, rW);
       const ctx = { seed: String(seed), q: qW, r: rW, x, z, cfg, rng: createRng(seed, x, z), noise };
+      ctx.coord = ensureWorldCoord(ctx);
+      ctx.tileCache = ensureTileCache(ctx);
+      ctx.noiseRegistry = getNoiseRegistry(seed);
       let part1 = null;
       try {
         part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : (typeof layer01Fallback === 'function' ? layer01Fallback(ctx) : null);

@@ -23,13 +23,65 @@ export const DEFAULT_CONFIG = {
       paletteId: 'default'
     },
     layer1: {
-      continentScale: 1.0,
-      plateCellSize: 256,
-      warp: {
-        slow: { freq: 0.08, amp: 0.25 },
-        fast: { freq: 0.6, amp: 0.05 }
+      continentalMask: {
+        frequency: 0.0024,
+        octaves: 5,
+        lacunarity: 1.85,
+        gain: 0.45,
+        bias: -0.08,
+        power: 1.2,
+        preWarpBlend: 0.25
       },
-      detail: { freq: 0.6, amp: 0.15 }
+      warp: {
+        slow: { frequency: 0.0012, amplitude: 140 },
+        fast: { frequency: 0.0055, amplitude: 28 },
+        fastPower: 1.0
+      },
+      plates: {
+        cellSize: 520,
+        jitter: 0.75,
+        relaxation: 0.82,
+        ridgeWidth: 0.22,
+        ridgePower: 1.6,
+        ridgeHeight: 0.32,
+        ridgeNoiseFrequency: 0.0035,
+        ridgeNoiseAmplitude: 0.65,
+        trenchProbability: 0.32,
+        trenchHeight: 0.42,
+        trenchMultiplier: 1.8,
+        trenchNoiseFrequency: 0.0026,
+        trenchBias: -0.15
+      },
+      ridges: {
+        slopeScale: 0.75
+      },
+      mediumDetail: {
+        frequency: 0.014,
+        amplitude: 0.18,
+        octaves: 3,
+        lacunarity: 1.9,
+        gain: 0.5,
+        coastFalloff: 0.28,
+        coastExponent: 1.25,
+        plateFalloff: 0.45,
+        plateExponent: 0.65
+      },
+      combine: {
+        maskWeight: 1.0,
+        ridgeWeight: 0.6,
+        detailWeight: 0.35,
+        bias: 0.0
+      },
+      normalization: {
+        min: -1,
+        max: 1,
+        exponent: 1.0
+      },
+      ocean: {
+        depthScale: 1.5,
+        trenchScale: 2.2,
+        tieBreaker: 0.0005
+      }
     },
     layer2: {
       regionNoiseScale: 0.02,
