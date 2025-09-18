@@ -1,6 +1,4 @@
-import * as SimplexNoiseModule from 'simplex-noise';
-
-const SimplexNoise = (SimplexNoiseModule && SimplexNoiseModule.default) || SimplexNoiseModule;
+import { createNoise2D } from 'simplex-noise';
 
 export const CORE_FIELDS = ['macro', 'warpSlow', 'warpFast', 'plateVoronoi', 'mediumDetail'];
 export const LEGACY_ATTRIBUTES = ['elevation', 'moisture', 'flora', 'passable', 'territory'];
@@ -19,8 +17,36 @@ function defaultToUnit(value) {
   return (value + 1) * 0.5;
 }
 
+function hashStringToSeed(str = '') {
+  let h = 2166136261 >>> 0;
+  const input = String(str ?? '');
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(a) {
+  return function mulberry32Inner() {
+    let t = (a += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), 1 | t);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function createRandomFromSeed(key) {
+  const seed = hashStringToSeed(key);
+  return mulberry32(seed || 1);
+}
+
 function createSimplexFactory(name) {
-  return ({ seed }) => new SimplexNoise(`${seed}:${name}`);
+  return ({ seed }) => {
+    const random = createRandomFromSeed(`${seed}:${name}`);
+    const noise2D = createNoise2D(random);
+    return { noise2D };
+  };
 }
 
 function createDefaultFieldMap(names) {
