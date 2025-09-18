@@ -182,6 +182,33 @@ async function initScene() {
         /* ignore */
       }
     }
+    // Apply persisted layer toggles (if present) so disabled layers aren't used on initial load
+    try {
+      const savedLayers =
+        gen && gen.layers
+          ? gen.layers
+          : saved.generation && saved.generation.layers
+          ? saved.generation.layers
+          : null;
+      if (
+        savedLayers &&
+        sceneInst &&
+        typeof sceneInst.setGeneratorConfig === "function"
+      ) {
+        const cfgPartial = { layers: {} };
+        for (const k of Object.keys(savedLayers)) {
+          const mapped = k === "layer35" ? "layer3_5" : k;
+          cfgPartial.layers[mapped] = savedLayers[k];
+        }
+        try {
+          sceneInst.setGeneratorConfig(cfgPartial);
+        } catch (e) {
+          /* ignore failures applying generator config */
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
     // apply persisted wireframe flag if present so the wireframe re-renders on reload
     try {
       if (
@@ -431,10 +458,10 @@ watch(
 
 // Rebuild the water plane when the selected material changes
 watch(
-  () => settings.get('worldMap.features.waterMaterial', 'realistic'),
+  () => settings.get("worldMap.features.waterMaterial", "realistic"),
   () => {
     try {
-      if (sceneInst && typeof sceneInst._ensureWaterCreated === 'function') {
+      if (sceneInst && typeof sceneInst._ensureWaterCreated === "function") {
         sceneInst._ensureWaterCreated();
         requestRender();
       }
