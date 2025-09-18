@@ -10,6 +10,11 @@ const DEFAULT_LAYER_CFG = {
     power: 1.08,
     remapLow: 0.28,
     remapHigh: 0.74,
+    blobThreshold: 0.48,
+    blobExponent: 1.65,
+    blobStrength: 2.2,
+    blobFloor: 0.02,
+    blobBlend: 1.0,
     latitudeWeight: 0.18,
     latitudePower: 1.6,
     postBias: -0.08,
@@ -180,6 +185,26 @@ function normalizeLayerConfig(cfg = {}) {
   };
 }
 
+function shapeContinentalBlobs(value, cfg) {
+  const blend = typeof cfg.blend === 'number' ? clamp01(cfg.blend) : clamp01(cfg.blobBlend ?? 1);
+  if (blend <= 0) return value;
+
+  const threshold = clamp01(cfg.blobThreshold ?? DEFAULT_LAYER_CFG.continentalMask.blobThreshold);
+  const floor = clamp01(cfg.blobFloor ?? DEFAULT_LAYER_CFG.continentalMask.blobFloor);
+  const exponentRaw = cfg.blobExponent ?? DEFAULT_LAYER_CFG.continentalMask.blobExponent;
+  const exponent = Number.isFinite(exponentRaw) ? exponentRaw : DEFAULT_LAYER_CFG.continentalMask.blobExponent;
+  const strengthRaw = cfg.blobStrength ?? DEFAULT_LAYER_CFG.continentalMask.blobStrength;
+  const strength = Math.max(0, Number.isFinite(strengthRaw) ? strengthRaw : DEFAULT_LAYER_CFG.continentalMask.blobStrength);
+
+  const remainder = Math.max(0, value - threshold);
+  const normalized = remainder / Math.max(1e-6, 1 - threshold);
+  let blob = normalized > 0 ? normalized : 0;
+  if (exponent !== 1 && blob > 0) blob = Math.pow(blob, exponent);
+  const blobHeight = clamp01(blob * strength);
+  const shaped = clamp(floor + blobHeight * (1 - floor), floor, 1);
+  return lerp(value, shaped, blend);
+}
+
 function sampleMask(noiseSource, world, cfg, latitudeNorm = 0) {
   const scale = Math.max(1e-6, cfg.scale || DEFAULT_LAYER_CFG.continentalMask.scale);
   const sx = world.x / scale;
@@ -193,6 +218,7 @@ function sampleMask(noiseSource, world, cfg, latitudeNorm = 0) {
     const latAttenuation = 1 - latWeight * Math.pow(Math.abs(latitudeNorm), latPow);
     value *= clamp(latAttenuation, 0.2, 1.0);
   }
+  value = shapeContinentalBlobs(value, cfg);
   value = value * (cfg.postScale ?? 1) + (cfg.postBias ?? 0);
   return clamp(value, cfg.clampMin ?? 0, cfg.clampMax ?? 1);
 }
