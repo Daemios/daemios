@@ -1,5 +1,6 @@
-// shared/lib/worldgen/layers/clutter.js
-// Layer 3.5: clutter hints (density, candidate sets)
+// Clutter — ground clutter hints (density and candidate sets).
+// Purpose: provide non-visual hints about ground clutter (trees, rocks, etc.)
+// that the renderer or placement systems can use to spawn scene objects.
 
 function computeTilePart(ctx) {
   const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer3_5) ? ctx.cfg.layers.layer3_5 : {};

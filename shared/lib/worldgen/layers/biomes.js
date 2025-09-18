@@ -1,7 +1,7 @@
-// shared/lib/worldgen/layers/biomes.js
-// Layer 3: biome attributes (data-only)
-// Fully replace the old layer03_biomes module — return semantic attributes
-// only; the palette interpreter converts these into visual outputs.
+// Biomes — semantic biome attributes used by the palette interpreter.
+// Purpose: compute data-only biome descriptors (major/secondary/blend,
+// and small archetype biases). Visual mapping is performed later by the
+// palette interpreter.
 
 import { fbm as fbmFactory, valueNoise } from '../utils/noise.js';
 import { makeSimplex } from '../utils/noise.js';

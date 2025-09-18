@@ -1,6 +1,7 @@
 /**
- * Continents module (extracted from previous layer01_continents).
- * Responsible for macro continent/ocean shape and shallow bathymetry.
+ * Continents — macro land/ocean shape and shallow bathymetry.
+ * Purpose: produce large-scale continent and ocean masks and basic bathymetry
+ * that downstream layers reference when building finer terrain.
  */
 import { fbm as fbmFactory } from '../utils/noise.js';
 import { makeSimplex } from '../utils/noise.js';

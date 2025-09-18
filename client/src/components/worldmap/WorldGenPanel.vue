@@ -19,8 +19,12 @@
     @contextmenu.stop.prevent
   >
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-      <div style="font-size:13px; font-weight:600">World Generation</div>
-      <div style="font-size:11px; opacity:0.8">Layers</div>
+      <div style="font-size:13px; font-weight:600">
+        World Generation
+      </div>
+      <div style="font-size:11px; opacity:0.8">
+        Layers
+      </div>
     </div>
 
     <div
@@ -35,7 +39,7 @@
           type="checkbox"
           @change="applyImmediate"
         >
-        Layer 0 — Creative Constraints & Palette
+  Creative Constraints & Palette
       </label>
 
       <label
@@ -47,22 +51,10 @@
           type="checkbox"
           @change="applyImmediate"
         >
-        Layer 1 — Continents & Oceans
+  Continents & Oceans
       </label>
 
-  <!-- seaLevel is configured in shared/lib/worldgen/config.js and is not editable at runtime -->
-
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap:8px"
-      >
-        <input
-          v-model="layers.layer2"
-          type="checkbox"
-          @change="applyImmediate"
-        >
-        Layer 2 — Mesoscale & Regional Identity
-      </label>
+  <!--     seaLevel is configured in shared/lib/worldgen/config.js and is not editable at runtime -->
 
       <label
         class="d-flex align-center cursor-pointer"
@@ -73,7 +65,7 @@
           type="checkbox"
           @change="applyImmediate"
         >
-        Layer 3 — Biome Blending & Palette
+  Biome Blending & Palette
       </label>
 
       <label
@@ -81,11 +73,11 @@
         style="gap:8px"
       >
         <input
-          v-model="layers.layer35"
+          v-model="layers.layer3_5"
           type="checkbox"
           @change="applyImmediate"
         >
-        Layer 3.5 — Ground Clutter System
+  Ground Clutter System
       </label>
 
       <label
@@ -97,19 +89,7 @@
           type="checkbox"
           @change="applyImmediate"
         >
-        Layer 4 — Special & Rare Regions
-      </label>
-
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap:8px"
-      >
-        <input
-          v-model="layers.layer5"
-          type="checkbox"
-          @change="applyImmediate"
-        >
-        Layer 5 — Visual Cohesion & Style
+  Special & Rare Regions
       </label>
     </div>
 
@@ -149,11 +129,9 @@ export default {
       layers: {
         layer0: typeof savedLayers.layer0 === 'boolean' ? savedLayers.layer0 : true,
         layer1: typeof savedLayers.layer1 === 'boolean' ? savedLayers.layer1 : true,
-        layer2: typeof savedLayers.layer2 === 'boolean' ? savedLayers.layer2 : true,
         layer3: typeof savedLayers.layer3 === 'boolean' ? savedLayers.layer3 : true,
-        layer35: typeof savedLayers.layer35 === 'boolean' ? savedLayers.layer35 : true,
+        layer3_5: typeof savedLayers.layer3_5 === 'boolean' ? savedLayers.layer3_5 : true,
         layer4: typeof savedLayers.layer4 === 'boolean' ? savedLayers.layer4 : true,
-        layer5: typeof savedLayers.layer5 === 'boolean' ? savedLayers.layer5 : true,
       }
     };
   },
@@ -177,7 +155,7 @@ export default {
       }
     },
     reset() {
-      this.layers = { layer0: true, layer1: true, layer2: true, layer3: true, layer35: true, layer4: true, layer5: true };
+      this.layers = { layer0: true, layer1: true, layer3: true, layer3_5: true, layer4: true };
       this.apply();
     }
   }

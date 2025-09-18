@@ -1,5 +1,6 @@
-// shared/lib/worldgen/layers/palette.js
-// Layer 0: palette & creative constraints. Minimal implementation returns a palette id and default colors.
+// Palette — creative constraints and base palette selection.
+// Purpose: supply a palette id and default color set used later by the renderer
+// to resolve final visual materials for a tile.
 
 const DEFAULT_PALETTES = {
   default: {

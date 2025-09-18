@@ -61,81 +61,57 @@ function generateTile(seed, coords = {}, cfgPartial) {
   // run layers in order; parts are partial tile outputs consumed by later layers
   const parts = {};
 
-  // map friendly names to internal layer keys and compute an ordered list
-  const nameToKey = {
-    continents: 'layer1',
-    plates_and_mountains: 'layer1', // initially same module; mountains logic will be split later
-    biomes: 'layer3',
-    clutter: 'layer3_5',
-    specials: 'layer4',
-    palette: 'layer0',
-    // regions layer removed from friendly names — layer02 remains if needed
-  };
-  // get configured friendly order (fallback to DEFAULT_CONFIG.layersOrder)
+  // Simple friendly-order driven execution: call each friendly layer in
+  // `cfg.layersOrder` (or DEFAULT_CONFIG.layersOrder) and merge additive
+  // elevation contributions into numeric `parts` keys consumed by mergeParts.
   const friendlyOrder = (cfg && Array.isArray(cfg.layersOrder) && cfg.layersOrder.length) ? cfg.layersOrder : DEFAULT_CONFIG.layersOrder || [];
-  // build the internal ordered list, avoiding duplicates
-  const orderedKeys = [];
-  for (const name of friendlyOrder) {
-    const k = nameToKey[name];
-    if (!k) continue;
-    if (!orderedKeys.includes(k)) orderedKeys.push(k);
-  }
-  // ensure fallback order covers all numeric layers if friendly order omitted some
-  const ensureKeys = ['layer0','layer1','layer2','layer3','layer3_5','layer4'];
-  for (const k of ensureKeys) if (!orderedKeys.includes(k)) orderedKeys.push(k);
 
-  // Execute layers in configured order using the computed orderedKeys list.
-  for (const lk of orderedKeys) {
-    // respect explicit enabled toggles
+  const handlers = {
+    palette: { key: 'layer0', fn: PaletteCompute },
+    continents: { key: 'layer1', fn: layer01Compute, fallback: layer01Fallback },
+    plates_and_mountains: { key: 'layer1', fn: platesCompute },
+    biomes: { key: 'layer3', fn: layer03Compute },
+    clutter: { key: 'layer3_5', fn: layer03_5Compute },
+    specials: { key: 'layer4', fn: layer04Compute },
+  };
+
+  for (const name of friendlyOrder) {
+    const h = handlers[name];
+    if (!h) continue; // unknown friendly name
+    const lk = h.key;
+    // respect explicit enabled toggles (enabled uses numeric layer keys)
     if (enabled[lk] === false) {
       parts[lk] = undefined;
       ctx.partials = Object.assign({}, ctx.partials, { [lk]: parts[lk] });
       continue;
     }
+
     try {
-      switch (lk) {
-        case 'layer0':
-          parts.layer0 = PaletteCompute(ctx);
-          break;
-        case 'layer1':
-          try { parts.layer1 = layer01Compute(ctx); } catch (e) { parts.layer1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : { elevation: { raw: 0, normalized: 0 } }; }
-          break;
-        case 'plates_and_mountains':
-          // plates/mountains module contributes additional elevation; merge expects
-          // numeric layer keys, so fold plates contribution into parts.layer1 so
-          // merge's additive elevation still sums them.
-          try {
-            const ppart = (typeof platesCompute === 'function') ? platesCompute(ctx) : null;
-            if (ppart && ppart.elevation && typeof ppart.elevation.raw === 'number') {
-              if (!parts.layer1) parts.layer1 = { elevation: { raw: 0, normalized: 0 } };
-              parts.layer1.elevation = parts.layer1.elevation || { raw: 0, normalized: 0 };
-              parts.layer1.elevation.raw += ppart.elevation.raw;
-              // normalized is kept for local consumers; recompute here conservatively
-              parts.layer1.elevation.normalized = Math.max(0, Math.min(1, parts.layer1.elevation.raw));
-            }
-          } catch (e) {
-            /* ignore plates failures */
-          }
-          break;
-          break;
-        // layer2 (regions) removed
-        
-        case 'layer3':
-          if (typeof layer03Compute === 'function') parts.layer3 = layer03Compute(ctx);
-          break;
-        case 'layer3_5':
-          if (typeof layer03_5Compute === 'function') parts.layer3_5 = layer03_5Compute(ctx);
-          break;
-        case 'layer4':
-          if (typeof layer04Compute === 'function') parts.layer4 = layer04Compute(ctx);
-          break;
-        // layer5 (visual) removed
-        default:
-          // unsupported/internal key — ignore
-          break;
+      let p = null;
+      if (h.fallback) {
+        try { p = (typeof h.fn === 'function') ? h.fn(ctx) : null; } catch (e) { p = (typeof h.fallback === 'function') ? h.fallback(ctx) : null; }
+      } else {
+        p = (typeof h.fn === 'function') ? h.fn(ctx) : null;
+      }
+
+      // Additively merge elevation into the numeric part slot so mergeParts
+      // can still iterate known numeric layers. Preserve and merge other
+      // fields (bathymetry, slope, plate) if present.
+      if (p && p.elevation && typeof p.elevation.raw === 'number') {
+        if (!parts[lk]) parts[lk] = { elevation: { raw: 0, normalized: 0 } };
+        parts[lk].elevation = parts[lk].elevation || { raw: 0, normalized: 0 };
+        parts[lk].elevation.raw += p.elevation.raw;
+        parts[lk].elevation.normalized = Math.max(0, Math.min(1, parts[lk].elevation.raw));
+      }
+
+      if (!parts[lk]) parts[lk] = p;
+      else if (p) {
+        for (const k of Object.keys(p)) {
+          if (k === 'elevation') continue;
+          parts[lk][k] = p[k];
+        }
       }
     } catch (e) {
-      // keep part undefined on failure
       parts[lk] = undefined;
     }
     ctx.partials = Object.assign({}, ctx.partials, { [lk]: parts[lk] });

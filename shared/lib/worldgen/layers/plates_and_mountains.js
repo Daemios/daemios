@@ -1,13 +1,7 @@
 /**
- * Plates and mountains.
- * Conservative mountain/plate contribution that can be refined later.
- *
- * Algorithm (simple, deterministic):
- * - find nearest plate center (grid jittered)
- * - produce a radial mask from the center that peaks near plate edges
- * - modulate mask with an FBM sample to create mountain ridges
- * - scale by configurable amplitude so this layer remains a mesoscale
- *   contribution that other layers can build upon.
+ * Plates and Mountains — mesoscale plate-aligned mountain contribution.
+ * Purpose: add conservative mountain belts and plate metadata used by later
+ * layers to shape terrain and biome edges.
  */
 import { fbm as fbmFactory } from '../utils/noise.js';
 import { seedStringToNumber, findNearestPlate } from '../utils/general.js';

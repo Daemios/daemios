@@ -1,5 +1,7 @@
-// shared/lib/worldgen/layers/specials.js
-// Layer 4: special/rare regions
+// Specials — rare or anomalous region flags.
+// Purpose: mark tiles that belong to special/rare regions (volcanic areas,
+// glass deserts, mushroom glades, etc.) so gameplay and rendering systems can
+// treat them differently.
 
 import { fbm as fbmFactory } from '../utils/noise.js';
 import { makeSimplex } from '../utils/noise.js';
