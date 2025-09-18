@@ -98,6 +98,8 @@ function computeTilePart(ctx) {
   const shallowBand = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
   const landMax = (typeof cfg.landMax === 'number') ? cfg.landMax : 0.55; // cap for this layer
   const threshold = (typeof cfg.threshold === 'number') ? cfg.threshold : 0.46; // start of land band
+  // minimum clamp above sea level for land elevations (in normalized 0..1 space)
+  const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.05;
 
   let h = 0;
   if (blended <= threshold) {
@@ -135,7 +137,20 @@ function computeTilePart(ctx) {
 
   h = Math.max(0, Math.min(1, h));
 
+  // If this sample is classified as land, ensure it is at least `clampAboveSea`
+  // above the configured sea level. This prevents tiny islands or near-sea
+  // elevations from sitting extremely close to water.
   const isWater = h <= seaLevel;
+  if (!isWater) {
+    // Enforce a maximum cap above sea level: do not allow this layer to
+    // exceed seaLevel + clampAboveSea. This ensures layer1 remains a
+    // conservative macro pass and finer layers produce higher features.
+    const maxLand = Math.min(1, seaLevel + clampAboveSea);
+    if (h > maxLand) h = maxLand;
+  }
+
+  // clamp again to be safe
+  h = Math.max(0, Math.min(1, h));
   const depthBand = isWater ? (h < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
   const plateId = null;
   const edgeDistance = 1;
@@ -158,12 +173,18 @@ function fallback(ctx) {
   const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
   const shallowBandFallback = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
   const h = base * shallowBandFallback * 0.9; // keep fallback under shallowBand mostly
-  const isWater = h <= seaLevel;
+  const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.05;
+  let hClamped = Math.max(0, Math.min(1, h));
+  const isWater = hClamped <= seaLevel;
+  if (!isWater) {
+    const maxLand = Math.min(1, seaLevel + clampAboveSea);
+    if (hClamped > maxLand) hClamped = maxLand;
+  }
   const depthBand = isWater ? 'shallow' : 'land';
   const plateId = Math.abs(Math.floor((ctx.x + ctx.z) / plateSize));
   const edgeDistance = Math.abs((ctx.x + ctx.z) % plateSize - (plateSize / 2)) / plateSize;
   return {
-    elevation: { raw: h, normalized: h },
+    elevation: { raw: hClamped, normalized: hClamped },
     bathymetry: { depthBand, seaLevel },
     slope: 0.0,
     plate: { id: plateId, edgeDistance }
