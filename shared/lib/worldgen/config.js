@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG = {
       paletteId: 'default'
     },
     layer1: {
-      clampAboveSea: 0.025,
+      clampAboveSea: 0.01,
       continentScale: 1.0,
       plateCellSize: 256,
       warp: {
