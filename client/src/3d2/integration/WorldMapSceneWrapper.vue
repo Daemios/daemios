@@ -431,10 +431,10 @@ watch(
 
 // Rebuild the water plane when the selected material changes
 watch(
-  () => settings.get('worldMap.features.waterMaterial', 'realistic'),
+  () => settings.get("worldMap.features.waterMaterial", "realistic"),
   () => {
     try {
-      if (sceneInst && typeof sceneInst._ensureWaterCreated === 'function') {
+      if (sceneInst && typeof sceneInst._ensureWaterCreated === "function") {
         sceneInst._ensureWaterCreated();
         requestRender();
       }

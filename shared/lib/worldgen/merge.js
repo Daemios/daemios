@@ -32,6 +32,12 @@ function mergeParts(base, parts, ctx) {
     if (ln === 'layer1' && part.bathymetry) tile.bathymetry = Object.assign({}, part.bathymetry);
     if (part.slope !== undefined) tile.slope = part.slope;
     if (part.plate) tile.plate = Object.assign({}, part.plate);
+    if (ln === 'layer1') {
+      if (typeof part.macroElevation === 'number') tile.macroElevation = part.macroElevation;
+      if (typeof part.ridgeStrength === 'number') tile.ridgeStrength = part.ridgeStrength;
+      if (typeof part.oceanDepth === 'number') tile.oceanDepth = part.oceanDepth;
+      if (part.macro) tile.macro = Object.assign({}, part.macro);
+    }
   }
 
   // Preserve the accumulated raw elevation (do NOT clamp here). Some

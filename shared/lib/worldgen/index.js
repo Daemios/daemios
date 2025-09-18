@@ -5,6 +5,8 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './rng.js';
 import * as noise from './noiseUtils.js';
+import { WorldCoord } from './worldCoord.js';
+import { getNoiseRegistry } from './noiseRegistry.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
@@ -16,13 +18,6 @@ import { mergeParts } from './merge.js';
 
 // Local flat-top hex axial->Cartesian helper with fixed layout radius/spacing.
 // This mirrors the client-side conversion but avoids importing client code.
-function axialToXZLocal(q = 0, r = 0) {
-  const hexSize = 2.0; // BASE_HEX_SIZE with layoutRadius=1 and spacingFactor=1
-  const x = hexSize * 1.5 * q;
-  const z = hexSize * Math.sqrt(3) * (r + q / 2);
-  return { x, z };
-}
-
 function getDefaultConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
@@ -50,11 +45,35 @@ function normalizeConfig(partial) {
 
 function generateTile(seed, coords = {}, cfgPartial) {
   let { q, r, x, z } = coords || {};
+  let coord = null;
   if (typeof x !== 'number' || typeof z !== 'number') {
-    ({ x, z } = axialToXZLocal(q, r));
+    coord = new WorldCoord(q, r);
+    const cart = coord.getCartesian();
+    x = cart.x;
+    z = cart.y;
+  } else {
+    coord = new WorldCoord(q, r);
+    const cart = coord.getCartesian();
+    // ensure coord matches provided x/z if caller supplied custom coords
+    coord.x = x;
+    coord.y = z;
   }
   const cfg = normalizeConfig(cfgPartial);
-  const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  const rng = createRng(seed, x, z);
+  const noiseRegistry = getNoiseRegistry(seed);
+  const ctx = {
+    seed: String(seed),
+    q,
+    r,
+    x,
+    z,
+    coord,
+    cfg,
+    rng,
+    noise,
+    noiseRegistry,
+    tileCache: {},
+  };
   const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers
@@ -174,8 +193,22 @@ function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
       const qW = q + qOrigin;
       const rW = r + rOrigin;
       // local x,z for layer samplers
-      const { x, z } = axialToXZLocal(qW, rW);
-      const ctx = { seed: String(seed), q: qW, r: rW, x, z, cfg, rng: createRng(seed, x, z), noise };
+      const coord = new WorldCoord(qW, rW);
+      const { x, y } = coord.getCartesian();
+      const z = y;
+      const ctx = {
+        seed: String(seed),
+        q: qW,
+        r: rW,
+        x,
+        z,
+        coord,
+        cfg,
+        rng: createRng(seed, x, z),
+        noise,
+        noiseRegistry: getNoiseRegistry(seed),
+        tileCache: {},
+      };
       let part1 = null;
       try {
         part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : (typeof layer01Fallback === 'function' ? layer01Fallback(ctx) : null);

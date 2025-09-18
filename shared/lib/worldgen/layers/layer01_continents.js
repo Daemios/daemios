@@ -1,172 +1,319 @@
-/**
- * The goal of this file is produce a two specific 'passes' of noise to give the world it's basic
- * shape. The first pass is a macro continent pass that gives the world large landmasses
- * and oceans. The second pass is a finer detail pass that adds interesting mountains, hills, ravines,
- * and other LARGE terrain features.
- * 
- * To be clear, 'pass' here does not mean a single sample or function call, but rather
- * a conceptual pass that may involve multiple noise functions and layers blended together.
- * 
- */
+// shared/lib/worldgen/layers/layer01_continents.js
+// Layer 1: macro geography (continents, plates, ridges, macro elevation fields)
 
-// (OLD) Layer 1: macro continents pass using a Voronoi/plate mask blended with low-frequency FBM
+import { getNoiseRegistry } from '../noiseRegistry.js';
+import { WorldCoord } from '../worldCoord.js';
 
-import { fbm as fbmFactory } from '../noiseUtils.js';
-import { makeSimplex } from '../noiseFactory.js';
+const DEFAULT_HEX_OPTS = { hexSize: 2.0, spacing: 1.0 };
 
-function seedStringToNumber(s) {
-  let n = 0;
-  for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
-  return n || 1;
+function clamp01(v) {
+  if (v <= 0) return 0;
+  if (v >= 1) return 1;
+  return v;
 }
 
-function pseudoRandom(ix, iy, seedNum) {
-  // simple deterministic hash -> 0..1
-  const x = Math.sin((ix * 127.1 + iy * 311.7) + seedNum * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
+function clamp(v, min, max) {
+  if (v < min) return min;
+  if (v > max) return max;
+  return v;
 }
 
-function smoothstep(t) {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return t * t * (3 - 2 * t);
-}
-
-function findNearestPlate(x, z, plateSize, seedNum) {
-  // plate grid coordinates
-  // use rounding so plate centers fall on multiples and origin can be inside a plate
-  const px = Math.round(x / plateSize);
-  const py = Math.round(z / plateSize);
-  let best = { dist: Infinity, cx: 0, cy: 0, ix: 0, iy: 0, rand: 0 };
-  // search neighboring plate cells (3x3) to approximate Voronoi
-  for (let oy = -1; oy <= 1; oy++) {
-    for (let ox = -1; ox <= 1; ox++) {
-      const ix = px + ox;
-      const iy = py + oy;
-      const pr = pseudoRandom(ix, iy, seedNum);
-      // jitter center within plate to avoid strict grid artifacts
-      const jitterX = (pr - 0.5) * plateSize * 0.5;
-      const jitterY = (pseudoRandom(ix, iy + 9999, seedNum) - 0.5) * plateSize * 0.5;
-      // anchor centers on grid multiples so small x/z ranges can intersect plates
-      const cx = ix * plateSize + jitterX;
-      const cy = iy * plateSize + jitterY;
-      const dx = x - cx;
-      const dz = z - cy;
-      const d = Math.sqrt(dx * dx + dz * dz);
-      if (d < best.dist) best = { dist: d, cx, cy, ix, iy, rand: pr };
+function hashString(...args) {
+  let h = 2166136261 >>> 0;
+  for (const arg of args) {
+    const str = String(arg || '');
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
     }
   }
-  return best;
+  return h >>> 0;
+}
+
+function hashToUnit(...args) {
+  return hashString(...args) / 4294967295;
+}
+
+function ensureCoord(ctx) {
+  if (ctx && ctx.coord instanceof WorldCoord) return ctx.coord;
+  const q = typeof ctx.q === 'number' ? ctx.q : 0;
+  const r = typeof ctx.r === 'number' ? ctx.r : 0;
+  const coord = new WorldCoord(q, r, DEFAULT_HEX_OPTS);
+  if (ctx) {
+    ctx.coord = coord;
+    ctx.x = coord.x;
+    ctx.z = coord.y;
+  }
+  return coord;
+}
+
+function getRegistry(ctx) {
+  if (ctx && ctx.noiseRegistry) return ctx.noiseRegistry;
+  const reg = getNoiseRegistry(ctx ? ctx.seed : '');
+  if (ctx) ctx.noiseRegistry = reg;
+  return reg;
+}
+
+function getTileCache(ctx) {
+  if (ctx && ctx.tileCache) return ctx.tileCache;
+  if (ctx) ctx.tileCache = {};
+  return ctx ? ctx.tileCache : {};
+}
+
+function computeWarpVector(cache, registry, name, baseX, baseY, cfg = {}) {
+  const cacheKey = `warp_${name}`;
+  if (cache[cacheKey]) return cache[cacheKey];
+  const simplex = registry.getSimplex(name);
+  const freq = typeof cfg.freq === 'number' ? cfg.freq : 0.0025;
+  const amp = typeof cfg.amp === 'number' ? cfg.amp : 12;
+  const x = simplex.noise2D(baseX * freq, baseY * freq) * amp;
+  const y = simplex.noise2D((baseX + 200) * freq, (baseY + 200) * freq) * amp;
+  const vec = { x, y, freq, amp };
+  cache[cacheKey] = vec;
+  return vec;
+}
+
+function computePlateField(cache, registry, ctx, coords, cfg = {}) {
+  if (cache.plateField) return cache.plateField;
+  const density = Math.max(1e-5, typeof cfg.density === 'number' ? cfg.density : (1 / Math.max(1, cfg.plateCellSize || 512)));
+  const relaxation = clamp01(typeof cfg.relaxation === 'number' ? cfg.relaxation : 0.75);
+  const seedKey = hashString(ctx.seed || 'seed', 'plate');
+  const sampleX = coords.x * density;
+  const sampleY = coords.y * density;
+  const ix = Math.floor(sampleX);
+  const iy = Math.floor(sampleY);
+  let nearest = { dist: Infinity, id: null, siteX: 0, siteY: 0 };
+  let second = { dist: Infinity, id: null, siteX: 0, siteY: 0 };
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = ix + dx;
+      const cy = iy + dy;
+      const jitterX = (hashToUnit(seedKey, cx, cy, 'jx') - 0.5) * relaxation;
+      const jitterY = (hashToUnit(seedKey, cx, cy, 'jy') - 0.5) * relaxation;
+      const siteX = cx + jitterX;
+      const siteY = cy + jitterY;
+      const ddx = sampleX - siteX;
+      const ddy = sampleY - siteY;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (dist < nearest.dist) {
+        second = nearest;
+        nearest = { dist, id: `${cx}_${cy}`, siteX, siteY };
+      } else if (dist < second.dist) {
+        second = { dist, id: `${cx}_${cy}`, siteX, siteY };
+      }
+    }
+  }
+  const centerX = nearest.siteX / density;
+  const centerY = nearest.siteY / density;
+  const distToCenter = Math.sqrt((coords.x - centerX) ** 2 + (coords.y - centerY) ** 2);
+  let edgeDistance = 0;
+  if (second.dist < Infinity) {
+    const rawEdge = Math.max(0, (second.dist - nearest.dist) * 0.5);
+    edgeDistance = rawEdge / density;
+  }
+  const edgeDistanceNormalized = clamp01(edgeDistance * density * 2);
+  const nx = coords.x - centerX;
+  const ny = coords.y - centerY;
+  const len = Math.hypot(nx, ny) || 1;
+  const normal = { x: nx / len, y: ny / len };
+  const plateId = hashString(ctx.seed || 'seed', nearest.id) & 0x7fffffff;
+  const neighborPlateId = second.id ? (hashString(ctx.seed || 'seed', second.id) & 0x7fffffff) : plateId;
+  const result = {
+    plateId,
+    neighborPlateId,
+    edgeDistance,
+    edgeDistanceNormalized,
+    distToCenter,
+    center: { x: centerX, y: centerY },
+    normal,
+    raw: { nearest, second }
+  };
+  cache.plateField = result;
+  return result;
+}
+
+function computeBoundarySign(seed, plateId, neighborId, trenchChance = 0.25) {
+  if (!neighborId || neighborId === plateId) return 1;
+  const h = hashToUnit(seed, plateId, neighborId, 'boundary');
+  return h < trenchChance ? -1 : 1;
 }
 
 function computeTilePart(ctx) {
-  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
-  // Larger plate size for big continents (default set in DEFAULT_CONFIG)
-  const plateSizeBase = (typeof cfg.plateCellSize === 'number') ? cfg.plateCellSize : 512;
-  const plateSize = Math.max(1, Math.round(plateSizeBase * (typeof cfg.continentScale === 'number' ? cfg.continentScale : 1)));
+  const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
+  const coord = ensureCoord(ctx);
+  const registry = getRegistry(ctx);
+  const cache = getTileCache(ctx);
 
-  // Use a single global-noise sampler (seeded only by the world seed) so sampling
-  // across tiles is continuous. Passing q,r to makeSimplex creates per-tile noise
-  // functions which breaks continuity and produces stripes/artifacts.
-  const noise = makeSimplex(String(ctx.seed));
+  const baseCart = coord.getCartesian();
+  const baseX = baseCart.x;
+  const baseY = baseCart.y;
 
-  // Stricter macro: single-octave FBM and lower gain so macro is very smooth.
-  const fbmCfg = cfg.fbm || { octaves: 1, lacunarity: 1.8, gain: 0.3 };
-  const macroOctaves = Math.max(1, (fbmCfg.octaves ? Math.max(1, Math.floor(fbmCfg.octaves)) : 1));
-  const macroSampler = fbmFactory(noise, macroOctaves, fbmCfg.lacunarity || 1.8, fbmCfg.gain || 0.3);
+  const maskCfg = cfg.continentalMask || {};
+  const maskFreq = typeof maskCfg.frequency === 'number' ? maskCfg.frequency : 0.0035;
+  const maskFbm = registry.getFbm('macro', {
+    octaves: maskCfg.octaves || 4,
+    lacunarity: maskCfg.lacunarity || 1.9,
+    gain: maskCfg.gain || 0.45
+  });
 
-  // Simple Cartesian scaling for macro sampler
-  const sx = ctx.x / plateSize;
-  const sy = ctx.z / plateSize;
-  // Avoid domain warp for the macro pass (it injects high-frequency energy)
-  const v = macroSampler(sx, sy); // -1..1
-  const macro = Math.max(0, Math.min(1, (v + 1) / 2));
+  const preWarpSample = maskFbm(baseX * maskFreq, baseY * maskFreq);
+  const maskPreWarp = clamp01((preWarpSample + 1) / 2);
 
-  // Single-pass macro: use the FBM output directly (no Voronoi plates or neighbor smoothing)
-  const blended = Math.max(0, Math.min(1, macro));
+  const warpCfg = cfg.warp || {};
+  const slowWarp = computeWarpVector(cache, registry, 'warpSlow', baseX, baseY, warpCfg.slow || {});
+  const fastWarp = computeWarpVector(cache, registry, 'warpFast', baseX, baseY, warpCfg.fast || {});
 
-  // Optional slight smoothing by nudging toward neighbor plate centers is possible later
-
-  // remap into water vs land bands
-  // prefer global sea level from ctx.cfg.layers.global.seaLevel for authoritative value
-  const seaLevel = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-    ? ctx.cfg.layers.global.seaLevel
-    : (typeof cfg.seaLevel === 'number' ? cfg.seaLevel : 0.52);
-  // shallowBand is the fixed top of the water gradient (0..1). Use a small
-  // constant so that changing seaLevel only affects classification thresholds
-  // and palette blending, not absolute tile heights.
-  const shallowBand = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
-  const landMax = (typeof cfg.landMax === 'number') ? cfg.landMax : 0.55; // cap for this layer
-  const threshold = (typeof cfg.threshold === 'number') ? cfg.threshold : 0.46; // start of land band
-
-  let h = 0;
-  if (blended <= threshold) {
-    // Apply an optional dampening function so low macro values trend
-    // strongly toward the minimum/base elevation. This produces
-    // gentler slopes out of the seafloor instead of uniformly raised
-    // ocean floors when the macro FBM skews high.
-    const dampThreshold = (typeof cfg.dampThreshold === 'number') ? cfg.dampThreshold : 0.25;
-    const dampPower = (typeof cfg.dampPower === 'number') ? cfg.dampPower : 2.5;
-    const dampScale = (typeof cfg.dampScale === 'number') ? cfg.dampScale : 1.0;
-
-  if (blended <= dampThreshold) {
-      // Strong attenuation near the minimum: normalized t in [0,1]
-      const t = blended / Math.max(1e-9, dampThreshold);
-      const atten = Math.pow(t, dampPower);
-      // Map attenuated value into ocean band (0..seaLevel), scaled by dampScale
-  h = atten * shallowBand * dampScale;
-    } else {
-      // For intermediate ocean values between dampThreshold and threshold,
-      // interpolate smoothly from the attenuated dampThreshold output up to
-      // the previous linear mapping at `threshold` so slopes aren't abrupt.
-      const t = (blended - dampThreshold) / Math.max(1e-9, threshold - dampThreshold);
-      const dampedBase = Math.pow(dampThreshold / Math.max(1e-9, dampThreshold), dampPower) * shallowBand * dampScale; // effectively 0 but kept for clarity
-      const linearAtThreshold = shallowBand; // top of shallow/ocean band
-      // lerp between dampedBase and linearAtThreshold
-      h = dampedBase + t * (linearAtThreshold - dampedBase);
-    }
-  } else {
-    const t = (blended - threshold) / (1 - threshold);
-    const s = smoothstep(t);
-    // Map land portion into shallowBand..landMax so heights remain in a
-    // consistent scale regardless of seaLevel value.
-    h = shallowBand + s * (landMax - shallowBand);
+  const warpedX = baseX + slowWarp.x + fastWarp.x;
+  const warpedY = baseY + slowWarp.y + fastWarp.y;
+  const warpedSample = maskFbm(warpedX * maskFreq, warpedY * maskFreq);
+  let maskPostWarp = clamp01((warpedSample + 1) / 2);
+  if (typeof maskCfg.offset === 'number') maskPostWarp = clamp01(maskPostWarp + maskCfg.offset);
+  if (typeof maskCfg.exponent === 'number' && maskCfg.exponent !== 1) {
+    maskPostWarp = Math.pow(maskPostWarp, maskCfg.exponent);
   }
 
-  h = Math.max(0, Math.min(1, h));
+  const plateCfg = cfg.plates || {};
+  const plateCoords = {
+    x: baseX + slowWarp.x * (typeof plateCfg.warpContribution === 'number' ? plateCfg.warpContribution : 0.6),
+    y: baseY + slowWarp.y * (typeof plateCfg.warpContribution === 'number' ? plateCfg.warpContribution : 0.6)
+  };
+  const plateField = computePlateField(cache, registry, ctx, plateCoords, Object.assign({}, plateCfg, { plateCellSize: cfg.plateCellSize }));
 
-  const isWater = h <= seaLevel;
-  const depthBand = isWater ? (h < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
-  const plateId = null;
-  const edgeDistance = 1;
+  const ridgeCfg = (plateCfg && plateCfg.ridge) ? plateCfg.ridge : {};
+  const ridgeFbm = registry.getFbm('macroRidge', {
+    octaves: ridgeCfg.octaves || 3,
+    lacunarity: ridgeCfg.lacunarity || 2.0,
+    gain: ridgeCfg.gain || 0.55
+  });
+  const ridgeFreq = typeof ridgeCfg.frequency === 'number' ? ridgeCfg.frequency : 0.008;
+  const ridgeNoise = ridgeFbm(warpedX * ridgeFreq, warpedY * ridgeFreq);
+  const ridgeNoiseNorm = 0.5 + 0.5 * ridgeNoise;
+  const edgeProximity = 1 - clamp01(plateField.edgeDistanceNormalized);
+  const ridgeSharpness = typeof ridgeCfg.sharpness === 'number' ? ridgeCfg.sharpness : 2.0;
+  const ridgeBase = Math.pow(edgeProximity, ridgeSharpness);
+  const ridgeMix = typeof ridgeCfg.noiseMix === 'number' ? ridgeCfg.noiseMix : 0.7;
+  const ridgeStrength = clamp01(ridgeBase * (ridgeMix * ridgeNoiseNorm + (1 - ridgeMix)));
+  const boundarySign = computeBoundarySign(ctx.seed || 'seed', plateField.plateId, plateField.neighborPlateId, ridgeCfg.trenchChance || 0.25);
+  const ridgeAmplitude = typeof ridgeCfg.amplitude === 'number' ? ridgeCfg.amplitude : 0.5;
+  const trenchMultiplier = typeof ridgeCfg.trenchMultiplier === 'number' ? ridgeCfg.trenchMultiplier : 0.6;
+  const ridgeContribution = ridgeStrength * ridgeAmplitude * (boundarySign < 0 ? -trenchMultiplier : 1);
+
+  const detailCfg = cfg.mediumDetail || {};
+  const detailFbm = registry.getFbm('mediumDetail', {
+    octaves: detailCfg.octaves || 3,
+    lacunarity: detailCfg.lacunarity || 2.1,
+    gain: detailCfg.gain || 0.45
+  });
+  const detailFreq = typeof detailCfg.frequency === 'number' ? detailCfg.frequency : 0.03;
+  const detailAmp = typeof detailCfg.amplitude === 'number' ? detailCfg.amplitude : 0.18;
+  const detailSample = detailFbm((warpedX + plateField.normal.x * 5) * detailFreq, (warpedY + plateField.normal.y * 5) * detailFreq);
+  const seaLevel = (cfg.ocean && typeof cfg.ocean.seaLevel === 'number' && cfg.ocean.seaLevel !== null)
+    ? cfg.ocean.seaLevel
+    : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number'
+      ? ctx.cfg.layers.global.seaLevel
+      : 0.2);
+  const coastFalloff = typeof detailCfg.coastDampDistance === 'number' ? detailCfg.coastDampDistance : 0.08;
+  const coastPower = typeof detailCfg.coastDampPower === 'number' ? detailCfg.coastDampPower : 1.5;
+  const edgePower = typeof detailCfg.plateEdgeDampPower === 'number' ? detailCfg.plateEdgeDampPower : 1.2;
+  const coastDist = Math.min(1, Math.abs(maskPostWarp - seaLevel) / Math.max(1e-4, coastFalloff));
+  const coastWeight = 1 - Math.pow(clamp01(coastDist), coastPower);
+  const edgeWeight = Math.pow(clamp01(plateField.edgeDistanceNormalized), edgePower);
+  const detailContribution = detailSample * detailAmp * coastWeight * edgeWeight;
+
+  const combineCfg = cfg.combine || {};
+  const maskWeight = typeof combineCfg.maskWeight === 'number' ? combineCfg.maskWeight : 0.65;
+  const ridgeWeight = typeof combineCfg.ridgeWeight === 'number' ? combineCfg.ridgeWeight : 0.2;
+  const detailWeight = typeof combineCfg.detailWeight === 'number' ? combineCfg.detailWeight : 0.15;
+  const combineBias = typeof combineCfg.bias === 'number' ? combineCfg.bias : 0;
+
+  const maskRaw = maskPostWarp * 2 - 1;
+  let rawElevation = maskRaw * maskWeight + ridgeContribution * ridgeWeight + detailContribution * detailWeight + combineBias;
+  const normalization = cfg.normalization || {};
+  const minRaw = typeof normalization.min === 'number' ? normalization.min : -1;
+  const maxRaw = typeof normalization.max === 'number' ? normalization.max : 1;
+  if (normalization.clamp !== false) rawElevation = clamp(rawElevation, minRaw, maxRaw);
+  let normalizedElevation = (rawElevation - minRaw) / Math.max(1e-9, (maxRaw - minRaw));
+  normalizedElevation = clamp01(normalizedElevation);
+  if (typeof combineCfg.postExponent === 'number' && combineCfg.postExponent !== 1) {
+    normalizedElevation = Math.pow(normalizedElevation, combineCfg.postExponent);
+  }
+
+  const depthScale = (cfg.ocean && typeof cfg.ocean.depthScale === 'number') ? cfg.ocean.depthScale : 1.5;
+  const trenchDepthMult = (cfg.ocean && typeof cfg.ocean.trenchDepthMultiplier === 'number') ? cfg.ocean.trenchDepthMultiplier : 1.4;
+  let oceanDepth = Math.max(0, seaLevel - normalizedElevation) * depthScale;
+  if (boundarySign < 0) oceanDepth *= trenchDepthMult;
+
+  const depthBand = normalizedElevation <= seaLevel ? (normalizedElevation < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
+
+  const macroData = {
+    maskPreWarp: maskCfg.recordPreWarp ? maskPreWarp : undefined,
+    maskPostWarp,
+    warped: { x: warpedX, y: warpedY },
+    slowWarp,
+    fastWarp,
+    plate: {
+      id: plateField.plateId,
+      neighborId: plateField.neighborPlateId,
+      edgeDistance: plateField.edgeDistance,
+      edgeDistanceNormalized: plateField.edgeDistanceNormalized,
+      normal: plateField.normal,
+    },
+    ridge: {
+      strength: ridgeStrength,
+      contribution: ridgeContribution,
+      sign: boundarySign,
+    },
+    detail: {
+      contribution: detailContribution,
+      coastWeight,
+      edgeWeight,
+    },
+    rawElevation,
+    normalizedElevation,
+    oceanDepth,
+    seaLevel,
+  };
+  cache.macro = macroData;
 
   return {
-    elevation: { raw: h, normalized: h },
-    bathymetry: { depthBand, seaLevel },
-    slope: 0.0,
-    plate: { id: plateId, edgeDistance }
+    elevation: { raw: normalizedElevation, normalized: normalizedElevation },
+    bathymetry: { depthBand, seaLevel, oceanDepth },
+    slope: 0,
+    plate: { id: plateField.plateId, edgeDistance: plateField.edgeDistanceNormalized },
+    macroElevation: normalizedElevation,
+    ridgeStrength: ridgeStrength,
+    oceanDepth,
+    macro: macroData,
   };
 }
 
-// fallback deterministic shallow pattern when layer is disabled
 function fallback(ctx) {
-  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
-  const plateSize = cfg.plateCellSize || 256;
-  // cheap deterministic pattern
-  const v = Math.abs(Math.sin((ctx.x * 12.9898 + ctx.z * 78.233) % 1));
-  const base = Math.max(0, Math.min(1, v));
-  const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
-  const shallowBandFallback = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
-  const h = base * shallowBandFallback * 0.9; // keep fallback under shallowBand mostly
-  const isWater = h <= seaLevel;
-  const depthBand = isWater ? 'shallow' : 'land';
-  const plateId = Math.abs(Math.floor((ctx.x + ctx.z) / plateSize));
-  const edgeDistance = Math.abs((ctx.x + ctx.z) % plateSize - (plateSize / 2)) / plateSize;
+  const coord = ensureCoord(ctx);
+  const base = Math.abs(Math.sin((coord.x * 0.01) + (coord.y * 0.012)) * 0.5 + 0.5);
+  const seaLevel = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+    ? ctx.cfg.layers.global.seaLevel
+    : 0.2;
+  const h = clamp01(base * 0.6);
+  const oceanDepth = Math.max(0, seaLevel - h);
+  const depthBand = h <= seaLevel ? (h < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
   return {
     elevation: { raw: h, normalized: h },
-    bathymetry: { depthBand, seaLevel },
-    slope: 0.0,
-    plate: { id: plateId, edgeDistance }
+    bathymetry: { depthBand, seaLevel, oceanDepth },
+    slope: 0,
+    plate: { id: hashString(ctx.seed || 'seed', coord.x, coord.y) & 0x7fffffff, edgeDistance: 1 },
+    macroElevation: h,
+    ridgeStrength: 0,
+    oceanDepth,
+    macro: {
+      maskPostWarp: h,
+      plate: { id: hashString(ctx.seed || 'seed', coord.x, coord.y) & 0x7fffffff, edgeDistanceNormalized: 1 },
+      ridge: { strength: 0, contribution: 0 },
+      detail: { contribution: 0, coastWeight: 0, edgeWeight: 0 },
+      rawElevation: h,
+      normalizedElevation: h,
+      oceanDepth,
+      seaLevel,
+    }
   };
 }
 
