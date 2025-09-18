@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG = {
   // Optional additional renderer-side exaggeration factor historically
   // used by clients; keep here for centralized tuning.
   heightMagnitude: 1,
+  layersOrder: [ 'continents', 'plates_and_mountains', 'biomes', 'specials', 'visual', 'clutter' ],
   layers: {
     // Global tuning values that affect multiple layers (authoritative sea level)
     global: {

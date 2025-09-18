@@ -4,7 +4,7 @@
 // returns semantic attributes that the palette interpreter will convert into
 // concrete colors later in the merge step.
 
-import { fbm as fbmFactory, valueNoise } from '../noiseUtils.js';
+import { fbm as fbmFactory, valueNoise } from '../utils/noise.js';
 import { makeSimplex } from '../noiseFactory.js';
 
 // Major biome candidates used for semantic classification. Keep this list

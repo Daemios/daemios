@@ -4,7 +4,7 @@ import { SeededRNG as ClientSeeded } from '../../client/src/3d2/domain/seeded.js
 import { fbm as clientFbm, domainWarp as clientWarp, voronoi as clientVor } from '../../client/src/3d2/domain/world/noiseUtils.js';
 
 import { SeededRNG as SharedSeeded, create as sharedCreate } from '../lib/worldgen/rng.js';
-import { fbm as sharedFbm, domainWarp as sharedWarp, voronoi as sharedVor } from '../lib/worldgen/noiseUtils.js';
+import { fbm as sharedFbm, domainWarp as sharedWarp, voronoi as sharedVor } from '../lib/worldgen/utils/noise.js';
 
 describe('noise parity between client and shared', () => {
   it('SeededRNG.next sequence matches expected shape (not exact across algos)', () => {

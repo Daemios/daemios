@@ -1,7 +1,7 @@
 // shared/lib/worldgen/layers/layer04_specials.js
 // Layer 4: special/rare regions
 
-import { fbm as fbmFactory } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../utils/noise.js';
 import { makeSimplex } from '../noiseFactory.js';
 
 const SPECIALS = [

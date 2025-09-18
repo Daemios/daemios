@@ -11,7 +11,7 @@
 
 // (OLD) Layer 1: macro continents pass using a Voronoi/plate mask blended with low-frequency FBM
 
-import { fbm as fbmFactory } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../utils/noise.js';
 import { makeSimplex } from '../noiseFactory.js';
 
 function seedStringToNumber(s) {
@@ -92,103 +92,9 @@ function computeTilePart(ctx) {
   const seaLevel = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
     ? ctx.cfg.layers.global.seaLevel
     : (typeof cfg.seaLevel === 'number' ? cfg.seaLevel : 0.52);
-  // shallowBand is the fixed top of the water gradient (0..1). Use a small
-  // constant so that changing seaLevel only affects classification thresholds
-  // and palette blending, not absolute tile heights.
-  const shallowBand = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
+  // Re-export continents module for backward compatibility while the
+  // refactor splits mountainous logic into a dedicated module.
+  import { computeTilePart, fallback } from './continents.js';
+  export { computeTilePart, fallback };
   const landMax = (typeof cfg.landMax === 'number') ? cfg.landMax : 0.55; // cap for this layer
-  const threshold = (typeof cfg.threshold === 'number') ? cfg.threshold : 0.46; // start of land band
-  // minimum clamp above sea level for land elevations (in normalized 0..1 space)
-  const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.05;
-
-  let h = 0;
-  if (blended <= threshold) {
-    // Apply an optional dampening function so low macro values trend
-    // strongly toward the minimum/base elevation. This produces
-    // gentler slopes out of the seafloor instead of uniformly raised
-    // ocean floors when the macro FBM skews high.
-    const dampThreshold = (typeof cfg.dampThreshold === 'number') ? cfg.dampThreshold : 0.25;
-    const dampPower = (typeof cfg.dampPower === 'number') ? cfg.dampPower : 2.5;
-    const dampScale = (typeof cfg.dampScale === 'number') ? cfg.dampScale : 1.0;
-
-  if (blended <= dampThreshold) {
-      // Strong attenuation near the minimum: normalized t in [0,1]
-      const t = blended / Math.max(1e-9, dampThreshold);
-      const atten = Math.pow(t, dampPower);
-      // Map attenuated value into ocean band (0..seaLevel), scaled by dampScale
-  h = atten * shallowBand * dampScale;
-    } else {
-      // For intermediate ocean values between dampThreshold and threshold,
-      // interpolate smoothly from the attenuated dampThreshold output up to
-      // the previous linear mapping at `threshold` so slopes aren't abrupt.
-      const t = (blended - dampThreshold) / Math.max(1e-9, threshold - dampThreshold);
-      const dampedBase = Math.pow(dampThreshold / Math.max(1e-9, dampThreshold), dampPower) * shallowBand * dampScale; // effectively 0 but kept for clarity
-      const linearAtThreshold = shallowBand; // top of shallow/ocean band
-      // lerp between dampedBase and linearAtThreshold
-      h = dampedBase + t * (linearAtThreshold - dampedBase);
-    }
-  } else {
-    const t = (blended - threshold) / (1 - threshold);
-    const s = smoothstep(t);
-    // Map land portion into shallowBand..landMax so heights remain in a
-    // consistent scale regardless of seaLevel value.
-    h = shallowBand + s * (landMax - shallowBand);
-  }
-
-  h = Math.max(0, Math.min(1, h));
-
-  // If this sample is classified as land, ensure it is at least `clampAboveSea`
-  // above the configured sea level. This prevents tiny islands or near-sea
-  // elevations from sitting extremely close to water.
-  const isWater = h <= seaLevel;
-  if (!isWater) {
-    // Enforce a maximum cap above sea level: do not allow this layer to
-    // exceed seaLevel + clampAboveSea. This ensures layer1 remains a
-    // conservative macro pass and finer layers produce higher features.
-    const maxLand = Math.min(1, seaLevel + clampAboveSea);
-    if (h > maxLand) h = maxLand;
-  }
-
-  // clamp again to be safe
-  h = Math.max(0, Math.min(1, h));
-  const depthBand = isWater ? (h < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
-  const plateId = null;
-  const edgeDistance = 1;
-
-  return {
-    elevation: { raw: h, normalized: h },
-    bathymetry: { depthBand, seaLevel },
-    slope: 0.0,
-    plate: { id: plateId, edgeDistance }
-  };
 }
-
-// fallback deterministic shallow pattern when layer is disabled
-function fallback(ctx) {
-  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
-  const plateSize = cfg.plateCellSize || 256;
-  // cheap deterministic pattern
-  const v = Math.abs(Math.sin((ctx.x * 12.9898 + ctx.z * 78.233) % 1));
-  const base = Math.max(0, Math.min(1, v));
-  const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel : 0.52;
-  const shallowBandFallback = (typeof cfg.shallowBand === 'number') ? cfg.shallowBand : 0.26;
-  const h = base * shallowBandFallback * 0.9; // keep fallback under shallowBand mostly
-  const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.05;
-  let hClamped = Math.max(0, Math.min(1, h));
-  const isWater = hClamped <= seaLevel;
-  if (!isWater) {
-    const maxLand = Math.min(1, seaLevel + clampAboveSea);
-    if (hClamped > maxLand) hClamped = maxLand;
-  }
-  const depthBand = isWater ? 'shallow' : 'land';
-  const plateId = Math.abs(Math.floor((ctx.x + ctx.z) / plateSize));
-  const edgeDistance = Math.abs((ctx.x + ctx.z) % plateSize - (plateSize / 2)) / plateSize;
-  return {
-    elevation: { raw: hClamped, normalized: hClamped },
-    bathymetry: { depthBand, seaLevel },
-    slope: 0.0,
-    plate: { id: plateId, edgeDistance }
-  };
-}
-
-export { computeTilePart, fallback };

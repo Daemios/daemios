@@ -1,7 +1,7 @@
 // shared/lib/worldgen/layers/layer02_regions.js
 // Layer 2: mesoscale regions and archetype assignment
 
-import { fbm as fbmFactory } from '../noiseUtils.js';
+import { fbm as fbmFactory } from '../utils/noise.js';
 import { makeSimplex } from '../noiseFactory.js';
 
 // Mesoscale archetypes and their canonical elevation/relief biases.

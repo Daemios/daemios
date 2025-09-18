@@ -6,8 +6,7 @@
 // which returns a palette object { id, topColor, sideColor, slopeTint }.
 
 import { lerpHex } from './utils/colorHelpers.js';
-
-function smoothstep(t) { return t * t * (3 - 2 * t); }
+import { smoothstep } from './utils/general.js';
 
 function defaultInterpreter(tile, parts, ctx) {
   const base = (parts.layer0 && parts.layer0.palette) ? Object.assign({}, parts.layer0.palette) : { id: 'default', topColor: '#8ccf72', sideColor: '#6aa24f', slopeTint: '#7fbf60' };
