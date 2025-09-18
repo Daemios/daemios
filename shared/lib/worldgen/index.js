@@ -7,11 +7,11 @@ import { create as createRng } from './utils/rng.js';
 import * as noise from './utils/noise.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
 import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/continents.js';
-import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
-import { computeTilePart as layer03Compute } from './layers/layer03_biomes.js';
-import { computeTilePart as layer03_5Compute } from './layers/layer03_5_clutter.js';
-import { computeTilePart as layer04Compute } from './layers/layer04_specials.js';
-import { computeTilePart as layer05Compute } from './layers/layer05_visual.js';
+// regions layer (layer02) removed by refactor
+import { computeTilePart as layer03Compute } from './layers/biomes.js';
+import { computeTilePart as layer03_5Compute } from './layers/clutter.js';
+import { computeTilePart as layer04Compute } from './layers/specials.js';
+// visual layer removed by refactor (layer05)
 import { computeTilePart as platesCompute } from './layers/plates_and_mountains.js';
 import { mergeParts } from './merge.js';
 
@@ -68,9 +68,8 @@ function generateTile(seed, coords = {}, cfgPartial) {
     biomes: 'layer3',
     clutter: 'layer3_5',
     specials: 'layer4',
-    visual: 'layer5',
     palette: 'layer0',
-    regions: 'layer2'
+    // regions layer removed from friendly names — layer02 remains if needed
   };
   // get configured friendly order (fallback to DEFAULT_CONFIG.layersOrder)
   const friendlyOrder = (cfg && Array.isArray(cfg.layersOrder) && cfg.layersOrder.length) ? cfg.layersOrder : DEFAULT_CONFIG.layersOrder || [];
@@ -82,7 +81,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
     if (!orderedKeys.includes(k)) orderedKeys.push(k);
   }
   // ensure fallback order covers all numeric layers if friendly order omitted some
-  const ensureKeys = ['layer0','layer1','layer2','layer3','layer3_5','layer4','layer5'];
+  const ensureKeys = ['layer0','layer1','layer2','layer3','layer3_5','layer4'];
   for (const k of ensureKeys) if (!orderedKeys.includes(k)) orderedKeys.push(k);
 
   // Execute layers in configured order using the computed orderedKeys list.
@@ -119,9 +118,8 @@ function generateTile(seed, coords = {}, cfgPartial) {
           }
           break;
           break;
-        case 'layer2':
-          if (typeof layer02Compute === 'function') parts.layer2 = layer02Compute(ctx);
-          break;
+        // layer2 (regions) removed
+        
         case 'layer3':
           if (typeof layer03Compute === 'function') parts.layer3 = layer03Compute(ctx);
           break;
@@ -131,9 +129,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
         case 'layer4':
           if (typeof layer04Compute === 'function') parts.layer4 = layer04Compute(ctx);
           break;
-        case 'layer5':
-          if (typeof layer05Compute === 'function') parts.layer5 = layer05Compute(ctx);
-          break;
+        // layer5 (visual) removed
         default:
           // unsupported/internal key — ignore
           break;

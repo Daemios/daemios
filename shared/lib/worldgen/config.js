@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG = {
   // Optional additional renderer-side exaggeration factor historically
   // used by clients; keep here for centralized tuning.
   heightMagnitude: 1,
-  layersOrder: [ 'continents', 'plates_and_mountains', 'biomes', 'specials', 'visual', 'clutter' ],
+  layersOrder: [ 'continents', 'plates_and_mountains', 'biomes', 'specials', 'clutter' ],
   layers: {
     // Global tuning values that affect multiple layers (authoritative sea level)
     global: {
@@ -33,14 +33,7 @@ export const DEFAULT_CONFIG = {
       },
       detail: { freq: 0.6, amp: 0.15 }
     },
-    layer2: {
-      regionNoiseScale: 0.02,
-      maxInlandDistance: 100,
-      amplitude: 0.1,
-      frequency: 0.02,
-      octaves: 3,
-      roughnessScale: 0.5
-    },
+    // layer2 (regions) removed by refactor
     layer3: {
       ecotoneThreshold: 0.25
     },
@@ -50,10 +43,7 @@ export const DEFAULT_CONFIG = {
     layer4: {
       rarityMultiplier: 1.0
     },
-    layer5: {
-      mountainExaggeration: 1.5,
-      snowlineBias: -0.08
-    }
+    // layer5 (visual) removed by refactor
   },
   visual_style: {
     global_saturation: 1.15,
