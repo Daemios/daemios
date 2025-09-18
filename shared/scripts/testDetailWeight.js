@@ -1,4 +1,4 @@
-import { computeTilePart } from '../lib/worldgen/layers/layer01_continents.js';
+import { computeTilePart } from '../lib/worldgen/layers/continents.js';
 
 function sample(seed, qStart, qEnd, rStart, rEnd, cfg){
   for (let q=qStart;q<=qEnd;q++){

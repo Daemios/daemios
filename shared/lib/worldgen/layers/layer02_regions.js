@@ -2,7 +2,7 @@
 // Layer 2: mesoscale regions and archetype assignment
 
 import { fbm as fbmFactory } from '../utils/noise.js';
-import { makeSimplex } from '../noiseFactory.js';
+import { makeSimplex } from '../utils/noise.js';
 
 // Mesoscale archetypes and their canonical elevation/relief biases.
 const ARCHETYPES = [

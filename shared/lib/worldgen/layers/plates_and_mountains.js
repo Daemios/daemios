@@ -10,7 +10,8 @@
  *   contribution that other layers can build upon.
  */
 import { fbm as fbmFactory } from '../utils/noise.js';
-import { seedStringToNumber, findNearestPlate, makeSimplex } from '../utils/general.js';
+import { seedStringToNumber, findNearestPlate } from '../utils/general.js';
+import { makeSimplex } from '../utils/noise.js';
 
 function computeTilePart(ctx) {
   const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};

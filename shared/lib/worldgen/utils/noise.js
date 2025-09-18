@@ -3,7 +3,7 @@
 // Exposes fbm(noise, ...), domainWarp(noise, x,y,opts), and voronoi.
 
 // makeSimplex: createPerTile seeded noise factory (moved from noiseFactory.js)
-import { SeededRNG } from '../rng.js';
+import { SeededRNG } from './rng.js';
 import { createNoise2D } from 'simplex-noise';
 
 export function makeSimplex(seed, x, z) {

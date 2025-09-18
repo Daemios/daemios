@@ -1,5 +1,5 @@
 import { fbm as fbmFactory, domainWarp } from '../lib/worldgen/utils/noise.js';
-import { makeSimplex } from '../lib/worldgen/noiseFactory.js';
+import { makeSimplex } from '../lib/worldgen/utils/noise.js';
 import { axialToXZ } from '../../client/src/3d2/config/layout.js';
 import { getDefaultConfig } from '../lib/worldgen/index.js';
 

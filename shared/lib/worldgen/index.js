@@ -3,10 +3,10 @@
 // Minimal skeleton: calls layer modules and merges partial outputs.
 
 import { DEFAULT_CONFIG } from './config.js';
-import { create as createRng } from './rng.js';
+import { create as createRng } from './utils/rng.js';
 import * as noise from './utils/noise.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
-import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/layer01_continents.js';
+import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/continents.js';
 import { computeTilePart as layer02Compute } from './layers/layer02_regions.js';
 import { computeTilePart as layer03Compute } from './layers/layer03_biomes.js';
 import { computeTilePart as layer03_5Compute } from './layers/layer03_5_clutter.js';

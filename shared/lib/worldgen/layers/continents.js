@@ -3,7 +3,7 @@
  * Responsible for macro continent/ocean shape and shallow bathymetry.
  */
 import { fbm as fbmFactory } from '../utils/noise.js';
-import { makeSimplex } from '../noiseFactory.js';
+import { makeSimplex } from '../utils/noise.js';
 import { seedStringToNumber, pseudoRandom, smoothstep, findNearestPlate } from '../utils/general.js';
 
 function computeTilePart(ctx) {

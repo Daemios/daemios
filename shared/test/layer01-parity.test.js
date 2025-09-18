@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { generateTile as sharedGenerate } from '../lib/worldgen/index.js';
-import { computeTilePart as sharedCompute } from '../lib/worldgen/layers/layer01_continents.js';
+import { computeTilePart as sharedCompute } from '../lib/worldgen/layers/continents.js';
 
 import { getDefaultConfig } from '../lib/worldgen/index.js';
 

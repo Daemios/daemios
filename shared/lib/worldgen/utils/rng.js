@@ -1,4 +1,4 @@
-// shared/lib/worldgen/rng.js
+// shared/lib/worldgen/utils/rng.js
 // Deterministic RNG helpers used by worldgen. We export two primitives:
 // - SeededRNG: a small LCG that matches the client implementation (useful as a
 //   random source for SimplexNoise or other libraries that expect a RNG).

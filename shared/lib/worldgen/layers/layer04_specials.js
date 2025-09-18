@@ -2,7 +2,7 @@
 // Layer 4: special/rare regions
 
 import { fbm as fbmFactory } from '../utils/noise.js';
-import { makeSimplex } from '../noiseFactory.js';
+import { makeSimplex } from '../utils/noise.js';
 
 const SPECIALS = [
   'frozen_jungle',

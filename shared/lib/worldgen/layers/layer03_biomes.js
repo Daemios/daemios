@@ -5,7 +5,7 @@
 // concrete colors later in the merge step.
 
 import { fbm as fbmFactory, valueNoise } from '../utils/noise.js';
-import { makeSimplex } from '../noiseFactory.js';
+import { makeSimplex } from '../utils/noise.js';
 
 // Major biome candidates used for semantic classification. Keep this list
 // intentionally small; downstream palette interpreter will map these to
