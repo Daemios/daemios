@@ -11,6 +11,11 @@ export const DEFAULT_CONFIG = {
   // Global multiplier applied to the final elevation (rendered height).
   // Final world units = normalized * maxHeight * scale
   scale: 1,
+  // Minimum normalized elevation that every tile starts with before any
+  // layer contributions are applied. Layer 1 paints additional elevation on
+  // top of this baseline so that continents appear to rise out of the sea
+  // floor instead of pulling the ocean downward.
+  baseElevation: 0.01,
   // Optional additional renderer-side exaggeration factor historically
   // used by clients; keep here for centralized tuning.
   heightMagnitude: 1,
