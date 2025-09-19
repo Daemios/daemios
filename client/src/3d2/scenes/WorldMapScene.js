@@ -585,7 +585,7 @@ export class WorldMapScene {
             // selection can be either a raw entity or an instance-aware detail
             // Instance detail shape: { object, instanceId, pos }
             if (sel && typeof sel === 'object' && typeof sel.instanceId === 'number') {
-              try {
+                try {
                 const inst = sel.instanceId;
                 const obj = sel.object;
                 // attempt to use chunkManager.neighborhood._positions mapping if available
@@ -606,6 +606,26 @@ export class WorldMapScene {
                   // ignore mapping errors
                 }
 
+                // Determine axial coordinates for teleport; prefer mapped.q/r if available
+                let q = null; let r = null;
+                if (mapped && typeof mapped.q === 'number' && typeof mapped.r === 'number') {
+                  q = mapped.q; r = mapped.r;
+                } else if (pos) {
+                  try {
+                    const a = XZToAxial(pos.x, pos.z, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+                    q = a.q; r = a.r;
+                  } catch (e) { /* ignore */ }
+                }
+
+                // Teleport to tile if we have axial coords
+                if (q != null && r != null) {
+                  try {
+                    // fire-and-forget teleport so UI remains responsive
+                    this._teleportTo && this._teleportTo(q, r);
+                  } catch (e) { /* ignore */ }
+                }
+
+                // keep the legacy logging for diagnostics
                 let tile = null;
                 if (pos && this._generator) {
                   // prefer getByXZ when available
@@ -1187,6 +1207,55 @@ export class WorldMapScene {
         this._controls.target.set(x, 0, z);
         this._controls.update();
       }
+    }
+  }
+
+  // Teleport helper: instantly move camera to a tile (axial q,r), update
+  // chunk manager center and trigger a rebuild so new chunks are rendered.
+  async _teleportTo(q, r) {
+    try {
+      if (typeof q !== 'number' || typeof r !== 'number') return;
+      // compute world x,z for camera placement
+      const { x, z } = axialToXZ(q, r, { layoutRadius: this._layoutRadius || 1, spacingFactor: 1 });
+      // Position camera above target and look at it
+      if (this.camera) {
+        // preserve current height
+        const h = this.camera.position && typeof this.camera.position.y === 'number' ? this.camera.position.y : 50;
+        this.camera.position.set(x, h, z + 30);
+        this.camera.lookAt(x, 0, z);
+        if (this._controls && typeof this._controls.target !== 'undefined') {
+          this._controls.target.set(x, 0, z);
+          try { this._controls.update(); } catch (e) { /* ignore */ }
+        }
+      }
+
+      // If chunk manager exists, compute corresponding chunk coords and set center
+      try {
+        if (this.chunkManager) {
+          const cols = this.chunkManager.chunkCols || 8;
+          const rows = this.chunkManager.chunkRows || 8;
+          // Convert axial q,r to offset col,row to compute chunk indices
+          const col = q;
+          const row = r + Math.floor(col / 2);
+          const chunkX = Math.floor(col / cols);
+          const chunkY = Math.floor(row / rows);
+          // set center and rebuild neighborhood
+          try { this.chunkManager.setCenterChunk && this.chunkManager.setCenterChunk(chunkX, chunkY); } catch (e) { /* ignore */ }
+          // Some managers store centerChunk property directly
+          try { if (this.chunkManager.centerChunk) { this.chunkManager.centerChunk = { x: chunkX, y: chunkY }; } } catch (e) { /* ignore */ }
+          // rebuild neighborhood (async)
+          try {
+            const res = this.chunkManager.build && this.chunkManager.build(this._hexModel && this._hexModel.topGeom, this._hexModel && this._hexModel.sideGeom);
+            if (res && res.then) await res;
+          } catch (e) { /* ignore build errors */ }
+        }
+      } catch (e) { /* ignore chunk manager errors */ }
+
+      // update water plane and clutter to match new neighborhood
+      try { this._updateWaterHeightFromNeighborhood && this._updateWaterHeightFromNeighborhood(); } catch (e) { /* ignore */ }
+      try { if (this.commitClutterForNeighborhood) this.commitClutterForNeighborhood(); } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.debug('WorldMapScene: _teleportTo failed', e);
     }
   }
 
