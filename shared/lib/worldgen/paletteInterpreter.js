@@ -1,6 +1,6 @@
 // shared/lib/worldgen/paletteInterpreter.js
-// Compute a canonical palette from semantic layer outputs (layer0 defaults,
-// layer3 biome attributes, layer2 modifiers, and layer5 visual hints).
+// Compute a canonical palette from semantic layer outputs (palette defaults,
+// biomes attributes, mesoscale modifiers, and visual hints).
 
 // This module exposes a single function `interpretPalette(tile, parts, ctx)`
 // which returns a palette object { id, topColor, sideColor, slopeTint }.
@@ -9,9 +9,9 @@ import { lerpHex } from './utils/colorHelpers.js';
 import { smoothstep } from './utils/general.js';
 
 function defaultInterpreter(tile, parts, ctx) {
-  const base = (parts.layer0 && parts.layer0.palette) ? Object.assign({}, parts.layer0.palette) : { id: 'default', topColor: '#8ccf72', sideColor: '#6aa24f', slopeTint: '#7fbf60' };
+  const base = (parts.palette && parts.palette.palette) ? Object.assign({}, parts.palette.palette) : { id: 'default', topColor: '#8ccf72', sideColor: '#6aa24f', slopeTint: '#7fbf60' };
 
-  const biome = parts.layer3 && parts.layer3.biome ? parts.layer3.biome : null;
+  const biome = parts.biomes && parts.biomes.biome ? parts.biomes.biome : null;
   let top = base.topColor;
   let side = base.sideColor;
   let slopeTint = base.slopeTint || base.sideColor;
@@ -66,9 +66,9 @@ function defaultInterpreter(tile, parts, ctx) {
     side = lerpHex(majorAnchor.side, secondaryAnchor.side, blendFactor);
   }
 
-  // apply much smaller modifiers from layer2 archetypeBias if present, only on land
-  if (parts.layer2 && parts.layer2.archetypeBias && typeof parts.layer2.archetypeBias.elevation === 'number') {
-    const bias = parts.layer2.archetypeBias.elevation;
+  // apply much smaller modifiers from plates_and_mountains archetypeBias if present, only on land
+  if (parts.plates_and_mountains && parts.plates_and_mountains.archetypeBias && typeof parts.plates_and_mountains.archetypeBias.elevation === 'number') {
+    const bias = parts.plates_and_mountains.archetypeBias.elevation;
     // allow only small nudges toward sand for positive elevation bias on land
     if (bias > 0.02) {
       top = lerpHex(top, '#e3d3b8', Math.min(0.06, bias * 0.15));

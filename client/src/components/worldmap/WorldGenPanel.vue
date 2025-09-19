@@ -33,7 +33,7 @@
     <div style="display: grid; grid-template-columns: 1fr; gap: 8px">
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
-          v-model="layers.layer0"
+          v-model="layers.palette"
           type="checkbox"
           @change="applyImmediate"
         />
@@ -42,7 +42,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
-          v-model="layers.layer1"
+          v-model="layers.continents"
           type="checkbox"
           @change="applyImmediate"
         />
@@ -53,7 +53,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
-          v-model="layers.layer3"
+          v-model="layers.biomes"
           type="checkbox"
           @change="applyImmediate"
         />
@@ -62,7 +62,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
-          v-model="layers.layer3_5"
+          v-model="layers.clutter"
           type="checkbox"
           @change="applyImmediate"
         />
@@ -71,7 +71,7 @@
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
-          v-model="layers.layer4"
+          v-model="layers.specials"
           type="checkbox"
           @change="applyImmediate"
         />
@@ -140,21 +140,20 @@ export default {
       saved.generation && saved.generation.layers
         ? saved.generation.layers
         : {};
+    // Support both legacy layerN keys and canonical keys in saved settings
+    const pick = (kCanonical, kLegacy, def = true) => {
+      if (typeof savedLayers[kCanonical] === 'boolean') return savedLayers[kCanonical];
+      if (typeof savedLayers[kLegacy] === 'boolean') return savedLayers[kLegacy];
+      return def;
+    };
     return {
       settings,
       layers: {
-        layer0:
-          typeof savedLayers.layer0 === "boolean" ? savedLayers.layer0 : true,
-        layer1:
-          typeof savedLayers.layer1 === "boolean" ? savedLayers.layer1 : true,
-        layer3:
-          typeof savedLayers.layer3 === "boolean" ? savedLayers.layer3 : true,
-        layer3_5:
-          typeof savedLayers.layer3_5 === "boolean"
-            ? savedLayers.layer3_5
-            : true,
-        layer4:
-          typeof savedLayers.layer4 === "boolean" ? savedLayers.layer4 : true,
+        palette: pick('palette','layer0', true),
+        continents: pick('continents','layer1', true),
+        biomes: pick('biomes','layer3', true),
+        clutter: pick('clutter','layer3_5', true),
+        specials: pick('specials','layer4', true),
       },
     };
   },
@@ -163,6 +162,7 @@ export default {
       const payload = { layers: { ...this.layers } };
       try {
         if (this.settings && typeof this.settings.mergeAtPath === "function") {
+          // Persist canonical keys
           this.settings.mergeAtPath({
             path: "worldMap",
             value: { generation: { layers: { ...this.layers } } },
@@ -182,11 +182,11 @@ export default {
     },
     reset() {
       this.layers = {
-        layer0: true,
-        layer1: true,
-        layer3: true,
-        layer3_5: true,
-        layer4: true,
+          palette: true,
+          continents: true,
+          biomes: true,
+          clutter: true,
+          specials: true,
       };
       this.apply();
     },

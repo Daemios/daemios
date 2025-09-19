@@ -4,10 +4,10 @@
 // the orchestrator can import it and avoid duplicating mappings.
 
 export const LAYER_REGISTRY = {
-  palette: { key: 'layer0', desc: 'Palette and creative constraints' },
-  continents: { key: 'layer1', desc: 'Continents and bathymetry' },
-  plates_and_mountains: { key: 'layer1', desc: 'Plates and mountains (mesoscale)' },
-  biomes: { key: 'layer3', desc: 'Semantic biome attributes' },
-  clutter: { key: 'layer3_5', desc: 'Ground clutter hints' },
-  specials: { key: 'layer4', desc: 'Special/rare regions' }
+  palette: { key: 'palette', desc: 'Palette and creative constraints' },
+  continents: { key: 'continents', desc: 'Continents and bathymetry' },
+  plates_and_mountains: { key: 'plates_and_mountains', desc: 'Plates and mountains (mesoscale)' },
+  biomes: { key: 'biomes', desc: 'Semantic biome attributes' },
+  clutter: { key: 'clutter', desc: 'Ground clutter hints' },
+  specials: { key: 'specials', desc: 'Special/rare regions' }
 };

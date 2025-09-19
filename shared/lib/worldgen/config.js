@@ -29,13 +29,7 @@ export const DEFAULT_CONFIG = {
     clutter: clutterCfg,
     specials: specialsCfg,
 
-    // legacy aliases for backward compatibility (many modules still read layer0/1/etc.)
-    layer0: paletteCfg,
-    layer1: continentsCfg,
-    layer2: platesAndMountainsCfg,
-    layer3: biomesCfg,
-    layer3_5: clutterCfg,
-    layer4: specialsCfg
+  // legacy aliases removed — use canonical file-name keys (e.g. 'continents')
   },
   visual_style: {
     global_saturation: 1.15,

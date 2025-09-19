@@ -13,11 +13,11 @@ function mergeParts(base, parts, ctx) {
   tile.biome = { major: 'plains' };
   tile.flags = [];
 
-  // apply layer0
-  if (parts.layer0 && parts.layer0.palette) tile.palette = Object.assign({}, tile.palette, parts.layer0.palette);
+  // apply palette part
+  if (parts.palette && parts.palette.palette) tile.palette = Object.assign({}, tile.palette, parts.palette.palette);
   // Additively apply elevation contributions from all layers. This ensures no
   // single layer overwrites previous elevation — every layer can add to height.
-  const elevLayers = ['layer1','layer2','layer3','layer3_5','layer4'];
+  const elevLayers = ['continents','plates_and_mountains','biomes','clutter','specials'];
   for (const ln of elevLayers) {
     const part = parts[ln];
     if (!part) continue;
@@ -28,15 +28,15 @@ function mergeParts(base, parts, ctx) {
         tile.elevation.raw += val;
       }
     }
-    // merge other useful fields (bathymetry, slope, plate) from layer1 if present
-    if (ln === 'layer1' && part.bathymetry) tile.bathymetry = Object.assign({}, part.bathymetry);
+    // merge other useful fields (bathymetry, slope, plate) from continents if present
+    if (ln === 'continents' && part.bathymetry) tile.bathymetry = Object.assign({}, part.bathymetry);
     if (part.slope !== undefined) tile.slope = part.slope;
     if (part.plate) tile.plate = Object.assign({}, part.plate);
   }
 
   // Preserve the accumulated raw elevation (do NOT clamp here). Some
   // subsequent layers are expected to increase absolute height beyond the
-  // initial layer1 cap. Keep a clamped normalized value for classification
+  // initial continents cap. Keep a clamped normalized value for classification
   // and palette decisions, but retain the unclamped raw as the authoritative
   // physical height before visual scaling.
   const rawUnclamped = tile.elevation.raw;
@@ -52,10 +52,10 @@ function mergeParts(base, parts, ctx) {
       : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
         ? ctx.cfg.layers.global.seaLevel
         : 0.22;
-    // prefer canonical continents config but accept legacy layer1
+    // prefer canonical continents config
     const clampAbove = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.continents && typeof ctx.cfg.layers.continents.clampAboveSea === 'number')
       ? ctx.cfg.layers.continents.clampAboveSea
-      : ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1 && typeof ctx.cfg.layers.layer1.clampAboveSea === 'number') ? ctx.cfg.layers.layer1.clampAboveSea : null);
+      : null;
     if (clampAbove !== null && normalizedUnclamped > seaLevel) {
       const clampLimit = Math.max(0, Math.min(1, seaLevel + clampAbove));
       normalized = Math.min(normalizedUnclamped, clampLimit);

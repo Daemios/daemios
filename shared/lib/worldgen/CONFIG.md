@@ -27,15 +27,15 @@ Fields
 - layers: object
 
   - global.seaLevel: number — authoritative sea level used by bathymetry and palette decisions.
-  - layer0: palette defaults (paletteId: string)
-  - layer1: continents and plates tuning
-    - clampAboveSea: number — maximum normalized elevation above sea level allowed for layer1 contributions (clamped at merge time).
+  - palette: palette defaults (paletteId: string)
+  - continents: continents tuning
+    - clampAboveSea: number — maximum normalized elevation above sea level allowed for continents contributions (clamped at merge time).
     - continentScale: number — multiplier used by continent samplers.
     - warp: object — domain-warp tuning for slow/fast bands.
     - detail: object — small-scale detail tuning.
-  - layer3: biome tuning (ecotoneThreshold etc.)
-  - layer3_5: clutter tuning (clutterDensity etc.)
-  - layer4: special regions tuning (rarityMultiplier etc.)
+  - biomes: biome tuning (ecotoneThreshold etc.)
+  - clutter: clutter tuning (clutterDensity etc.)
+  - specials: special regions tuning (rarityMultiplier etc.)
 
 - visual_style: object
   - global_saturation, global_contrast, fog_strength, mountain_exaggeration, snowline_bias

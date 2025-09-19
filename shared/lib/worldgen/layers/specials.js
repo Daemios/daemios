@@ -15,9 +15,8 @@ const SPECIALS = [
 ];
 
 function computeTilePart(ctx) {
-  // prefer canonical specials config but fall back to legacy layer4
-  const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.specials) ? ctx.cfg.layers.specials :
-    ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer4) ? ctx.cfg.layers.layer4 : {});
+  // canonical specials config
+  const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.specials) ? ctx.cfg.layers.specials : {};
   const noise = makeSimplex(String(ctx.seed));
   const sampler = fbmFactory(noise, 2, 2.0, 0.5);
   const n = sampler(ctx.x * 0.002, ctx.z * 0.002); // -1..1

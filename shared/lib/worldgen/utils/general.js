@@ -45,21 +45,8 @@ function getLayerCfg(cfg, layerKey) {
   try {
     if (!cfg || !cfg.layers) return {};
     // prefer the requested key, but allow legacy numeric keys as fallbacks
-    let v = cfg.layers[layerKey];
-    if (!v) {
-      // map some common canonical names to legacy keys
-      const legacyMap = {
-        palette: 'layer0',
-        continents: 'layer1',
-        plates_and_mountains: 'layer2',
-        biomes: 'layer3',
-        clutter: 'layer3_5',
-        specials: 'layer4'
-      };
-      const lk = legacyMap[layerKey];
-      if (lk) v = cfg.layers[lk];
-    }
-    return v && typeof v === 'object' ? v : {};
+      let v = cfg.layers[layerKey];
+      return v && typeof v === 'object' ? v : {};
   } catch (e) {
     return {};
   }

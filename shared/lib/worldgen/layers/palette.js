@@ -11,10 +11,10 @@ const DEFAULT_PALETTES = {
 };
 
 function computeTilePart(ctx) {
-  // prefer canonical 'palette' key but fall back to legacy layer0
+  // prefer canonical 'palette' key
   const pid = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.palette && ctx.cfg.layers.palette.paletteId)
     ? ctx.cfg.layers.palette.paletteId
-    : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer0 && ctx.cfg.layers.layer0.paletteId) || 'default';
+    : 'default';
   const p = DEFAULT_PALETTES[pid] || DEFAULT_PALETTES.default;
   if (!DEFAULT_PALETTES[pid]) {
     return { palette: { id: 'fallback', topColor: '#000000', sideColor: '#000000', slopeTint: '#000000' } };

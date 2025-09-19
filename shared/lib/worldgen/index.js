@@ -11,7 +11,7 @@
  * - rng: small per-tile RNG created by createRng(seed,x,z)
  * - noise: noise utilities (makeSimplex, fbm, domainWarp, etc.)
  * - partials: object populated during generation containing previously
- *   produced numeric parts (e.g. ctx.partials.layer1)
+ *   produced canonical partials (e.g. ctx.partials.continents)
  *
  * Layers MAY add fields to ctx.partials (for downstream passes) but should
  * avoid mutating other ctx properties. Keep ctx deterministic and serializable.
@@ -81,7 +81,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
 
   // Simple friendly-order driven execution: call each friendly layer in
   // `cfg.layersOrder` (or DEFAULT_CONFIG.layersOrder) and merge additive
-  // elevation contributions into numeric `parts` keys consumed by mergeParts.
+  // elevation contributions into canonical `parts` keys (e.g. 'continents', 'biomes') consumed by mergeParts.
   const friendlyOrder = (cfg && Array.isArray(cfg.layersOrder) && cfg.layersOrder.length) ? cfg.layersOrder : DEFAULT_CONFIG.layersOrder || [];
 
   // Build handlers by combining the lightweight registry with actual

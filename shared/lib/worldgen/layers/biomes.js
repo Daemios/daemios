@@ -31,28 +31,23 @@ function computeTilePart(ctx) {
   const secSampler = fbmFactory(noise, 2, 2.2, 0.55);
 
   // elevation used only to decide biome bands; prefer canonical 'continents' partial if present
-  let h = (ctx.partials && ctx.partials.continents && ctx.partials.continents.elevation)
-    ? ctx.partials.continents.elevation.normalized
-    : ((ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation) ? ctx.partials.layer1.elevation.normalized : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2);
+  let h = (ctx.partials && ctx.partials.continents && ctx.partials.continents.elevation) ? ctx.partials.continents.elevation.normalized : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2;
 
   // Do NOT mutate elevation here. Instead return an archetypeBias object
   // describing semantic nudges (small numbers) that the palette interpreter
   // may use when resolving final palette. Keep bias values tiny.
   const archetypeBias = {};
-  if (ctx.partials && ctx.partials.layer2 && ctx.partials.layer2.archetypeBias) {
-    // propagate the layer2 archetypeBias through so downstream systems can use it
-    archetypeBias.elevation = ctx.partials.layer2.archetypeBias.elevation;
+  if (ctx.partials && ctx.partials.plates_and_mountains && ctx.partials.plates_and_mountains.archetypeBias) {
+    // propagate the plates_and_mountains archetypeBias through so downstream systems can use it
+    archetypeBias.elevation = ctx.partials.plates_and_mountains.archetypeBias.elevation;
   }
 
-  // Determine authoritative seaLevel from layer1/bathymetry or from cfg
   // Determine authoritative seaLevel from continents/bathymetry or from cfg
   const seaLevel = (ctx.partials && ctx.partials.continents && ctx.partials.continents.bathymetry && typeof ctx.partials.continents.bathymetry.seaLevel === 'number')
     ? ctx.partials.continents.bathymetry.seaLevel
-    : ((ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
-      ? ctx.partials.layer1.bathymetry.seaLevel
-      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-        ? ctx.cfg.layers.global.seaLevel
-        : 0.33);
+    : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+      ? ctx.cfg.layers.global.seaLevel
+      : 0.33;
   const major = chooseMajor(h, seaLevel);
 
   // Determine a secondary candidate using a second noise sampler and
@@ -60,8 +55,8 @@ function computeTilePart(ctx) {
   // interpreter can make richer decisions (transitions, blending, rarity).
   let secIdx = Math.floor((secSampler(ctx.x * 0.03, ctx.z * 0.03) + 1) / 2 * MAJOR.length) % MAJOR.length;
   let biomeWeights = null;
-  if (ctx.partials && ctx.partials.layer2 && ctx.partials.layer2.biomeWeights) {
-    biomeWeights = Object.assign({}, ctx.partials.layer2.biomeWeights);
+  if (ctx.partials && ctx.partials.plates_and_mountains && ctx.partials.plates_and_mountains.biomeWeights) {
+    biomeWeights = Object.assign({}, ctx.partials.plates_and_mountains.biomeWeights);
     // bias the secondary index probabilistically using the weights but do
     // not modify any visual outputs here.
     const bw = biomeWeights;

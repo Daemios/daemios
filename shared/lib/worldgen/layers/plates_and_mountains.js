@@ -8,10 +8,8 @@ import { seedStringToNumber } from '../utils/general.js';
 import { makeSimplex } from '../utils/noise.js';
 
 function computeTilePart(ctx) {
-  // prefer canonical plates_and_mountains config but fall back to legacy layer1
-  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.plates_and_mountains)
-    ? ctx.cfg.layers.plates_and_mountains
-    : ((ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {});
+  // canonical plates_and_mountains config
+  const cfg = (ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.plates_and_mountains) ? ctx.cfg.layers.plates_and_mountains : {};
   const plateSize = (typeof cfg.plateCellSize === 'number') ? cfg.plateCellSize : 256;
   const amp = (typeof cfg.plateMountainAmplitude === 'number') ? cfg.plateMountainAmplitude : 0.12; // max added normalized height
   const fbmCfg = cfg.platesFbm || { octaves: 3, lacunarity: 2.0, gain: 0.5 };
