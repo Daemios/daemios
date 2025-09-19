@@ -15,7 +15,7 @@ function computeTilePart(ctx) {
   const mountainCellSize = (typeof cfg.mountainCellSize === 'number') ? cfg.mountainCellSize
     : (typeof cfg.plateCellSize === 'number' ? cfg.plateCellSize : 256);
   const amp = (typeof cfg.mountainAmplitude === 'number') ? cfg.mountainAmplitude
-    : (typeof cfg.plateMountainAmplitude === 'number' ? cfg.plateMountainAmplitude : 0.40); // max added normalized height (bumped to make peaks stronger)
+    : (typeof cfg.plateMountainAmplitude === 'number' ? cfg.plateMountainAmplitude : 0.45); // max added normalized height (reduced one-third toward previous)
   const fbmCfg = cfg.mountainsFbm || cfg.platesFbm || { octaves: 3, lacunarity: 2.0, gain: 0.5 };
   const response = (typeof cfg.mountainResponse === 'number') ? cfg.mountainResponse
     : (typeof cfg.plateMountainResponse === 'number' ? cfg.plateMountainResponse : 3.5);
@@ -29,7 +29,7 @@ function computeTilePart(ctx) {
   // sample at a mesoscale grid to produce ridging that is cohesive but not radial
   const sx = ctx.x * (1.0 / Math.max(1, mountainCellSize));
   const sy = ctx.z * (1.0 / Math.max(1, mountainCellSize));
-  const v = fbmSampler(sx * 1.5, sy * 1.5); // -1..1
+  const v = fbmSampler(sx * 1.6667, sy * 1.6667); // -1..1 — reduced sample multiplier (≈1/3 revert)
   const fv = Math.max(0, Math.min(1, (v + 1) / 2));
 
   // apply a hard cutoff + nonlinear response so weak fbm values contribute
