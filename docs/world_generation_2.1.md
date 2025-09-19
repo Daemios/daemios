@@ -23,15 +23,15 @@
   - All features must be scalable for mobile clients.
 
 ### High‑Level Per‑Hex Flow
-1. Layer 1: Continents, plates, ridges, macro elevation fields.
-2. Layer 2: Mesoscale regional identity (archetype) without overwriting macro drama.
+1. Continents & Plates: macro geography (continents, plates, ridges, macro elevation fields).
+2. Regional Archetypes: mesoscale regional identity (archetype) without overwriting macro drama.
 3. Relief Index (new shared field): Compute once; biome‑independent 0–1 flat→rough measure.
 4. Climate: Temperature & moisture from latitude, altitude lapse, ocean proximity, rain shadow.
-5. Layer 3: Biome selection using (elevation band, climate) plus each biome’s probability curve over the Relief Index.
+5. Biome Selection: select biome candidates using elevation band, climate and Relief Index-aware probability curves.
 6. Micro‑Relief Decoration: Apply small‑amplitude biome micro‑relief scaled by Relief Index (does not erase macro elevation).
-7. Layer 3.5: Clutter placement (biome/ecotone aware).
-8. Layer 4: Special/rare region overrides.
-9. Layer 5: Visual cohesion pass (palette normalization, fog, snowline bias, height exaggeration by zoom, slope tint).
+7. Clutter Placement: place ground clutter (biome/ecotone aware).
+8. Specials: mark special/rare regions (volcanic fields, glass deserts, etc.).
+9. Visual Cohesion: palette normalization, fog, snowline bias and global visual adjustments.
 
 ---
 
@@ -42,15 +42,15 @@
 
     Client:
       1. For each visible hex (q, r):
-         - Generate macro geography (Layer 1)
-         - Apply mesoscale regional variation (Layer 2)
+         - Generate macro geography (Continents & Plates)
+         - Apply mesoscale regional variation (Regional Archetypes)
          - Compute Relief Index (shared field)
          - Compute climate fields
-         - Select biome with Relief-aware probability (Layer 3)
+         - Select biome with Relief-aware probability (Biome Selection)
          - Apply biome micro-relief (decoration only)
-         - Place clutter assets (Layer 3.5)
-         - Apply special/rare region overrides (Layer 4)
-         - Apply global visual adjustments (Layer 5)
+         - Place clutter assets (Clutter Placement)
+         - Apply special/rare region overrides (Specials)
+         - Apply global visual adjustments (Visual Cohesion)
       2. Render using low-poly tiles + clutter + shaders
 
 ---
@@ -68,13 +68,13 @@
 
 Target:
 
-| Layer        | Reads | Notes                               |
-|--------------|------:|-------------------------------------|
-| Layer 1      |   5–6 | Warps, plates, macro, medium detail |
-| Layer 2      |    +1 | Region breakup noise                |
-| Relief Index |    +0 | Derived; reuse existing fields      |
-| Layer 4      |    +1 | Shared special region mask          |
-| Total        |  7–8  | Leaves headroom for climate fields  |
+| Layer                 | Reads | Notes                               |
+|----------------------:|------:|-------------------------------------|
+| Continents & Plates   |   5–6 | Warps, plates, macro, medium detail |
+| Regional Archetypes   |    +1 | Region breakup noise                |
+| Relief Index          |    +0 | Derived; reuse existing fields      |
+| Specials              |    +1 | Shared special region mask          |
+| Total                 |  7–8  | Leaves headroom for climate fields  |
 
 ---
 

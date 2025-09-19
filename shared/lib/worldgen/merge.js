@@ -17,7 +17,7 @@ function mergeParts(base, parts, ctx) {
   if (parts.layer0 && parts.layer0.palette) tile.palette = Object.assign({}, tile.palette, parts.layer0.palette);
   // Additively apply elevation contributions from all layers. This ensures no
   // single layer overwrites previous elevation — every layer can add to height.
-  const elevLayers = ['layer1','layer2','layer3','layer3_5','layer4','layer5'];
+  const elevLayers = ['layer1','layer2','layer3','layer3_5','layer4'];
   for (const ln of elevLayers) {
     const part = parts[ln];
     if (!part) continue;

@@ -40,6 +40,17 @@ function findNearestPlate(x, z, plateSize, seedNum) {
   return best;
 }
 
-export { seedStringToNumber, pseudoRandom, smoothstep, findNearestPlate };
+// Safely obtain per-layer config object (returns empty object when missing)
+function getLayerCfg(cfg, layerKey) {
+  try {
+    if (!cfg || !cfg.layers) return {};
+    const v = cfg.layers[layerKey];
+    return v && typeof v === 'object' ? v : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+export { seedStringToNumber, pseudoRandom, smoothstep, findNearestPlate, getLayerCfg };
 
 

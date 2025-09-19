@@ -36,8 +36,8 @@
           v-model="layers.layer0"
           type="checkbox"
           @change="applyImmediate"
-        />
-        Creative Constraints & Palette
+        >
+        Palette & Creative Constraints
       </label>
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
@@ -45,8 +45,8 @@
           v-model="layers.layer1"
           type="checkbox"
           @change="applyImmediate"
-        />
-        Continents & Oceans
+        >
+        Continents & Plates
       </label>
 
       <!--     seaLevel is configured in shared/lib/worldgen/config.js and is not editable at runtime -->
@@ -56,8 +56,8 @@
           v-model="layers.layer3"
           type="checkbox"
           @change="applyImmediate"
-        />
-        Biome Blending & Palette
+        >
+        Biome Selection (semantic)
       </label>
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
@@ -65,8 +65,8 @@
           v-model="layers.layer3_5"
           type="checkbox"
           @change="applyImmediate"
-        />
-        Ground Clutter System
+        >
+        Clutter Placement
       </label>
 
       <label class="d-flex align-center cursor-pointer" style="gap: 8px">
@@ -74,8 +74,8 @@
           v-model="layers.layer4"
           type="checkbox"
           @change="applyImmediate"
-        />
-        Special & Rare Regions
+        >
+        Special Regions
       </label>
     </div>
 

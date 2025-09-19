@@ -2,6 +2,21 @@
 // Public shared API for deterministic world tile generation.
 // Minimal skeleton: calls layer modules and merges partial outputs.
 
+/**
+ * Context (ctx) contract used by layer modules:
+ * - seed: string (world seed)
+ * - q,r: hex axial coordinates (optional)
+ * - x,z: world-space coordinates (number)
+ * - cfg: normalized configuration object returned by normalizeConfig()
+ * - rng: small per-tile RNG created by createRng(seed,x,z)
+ * - noise: noise utilities (makeSimplex, fbm, domainWarp, etc.)
+ * - partials: object populated during generation containing previously
+ *   produced numeric parts (e.g. ctx.partials.layer1)
+ *
+ * Layers MAY add fields to ctx.partials (for downstream passes) but should
+ * avoid mutating other ctx properties. Keep ctx deterministic and serializable.
+ */
+
 import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './utils/rng.js';
 import * as noise from './utils/noise.js';
@@ -13,6 +28,7 @@ import { computeTilePart as layer03_5Compute } from './layers/clutter.js';
 import { computeTilePart as layer04Compute } from './layers/specials.js';
 // visual layer removed by refactor (layer05)
 import { computeTilePart as platesCompute } from './layers/plates_and_mountains.js';
+import { LAYER_REGISTRY } from './layers/registry.js';
 import { mergeParts } from './merge.js';
 
 // Local flat-top hex axial->Cartesian helper with fixed layout radius/spacing.
@@ -66,13 +82,16 @@ function generateTile(seed, coords = {}, cfgPartial) {
   // elevation contributions into numeric `parts` keys consumed by mergeParts.
   const friendlyOrder = (cfg && Array.isArray(cfg.layersOrder) && cfg.layersOrder.length) ? cfg.layersOrder : DEFAULT_CONFIG.layersOrder || [];
 
+  // Build handlers by combining the lightweight registry with actual
+  // computation functions. This keeps the canonical keys centralized in
+  // one place while allowing index.js to provide the function references.
   const handlers = {
-    palette: { key: 'layer0', fn: PaletteCompute },
-    continents: { key: 'layer1', fn: layer01Compute, fallback: layer01Fallback },
-    plates_and_mountains: { key: 'layer1', fn: platesCompute },
-    biomes: { key: 'layer3', fn: layer03Compute },
-    clutter: { key: 'layer3_5', fn: layer03_5Compute },
-    specials: { key: 'layer4', fn: layer04Compute },
+    palette: Object.assign({}, LAYER_REGISTRY.palette, { fn: PaletteCompute }),
+    continents: Object.assign({}, LAYER_REGISTRY.continents, { fn: layer01Compute, fallback: layer01Fallback }),
+    plates_and_mountains: Object.assign({}, LAYER_REGISTRY.plates_and_mountains, { fn: platesCompute }),
+    biomes: Object.assign({}, LAYER_REGISTRY.biomes, { fn: layer03Compute }),
+    clutter: Object.assign({}, LAYER_REGISTRY.clutter, { fn: layer03_5Compute }),
+    specials: Object.assign({}, LAYER_REGISTRY.specials, { fn: layer04Compute }),
   };
 
   for (const name of friendlyOrder) {
@@ -112,6 +131,12 @@ function generateTile(seed, coords = {}, cfgPartial) {
         }
       }
     } catch (e) {
+      // Keep deterministic behavior (undefined part) but provide a
+      // non-throwing debug message so failures are easier to diagnose.
+      try {
+        // eslint-disable-next-line no-console
+        console.debug('[shared.worldgen] layer error', { layer: name, slot: lk, seed: ctx && ctx.seed, q: ctx && ctx.q, r: ctx && ctx.r, x: ctx && ctx.x, z: ctx && ctx.z, err: (e && e.stack) ? e.stack : String(e) });
+      } catch (ee) { /* ignore logging errors */ }
       parts[lk] = undefined;
     }
     ctx.partials = Object.assign({}, ctx.partials, { [lk]: parts[lk] });

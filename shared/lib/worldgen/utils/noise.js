@@ -6,14 +6,29 @@
 import { SeededRNG } from './rng.js';
 import { createNoise2D } from 'simplex-noise';
 
+// Simple per-(seed,x,z) cache to avoid repeatedly allocating Simplex
+const _simplexCache = new Map();
 export function makeSimplex(seed, x, z) {
-  const s = String(seed) + ':' + String(x) + ':' + String(z);
+  const key = String(seed) + ':' + String(x) + ':' + String(z);
+  if (_simplexCache.has(key)) return _simplexCache.get(key);
+  const s = key;
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   const lcg = new SeededRNG(h);
   const rngFunc = () => lcg.next();
   const fn = createNoise2D(rngFunc);
-  return { noise2D: fn };
+  const result = { noise2D: fn };
+  try {
+    // keep cache bounded
+    if (_simplexCache.size > 128) {
+      // evict a single oldest entry
+      const it = _simplexCache.keys();
+      const first = it.next().value;
+      if (first) _simplexCache.delete(first);
+    }
+  } catch (e) { /* ignore cache eviction errors */ }
+  _simplexCache.set(key, result);
+  return result;
 }
 
 export function fbm(noise, octaves = 4, lacunarity = 2.0, gain = 0.5) {
