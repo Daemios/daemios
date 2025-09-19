@@ -43,28 +43,10 @@ function mergeParts(base, parts, ctx) {
   const normalizedUnclamped = Math.max(0, Math.min(1, rawUnclamped));
   tile.elevation = tile.elevation || {};
   tile.elevation.raw = rawUnclamped;
-  // Apply layer1 clampAboveSea to the normalized elevation for classification/palette
-  let normalized = normalizedUnclamped;
-  try {
-    // determine authoritative sea level
-    const seaLevel = (tile.bathymetry && typeof tile.bathymetry.seaLevel === 'number')
-      ? tile.bathymetry.seaLevel
-      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-        ? ctx.cfg.layers.global.seaLevel
-        : 0.22;
-    // prefer canonical continents config
-    const clampAbove = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.continents && typeof ctx.cfg.layers.continents.clampAboveSea === 'number')
-      ? ctx.cfg.layers.continents.clampAboveSea
-      : null;
-    if (clampAbove !== null && normalizedUnclamped > seaLevel) {
-      const clampLimit = Math.max(0, Math.min(1, seaLevel + clampAbove));
-      normalized = Math.min(normalizedUnclamped, clampLimit);
-    }
-  } catch (e) {
-    // if anything fails, fall back to unclamped normalized
-    normalized = normalizedUnclamped;
-  }
-  tile.elevation.normalized = normalized;
+  // Keep the normalized elevation equal to the unclamped normalized value.
+  // The continents layer itself is responsible for applying any local clamping
+  // to its own contribution; merge should not re-apply an additional clamp.
+  tile.elevation.normalized = normalizedUnclamped;
 
   // Recompute bathymetry depthBand using the final normalized elevation
   // so that downstream palette logic and clients see authoritative bands

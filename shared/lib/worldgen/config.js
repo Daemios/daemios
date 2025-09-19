@@ -12,7 +12,7 @@ const clutterCfg = { clutterDensity: 8 };
 const specialsCfg = { rarityMultiplier: 1.0 };
 
 export const DEFAULT_CONFIG = {
-  seed: 'micky',
+  seed: 'test',
   maxHeight: 100,
   scale: 1,
   heightMagnitude: 1,

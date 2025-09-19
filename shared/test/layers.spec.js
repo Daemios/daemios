@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { computeTilePart as palette } from '../lib/worldgen/layers/palette.js';
 import { computeTilePart as continents } from '../lib/worldgen/layers/continents.js';
-import { computeTilePart as plates } from '../lib/worldgen/layers/plates_and_mountains.js';
+import { computeTilePart as mountains } from '../lib/worldgen/layers/mountains.js';
 import { computeTilePart as biomes } from '../lib/worldgen/layers/biomes.js';
 import { computeTilePart as clutter } from '../lib/worldgen/layers/clutter.js';
 import { computeTilePart as specials } from '../lib/worldgen/layers/specials.js';
@@ -23,8 +23,8 @@ describe('layer contract smoke tests', () => {
     expect(typeof p.elevation.normalized === 'number').toBe(true);
     expect(p.bathymetry).toBeDefined();
   });
-  it('plates returns elevation object', () => {
-    const p = plates(ctxBase);
+  it('mountains returns elevation object', () => {
+    const p = mountains(ctxBase);
     expect(p).toBeDefined();
     expect(p.elevation).toBeDefined();
   });

@@ -6,7 +6,7 @@
 export const LAYER_REGISTRY = {
   palette: { key: 'palette', desc: 'Palette and creative constraints' },
   continents: { key: 'continents', desc: 'Continents and bathymetry' },
-  plates_and_mountains: { key: 'plates_and_mountains', desc: 'Plates and mountains (mesoscale)' },
+  plates_and_mountains: { key: 'plates_and_mountains', desc: 'Mountains (mesoscale)' },
   biomes: { key: 'biomes', desc: 'Semantic biome attributes' },
   clutter: { key: 'clutter', desc: 'Ground clutter hints' },
   specials: { key: 'specials', desc: 'Special/rare regions' }

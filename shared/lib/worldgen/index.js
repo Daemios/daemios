@@ -27,7 +27,7 @@ import { computeTilePart as layer03Compute } from './layers/biomes.js';
 import { computeTilePart as layer03_5Compute } from './layers/clutter.js';
 import { computeTilePart as layer04Compute } from './layers/specials.js';
 // visual layer removed by refactor (layer05)
-import { computeTilePart as platesCompute } from './layers/plates_and_mountains.js';
+import { computeTilePart as mountainsCompute } from './layers/mountains.js';
 import { LAYER_REGISTRY } from './layers/registry.js';
 import { mergeParts } from './merge.js';
 
@@ -90,7 +90,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
   const handlers = {
     palette: Object.assign({}, LAYER_REGISTRY.palette, { fn: PaletteCompute }),
   continents: Object.assign({}, LAYER_REGISTRY.continents, { fn: layer01Compute }),
-    plates_and_mountains: Object.assign({}, LAYER_REGISTRY.plates_and_mountains, { fn: platesCompute }),
+  plates_and_mountains: Object.assign({}, LAYER_REGISTRY.plates_and_mountains, { fn: mountainsCompute }),
     biomes: Object.assign({}, LAYER_REGISTRY.biomes, { fn: layer03Compute }),
     clutter: Object.assign({}, LAYER_REGISTRY.clutter, { fn: layer03_5Compute }),
     specials: Object.assign({}, LAYER_REGISTRY.specials, { fn: layer04Compute }),
