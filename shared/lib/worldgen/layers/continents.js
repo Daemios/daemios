@@ -32,34 +32,37 @@ function computeTilePart(ctx) {
 			: 0.22;
 	const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.28;
 
-	// noise config: use a single FBM for mask and a smaller one for detail
-	const fbmCfg = cfg.fbm || { octaves: 4, lacunarity: 2.0, gain: 0.55 };
+	// noise config: use a slightly stronger FBM for mask to increase variance
+	const fbmCfg = cfg.fbm || { octaves: 5, lacunarity: 2.0, gain: 0.65 };
 	const seed = String(ctx && ctx.seed ? ctx.seed : '0');
 
 	const noise = makeSimplex(seed);
 	const maskSampler = fbmFactory(noise, Math.max(2, (fbmCfg.octaves || 4) - 1), fbmCfg.lacunarity || 2.0, fbmCfg.gain || 0.5);
 	const detailSampler = fbmFactory(noise, Math.max(1, (fbmCfg.octaves || 4) - 3), fbmCfg.lacunarity || 2.0, (fbmCfg.gain || 0.5) * 0.6);
 
-	// moderate domain warp to avoid grid artifacts while keeping performance
-	const wx = ctx.x * 0.0025;
-	const wz = ctx.z * 0.0025;
-	const warped = domainWarp(noise, wx, wz, { ampA: 0.7, freqA: 0.28, ampB: 0.18, freqB: 1.2 });
+	// moderate domain warp tuned to produce larger cohesive features
+	const wx = ctx.x * 0.002;
+	const wz = ctx.z * 0.002;
+	// slightly stronger warp to increase large-scale variance
+	const warped = domainWarp(noise, wx, wz, { ampA: 0.8, freqA: 0.2, ampB: 0.18, freqB: 1.0 });
 
 	// coarse continent mask (large features) and soft thresholding
-	const maskRaw = (maskSampler(warped.x * 0.7, warped.y * 0.7) + 1) / 2;
+	const maskRaw = (maskSampler(warped.x * 0.6, warped.y * 0.6) + 1) / 2;
 	const desiredLandFrac = (typeof cfg.desiredLandFraction === 'number') ? cfg.desiredLandFraction : 0.40;
+	// Gentle remap to slightly increase variance without flooding the map
+	const maskRemapped = Math.max(0, Math.min(1, maskRaw * 1.12 + 0.02));
 	const thresh = 1.0 - desiredLandFrac;
-	const mask = smoothstep((maskRaw - thresh) / 0.2);
+	const mask = smoothstep((maskRemapped - thresh) / 0.22);
 
 	// small-scale detail to break smoothness
-	const detail = (detailSampler(warped.x * 1.1, warped.y * 1.1) + 1) / 2;
+	const detail = (detailSampler(warped.x * 1.2, warped.y * 1.2) + 1) / 2;
 
-	// combine mask and detail (simpler blend than before)
-	let h = mask * (0.7 * detail + 0.3 * mask);
+	// combine mask and detail, bias toward mask to form broader landmasses and avoid strips
+	let h = mask * (0.45 * detail + 0.55 * mask);
 
 	// gently reduce small islands
-	const oceanSoft = 0.03;
-	if (h < oceanSoft) h *= 0.45;
+	const oceanSoft = 0.04;
+	if (h < oceanSoft) h *= 0.6;
 
 	// clamp above sea
 	if (h > seaLevel) h = Math.min(h, seaLevel + clampAboveSea);

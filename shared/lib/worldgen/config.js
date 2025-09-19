@@ -26,7 +26,6 @@ export const DEFAULT_CONFIG = {
     layer1: {
       clampAboveSea: 0.02,
       continentScale: 1.0,
-      plateCellSize: 256,
       warp: {
         slow: { freq: 0.08, amp: 0.25 },
         fast: { freq: 0.6, amp: 0.05 }
