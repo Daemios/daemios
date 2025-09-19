@@ -23,6 +23,7 @@
   - All features must be scalable for mobile clients.
 
 ### High‑Level Per‑Hex Flow
+
 1. Continents & Plates: macro geography (continents, plates, ridges, macro elevation fields).
 2. Regional Archetypes: mesoscale regional identity (archetype) without overwriting macro drama.
 3. Relief Index (new shared field): Compute once; biome‑independent 0–1 flat→rough measure.
@@ -68,13 +69,13 @@
 
 Target:
 
-| Layer                 | Reads | Notes                               |
-|----------------------:|------:|-------------------------------------|
-| Continents & Plates   |   5–6 | Warps, plates, macro, medium detail |
-| Regional Archetypes   |    +1 | Region breakup noise                |
-| Relief Index          |    +0 | Derived; reuse existing fields      |
-| Specials              |    +1 | Shared special region mask          |
-| Total                 |  7–8  | Leaves headroom for climate fields  |
+|               Layer | Reads | Notes                               |
+| ------------------: | ----: | ----------------------------------- |
+| Continents & Plates |   5–6 | Warps, plates, macro, medium detail |
+| Regional Archetypes |    +1 | Region breakup noise                |
+|        Relief Index |    +0 | Derived; reuse existing fields      |
+|            Specials |    +1 | Shared special region mask          |
+|               Total |   7–8 | Leaves headroom for climate fields  |
 
 ---
 

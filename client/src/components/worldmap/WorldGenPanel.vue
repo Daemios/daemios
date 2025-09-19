@@ -36,7 +36,7 @@
           v-model="layers.layer0"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Palette & Creative Constraints
       </label>
 
@@ -45,7 +45,7 @@
           v-model="layers.layer1"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Continents & Plates
       </label>
 
@@ -56,7 +56,7 @@
           v-model="layers.layer3"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Biome Selection (semantic)
       </label>
 
@@ -65,7 +65,7 @@
           v-model="layers.layer3_5"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Clutter Placement
       </label>
 
@@ -74,7 +74,7 @@
           v-model="layers.layer4"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Special Regions
       </label>
     </div>

@@ -21,7 +21,7 @@ import { DEFAULT_CONFIG } from './config.js';
 import { create as createRng } from './utils/rng.js';
 import * as noise from './utils/noise.js';
 import { computeTilePart as PaletteCompute } from './layers/palette.js';
-import { computeTilePart as layer01Compute, fallback as layer01Fallback } from './layers/continents.js';
+import { computeTilePart as layer01Compute } from './layers/continents.js';
 // regions layer (layer02) removed by refactor
 import { computeTilePart as layer03Compute } from './layers/biomes.js';
 import { computeTilePart as layer03_5Compute } from './layers/clutter.js';
@@ -87,7 +87,7 @@ function generateTile(seed, coords = {}, cfgPartial) {
   // one place while allowing index.js to provide the function references.
   const handlers = {
     palette: Object.assign({}, LAYER_REGISTRY.palette, { fn: PaletteCompute }),
-    continents: Object.assign({}, LAYER_REGISTRY.continents, { fn: layer01Compute, fallback: layer01Fallback }),
+  continents: Object.assign({}, LAYER_REGISTRY.continents, { fn: layer01Compute }),
     plates_and_mountains: Object.assign({}, LAYER_REGISTRY.plates_and_mountains, { fn: platesCompute }),
     biomes: Object.assign({}, LAYER_REGISTRY.biomes, { fn: layer03Compute }),
     clutter: Object.assign({}, LAYER_REGISTRY.clutter, { fn: layer03_5Compute }),
@@ -107,11 +107,11 @@ function generateTile(seed, coords = {}, cfgPartial) {
 
     try {
       let p = null;
-      if (h.fallback) {
-        try { p = (typeof h.fn === 'function') ? h.fn(ctx) : null; } catch (e) { p = (typeof h.fallback === 'function') ? h.fallback(ctx) : null; }
-      } else {
-        p = (typeof h.fn === 'function') ? h.fn(ctx) : null;
-      }
+      // Run the layer's compute function. Per project policy, do not
+      // attempt to call per-layer fallback shims; surface errors instead
+      // by returning an undefined part (the outer try/catch will handle
+      // logging). This keeps failures deterministic and visible.
+      p = (typeof h.fn === 'function') ? h.fn(ctx) : null;
 
       // Additively merge elevation into the numeric part slot so mergeParts
       // can still iterate known numeric layers. Preserve and merge other
@@ -219,9 +219,10 @@ function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
       const ctx = { seed: String(seed), q: qW, r: rW, x, z, cfg, rng: createRng(seed, x, z), noise };
       let part1 = null;
       try {
-        part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : (typeof layer01Fallback === 'function' ? layer01Fallback(ctx) : null);
+        part1 = (typeof layer01Compute === 'function') ? layer01Compute(ctx) : null;
       } catch (e) {
-        try { part1 = (typeof layer01Fallback === 'function') ? layer01Fallback(ctx) : null; } catch (e2) { part1 = null; }
+        // Per project rules: do not call a fallback shim; just record null
+        part1 = null;
       }
       const elev = (part1 && part1.elevation && typeof part1.elevation.normalized === 'number') ? part1.elevation.normalized : 0;
       const seaLevel = (part1 && part1.bathymetry && typeof part1.bathymetry.seaLevel === 'number') ? part1.bathymetry.seaLevel : (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number' ? cfg.layers.global.seaLevel : 0.22);
