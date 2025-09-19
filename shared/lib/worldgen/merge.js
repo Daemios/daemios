@@ -40,9 +40,29 @@ function mergeParts(base, parts, ctx) {
   // and palette decisions, but retain the unclamped raw as the authoritative
   // physical height before visual scaling.
   const rawUnclamped = tile.elevation.raw;
-  const normalized = Math.max(0, Math.min(1, rawUnclamped));
+  const normalizedUnclamped = Math.max(0, Math.min(1, rawUnclamped));
   tile.elevation = tile.elevation || {};
   tile.elevation.raw = rawUnclamped;
+  // Apply layer1 clampAboveSea to the normalized elevation for classification/palette
+  let normalized = normalizedUnclamped;
+  try {
+    // determine authoritative sea level
+    const seaLevel = (tile.bathymetry && typeof tile.bathymetry.seaLevel === 'number')
+      ? tile.bathymetry.seaLevel
+      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+        ? ctx.cfg.layers.global.seaLevel
+        : 0.22;
+    const clampAbove = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1 && typeof ctx.cfg.layers.layer1.clampAboveSea === 'number')
+      ? ctx.cfg.layers.layer1.clampAboveSea
+      : null;
+    if (clampAbove !== null && normalizedUnclamped > seaLevel) {
+      const clampLimit = Math.max(0, Math.min(1, seaLevel + clampAbove));
+      normalized = Math.min(normalizedUnclamped, clampLimit);
+    }
+  } catch (e) {
+    // if anything fails, fall back to unclamped normalized
+    normalized = normalizedUnclamped;
+  }
   tile.elevation.normalized = normalized;
 
   // Recompute bathymetry depthBand using the final normalized elevation

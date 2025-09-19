@@ -22,7 +22,7 @@
 // --- Imports -----------------------------------------------------------------
 import { fbm as fbmFactory, domainWarp } from '../utils/noise.js';
 import { makeSimplex } from '../utils/noise.js';
-import { seedStringToNumber, pseudoRandom, smoothstep, findNearestPlate } from '../utils/general.js';
+import { seedStringToNumber, pseudoRandom, smoothstep } from '../utils/general.js';
 
 function computeTilePart(ctx) {
 	const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
@@ -32,50 +32,36 @@ function computeTilePart(ctx) {
 			: 0.22;
 	const clampAboveSea = (typeof cfg.clampAboveSea === 'number') ? cfg.clampAboveSea : 0.28;
 
-	const plateSize = (typeof cfg.plateCellSize === 'number') ? cfg.plateCellSize : 512;
-
-	// noise config
-	const fbmCfg = cfg.fbm || { octaves: 5, lacunarity: 2.0, gain: 0.5 };
+	// noise config: use a single FBM for mask and a smaller one for detail
+	const fbmCfg = cfg.fbm || { octaves: 4, lacunarity: 2.0, gain: 0.55 };
 	const seed = String(ctx && ctx.seed ? ctx.seed : '0');
-	const seedNum = seedStringToNumber(seed);
 
-	// create deterministic noise instances
 	const noise = makeSimplex(seed);
-	const baseSampler = fbmFactory(noise, fbmCfg.octaves || 5, fbmCfg.lacunarity || 2.0, fbmCfg.gain || 0.5);
-	const maskSampler = fbmFactory(noise, Math.max(2, (fbmCfg.octaves || 5) - 2), 2.0, 0.6);
+	const maskSampler = fbmFactory(noise, Math.max(2, (fbmCfg.octaves || 4) - 1), fbmCfg.lacunarity || 2.0, fbmCfg.gain || 0.5);
+	const detailSampler = fbmFactory(noise, Math.max(1, (fbmCfg.octaves || 4) - 3), fbmCfg.lacunarity || 2.0, (fbmCfg.gain || 0.5) * 0.6);
 
-	// domain warp at a very large scale to avoid small repetition
-	const wx = ctx.x * 0.002;
-	const wz = ctx.z * 0.002;
-	const warped = domainWarp(noise, wx, wz, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 });
+	// moderate domain warp to avoid grid artifacts while keeping performance
+	const wx = ctx.x * 0.0025;
+	const wz = ctx.z * 0.0025;
+	const warped = domainWarp(noise, wx, wz, { ampA: 0.7, freqA: 0.28, ampB: 0.18, freqB: 1.2 });
 
-	// coarse continent mask (large features)
-	const maskRaw = (maskSampler(warped.x * 0.6, warped.y * 0.6) + 1) / 2; // 0..1
-	// bias mask to produce roughly ~40% land: use a thresholding with smoothstep
+	// coarse continent mask (large features) and soft thresholding
+	const maskRaw = (maskSampler(warped.x * 0.7, warped.y * 0.7) + 1) / 2;
 	const desiredLandFrac = (typeof cfg.desiredLandFraction === 'number') ? cfg.desiredLandFraction : 0.40;
-	// map maskRaw so that values above thresh become land with a soft falloff
-	const thresh = 1.0 - desiredLandFrac; // higher thresh makes less land
-	const mask = smoothstep((maskRaw - thresh) / 0.25); // softened edge
+	const thresh = 1.0 - desiredLandFrac;
+	const mask = smoothstep((maskRaw - thresh) / 0.2);
 
-	// plate-centered falloff to keep continents cohesive and avoid too many small islands
-	const plate = findNearestPlate(ctx.x, ctx.z, plateSize, seedNum);
-	const plateRadius = plateSize * 0.5;
-	const nd = Math.max(0, Math.min(1, plate.dist / Math.max(1e-9, plateRadius)));
-	// favor land near plate centers, decay towards edges
-	const plateMask = 1 - smoothstep(Math.pow(nd, 1.1));
+	// small-scale detail to break smoothness
+	const detail = (detailSampler(warped.x * 1.1, warped.y * 1.1) + 1) / 2;
 
-	// small-scale variation to avoid perfectly smooth continents
-	const baseRaw = (baseSampler(warped.x * 1.1, warped.y * 1.1) + 1) / 2; // 0..1
+	// combine mask and detail (simpler blend than before)
+	let h = mask * (0.7 * detail + 0.3 * mask);
 
-	// combine components: coarse mask drives presence, plateMask keeps cohesion, baseRaw adds texture
-	let h = mask * plateMask * (0.6 * baseRaw + 0.4 * mask);
+	// gently reduce small islands
+	const oceanSoft = 0.03;
+	if (h < oceanSoft) h *= 0.45;
 
-	// Ensure oceans surround continents by smoothly blending toward zero below seaLevel
-	// When h is below a small threshold treat as ocean (leave near zero)
-	const oceanSoft = 0.02;
-	h = (h < oceanSoft) ? h * 0.5 : h;
-
-	// Enforce max land clamp so land cannot rise arbitrarily above sea level
+	// clamp above sea
 	if (h > seaLevel) h = Math.min(h, seaLevel + clampAboveSea);
 
 	// normalize safety
@@ -83,19 +69,16 @@ function computeTilePart(ctx) {
 
 	// simple slope estimate (finite differences) to help clutter/placement layers
 	let slope = 0;
+	// simpler finite-difference slope estimate using detailSampler
 	try {
 		const eps = 1.0;
-		const n1 = (baseSampler(domainWarp(noise, (ctx.x + eps) * 0.002, wz, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).x * 1.1,
-			domainWarp(noise, (ctx.x + eps) * 0.002, wz, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).y * 1.1) + 1) / 2;
-		const n2 = (baseSampler(domainWarp(noise, (ctx.x - eps) * 0.002, wz, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).x * 1.1,
-			domainWarp(noise, (ctx.x - eps) * 0.002, wz, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).y * 1.1) + 1) / 2;
-		const n3 = (baseSampler(domainWarp(noise, wx, (ctx.z + eps) * 0.002, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).x * 1.1,
-			domainWarp(noise, wx, (ctx.z + eps) * 0.002, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).y * 1.1) + 1) / 2;
-		const n4 = (baseSampler(domainWarp(noise, wx, (ctx.z - eps) * 0.002, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).x * 1.1,
-			domainWarp(noise, wx, (ctx.z - eps) * 0.002, { ampA: 0.9, freqA: 0.35, ampB: 0.25, freqB: 1.6 }).y * 1.1) + 1) / 2;
-		const dx = Math.abs(n1 - n2);
-		const dz = Math.abs(n3 - n4);
-		slope = Math.max(0, Math.min(1, (dx + dz) * 0.5 * 5));
+		const dpx = (detailSampler((ctx.x + eps) * 0.0025, ctx.z * 0.0025) + 1) / 2;
+		const dmx = (detailSampler((ctx.x - eps) * 0.0025, ctx.z * 0.0025) + 1) / 2;
+		const dpy = (detailSampler(ctx.x * 0.0025, (ctx.z + eps) * 0.0025) + 1) / 2;
+		const dmy = (detailSampler(ctx.x * 0.0025, (ctx.z - eps) * 0.0025) + 1) / 2;
+		const dx = Math.abs(dpx - dmx);
+		const dz = Math.abs(dpy - dmy);
+		slope = Math.max(0, Math.min(1, (dx + dz) * 2.5));
 	} catch (e) { slope = 0; }
 
 	return {
