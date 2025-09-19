@@ -1,51 +1,21 @@
-// shared/lib/worldgen/config.js
-// Default configuration and layer toggles
-
 export const DEFAULT_CONFIG = {
-  // Central default RNG seed used when callers do not provide one. This
-  // allows a single place to adjust world seeds for deterministic runs.
-  seed: 'julia',
-  // Global multiplier applied to the final elevation (rendered height).
-  // This does not change biome/sea classification which is computed from
-  // the unscaled elevation; it only scales the returned tile.height.
-  // maximum world height (units). Normalized elevations (0..1) are
-  // interpreted as a percentage of this value.
+  seed: 'micky',
   maxHeight: 100,
-  // Global multiplier applied to the final elevation (rendered height).
-  // Final world units = normalized * maxHeight * scale
   scale: 1,
-  // Optional additional renderer-side exaggeration factor historically
-  // used by clients; keep here for centralized tuning.
   heightMagnitude: 1,
   layersOrder: [ 'continents', 'plates_and_mountains', 'biomes', 'specials', 'clutter' ],
   layers: {
-    // Global tuning values that affect multiple layers (authoritative sea level)
-    global: {
-      seaLevel: .20
-    },
-    layer0: {
-      paletteId: 'default'
-    },
+    global: { seaLevel: 0.20 },
+    layer0: { paletteId: 'default' },
     layer1: {
       clampAboveSea: 0.02,
       continentScale: 1.0,
-      warp: {
-        slow: { freq: 0.08, amp: 0.25 },
-        fast: { freq: 0.6, amp: 0.05 }
-      },
+      warp: { slow: { freq: 0.08, amp: 0.25 }, fast: { freq: 0.6, amp: 0.05 } },
       detail: { freq: 0.6, amp: 0.15 }
     },
-    // layer2 (regions) removed by refactor
-    layer3: {
-      ecotoneThreshold: 0.25
-    },
-    layer3_5: {
-      clutterDensity: 8
-    },
-    layer4: {
-      rarityMultiplier: 1.0
-    },
-    // layer5 (visual) removed by refactor
+    layer3: { ecotoneThreshold: 0.25 },
+    layer3_5: { clutterDensity: 8 },
+    layer4: { rarityMultiplier: 1.0 }
   },
   visual_style: {
     global_saturation: 1.15,
