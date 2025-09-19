@@ -66,12 +66,14 @@ function normalizeConfig(partial) {
 }
 
 function generateTile(seed, coords = {}, cfgPartial) {
+  // prefer explicit seed argument, otherwise fall back to cfg.seed (if any)
   let { q, r, x, z } = coords || {};
   if (typeof x !== 'number' || typeof z !== 'number') {
     ({ x, z } = axialToXZLocal(q, r));
   }
   const cfg = normalizeConfig(cfgPartial);
-  const ctx = { seed: String(seed), q, r, x, z, cfg, rng: createRng(seed, x, z), noise };
+  const effectiveSeed = (typeof seed !== 'undefined' && seed !== null) ? seed : (cfg && cfg.seed ? cfg.seed : '0');
+  const ctx = { seed: String(effectiveSeed), q, r, x, z, cfg, rng: createRng(effectiveSeed, x, z), noise };
   const enabled = cfg._enabledLayers || {};
 
   // run layers in order; parts are partial tile outputs consumed by later layers

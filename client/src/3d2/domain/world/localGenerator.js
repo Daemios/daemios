@@ -7,7 +7,9 @@ import { axialToXZ } from '../../config/layout.js';
 export const availableWorldGenerators = ['hex:shared'];
 
 export function createWorldGenerator(_type = 'hex', seed = 'seed', opts = {}) {
+  // Allow cfg.seed to override provided seed when provided
   let cfg = opts || {};
+  const effectiveSeed = (typeof seed !== 'undefined' && seed !== null) ? seed : (cfg && cfg.seed ? cfg.seed : 'seed');
   return {
     getByXZ(x, z, q, r) {
       return shared.generateTile(seed, { q, r, x, z }, cfg);

@@ -2,6 +2,9 @@
 // Default configuration and layer toggles
 
 export const DEFAULT_CONFIG = {
+  // Central default RNG seed used when callers do not provide one. This
+  // allows a single place to adjust world seeds for deterministic runs.
+  seed: 'julia',
   // Global multiplier applied to the final elevation (rendered height).
   // This does not change biome/sea classification which is computed from
   // the unscaled elevation; it only scales the returned tile.height.
