@@ -199,13 +199,13 @@ async function initScene() {
         for (const k of Object.keys(savedLayers)) {
           // map legacy numeric keys to canonical layer names
           const mapLegacy = {
-            layer0: 'palette',
-            layer1: 'continents',
-            layer2: 'plates_and_mountains',
-            layer3: 'biomes',
-            layer3_5: 'clutter',
-            layer4: 'specials',
-            layer35: 'clutter'
+            layer0: "palette",
+            layer1: "continents",
+            layer2: "plates_and_mountains",
+            layer3: "biomes",
+            layer3_5: "clutter",
+            layer4: "specials",
+            layer35: "clutter",
           };
           const mapped = mapLegacy[k] || k;
           cfgPartial.layers[mapped] = savedLayers[k];
@@ -436,13 +436,13 @@ function onWorldGenApply(payload) {
     const cfgPartial = { layers: {} };
     // map legacy keys to canonical names if present
     const mapLegacy = {
-      layer0: 'palette',
-      layer1: 'continents',
-      layer2: 'plates_and_mountains',
-      layer3: 'biomes',
-      layer3_5: 'clutter',
-      layer4: 'specials',
-      layer35: 'clutter'
+      layer0: "palette",
+      layer1: "continents",
+      layer2: "plates_and_mountains",
+      layer3: "biomes",
+      layer3_5: "clutter",
+      layer4: "specials",
+      layer35: "clutter",
     };
     for (const k of Object.keys(layers)) {
       const mapped = mapLegacy[k] || k;

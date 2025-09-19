@@ -142,18 +142,20 @@ export default {
         : {};
     // Support both legacy layerN keys and canonical keys in saved settings
     const pick = (kCanonical, kLegacy, def = true) => {
-      if (typeof savedLayers[kCanonical] === 'boolean') return savedLayers[kCanonical];
-      if (typeof savedLayers[kLegacy] === 'boolean') return savedLayers[kLegacy];
+      if (typeof savedLayers[kCanonical] === "boolean")
+        return savedLayers[kCanonical];
+      if (typeof savedLayers[kLegacy] === "boolean")
+        return savedLayers[kLegacy];
       return def;
     };
     return {
       settings,
       layers: {
-        palette: pick('palette','layer0', true),
-        continents: pick('continents','layer1', true),
-        biomes: pick('biomes','layer3', true),
-        clutter: pick('clutter','layer3_5', true),
-        specials: pick('specials','layer4', true),
+        palette: pick("palette", "layer0", true),
+        continents: pick("continents", "layer1", true),
+        biomes: pick("biomes", "layer3", true),
+        clutter: pick("clutter", "layer3_5", true),
+        specials: pick("specials", "layer4", true),
       },
     };
   },
@@ -182,11 +184,11 @@ export default {
     },
     reset() {
       this.layers = {
-          palette: true,
-          continents: true,
-          biomes: true,
-          clutter: true,
-          specials: true,
+        palette: true,
+        continents: true,
+        biomes: true,
+        clutter: true,
+        specials: true,
       };
       this.apply();
     },
