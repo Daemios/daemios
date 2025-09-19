@@ -63,7 +63,19 @@ function computeTilePart(ctx) {
 
 	// gently reduce small islands
 	const oceanSoft = 0.04;
-	if (h < oceanSoft) h *= 0.6;
+	// instead of a hard multiplicative step (which creates a visible "lip" at the
+	// ocean threshold), smoothly interpolate the reduction factor from
+	// minIslandScale at h=0 up to 1.0 at h=oceanSoft. This prevents a sudden
+	// jump in elevation near the seafloor while still reducing very small
+	// island artifacts.
+	const minIslandScale = 0.6;
+	if (h < oceanSoft) {
+		// normalize to [0,1] then smooth it for a gentle blend
+		const tRaw = Math.max(0, Math.min(1, h / oceanSoft));
+		const t = smoothstep(tRaw);
+		const scale = minIslandScale + (1 - minIslandScale) * t;
+		h *= scale;
+	}
 
 	// clamp above sea
 	if (h > seaLevel) h = Math.min(h, seaLevel + clampAboveSea);
