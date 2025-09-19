@@ -30,10 +30,10 @@ function computeTilePart(ctx) {
   const baseSampler = fbmFactory(noise, 3, 2.0, 0.5);
   const secSampler = fbmFactory(noise, 2, 2.2, 0.55);
 
-  // elevation used only to decide biome bands; prefer layer1 normalized if present
-  let h = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation)
-    ? ctx.partials.layer1.elevation.normalized
-    : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2;
+  // elevation used only to decide biome bands; prefer canonical 'continents' partial if present
+  let h = (ctx.partials && ctx.partials.continents && ctx.partials.continents.elevation)
+    ? ctx.partials.continents.elevation.normalized
+    : ((ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.elevation) ? ctx.partials.layer1.elevation.normalized : (baseSampler(ctx.x * 0.01, ctx.z * 0.01) + 1) / 2);
 
   // Do NOT mutate elevation here. Instead return an archetypeBias object
   // describing semantic nudges (small numbers) that the palette interpreter
@@ -45,11 +45,14 @@ function computeTilePart(ctx) {
   }
 
   // Determine authoritative seaLevel from layer1/bathymetry or from cfg
-  const seaLevel = (ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
-    ? ctx.partials.layer1.bathymetry.seaLevel
-    : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-      ? ctx.cfg.layers.global.seaLevel
-      : 0.33;
+  // Determine authoritative seaLevel from continents/bathymetry or from cfg
+  const seaLevel = (ctx.partials && ctx.partials.continents && ctx.partials.continents.bathymetry && typeof ctx.partials.continents.bathymetry.seaLevel === 'number')
+    ? ctx.partials.continents.bathymetry.seaLevel
+    : ((ctx.partials && ctx.partials.layer1 && ctx.partials.layer1.bathymetry && typeof ctx.partials.layer1.bathymetry.seaLevel === 'number')
+      ? ctx.partials.layer1.bathymetry.seaLevel
+      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
+        ? ctx.cfg.layers.global.seaLevel
+        : 0.33);
   const major = chooseMajor(h, seaLevel);
 
   // Determine a secondary candidate using a second noise sampler and

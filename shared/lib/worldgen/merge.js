@@ -52,9 +52,10 @@ function mergeParts(base, parts, ctx) {
       : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
         ? ctx.cfg.layers.global.seaLevel
         : 0.22;
-    const clampAbove = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1 && typeof ctx.cfg.layers.layer1.clampAboveSea === 'number')
-      ? ctx.cfg.layers.layer1.clampAboveSea
-      : null;
+    // prefer canonical continents config but accept legacy layer1
+    const clampAbove = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.continents && typeof ctx.cfg.layers.continents.clampAboveSea === 'number')
+      ? ctx.cfg.layers.continents.clampAboveSea
+      : ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1 && typeof ctx.cfg.layers.layer1.clampAboveSea === 'number') ? ctx.cfg.layers.layer1.clampAboveSea : null);
     if (clampAbove !== null && normalizedUnclamped > seaLevel) {
       const clampLimit = Math.max(0, Math.min(1, seaLevel + clampAbove));
       normalized = Math.min(normalizedUnclamped, clampLimit);

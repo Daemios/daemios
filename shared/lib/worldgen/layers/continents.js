@@ -25,8 +25,11 @@ import { makeSimplex } from '../utils/noise.js';
 import { seedStringToNumber, pseudoRandom, smoothstep } from '../utils/general.js';
 
 function computeTilePart(ctx) {
-	const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {};
-	// authoritative seaLevel: prefer explicit layer1.bathymetry then global then default
+	// prefer canonical continents config but fall back to legacy layer1
+	const cfg = (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.continents)
+		? ctx.cfg.layers.continents
+		: ((ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.layer1) ? ctx.cfg.layers.layer1 : {});
+	// authoritative seaLevel: prefer explicit continents.bathymetry then global then default
 	const seaLevel = (typeof cfg.seaLevel === 'number') ? cfg.seaLevel
 		: (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number') ? ctx.cfg.layers.global.seaLevel
 			: 0.22;
