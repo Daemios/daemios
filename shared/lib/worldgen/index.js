@@ -227,7 +227,9 @@ function sampleBlockLight(seed, qOrigin, rOrigin, S, cfgPartial) {
         part1 = null;
       }
       const elev = (part1 && part1.elevation && typeof part1.elevation.normalized === 'number') ? part1.elevation.normalized : 0;
-      const seaLevel = (part1 && part1.bathymetry && typeof part1.bathymetry.seaLevel === 'number') ? part1.bathymetry.seaLevel : (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number' ? cfg.layers.global.seaLevel : 0.22);
+  // Use authoritative seaLevel from normalized config. normalizeConfig should
+  // always ensure cfg.layers.global.seaLevel is present; rely on it explicitly.
+  const seaLevel = (part1 && part1.bathymetry && typeof part1.bathymetry.seaLevel === 'number') ? part1.bathymetry.seaLevel : (cfg && cfg.layers && cfg.layers.global && typeof cfg.layers.global.seaLevel === 'number' ? cfg.layers.global.seaLevel : 0.22);
       const isWater = elev <= seaLevel;
       isWaterBuf[idx] = isWater ? 1 : 0;
       yScaleBuf[idx] = Math.max(0, Math.min(1, elev));

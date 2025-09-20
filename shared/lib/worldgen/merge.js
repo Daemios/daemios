@@ -53,13 +53,19 @@ function mergeParts(base, parts, ctx) {
   // after all layers have been merged.
   try {
     if (!tile.bathymetry) tile.bathymetry = {};
-    const seaLevel = (typeof tile.bathymetry.seaLevel === 'number')
-      ? tile.bathymetry.seaLevel
-      : (ctx && ctx.cfg && ctx.cfg.layers && ctx.cfg.layers.global && typeof ctx.cfg.layers.global.seaLevel === 'number')
-        ? ctx.cfg.layers.global.seaLevel
-        : 0.22;
-    const isWaterFinal = normalized <= seaLevel;
-    const depthBand = isWaterFinal ? (normalized < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
+    // Require an authoritative seaLevel from the normalized config. normalizeConfig
+    // ensures DEFAULT_CONFIG provides a default, so this should always be present
+    // for properly normalized cfg objects. Throw if it's missing so callers must
+    // provide/normalize config explicitly rather than silently falling back.
+    if (!ctx || !ctx.cfg || !ctx.cfg.layers || typeof ctx.cfg.layers.global === 'undefined' || typeof ctx.cfg.layers.global.seaLevel !== 'number') {
+      throw new Error('mergeParts: cfg.layers.global.seaLevel is required');
+    }
+    const seaLevel = ctx.cfg.layers.global.seaLevel;
+  // Use the final normalized elevation for bathymetry decisions. Fall back
+  // to the previously computed normalizedUnclamped if the field is missing.
+  const norm = (tile.elevation && typeof tile.elevation.normalized === 'number') ? tile.elevation.normalized : normalizedUnclamped;
+  const isWaterFinal = norm <= seaLevel;
+  const depthBand = isWaterFinal ? (norm < seaLevel - 0.12 ? 'deep' : 'shallow') : 'land';
     tile.bathymetry.depthBand = depthBand;
     tile.bathymetry.seaLevel = seaLevel;
   } catch (e) {
