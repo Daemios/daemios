@@ -437,8 +437,8 @@ export function buildWater(ctx) {
     minZ = Math.min(...fallbackCorners.map((c) => c.z));
     maxZ = Math.max(...fallbackCorners.map((c) => c.z));
   }
-  const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est * 0.001);
-  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est * 0.001);
+  const planeW = Math.max(1e-4, Math.abs(maxX - minX) + hexW_est);
+  const planeH = Math.max(1e-4, Math.abs(maxZ - minZ) + hexH_est);
   const geom = new THREE.PlaneGeometry(planeW, planeH, 1, 1);
   geom.rotateX(-Math.PI / 2);
 
