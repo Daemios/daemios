@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // options: {
 //   preset: 'vivid'|'soft',
 //   distanceTexture, coverageTexture, seabedTexture,
-//   hexW, hexH, gridW, gridH, gridQMin, gridRMin,
+//   hexSize (or legacy hexW/hexH), gridW, gridH, gridQMin, gridRMin,
 //   seaLevelY, hexMaxYScaled
 // }
 export default function createGhibliWaterMaterial(opts = {}) {
@@ -39,6 +39,15 @@ export default function createGhibliWaterMaterial(opts = {}) {
 
   const p = presets[preset] || presets.vivid;
 
+  const SQRT3 = Math.sqrt(3);
+  const hexSize = (typeof opts.hexSize === 'number' && Number.isFinite(opts.hexSize) && opts.hexSize > 0)
+    ? opts.hexSize
+    : (typeof opts.hexW === 'number' && Number.isFinite(opts.hexW) && opts.hexW > 0)
+      ? opts.hexW / 1.5
+      : (typeof opts.hexH === 'number' && Number.isFinite(opts.hexH) && opts.hexH > 0)
+        ? opts.hexH / SQRT3
+        : 1.0;
+
   const uniforms = {
     uTime: { value: 0.0 },
     uBaseColor: { value: p.uBaseColor.clone() },
@@ -54,8 +63,7 @@ export default function createGhibliWaterMaterial(opts = {}) {
     uDist: { value: opts.distanceTexture || null },
     uCoverage: { value: opts.coverageTexture || null },
     uSeabed: { value: opts.seabedTexture || null },
-    uHexW: { value: opts.hexW || 1.0 },
-    uHexH: { value: opts.hexH || 1.0 },
+    uHexSize: { value: hexSize },
     uSeaLevelY: { value: opts.seaLevelY || 0.0 },
     uHexMaxYScaled: { value: opts.hexMaxYScaled || 1.0 },
   uHasDist: { value: opts.distanceTexture ? 1.0 : 0.0 },
@@ -115,8 +123,7 @@ export default function createGhibliWaterMaterial(opts = {}) {
   uniform float uGridH;
   uniform float uGridQMin;
   uniform float uGridRMin;
-  uniform float uHexW;
-  uniform float uHexH;
+  uniform float uHexSize;
   uniform float uDebugShowDist;
   uniform float uDebugGrid;
     uniform vec3 uBaseColor;
@@ -150,6 +157,14 @@ export default function createGhibliWaterMaterial(opts = {}) {
       return n;
     }
 
+  const float SQRT3 = 1.7320508075688772;
+  vec2 worldToAxial(vec2 xz){
+    float hexSize = uHexSize;
+    float q = (2.0/3.0) * (xz.x / hexSize);
+    float r = (xz.y / (SQRT3 * hexSize)) - q * 0.5;
+    return vec2(q,r);
+  }
+
     void main(){
   // world-space uv: use world position xz for large-scale coherence
   vec2 p = vWorldPos.xz * 0.02; // scale down for painterly ripples
@@ -160,9 +175,7 @@ export default function createGhibliWaterMaterial(opts = {}) {
   float dist = 0.0;
   // optional debug axial grid overlay to validate mapping scale
   if(uDebugGrid > 0.5){
-    vec2 qr;
-    qr.x = vWorldPos.x / uHexW;
-    qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+    vec2 qr = worldToAxial(vWorldPos.xz);
     float lineQ = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.x) - 0.5));
     float lineR = 1.0 - smoothstep(0.0, 0.03, abs(fract(qr.y) - 0.5));
     float grid = clamp(max(lineQ, lineR), 0.0, 1.0);
@@ -173,9 +186,7 @@ export default function createGhibliWaterMaterial(opts = {}) {
       // sample signed-distance by mapping world XZ to the precomputed grid UV
       if (uHasDist > 0.5) {
         // convert world xz to axial coords similar to RealisticWaterMaterial
-        vec2 qr;
-        qr.x = vWorldPos.x / uHexW;
-        qr.y = vWorldPos.z / uHexH - qr.x * 0.5;
+        vec2 qr = worldToAxial(vWorldPos.xz);
   float iq = (qr.x - uGridQMin);
   float ir = (qr.y - uGridRMin);
   float u = (iq + 0.5) / max(1.0, uGridW);

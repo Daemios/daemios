@@ -18,8 +18,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     foamShoreStrength: 0.6,
     distanceTexture: null,
     coverageTexture: null, // R: 1 where a rendered hex exists, 0 otherwise
-    hexW: 1.0,
-    hexH: 1.0,
+    hexSize: 1.0,
   gridW: 1,
   gridH: 1,
   gridQMin: 0,
@@ -43,13 +42,21 @@ export default function createRealisticWaterMaterial(options = {}) {
     farAlpha: 0.85, // alpha at/max depth
     // Shoreline wave bands (near-hex waves)
     shoreWaveStrength: 0.45,
-    shoreWaveSpacing: 0.8, // in units of min(hexW,hexH) - much larger spacing
+    shoreWaveSpacing: 0.8, // scaled by hex footprint for large band spacing
     shoreWaveWidth: 0.08, // much thinner foam band
     shoreWaveSpeed: 0.15,
     shoreWaveOffset: 0.01, // extremely close to shore
     ...options,
   };
 
+  const SQRT3 = Math.sqrt(3);
+  const hexSize = (typeof opt.hexSize === "number" && Number.isFinite(opt.hexSize) && opt.hexSize > 0)
+    ? opt.hexSize
+    : (typeof opt.hexW === "number" && Number.isFinite(opt.hexW) && opt.hexW > 0)
+      ? opt.hexW / 1.5
+      : (typeof opt.hexH === "number" && Number.isFinite(opt.hexH) && opt.hexH > 0)
+        ? opt.hexH / SQRT3
+        : 1.0;
   const uniforms = {
     uTime: { value: 0 },
     uBase: { value: opt.baseColor },
@@ -61,8 +68,7 @@ export default function createRealisticWaterMaterial(options = {}) {
     uDist: { value: opt.distanceTexture },
     uCoverage: { value: opt.coverageTexture },
     uSeabed: { value: opt.seabedTexture },
-    uHexW: { value: opt.hexW },
-    uHexH: { value: opt.hexH },
+    uHexSize: { value: hexSize },
   uGridW: { value: opt.gridW },
   uGridH: { value: opt.gridH },
   uGridQMin: { value: opt.gridQMin },
@@ -115,7 +121,7 @@ export default function createRealisticWaterMaterial(options = {}) {
   uniform sampler2D uDist; // R: signed distance (land+, water-)
   uniform sampler2D uCoverage; // R:1 inside rendered hex area, 0 outside
   uniform sampler2D uSeabed; // R: normalized yScale for seabed top
-  uniform float uHexW, uHexH;
+  uniform float uHexSize;
   uniform float uGridW, uGridH;
   uniform float uGridQMin, uGridRMin;
     uniform float uSpecularStrength, uShininess;
@@ -138,7 +144,13 @@ export default function createRealisticWaterMaterial(options = {}) {
     float valueNoise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); float a=hash12(i); float b=hash12(i+vec2(1.0,0.0)); float c=hash12(i+vec2(0.0,1.0)); float d=hash12(i+vec2(1.0,1.0)); vec2 u=f*f*(3.0-2.0*f); return mix(mix(a,b,u.x), mix(c,d,u.x), u.y); }
     float fbm(vec2 p){ float v=0.0; float amp=0.6; float freq=1.0; for(int k=0;k<3;k++){ v += amp * valueNoise(p*freq); freq *= 2.0; amp *= 0.5; } return v; }
 
-    vec2 worldToAxial(vec2 xz){ float q = xz.x / uHexW; float r = xz.y / uHexH - q * 0.5; return vec2(q,r); }
+    const float SQRT3 = 1.7320508075688772;
+    vec2 worldToAxial(vec2 xz){
+      float hexSize = uHexSize;
+      float q = (2.0/3.0) * (xz.x / hexSize);
+      float r = (xz.y / (SQRT3 * hexSize)) - q * 0.5;
+      return vec2(q,r);
+    }
   float sampleDistXZ(vec2 xz){
   float W=uGridW, H=uGridH; if(W<=0.5||H<=0.5) return -100.0;
   vec2 qr=worldToAxial(xz);
@@ -163,6 +175,9 @@ export default function createRealisticWaterMaterial(options = {}) {
 
     void main(){
       vec2 xz = vWorldPos.xz;
+      float hexW = 1.5 * uHexSize;
+      float hexH = SQRT3 * uHexSize;
+      float minHex = min(hexW, hexH);
       vec3 V = normalize(-vViewPos);
 
   // Sample seabed once for depth-based color and transparency
@@ -210,8 +225,8 @@ export default function createRealisticWaterMaterial(options = {}) {
   float d = -signedDist;
 
   // Animated wave bands along the shore (subtle, fades after a few bands)
-  float spacing = uShoreWaveSpacing * min(uHexW, uHexH);
-  float offset = 0.01 * min(uHexW, uHexH);
+  float spacing = uShoreWaveSpacing * minHex;
+  float offset = 0.01 * minHex;
   float bandD = max(0.0, d - offset);
   float phase = fract((xz.x + xz.y) * 0.37); // pseudo-random phase per location
   float pos = (bandD / max(1e-4, spacing)) + uTime * uShoreWaveSpeed + phase;
