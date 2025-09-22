@@ -31,89 +31,68 @@
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr; gap: 8px">
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.palette"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Palette & Creative Constraints
       </label>
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.continents"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Continents & Plates
       </label>
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.plates_and_mountains"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Plates & Mountains (mesoscale)
       </label>
 
       <!--     seaLevel is configured in shared/lib/worldgen/config.js and is not editable at runtime -->
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.biomes"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Biome Selection (semantic)
       </label>
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.variation"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Microvariation (fine-grain noise)
       </label>
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.clutter"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Clutter Placement
       </label>
 
-      <label
-        class="d-flex align-center cursor-pointer"
-        style="gap: 8px"
-      >
+      <label class="d-flex align-center cursor-pointer" style="gap: 8px">
         <input
           v-model="layers.specials"
           type="checkbox"
           @change="applyImmediate"
-        >
+        />
         Special Regions
       </label>
     </div>
