@@ -9,5 +9,6 @@ export const LAYER_REGISTRY = {
   plates_and_mountains: { key: 'plates_and_mountains', desc: 'Mountains (mesoscale)' },
   biomes: { key: 'biomes', desc: 'Semantic biome attributes' },
   clutter: { key: 'clutter', desc: 'Ground clutter hints' },
-  specials: { key: 'specials', desc: 'Special/rare regions' }
+  specials: { key: 'specials', desc: 'Special/rare regions' },
+  variation: { key: 'variation', desc: 'Low-power terrain variation noise' }
 };

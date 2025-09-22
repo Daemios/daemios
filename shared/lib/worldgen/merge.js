@@ -17,7 +17,7 @@ function mergeParts(base, parts, ctx) {
   if (parts.palette && parts.palette.palette) tile.palette = Object.assign({}, tile.palette, parts.palette.palette);
   // Additively apply elevation contributions from all layers. This ensures no
   // single layer overwrites previous elevation — every layer can add to height.
-  const elevLayers = ['continents','plates_and_mountains','biomes','clutter','specials'];
+  const elevLayers = ['continents','plates_and_mountains','biomes','clutter','specials','variation'];
   for (const ln of elevLayers) {
     const part = parts[ln];
     if (!part) continue;
@@ -94,6 +94,13 @@ function mergeParts(base, parts, ctx) {
   } catch (e) {
     // if interpreter fails, keep existing palette
   }
+
+  // Expose microvariation (if produced by variation layer) for palette/clients
+  try {
+    if (parts && parts.variation && typeof parts.variation.microvariation === 'number') {
+      tile.microvariation = parts.variation.microvariation;
+    }
+  } catch (e) { /* ignore */ }
 
   // Finally, compute canonical world-space height and the renderer's
   // renderHeight using the centralized maxHeight and scale.
