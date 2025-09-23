@@ -36,10 +36,10 @@
       </div>
       <div class="name white--text pa-2">
         <h2>
-          {{ safeShow.label }}
+          {{ displayLabel }}
           <span v-if="safeShow.quantity">x{{ safeShow.quantity }}</span>
         </h2>
-        <h5>{{ safeShow.slot }}</h5>
+        <h5>{{ displaySlot }}</h5>
       </div>
       <div class="rarity pa-2">
         <v-chip
@@ -75,6 +75,14 @@ const open = computed({
 
 // Safe wrapper for template access
 const safeShow = computed(() => props.item || {});
+
+const displayLabel = computed(
+  () => safeShow.value.label || safeShow.value.name || "Item",
+);
+
+const displaySlot = computed(
+  () => safeShow.value.slot || safeShow.value.containerName || "Inventory",
+);
 
 const dialogBackground = computed(() => {
   const r =

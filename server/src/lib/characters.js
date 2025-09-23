@@ -1,17 +1,34 @@
 import prisma from './prisma.js';
+import inventory from './inventory.js';
 
 const characters = {
-  getActiveCharacter: async (userId) => prisma.character.findFirst({
-    where: {
-      user: {
-        id: userId,
+  getActiveCharacter: async (userId) => {
+    const character = await prisma.character.findFirst({
+      where: {
+        user: {
+          id: userId,
+        },
+        active: true,
       },
-      active: true,
-    },
-    include: {
-      race: true, // Assuming 'race' is the relation field in your Prisma schema
-    },
-  }),
+      include: {
+        race: true,
+        inventory: {
+          include: {
+            itemType: true,
+          },
+        },
+      },
+    });
+
+    if (!character || !character.id) return character;
+
+    const containers = await inventory.ensureCharacterContainers(character.id);
+
+    return {
+      ...character,
+      containers,
+    };
+  },
   activateCharacter: async (userId, characterId) => prisma.character.updateMany({
     where: {
       user: {

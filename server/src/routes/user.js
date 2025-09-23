@@ -1,5 +1,6 @@
 import express from 'express';
 import characters from '../lib/characters.js';
+import inventory from '../lib/inventory.js';
 import prisma from '../lib/prisma.js';
 
 const router = express.Router();
@@ -47,6 +48,27 @@ router.post('/character/select', async (req, res) => {
       return res.status(404).json({ error: 'No active character found' });
     }
     res.json({ success: true, character });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+// Containers for the active character
+router.get('/inventory', async (req, res) => {
+  try {
+    const userId = req.session.passport.user.id;
+    const character = await characters.getActiveCharacter(userId);
+
+    if (!character || !character.id) {
+      return res.status(404).json({ error: 'No active character found' });
+    }
+
+    const containers = Array.isArray(character.containers)
+      ? character.containers
+      : await inventory.getCharacterContainers(character.id);
+
+    res.json({ success: true, containers });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'An error occurred' });

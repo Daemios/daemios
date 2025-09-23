@@ -31,11 +31,8 @@
       </v-icon>
     </v-btn>
 
-    <div
-      class="item-label"
-      :class="itemLabelClasses"
-    >
-      {{ safeItem.label }}
+    <div class="item-label" :class="itemLabelClasses">
+      {{ displayLabel }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
   </v-card>
@@ -77,6 +74,12 @@ const itemLabelClasses = computed(() => ({
 // Safe item wrapper so template can safely access properties even when parent
 // explicitly passes null (Vue will not use prop default if the parent provided null).
 const safeItem = computed(() => props.item || {});
+
+const displayLabel = computed(() => {
+  if (props.label) return props.label;
+  const item = safeItem.value;
+  return item.label || item.name || "Item";
+});
 </script>
 
 <style>

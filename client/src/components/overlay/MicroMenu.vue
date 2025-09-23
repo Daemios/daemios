@@ -9,21 +9,10 @@
         size="x-small"
         height="30"
         width="30"
-        @click="dialogs.toggleEquipment()"
+        @click="dialogs.toggleCharacter()"
       >
         <v-icon size="small">
           {{ mdiHumanMale }}
-        </v-icon>
-      </v-btn>
-      <v-btn
-        variant="flat"
-        size="x-small"
-        height="30"
-        width="30"
-        @click="dialogs.toggleInventory()"
-      >
-        <v-icon size="small">
-          {{ mdiTreasureChest }}
         </v-icon>
       </v-btn>
       <v-btn
@@ -53,7 +42,7 @@
 </template>
 
 <script setup>
-import { mdiTreasureChest, mdiHumanMale, mdiSword, mdiCog } from "@mdi/js";
+import { mdiHumanMale, mdiSword, mdiCog } from "@mdi/js";
 import { useDialogsStore } from "@/stores/dialogsStore";
 
 // Pinia store providing dialog toggle actions used by the micro menu

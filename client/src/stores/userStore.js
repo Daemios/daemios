@@ -38,7 +38,7 @@ export const useUserStore = defineStore("user", {
       },
       equipped: {},
     },
-    inventory: [],
+    containers: [],
   }),
   actions: {
     setCharacters(characters) {
@@ -46,14 +46,17 @@ export const useUserStore = defineStore("user", {
     },
     setCharacter(character) {
       this.character = character;
+      const containers = Array.isArray(character?.containers)
+        ? character.containers
+        : [];
+      this.setContainers(containers);
     },
-    setInventory(inventory) {
-      this.inventory = inventory;
+    setContainers(containers) {
+      this.containers = Array.isArray(containers) ? containers : [];
     },
     async getUser() {
       const response = await api.get("user/refresh");
       this.setCharacter(response.character);
-      this.setInventory(response.inventory);
     },
     async getCharacters() {
       const response = await api.get("user/characters");
@@ -63,16 +66,15 @@ export const useUserStore = defineStore("user", {
       const response = await api.get("user/character");
       this.setCharacter(response.data);
     },
-    async getInventory() {
+    async getContainers() {
       const response = await api.get("user/inventory");
-      this.setInventory(response.data);
+      this.setContainers(response.containers);
     },
     async selectCharacter(characterId) {
       const response = await api.post("user/character/select", { characterId });
       if (response.success) {
         router.push("/");
         this.setCharacter(response.character);
-        this.setInventory(response.inventory);
       } else {
         console.log(response.error);
       }

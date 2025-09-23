@@ -1,8 +1,7 @@
 <template>
   <v-app id="app">
     <!-- Game Dialogs -->
-    <Equipment />
-    <Inventory />
+    <CharacterDialog />
     <Abilities />
     <Settings />
 
@@ -29,8 +28,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
-import Equipment from "@/components/dialogs/Equipment.vue";
-import Inventory from "@/components/dialogs/Inventory.vue";
+import CharacterDialog from "@/components/dialogs/Character.vue";
 import Abilities from "@/components/dialogs/Abilities.vue";
 import Settings from "@/components/dialogs/Settings.vue";
 import MicroMenu from "@/components/overlay/MicroMenu.vue";
@@ -54,13 +52,11 @@ function handleKeypress(event) {
   switch (event.code) {
     case "Escape":
       if (
-        dialogs.isEquipmentOpen ||
-        dialogs.isInventoryOpen ||
+        dialogs.isCharacterOpen ||
         dialogs.isAbilitiesOpen ||
         dialogs.isSettingsOpen
       ) {
-        dialogs.closeEquipment();
-        dialogs.closeInventory();
+        dialogs.closeCharacter();
         dialogs.closeAbilities();
         dialogs.closeSettings();
       } else {
@@ -68,13 +64,10 @@ function handleKeypress(event) {
       }
       break;
     case "KeyC":
-      dialogs.toggleEquipment();
+      dialogs.toggleCharacter();
       break;
     case "KeyA":
       dialogs.toggleAbilities();
-      break;
-    case "KeyI":
-      dialogs.toggleInventory();
       break;
     default:
       break;

@@ -108,6 +108,7 @@ model Item {
   createdOn    DateTime?  @default(now())
   createdBy    Int?
   lastUpdate   Int?
+  slotIndex    Int?
   characterId  Int
   character    Character  @relation(fields: [characterId], references: [id])
   Reward       Reward[]
@@ -222,6 +223,7 @@ model Character {
   factions          Faction[]
   skills            Skill[]
   inventory         Item[]
+  containers        Container[]
 
   @@index([raceId])
   @@index([userId])
@@ -312,7 +314,15 @@ model Container {
   location    Location?  @relation(fields: [locationId], references: [id])
   structureId Int?
   structure   Structure? @relation(fields: [structureId], references: [id])
+  characterId Int?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  description String?
+  templateKey String?
+  allowedItemTags Json?
   items       Item[]
+
+  @@index([characterId])
+  @@unique([characterId, templateKey])
 }
 
 // NPCs are records of non-combat characters that can be interacted with

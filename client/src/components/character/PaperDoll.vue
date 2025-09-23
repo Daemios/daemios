@@ -119,12 +119,15 @@ const equipped = computed(() => character.value.equipped || {});
 <style>
 .doll-grid {
   display: grid;
-  grid-template-columns: 100px auto auto 100px;
-  grid-auto-rows: 100px;
-  grid-gap: 0.5rem;
+  grid-template-columns:
+    minmax(80px, 1fr)
+    repeat(2, minmax(120px, 1.35fr))
+    minmax(80px, 1fr);
+  grid-auto-rows: minmax(90px, auto);
+  gap: 0.75rem;
   grid-auto-flow: dense;
-  min-width: 650px;
-  max-width: 650px;
+  width: 100%;
+  max-width: 520px;
 }
 .doll-grid .trinkets {
   grid-column: span 4;
@@ -132,11 +135,12 @@ const equipped = computed(() => character.value.equipped || {});
 .doll-grid .weapon-mainhand,
 .doll-grid .weapon-offhand {
   grid-column: span 2;
-  height: 100px;
+  min-height: 100px;
 }
 .doll-grid .avatar {
   grid-column: 2/4;
   grid-row: span 4;
+  min-height: 240px;
 }
 .doll-grid .avatar span {
   width: 100% !important;
