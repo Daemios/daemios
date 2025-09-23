@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import express from 'express';
 import characters from '../lib/characters.js';
+import prisma from '../lib/prisma.js';
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
 // Logout user
