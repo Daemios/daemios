@@ -9,10 +9,7 @@
             cols="3"
             class="d-flex flex-column align-center"
           >
-            <v-btn
-              class="ability-item ma-1"
-              dense
-            >
+            <v-btn class="ability-item ma-1" dense>
               <div
                 class="ability-item-inner d-flex align-center justify-center"
                 style="position: relative"

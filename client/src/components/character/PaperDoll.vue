@@ -48,10 +48,7 @@
       />
 
       <!-- Avatar -->
-      <v-card
-        class="avatar d-flex align-center justify-center"
-        flat
-      >
+      <v-card class="avatar d-flex align-center justify-center" flat>
         <v-icon>
           {{ mdiClose }}
         </v-icon>
@@ -76,11 +73,7 @@
         right
         @click="selected = equipped.legs"
       />
-      <DollSlot
-        label="Feet"
-        :item="equipped.feet"
-        right
-      />
+      <DollSlot label="Feet" :item="equipped.feet" right />
 
       <!-- Weapons -->
       <DollSlot
@@ -98,10 +91,7 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
+    <ItemDialog :item="selected" @close="selected = null" />
   </div>
 </template>
 

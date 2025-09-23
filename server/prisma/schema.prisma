@@ -86,33 +86,33 @@ model ArchetypeRole {
 }
 
 model Item {
-  id           Int        @id @default(autoincrement())
-  name         String
-  locationId   Int?
-  containerId  Int?
-  characterId  Int
-  createdBy    Int?
-  createdOn    DateTime?  @default(now())
-  description  String?
-  image        String?
-  itemEffectId Int?
-  itemTypeId   Int?
-  lastUpdate   Int?
-  quantity     Int?
-  character    Character  @relation(fields: [characterId], references: [id])
-  Container    Container? @relation(fields: [containerId], references: [id])
-  itemEffect   Effect?    @relation(fields: [itemEffectId], references: [id])
-  itemType     ItemType?  @relation(fields: [itemTypeId], references: [id])
-  Location     Location?  @relation(fields: [locationId], references: [id])
+  id             Int        @id @default(autoincrement())
+  name           String
+  locationId     Int?
+  containerId    Int?
+  characterId    Int
+  createdBy      Int?
+  createdOn      DateTime?  @default(now())
+  description    String?
+  image          String?
+  itemEffectId   Int?
+  itemTypeId     Int?
+  lastUpdate     Int?
+  quantity       Int?
+  character      Character  @relation(fields: [characterId], references: [id])
+  Container      Container? @relation(fields: [containerId], references: [id])
+  itemEffect     Effect?    @relation(fields: [itemEffectId], references: [id])
+  itemType       ItemType?  @relation(fields: [itemTypeId], references: [id])
+  Location       Location?  @relation(fields: [locationId], references: [id])
   containerIndex Int?
-  Reward       Reward[]
+  Reward         Reward[]
 
+  @@unique([containerId, containerIndex], map: "Item_containerId_containerIndex_key")
   @@index([characterId], map: "Item_characterId_fkey")
   @@index([containerId], map: "Item_containerId_fkey")
   @@index([itemEffectId], map: "Item_itemEffectId_fkey")
   @@index([itemTypeId], map: "Item_itemTypeId_fkey")
   @@index([locationId], map: "Item_locationId_fkey")
-  @@unique([containerId, containerIndex], map: "Item_containerId_containerIndex_key")
 }
 
 model ItemType {
@@ -198,20 +198,20 @@ model User {
 }
 
 model Character {
-  id                Int        @id @default(autoincrement())
+  id                Int         @id @default(autoincrement())
   userId            Int
   raceId            Int
-  active            Boolean    @default(false)
+  active            Boolean     @default(false)
   name              String
   image             String?
   archetypeDistance Int?
   archetypeRole     Int?
-  level             Int        @default(1)
-  experience        Int        @default(0)
+  level             Int         @default(1)
+  experience        Int         @default(0)
   adventureId       Int?
-  adventure         Adventure? @relation(fields: [adventureId], references: [id])
-  race              Race       @relation(fields: [raceId], references: [id], onDelete: Cascade)
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adventure         Adventure?  @relation(fields: [adventureId], references: [id])
+  race              Race        @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   factions          Faction[]
   inventory         Item[]
   containers        Container[]
@@ -266,19 +266,18 @@ model Location {
   entities    Entity[]
   items       Item[]
   adventure   Adventure   @relation(fields: [adventureId], references: [id])
-  
 
   @@index([adventureId], map: "Location_adventureId_fkey")
 }
 
 model Entity {
-  id          Int        @id @default(autoincrement())
-  type        String
-  health      Int
-  locationId  Int?
-  name        String
-  strength    Int
-  location    Location?  @relation(fields: [locationId], references: [id])
+  id         Int       @id @default(autoincrement())
+  type       String
+  health     Int
+  locationId Int?
+  name       String
+  strength   Int
+  location   Location? @relation(fields: [locationId], references: [id])
 
   @@index([locationId], map: "Entity_locationId_fkey")
 }
@@ -351,9 +350,9 @@ model WorldLocation {
   type        WorldLocationType
   visible     Boolean           @default(true)
   ownerUserId Int?
-  
-  updatedOn   DateTime          @updatedAt
-  owner       User?             @relation(fields: [ownerUserId], references: [id])
+
+  updatedOn DateTime @updatedAt
+  owner     User?    @relation(fields: [ownerUserId], references: [id])
 
   @@unique([chunkX, chunkY, hexQ, hexR])
   @@index([ownerUserId], map: "WorldLocation_ownerUserId_fkey")

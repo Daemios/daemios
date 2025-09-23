@@ -10,10 +10,7 @@
           cols="12"
           md="6"
         >
-          <v-sheet
-            class="pa-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               {{ container.name }}
             </div>
@@ -27,15 +24,14 @@
     <div v-else>
       <v-row>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2 mb-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2 mb-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               No containers equipped
             </div>
             <div class="sheet-body">
-              <div>Inventory will populate automatically for your active character.</div>
+              <div>
+                Inventory will populate automatically for your active character.
+              </div>
             </div>
           </v-sheet>
         </v-col>
@@ -69,10 +65,7 @@
       </v-data-iterator>
     </div>
 
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
+    <ItemDialog :item="selected" @close="selected = null" />
   </div>
 </template>
 
@@ -82,11 +75,13 @@ import Item from "@/components/inventory/Item.vue";
 import ItemDialog from "@/components/inventory/ItemDialog.vue";
 import { useUserStore } from "@/stores/userStore";
 import { storeToRefs } from "pinia";
-import InventoryGrid from '@/components/inventory/InventoryGrid.vue';
+import InventoryGrid from "@/components/inventory/InventoryGrid.vue";
 
 const userStore = useUserStore();
 const { inventory } = storeToRefs(userStore);
-const containers = computed(() => Array.isArray(inventory.value) ? inventory.value : []);
+const containers = computed(() =>
+  Array.isArray(inventory.value) ? inventory.value : []
+);
 const flatInventory = computed(() => {
   // flatten containers -> items for legacy full-list view
   if (!Array.isArray(inventory.value)) return [];
