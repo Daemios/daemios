@@ -1,13 +1,9 @@
 <template>
   <div
     class="ability-grid"
-    :style="`grid-template-columns: repeat(${width}, ${blockSize}px); grid-template-rows: repeat(${height}, ${blockSize}px);`
-    "
+    :style="`grid-template-columns: repeat(${width}, ${blockSize}px); grid-template-rows: repeat(${height}, ${blockSize}px);`"
   >
-    <div
-      v-for="(row, x) in grid"
-      :key="x"
-    >
+    <div v-for="(row, x) in grid" :key="x">
       <div
         v-for="(column, y) in row"
         :key="y"
@@ -34,11 +30,11 @@ const props = defineProps({
     type: Number,
     required: true,
   },
-    blockSize: {
-      type: Number,
-      required: false,
-      default: 6,
-    },
+  blockSize: {
+    type: Number,
+    required: false,
+    default: 6,
+  },
   // Optional pattern: 2D array of truthy values to indicate filled cells.
   pattern: {
     type: Array,

@@ -1,9 +1,5 @@
 <template>
-  <BasicDialog
-    v-model="isAbilitiesOpen"
-    title="Abilities"
-    keybind="A"
-  >
+  <BasicDialog v-model="isAbilitiesOpen" title="Abilities" keybind="A">
     <v-container>
       <v-row>
         <v-col>
@@ -17,7 +13,7 @@
               <v-btn class="ability-item ma-2">
                 <div
                   class="ability-item-inner d-flex align-center justify-center"
-                  style="position: relative;"
+                  style="position: relative"
                 >
                   <AbilityMockup
                     :height="5"
@@ -26,13 +22,13 @@
                     :pattern="core.pattern || null"
                     :key_prefix="core.id || idx"
                   />
-                  <div style="position: absolute; right: -6px; bottom: -6px;">
+                  <div style="position: absolute; right: -6px; bottom: -6px">
                     <VesselMini :color="elementColor(core)" />
                   </div>
                 </div>
               </v-btn>
               <div class="text-caption mt-2">
-                {{ core.label || core.prefix || ('Core ' + core.id) }}
+                {{ core.label || core.prefix || "Core " + core.id }}
               </div>
             </v-col>
           </v-row>
@@ -70,7 +66,9 @@ const coresArr = computed(() => {
 function elementColor(core) {
   // core.element may be an id that maps to abilityStore.elements
   if (!abilityStore.elements) return "#888";
-  const el = abilityStore.elements.find((e) => e.element_id === core.element || e.id === core.element);
+  const el = abilityStore.elements.find(
+    (e) => e.element_id === core.element || e.id === core.element
+  );
   return el ? el.color : "#888";
 }
 

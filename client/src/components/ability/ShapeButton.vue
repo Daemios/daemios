@@ -1,8 +1,5 @@
 <template>
-  <v-btn
-    class="shape-button ma-2"
-    @click="emitSelect"
-  >
+  <v-btn class="shape-button ma-2" @click="emitSelect">
     <div class="shape-container d-flex align-center justify-center">
       <AbilityMockup
         :height="shape.h"
@@ -11,10 +8,7 @@
         :key_prefix="shape.id"
       />
       <div class="overlay-icon d-flex align-center justify-center">
-        <VesselMini
-          :color="elementColor"
-          :small="true"
-        />
+        <VesselMini :color="elementColor" :small="true" />
       </div>
     </div>
   </v-btn>
