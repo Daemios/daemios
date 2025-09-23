@@ -1,7 +1,5 @@
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from './prisma.js';
 
 export const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(10);

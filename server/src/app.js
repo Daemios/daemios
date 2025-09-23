@@ -8,7 +8,6 @@ import passport from 'passport';
 import logger from 'morgan';
 import expressSession from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';
-import { PrismaClient } from '@prisma/client';
 import open from './routes/open.js';
 
 import initializePassport from './passport-config.js';
@@ -21,6 +20,7 @@ import abilityRoutes from './routes/ability.js';
 import arenaRoutes from './routes/arena.js';
 import worldRoutes from './routes/world.js';
 import dmRoutes from './routes/dm.js';
+import prisma from './lib/prisma.js';
 
 
 if (process.env.NODE_ENV !== 'production') {
@@ -55,7 +55,7 @@ app.use(
     resave: true,
     saveUninitialized: true,
     store: new PrismaSessionStore(
-      new PrismaClient(),
+      prisma,
       {
         checkPeriod: 2 * 60 * 1000, // ms
         dbRecordIdIsSessionId: true,
