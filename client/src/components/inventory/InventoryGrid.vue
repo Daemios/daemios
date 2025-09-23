@@ -18,16 +18,11 @@
               containerId: slot.containerId,
               localIndex: slot.localIndex,
             }"
-              :width="'100%'"
-              :height="'100%'"
+            :width="'100%'"
+            :height="'100%'"
           />
         </div>
-        <div
-          v-else
-          class="slot-empty"
-        >
-          &nbsp;
-        </div>
+        <div v-else class="slot-empty">&nbsp;</div>
       </div>
     </div>
   </div>

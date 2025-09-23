@@ -3,14 +3,10 @@
     <!-- Inventory header removed per UX request -->
 
     <div v-if="Array.isArray(containers) && containers.length">
-
       <!-- Unified inventory grid that receives the full containers list -->
       <v-row dense>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               Inventory
             </div>
@@ -29,10 +25,7 @@
     <div v-else>
       <v-row>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2 mb-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2 mb-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               No containers equipped
             </div>
@@ -73,23 +66,11 @@
       </v-data-iterator>
     </div>
 
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
-    <v-snackbar
-      v-model="errorVisible"
-      color="error"
-      timeout="6000"
-    >
+    <ItemDialog :item="selected" @close="selected = null" />
+    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
       {{ errorMsg }}
       <template #action>
-        <v-btn
-          text
-          @click="() => (errorVisible = false)"
-        >
-          Close
-        </v-btn>
+        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -150,8 +131,12 @@ function onMoveItem(payload) {
     if (!sourceContainer || !targetContainer) return;
 
     // find the item index in source by containerIndex
-    const sourceIdx = (sourceContainer.items || []).findIndex((it) => it.containerIndex === src.localIndex);
-    const targetIdx = (targetContainer.items || []).findIndex((it) => it.containerIndex === tgt.localIndex);
+    const sourceIdx = (sourceContainer.items || []).findIndex(
+      (it) => it.containerIndex === src.localIndex
+    );
+    const targetIdx = (targetContainer.items || []).findIndex(
+      (it) => it.containerIndex === tgt.localIndex
+    );
 
     const movingItem = sourceIdx >= 0 ? sourceContainer.items[sourceIdx] : null;
 
@@ -203,7 +188,7 @@ function onMoveItem(payload) {
       }
     })();
   } catch (err) {
-    console.warn('move failed', err);
+    console.warn("move failed", err);
   }
 }
 

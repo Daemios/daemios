@@ -14,10 +14,7 @@
       @click="onClick"
       @dragstart="onDragStart ? onDragStart : null"
     >
-      <div
-        v-if="!safeItem.img"
-        class="d-flex flex-column"
-      >
+      <div v-if="!safeItem.img" class="d-flex flex-column">
         <v-icon class="mb-1">
           {{ mdiAlertCircleOutline }}
         </v-icon>
@@ -36,10 +33,7 @@
       </v-icon>
     </v-btn>
 
-    <div
-      class="item-label"
-      :class="itemLabelClasses"
-    >
+    <div class="item-label" :class="itemLabelClasses">
       {{ safeItem.label }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
@@ -100,10 +94,12 @@ const itemClasses = computed(() => ({
 const cardStyle = computed(() => {
   const s = {};
   if (props.width !== undefined && props.width !== null) {
-    s.width = typeof props.width === 'number' ? `${props.width}px` : props.width;
+    s.width =
+      typeof props.width === "number" ? `${props.width}px` : props.width;
   }
   if (props.height !== undefined && props.height !== null) {
-    s.height = typeof props.height === 'number' ? `${props.height}px` : props.height;
+    s.height =
+      typeof props.height === "number" ? `${props.height}px` : props.height;
   }
   return s;
 });

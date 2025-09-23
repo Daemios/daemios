@@ -57,10 +57,7 @@
       />
 
       <!-- Avatar -->
-      <v-card
-        class="avatar d-flex align-center justify-center"
-        flat
-      >
+      <v-card class="avatar d-flex align-center justify-center" flat>
         <v-icon>
           {{ mdiClose }}
         </v-icon>
@@ -113,24 +110,12 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
+    <ItemDialog :item="selected" @close="selected = null" />
   </div>
-  <v-snackbar
-    v-model="equipErrorVisible"
-    color="error"
-    timeout="6000"
-  >
+  <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
     {{ equipErrorMsg }}
     <template #action>
-      <v-btn
-        text
-        @click="() => (equipErrorVisible = false)"
-      >
-        Close
-      </v-btn>
+      <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
     </template>
   </v-snackbar>
 </template>
@@ -162,19 +147,23 @@ async function onEquipItem(payload) {
 
     // persist to server
     // Assumption: API endpoint POST /character/equip { itemId, targetSlot, source }
-    const body = { itemId: payload.item.id, targetSlot: payload.targetSlot, source: payload.source };
-    const res = await api.post('/character/equip', body);
+    const body = {
+      itemId: payload.item.id,
+      targetSlot: payload.targetSlot,
+      source: payload.source,
+    };
+    const res = await api.post("/character/equip", body);
     if (res && res.character) {
       userStore.setCharacter(res.character);
     }
   } catch (err) {
-    console.warn('equip failed, rolling back', err);
+    console.warn("equip failed, rolling back", err);
     try {
       userStore.setCharacter(prevChar);
     } catch (e) {
-      console.error('equip rollback failed', e);
+      console.error("equip rollback failed", e);
     }
-    equipErrorMsg.value = 'Failed to equip item. Changes were reverted.';
+    equipErrorMsg.value = "Failed to equip item. Changes were reverted.";
     equipErrorVisible.value = true;
   }
 }

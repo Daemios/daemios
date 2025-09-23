@@ -1,9 +1,5 @@
 <template>
-  <div
-    :class="dollSlotClasses"
-    @dragover.prevent
-    @drop="onDrop"
-  >
+  <div :class="dollSlotClasses" @dragover.prevent @drop="onDrop">
     <template v-if="props.item">
       <DraggableItem
         :item="safeItem"
@@ -65,17 +61,21 @@ const safeItem = computed(() => props.item || {});
 
 function onDrop(e) {
   try {
-    const raw = e.dataTransfer.getData('application/json');
+    const raw = e.dataTransfer.getData("application/json");
     if (!raw) return;
     const payload = JSON.parse(raw);
     // payload: { type: 'item', item, source }
-    if (payload && payload.type === 'item') {
+    if (payload && payload.type === "item") {
       // emit equip-item so parent (PaperDoll) can handle equipping
       // include target slot label for context
-      emit('equip-item', { item: payload.item, source: payload.source, targetSlot: label.value });
+      emit("equip-item", {
+        item: payload.item,
+        source: payload.source,
+        targetSlot: label.value,
+      });
     }
   } catch (err) {
-    console.warn('doll drop failed', err);
+    console.warn("doll drop failed", err);
   }
 }
 </script>
