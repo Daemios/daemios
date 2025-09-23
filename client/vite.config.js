@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      vuetify({ autoImport: true }),
+      vuetify({ autoImport: true, styles: { configFile: 'src/styles/settings.scss' } }),
     ],
     // Ensure Vuetify is treated correctly by Vite's optimizer and SSR handling.
     // This prevents Vite from rewriting component CSS imports to paths that

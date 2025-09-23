@@ -2,6 +2,8 @@
   <v-card
     class="item d-flex align-center justify-center pa-1"
     :class="itemClasses"
+    flat
+    tile
   >
     <v-btn
       depressed
@@ -57,7 +59,7 @@ const props = defineProps({
 });
 
 const itemClasses = computed(() => ({
-  white: true,
+  // color by rarity, but avoid forcing a white background which creates elevation contrast
   "green accent-4": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "uncommon"),
   "blue accent-3": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "rare"),
   "deep-purple accent-4": (props.item && props.item.rarity && props.item.rarity.toLowerCase() === "epic"),

@@ -1,9 +1,7 @@
 <template>
   <v-app id="app">
     <!-- Game Dialogs -->
-    <Equipment />
-    <Inventory />
-    <Abilities />
+    <CharacterPanel />
     <Settings />
 
     <!-- Main Content -->
@@ -15,10 +13,18 @@
     <MicroMenu />
 
     <!-- Websocket lock -->
-    <v-dialog :model-value="!socket.connection" persistent max-width="400">
+    <v-dialog
+      :model-value="!socket.connection"
+      persistent
+      max-width="400"
+    >
       <v-card class="pa-4">
         <v-card-text class="pa-0 d-flex align-center justify-center">
-          <v-progress-circular size="20" indeterminate class="mr-4" />
+          <v-progress-circular
+            size="20"
+            indeterminate
+            class="mr-4"
+          />
           Attempting to reconnect to Websocket server...
         </v-card-text>
       </v-card>
@@ -29,9 +35,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
-import Equipment from "@/components/dialogs/Equipment.vue";
-import Inventory from "@/components/dialogs/Inventory.vue";
-import Abilities from "@/components/dialogs/Abilities.vue";
+import CharacterPanel from "@/components/dialogs/CharacterPanel.vue";
 import Settings from "@/components/dialogs/Settings.vue";
 import MicroMenu from "@/components/overlay/MicroMenu.vue";
 import { useDialogsStore } from "@/stores/dialogsStore";
@@ -68,13 +72,13 @@ function handleKeypress(event) {
       }
       break;
     case "KeyC":
-      dialogs.toggleEquipment();
+      dialogs.toggleCharacter();
       break;
     case "KeyA":
-      dialogs.toggleAbilities();
+      dialogs.toggleCharacter();
       break;
     case "KeyI":
-      dialogs.toggleInventory();
+      dialogs.toggleCharacter();
       break;
     default:
       break;

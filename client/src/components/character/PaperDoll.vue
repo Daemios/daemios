@@ -48,7 +48,10 @@
       />
 
       <!-- Avatar -->
-      <v-card class="avatar d-flex align-center justify-center">
+      <v-card
+        class="avatar d-flex align-center justify-center"
+        flat
+      >
         <v-icon>
           {{ mdiClose }}
         </v-icon>

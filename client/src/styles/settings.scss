@@ -1,0 +1,18 @@
+@use 'vuetify/settings' with (
+  // Reduce default root font size slightly so rem-based typography scales down.
+  // Vuetify's typography map can be customized; here we set display and body sizes.
+  $typography: (
+    'display-4': (size: 3.5rem),
+    'display-3': (size: 3rem),
+    'display-2': (size: 2.5rem),
+    'display-1': (size: 2rem),
+    'headline': (size: 1.5rem),
+    'title': (size: 1.25rem),
+    'subtitle-1': (size: 1rem),
+    'subtitle-2': (size: 0.9rem),
+    'body-1': (size: 0.95rem),
+    'body-2': (size: 0.85rem),
+    'caption': (size: 0.7rem),
+    'overline': (size: 0.65rem),
+  ),
+);

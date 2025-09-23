@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Elemental modifier for abilities
 model AbilityElement {
   id             Int             @id @default(autoincrement())
   name           String?
@@ -22,23 +21,22 @@ model AbilityElement {
   abilityPresets AbilityPreset[]
 }
 
-// Ability presets are fully assembled abilities that can be used by a character.
 model AbilityPreset {
   id             Int            @id @default(autoincrement())
-  presetCoreId   Int
-  elementId      Int
-  abilityRangeId Int
-  abilityShapeId Int
-  abilityTypeId  Int
-  range          AbilityRange   @relation(fields: [abilityRangeId], references: [id])
-  shape          AbilityShape   @relation(fields: [abilityShapeId], references: [id])
-  type           AbilityType    @relation(fields: [abilityTypeId], references: [id])
   power          Boolean?       @default(true)
   cost           Boolean?       @default(true)
   cooldown       Boolean?       @default(true)
   duration       Boolean?       @default(true)
   description    String?
-  element        AbilityElement @relation(fields: [elementId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  abilityRangeId Int
+  abilityShapeId Int
+  abilityTypeId  Int
+  elementId      Int
+  presetCoreId   Int
+  range          AbilityRange   @relation(fields: [abilityRangeId], references: [id])
+  shape          AbilityShape   @relation(fields: [abilityShapeId], references: [id])
+  type           AbilityType    @relation(fields: [abilityTypeId], references: [id])
+  element        AbilityElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
 
   @@index([elementId])
   @@index([presetCoreId])
@@ -47,7 +45,6 @@ model AbilityPreset {
   @@index([abilityTypeId])
 }
 
-// Defines a 'range' that associates a tag and whether range modifiers can be applied.
 model AbilityRange {
   id              Int             @id @default(autoincrement())
   name            String
@@ -57,7 +54,6 @@ model AbilityRange {
   abilityPreset   AbilityPreset[]
 }
 
-// Defines a 'shape' that associates a tag and whether area modifiers can be applied.
 model AbilityShape {
   id             Int             @id @default(autoincrement())
   name           String?
@@ -67,9 +63,6 @@ model AbilityShape {
   abilityPresets AbilityPreset[]
 }
 
-// Defines a 'type' that associates a tag with the ability.
-// These tags are usually associated with an ability through an effect's tags.
-// For example, an effect that restores health would associated with a 'heal' AbilityType.
 model AbilityType {
   id             Int             @id @default(autoincrement())
   name           String?
@@ -78,7 +71,6 @@ model AbilityType {
   abilityPresets AbilityPreset[]
 }
 
-// Defines a range specialization (or lack thereof) that confers certain benefits to the character
 model ArchetypeRange {
   id          Int      @id @default(autoincrement())
   name        String
@@ -86,7 +78,6 @@ model ArchetypeRange {
   effects     Effect[]
 }
 
-// Defines a role specialization that confers certain benefits to the character
 model ArchetypeRole {
   id          Int      @id @default(autoincrement())
   name        String
@@ -94,32 +85,36 @@ model ArchetypeRole {
   effects     Effect[]
 }
 
-// Inventory items that are associated with a character
 model Item {
   id           Int        @id @default(autoincrement())
-  quantity     Int?
   name         String
+  locationId   Int?
+  containerId  Int?
+  characterId  Int
+  createdBy    Int?
+  createdOn    DateTime?  @default(now())
   description  String?
   image        String?
-  itemTypeId   Int?
-  itemType     ItemType?  @relation(fields: [itemTypeId], references: [id])
   itemEffectId Int?
-  itemEffect   Effect?    @relation(fields: [itemEffectId], references: [id])
-  createdOn    DateTime?  @default(now())
-  createdBy    Int?
+  itemTypeId   Int?
   lastUpdate   Int?
-  characterId  Int
+  quantity     Int?
   character    Character  @relation(fields: [characterId], references: [id])
-  Reward       Reward[]
-  Location     Location?  @relation(fields: [locationId], references: [id])
-  locationId   Int?
-  Structure    Structure? @relation(fields: [structureId], references: [id])
-  structureId  Int?
   Container    Container? @relation(fields: [containerId], references: [id])
-  containerId  Int?
+  itemEffect   Effect?    @relation(fields: [itemEffectId], references: [id])
+  itemType     ItemType?  @relation(fields: [itemTypeId], references: [id])
+  Location     Location?  @relation(fields: [locationId], references: [id])
+  containerIndex Int?
+  Reward       Reward[]
+
+  @@index([characterId], map: "Item_characterId_fkey")
+  @@index([containerId], map: "Item_containerId_fkey")
+  @@index([itemEffectId], map: "Item_itemEffectId_fkey")
+  @@index([itemTypeId], map: "Item_itemTypeId_fkey")
+  @@index([locationId], map: "Item_locationId_fkey")
+  @@unique([containerId, containerIndex], map: "Item_containerId_containerIndex_key")
 }
 
-// Defines a type of item
 model ItemType {
   id          Int     @id @default(autoincrement())
   slot        Int?
@@ -128,26 +123,23 @@ model ItemType {
   items       Item[]
 }
 
-// Defines a variation of creature that can be encountered in the world
 model Creature {
   id                      Int                      @id @default(autoincrement())
   name                    String
   description             String?
-  creatureTypes           CreatureType[]
   creatureToCreatureTypes CreatureToCreatureType[]
+  creatureTypes           CreatureType[]           @relation("CreatureToCreatureType")
 }
 
-// Defines one or more types that a creature can be (dragon+human for Draconian)
 model CreatureType {
   id                      Int                      @id @default(autoincrement())
   name                    String                   @unique
   tag                     String
   description             String?
-  creatures               Creature[]
   creatureToCreatureTypes CreatureToCreatureType[]
+  creatures               Creature[]               @relation("CreatureToCreatureType")
 }
 
-// Who the fuck knows
 model CreatureToCreatureType {
   creatureId     Int
   creatureTypeId Int
@@ -155,22 +147,24 @@ model CreatureToCreatureType {
   creatureType   CreatureType @relation(fields: [creatureTypeId], references: [id], onDelete: Cascade)
 
   @@id([creatureId, creatureTypeId])
+  @@index([creatureTypeId], map: "CreatureToCreatureType_creatureTypeId_fkey")
 }
 
-// Effects present on abilities and items
 model Effect {
   id               Int             @id @default(autoincrement())
   description      String?
   operation        String?
   tags             String?
-  ArchetypeRange   ArchetypeRange? @relation(fields: [archetypeRangeId], references: [id])
   archetypeRangeId Int?
-  ArchetypeRole    ArchetypeRole?  @relation(fields: [archetypeRoleId], references: [id])
   archetypeRoleId  Int?
+  ArchetypeRange   ArchetypeRange? @relation(fields: [archetypeRangeId], references: [id])
+  ArchetypeRole    ArchetypeRole?  @relation(fields: [archetypeRoleId], references: [id])
   Item             Item[]
+
+  @@index([archetypeRangeId], map: "Effect_archetypeRangeId_fkey")
+  @@index([archetypeRoleId], map: "Effect_archetypeRoleId_fkey")
 }
 
-// Playable races
 model Race {
   id          Int         @id @default(autoincrement())
   name        String?
@@ -180,17 +174,17 @@ model Race {
   characters  Character[]
 }
 
-// RP Skills -- Not used currently
 model Skill {
   id          Int        @id @default(autoincrement())
   name        String?
-  descShort   String?
   descLong    String?
-  Character   Character? @relation(fields: [characterId], references: [id])
+  descShort   String?
   characterId Int?
+  Character   Character? @relation(fields: [characterId], references: [id])
+
+  @@index([characterId], map: "Skill_characterId_fkey")
 }
 
-// Users
 model User {
   id             Int             @id @default(autoincrement())
   email          String          @unique
@@ -203,13 +197,10 @@ model User {
   worldLocations WorldLocation[]
 }
 
-// A users characters
 model Character {
   id                Int        @id @default(autoincrement())
   userId            Int
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   raceId            Int
-  race              Race?      @relation(fields: [raceId], references: [id], onDelete: Cascade)
   active            Boolean    @default(false)
   name              String
   image             String?
@@ -219,49 +210,51 @@ model Character {
   experience        Int        @default(0)
   adventureId       Int?
   adventure         Adventure? @relation(fields: [adventureId], references: [id])
+  race              Race       @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   factions          Faction[]
-  skills            Skill[]
   inventory         Item[]
+  containers        Container[]
+  skills            Skill[]
 
   @@index([raceId])
   @@index([userId])
+  @@index([adventureId], map: "Character_adventureId_fkey")
 }
 
-// Express/Passport session
 model Session {
   id        String   @id
   sid       String   @unique
-  data      String   @db.MediumText // MediumText may be needed for MySql
+  data      String   @db.MediumText
   expiresAt DateTime
 }
 
-// Adventures are the meta container for an outing into the world
-// They contain a link
 model Adventure {
   id          Int         @id @default(autoincrement())
-  description String?
-  seed        String
   startDate   DateTime?
   endDate     DateTime?
+  seed        String
+  description String?
+  Character   Character[]
+  factions    Faction[]
   locations   Location[]
   npcs        NPC[]
-  factions    Faction[]
-  Character   Character[]
   Reward      Reward[]
 }
 
-// Rewards at the end of an adventure
 model Reward {
   id          Int       @id @default(autoincrement())
   name        String
   description String?
-  item        Item      @relation(fields: [itemId], references: [id])
   adventureId Int
-  adventure   Adventure @relation(fields: [adventureId], references: [id])
   itemId      Int
+  adventure   Adventure @relation(fields: [adventureId], references: [id])
+  item        Item      @relation(fields: [itemId], references: [id])
+
+  @@index([adventureId], map: "Reward_adventureId_fkey")
+  @@index([itemId], map: "Reward_itemId_fkey")
 }
 
-// Locations are the primary container places in the world
 model Location {
   id          Int         @id @default(autoincrement())
   name        String
@@ -269,78 +262,72 @@ model Location {
   description String?
   coordinates String?
   adventureId Int
+  containers  Container[]
+  entities    Entity[]
+  items       Item[]
   adventure   Adventure   @relation(fields: [adventureId], references: [id])
-  structures  Structure[]
-  entities    Entity[]
-  items       Item[]
-  containers  Container[]
+  
+
+  @@index([adventureId], map: "Location_adventureId_fkey")
 }
 
-// Structures can exist inside locations
-model Structure {
-  id          Int         @id @default(autoincrement())
-  name        String
-  type        String // Types like "House", "Shop", "Dungeon", etc.
-  description String?
-  locationId  Int
-  location    Location    @relation(fields: [locationId], references: [id])
-  items       Item[]
-  containers  Container[]
-  entities    Entity[]
-}
-
-// Entities are instances of creatures that exist in an encounter
 model Entity {
   id          Int        @id @default(autoincrement())
-  name        String
   type        String
   health      Int
-  strength    Int
   locationId  Int?
+  name        String
+  strength    Int
   location    Location?  @relation(fields: [locationId], references: [id])
-  structureId Int?
-  structure   Structure? @relation(fields: [structureId], references: [id])
+
+  @@index([locationId], map: "Entity_locationId_fkey")
 }
 
-// Containers are found in locations and structures and can contain items
 model Container {
   id          Int        @id @default(autoincrement())
   name        String
   capacity    Int
   lockType    String?
   locationId  Int?
+  characterId Int?
+  removable   Boolean?   @default(true)
   location    Location?  @relation(fields: [locationId], references: [id])
-  structureId Int?
-  structure   Structure? @relation(fields: [structureId], references: [id])
+  character   Character? @relation(fields: [characterId], references: [id])
   items       Item[]
+
+  @@index([locationId], map: "Container_locationId_fkey")
+  @@index([characterId], map: "Container_characterId_fkey")
 }
 
-// NPCs are records of non-combat characters that can be interacted with
 model NPC {
   id          Int       @id @default(autoincrement())
   name        String
   role        String
   dialogue    String?
   adventureId Int
-  adventure   Adventure @relation(fields: [adventureId], references: [id])
   factionId   Int?
+  adventure   Adventure @relation(fields: [adventureId], references: [id])
   faction     Faction?  @relation(fields: [factionId], references: [id])
+
+  @@index([adventureId], map: "NPC_adventureId_fkey")
+  @@index([factionId], map: "NPC_factionId_fkey")
 }
 
-// Factions are groups of NPCs that effect their disposition and objectives
 model Faction {
   id          Int        @id @default(autoincrement())
   name        String
   reputation  String
   objectives  String?
   adventureId Int
-  adventure   Adventure  @relation(fields: [adventureId], references: [id])
-  npcs        NPC[]
-  Character   Character? @relation(fields: [characterId], references: [id])
   characterId Int?
+  adventure   Adventure  @relation(fields: [adventureId], references: [id])
+  Character   Character? @relation(fields: [characterId], references: [id])
+  npcs        NPC[]
+
+  @@index([adventureId], map: "Faction_adventureId_fkey")
+  @@index([characterId], map: "Faction_characterId_fkey")
 }
 
-// Stores saved/generated arena states for the tactical arena feature
 model ArenaHistory {
   arena_history_id Int       @id @default(autoincrement())
   name             String
@@ -350,15 +337,13 @@ model ArenaHistory {
   last_updated     DateTime  @updatedAt
   last_active      DateTime?
 
-  @@map("arena_history") // Underlying table name (snake_case) if using existing DB naming convention
+  @@map("arena_history")
 }
 
-// World map locations managed by the server
 model WorldLocation {
   id          Int               @id @default(autoincrement())
   name        String
   description String?
-  // World coordinates
   chunkX      Int
   chunkY      Int
   hexQ        Int
@@ -366,12 +351,15 @@ model WorldLocation {
   type        WorldLocationType
   visible     Boolean           @default(true)
   ownerUserId Int?
-  owner       User?             @relation(fields: [ownerUserId], references: [id])
-  createdOn   DateTime          @default(now())
+  
   updatedOn   DateTime          @updatedAt
+  owner       User?             @relation(fields: [ownerUserId], references: [id])
 
   @@unique([chunkX, chunkY, hexQ, hexR])
+  @@index([ownerUserId], map: "WorldLocation_ownerUserId_fkey")
 }
+
+// Structure model removed - replaced by Container/Character relationships
 
 enum WorldLocationType {
   TOWN

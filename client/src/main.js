@@ -5,6 +5,7 @@ import router from "@/router/index.js";
 import { createPinia } from "pinia";
 import vuetify from "@/vuetify";
 import { profiler } from "@/utils/profiler";
+import { useUserStore } from '@/stores/userStore';
 
 // Startup timing bootstrap
 if (typeof window !== "undefined") {
@@ -24,7 +25,15 @@ const app = createApp(App);
 
 app.use(router).use(createPinia()).use(vuetify);
 
+// Bootstrap user state (active character + inventory) once on mount
 app.mount("#app");
+try {
+  const userStore = useUserStore();
+  // fire-and-forget; the api util will redirect to login on 401
+  userStore.bootstrapOnMount();
+} catch (e) {
+  /* ignore bootstrap errors */
+}
 
 // Record router readiness and app mount relative to boot
 try {

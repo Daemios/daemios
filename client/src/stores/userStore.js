@@ -53,7 +53,24 @@ export const useUserStore = defineStore("user", {
     async getUser() {
       const response = await api.get("user/refresh");
       this.setCharacter(response.character);
-      this.setInventory(response.inventory);
+      // some endpoints may include inventory, but ensure cached inventory is set
+      if (response.inventory) this.setInventory(response.inventory);
+    },
+    async ensureInventory(force = false) {
+      // Do not re-fetch if we already have inventory unless forced
+      if (!force && Array.isArray(this.inventory) && this.inventory.length > 0) return this.inventory;
+      try {
+        // The server endpoint is /inventory/ (session-backed)
+        const response = await api.get('inventory');
+        if (response && response.success) {
+          // response.containers is the canonical structure
+          this.setInventory(response.containers || []);
+          return this.inventory;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch inventory', e);
+      }
+      return this.inventory;
     },
     async getCharacters() {
       const response = await api.get("user/characters");
@@ -66,6 +83,26 @@ export const useUserStore = defineStore("user", {
     async getInventory() {
       const response = await api.get("user/inventory");
       this.setInventory(response.data);
+    },
+    // bootstrap helper to fetch user context at app mount
+    async bootstrapOnMount() {
+      try {
+        // Try to refresh user and active character
+        const response = await api.get('user/refresh');
+        if (!response || !response.character) {
+          // No active character present; force logout
+          await api.post('user/logout');
+          return null;
+        }
+        this.setCharacter(response.character);
+        // ensure inventory is fetched once and cached
+        await this.ensureInventory();
+        return response.character;
+      } catch (e) {
+        // If unauthorized or other error, let the api helper route to login
+        console.warn('bootstrap failed', e);
+        return null;
+      }
     },
     async selectCharacter(characterId) {
       const response = await api.post("user/character/select", { characterId });
