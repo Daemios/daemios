@@ -2,17 +2,13 @@ import { defineStore } from "pinia";
 
 export const useDialogsStore = defineStore("dialogs", {
   state: () => ({
-    isEquipmentOpen: false,
-    isInventoryOpen: false,
+    isCharacterOpen: false,
     isAbilitiesOpen: false,
-  isSettingsOpen: false,
+    isSettingsOpen: false,
   }),
   actions: {
-    closeEquipment() {
-      this.isEquipmentOpen = false;
-    },
-    closeInventory() {
-      this.isInventoryOpen = false;
+    closeCharacter() {
+      this.isCharacterOpen = false;
     },
     closeAbilities() {
       this.isAbilitiesOpen = false;
@@ -20,14 +16,11 @@ export const useDialogsStore = defineStore("dialogs", {
     closeSettings() {
       this.isSettingsOpen = false;
     },
-    toggleEquipment() {
-      this.isEquipmentOpen = !this.isEquipmentOpen;
+    toggleCharacter() {
+      this.isCharacterOpen = !this.isCharacterOpen;
     },
     toggleAbilities() {
       this.isAbilitiesOpen = !this.isAbilitiesOpen;
-    },
-    toggleInventory() {
-      this.isInventoryOpen = !this.isInventoryOpen;
     },
     toggleSettings() {
       this.isSettingsOpen = !this.isSettingsOpen;
