@@ -55,4 +55,4 @@ ALTER TABLE `Container` ADD CONSTRAINT `Container_characterId_fkey` FOREIGN KEY 
 
 -- RedefineIndex
 CREATE INDEX `Item_containerId_idx` ON `Item`(`containerId`);
-DROP INDEX `Item_containerId_fkey` ON `Item`;
+-- DROP INDEX `Item_containerId_fkey` ON `Item`;  -- removed: index may not exist on target DB

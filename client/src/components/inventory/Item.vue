@@ -1,17 +1,23 @@
 <template>
   <v-card
-    class="item d-flex align-center justify-center pa-1"
+    class="item d-flex align-center justify-center"
     :class="itemClasses"
+    :style="cardStyle"
     flat
     tile
   >
     <v-btn
       depressed
       :color="safeItem.color ? safeItem.color : null"
+      :draggable="draggable"
       class="slot-item overflow-hidden pa-0"
       @click="onClick"
+      @dragstart="onDragStart ? onDragStart : null"
     >
-      <div v-if="!safeItem.img" class="d-flex flex-column">
+      <div
+        v-if="!safeItem.img"
+        class="d-flex flex-column"
+      >
         <v-icon class="mb-1">
           {{ mdiAlertCircleOutline }}
         </v-icon>
@@ -30,7 +36,10 @@
       </v-icon>
     </v-btn>
 
-    <div class="item-label" :class="itemLabelClasses">
+    <div
+      class="item-label"
+      :class="itemLabelClasses"
+    >
       {{ safeItem.label }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
@@ -49,6 +58,22 @@ const props = defineProps({
   item: {
     type: Object,
     default: () => ({}),
+  },
+  width: {
+    type: [Number, String],
+    default: undefined,
+  },
+  height: {
+    type: [Number, String],
+    default: undefined,
+  },
+  draggable: {
+    type: Boolean,
+    default: false,
+  },
+  onDragStart: {
+    type: Function,
+    default: null,
   },
 });
 
@@ -71,6 +96,17 @@ const itemClasses = computed(() => ({
     props.item.rarity &&
     props.item.rarity.toLowerCase() === "legendary",
 }));
+
+const cardStyle = computed(() => {
+  const s = {};
+  if (props.width !== undefined && props.width !== null) {
+    s.width = typeof props.width === 'number' ? `${props.width}px` : props.width;
+  }
+  if (props.height !== undefined && props.height !== null) {
+    s.height = typeof props.height === 'number' ? `${props.height}px` : props.height;
+  }
+  return s;
+});
 
 const emit = defineEmits(["click"]);
 

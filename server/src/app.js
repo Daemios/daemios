@@ -20,6 +20,7 @@ import abilityRoutes from './routes/ability.js';
 import arenaRoutes from './routes/arena.js';
 import worldRoutes from './routes/world.js';
 import dmRoutes from './routes/dm.js';
+import characterEquipRoutes from './routes/characterEquip.js';
 import prisma from './lib/prisma.js';
 
 
@@ -87,6 +88,7 @@ app.use('/inventory', inventoryRoutes);
 app.use('/ability', abilityRoutes);
 app.use('/arena', arenaRoutes);
 app.use('/world', worldRoutes);
+app.use('/character', characterEquipRoutes);
 
 
 app.listen(3000, () => {

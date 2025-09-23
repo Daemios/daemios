@@ -3,19 +3,24 @@
     <!-- Inventory header removed per UX request -->
 
     <div v-if="Array.isArray(containers) && containers.length">
+
+      <!-- Unified inventory grid that receives the full containers list -->
       <v-row dense>
-        <v-col
-          v-for="container in containers"
-          :key="container.id"
-          cols="12"
-          md="6"
-        >
-          <v-sheet class="pa-2" elevation="0">
+        <v-col cols="12">
+          <v-sheet
+            class="pa-2"
+            elevation="0"
+          >
             <div class="sheet-title subtitle-1 font-weight-medium">
-              {{ container.name }}
+              Inventory
             </div>
             <div class="sheet-body">
-              <InventoryGrid :container="container" />
+              <InventoryGrid
+                :containers="containers"
+                :highlighted-container-id="highlightedContainerId"
+                @click-item="selected = $event"
+                @move-item="onMoveItem"
+              />
             </div>
           </v-sheet>
         </v-col>
@@ -24,7 +29,10 @@
     <div v-else>
       <v-row>
         <v-col cols="12">
-          <v-sheet class="pa-2 mb-2" elevation="0">
+          <v-sheet
+            class="pa-2 mb-2"
+            elevation="0"
+          >
             <div class="sheet-title subtitle-1 font-weight-medium">
               No containers equipped
             </div>
@@ -65,7 +73,25 @@
       </v-data-iterator>
     </div>
 
-    <ItemDialog :item="selected" @close="selected = null" />
+    <ItemDialog
+      :item="selected"
+      @close="selected = null"
+    />
+    <v-snackbar
+      v-model="errorVisible"
+      color="error"
+      timeout="6000"
+    >
+      {{ errorMsg }}
+      <template #action>
+        <v-btn
+          text
+          @click="() => (errorVisible = false)"
+        >
+          Close
+        </v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -76,6 +102,7 @@ import ItemDialog from "@/components/inventory/ItemDialog.vue";
 import { useUserStore } from "@/stores/userStore";
 import { storeToRefs } from "pinia";
 import InventoryGrid from "@/components/inventory/InventoryGrid.vue";
+import api from "@/utils/api.js";
 
 const userStore = useUserStore();
 const { inventory } = storeToRefs(userStore);
@@ -91,6 +118,9 @@ const flatInventory = computed(() => {
 const selected = ref(null);
 const itemsPerPage = ref(20);
 const page = ref(1);
+const highlightedContainerId = ref(null);
+const errorVisible = ref(false);
+const errorMsg = ref("");
 
 // no placeholder container; hide the grid when no containers are equipped
 
@@ -100,6 +130,84 @@ const numberOfPages = computed(() => {
   const len = Array.isArray(inventory.value) ? inventory.value.length : 0;
   return Math.max(1, Math.ceil(len / itemsPerPage.value));
 });
+
+function onMoveItem(payload) {
+  // payload: { item, source: { containerId, localIndex }, target: { containerId, localIndex } }
+  try {
+    if (!payload || !payload.item) return;
+    const src = payload.source || {};
+    const tgt = payload.target || {};
+
+    // keep previous inventory for rollback in case the server rejects the move
+    const prevInventory = JSON.parse(JSON.stringify(inventory.value || []));
+
+    // Work on a deep clone of inventory to avoid mutating pinia state directly
+    const newInventory = JSON.parse(JSON.stringify(inventory.value || []));
+
+    const sourceContainer = newInventory.find((c) => c.id === src.containerId);
+    const targetContainer = newInventory.find((c) => c.id === tgt.containerId);
+
+    if (!sourceContainer || !targetContainer) return;
+
+    // find the item index in source by containerIndex
+    const sourceIdx = (sourceContainer.items || []).findIndex((it) => it.containerIndex === src.localIndex);
+    const targetIdx = (targetContainer.items || []).findIndex((it) => it.containerIndex === tgt.localIndex);
+
+    const movingItem = sourceIdx >= 0 ? sourceContainer.items[sourceIdx] : null;
+
+    // remove from source
+    if (sourceIdx >= 0) sourceContainer.items.splice(sourceIdx, 1);
+
+    // if target occupied, swap (place existing target into source localIndex)
+    if (targetIdx >= 0) {
+      const displaced = targetContainer.items.splice(targetIdx, 1)[0];
+      // put displaced into source at the original localIndex
+      if (!sourceContainer.items) sourceContainer.items = [];
+      displaced.containerIndex = src.localIndex;
+      sourceContainer.items.push(displaced);
+    }
+
+    // put moving item into target at target.localIndex
+    if (movingItem) {
+      movingItem.containerIndex = tgt.localIndex;
+      if (!targetContainer.items) targetContainer.items = [];
+      targetContainer.items.push(movingItem);
+    }
+
+    // commit new inventory state
+    userStore.setInventory(newInventory);
+
+    // Persist the move to the backend. If it fails, rollback to previous state and notify user.
+    (async () => {
+      try {
+        // Assumption: server exposes POST /inventory/move that accepts { itemId, source, target }
+        const body = {
+          itemId: movingItem && movingItem.id ? movingItem.id : payload.item.id,
+          source: src,
+          target: tgt,
+        };
+        const res = await api.post("/inventory/move", body);
+        // If server returns canonical inventory, adopt it
+        if (res && res.inventory) {
+          userStore.setInventory(res.inventory);
+        }
+      } catch (err) {
+        console.warn("persist move failed, rolling back", err);
+        try {
+          userStore.setInventory(prevInventory);
+        } catch (e) {
+          console.error("rollback failed", e);
+        }
+        errorMsg.value = "Failed to move item. Changes were reverted.";
+        errorVisible.value = true;
+      }
+    })();
+  } catch (err) {
+    console.warn('move failed', err);
+  }
+}
+
+// containers are now equipment slots (backpack/belt/bandolier) on the PaperDoll
 
 watch(
   inventory,
