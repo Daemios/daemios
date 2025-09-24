@@ -11,6 +11,45 @@ function ensureAuth(req, res, next) {
   next();
 }
 
+// derive icon name (without mdi- prefix) from containerType enum value
+function iconForContainerType(type) {
+  const t = String(type || 'BASIC').toUpperCase();
+  switch (t) {
+    case 'LIQUID':
+      return 'water';
+    case 'CONSUMABLES':
+      return 'food-apple';
+    case 'PACK':
+      return 'backpack';
+    case 'POCKETS':
+      return 'hand';
+    case 'BASIC':
+    default:
+      return null;
+  }
+}
+
+// returns true if the container with id `containerId` is inside the
+// containment tree of the item with id `ancestorItemId` (i.e. placing
+// ancestorItemId into containerId would create a cycle). Uses the
+// provided Prisma transaction `tx` to perform DB lookups.
+async function containerIsDescendantOfItem(tx, containerId, ancestorItemId) {
+  let curr = containerId;
+  while (curr) {
+    const c = await tx.container.findUnique({ where: { id: curr }, select: { itemId: true } });
+    if (!c) return false;
+    // If this container is represented by the ancestor item, we've
+    // found that `containerId` is inside the ancestor's tree.
+    if (c.itemId === ancestorItemId) return true;
+    // Otherwise walk up: find the item that represents this container
+    // and read the container that contains *that* item (its parent).
+    const rep = await tx.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
+    if (!rep) return false;
+    curr = rep.containerId;
+  }
+  return false;
+}
+
 // body: { characterId, itemId, targetSlot }
 router.post('/equip', ensureAuth, async (req, res) => {
   // resolve user id from session passport info (handles either object or id)
@@ -116,7 +155,7 @@ router.post('/equip', ensureAuth, async (req, res) => {
               throw e;
             }
             const cap = srcContainer.capacity || 0;
-            // If we know the original index the new item occupied, prefer
+            const { characterId: bodyCharacterId, itemId, targetSlot } = req.body || {};
             // swapping into that exact index. This ensures the UI keeps the
             // same slot when swapping containers even if the container is full.
             if (Number.isInteger(sourceIndex) && sourceIndex >= 0 && sourceIndex < cap) {
@@ -180,6 +219,18 @@ router.post('/equip', ensureAuth, async (req, res) => {
           }
         }
 
+
+        // Prevent placing a container into itself or one of its own nested
+        // containers. If the old item is a container and the chosen target
+        // container falls inside its containment tree, reject the action.
+        if (oldItem && oldItem.isContainer && targetContainerForOldItem !== null) {
+          const wouldDescend = await containerIsDescendantOfItem(tx, targetContainerForOldItem, oldItem.id);
+          if (wouldDescend) {
+            const e = new Error('Cannot place a container into itself or its nested containers');
+            e.status = 400;
+            throw e;
+          }
+        }
         // If the item is a container, determine capacity from the Item row
         // (fall back to existing container.capacity) and update the
         // Container.capacity if necessary. Validate the new capacity can
@@ -215,6 +266,53 @@ router.post('/equip', ensureAuth, async (req, res) => {
           create: { characterId, slot: normalizedSlot, itemId }
         });
 
+        // If the previously equipped item (oldItem) was a PACK container and
+        // we're unequipping it (placing some other item into its slot), we
+        // need to move its contents into the owner's Pockets (or unequipped)
+        if (oldItem) {
+          // check if oldItem represented a Container row
+          const represented = await tx.container.findFirst({ where: { itemId: oldItem.id } });
+          if (represented && String(represented.containerType).toUpperCase() === 'PACK') {
+            // move all items from this container into Pockets (or set containerId to null)
+            const pockets = await tx.container.findFirst({ where: { characterId, name: 'Pockets' } });
+            const destContainerId = pockets ? pockets.id : null;
+            const itemsInPack = await tx.item.findMany({ where: { containerId: represented.id } });
+            await Promise.all(itemsInPack.map(async (pi) => {
+              // If the packed item *is* the container item itself, detach it
+              // rather than trying to move it into its own container.
+              if (pi.id === oldItem.id) {
+                return tx.item.update({
+                  where: { id: pi.id },
+                  data: { containerId: null, containerIndex: null },
+                });
+              }
+
+              // If a destination container exists, ensure moving this item
+              // into it would not create a containment cycle. If it would,
+              // detach the item instead.
+              if (destContainerId) {
+                const wouldCycle = await containerIsDescendantOfItem(
+                  tx,
+                  destContainerId,
+                  pi.id,
+                );
+                if (wouldCycle) {
+                  return tx.item.update({
+                    where: { id: pi.id },
+                    data: { containerId: null, containerIndex: null },
+                  });
+                }
+              }
+
+              // Safe to move into destination (may be null to indicate unequipped)
+              return tx.item.update({
+                where: { id: pi.id },
+                data: { containerId: destContainerId, containerIndex: null },
+              });
+            }));
+          }
+        }
+
         // detach new item from its container (now equipped)
         await tx.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
 
@@ -238,6 +336,13 @@ router.post('/equip', ensureAuth, async (req, res) => {
       include: { items: { orderBy: { containerIndex: 'asc' } } },
     });
 
+    // attach containerType/icon derived hints for client
+    const annotatedContainers = containers.map((c) => ({
+      ...c,
+      containerType: c.containerType || 'BASIC',
+      icon: iconForContainerType(c.containerType),
+    }));
+
     // Indicate whether any container capacity was updated as part of this
     // transaction. If the equipped item was a container, we updated the
     // corresponding Container.capacity above; include its id so the client
@@ -250,7 +355,7 @@ router.post('/equip', ensureAuth, async (req, res) => {
 
     const capacityUpdated = updatedContainerIds.length > 0;
 
-    return res.json({ success: true, equipment, containers, capacityUpdated, updatedContainerIds });
+  return res.json({ success: true, equipment, containers: annotatedContainers, capacityUpdated, updatedContainerIds });
 
   } catch (err) {
     console.error('Equip error', err);

@@ -10,7 +10,20 @@
         @dragover.prevent
         @drop="onDrop($event, slot)"
       >
-        <div v-if="slot.item" class="slot-item">
+        <div
+          v-if="slot.containerIconSvg"
+          class="slot-icon-bg"
+        >
+          <!-- Pass the SVG path (from @mdi/js) as slot content to v-icon so mdi-svg renders it -->
+          <v-icon class="slot-icon">
+            {{ slot.containerIconSvg }}
+          </v-icon>
+        </div>
+
+        <div
+          v-if="slot.item"
+          class="slot-item"
+        >
           <DraggableItem
             :item="slot.item"
             :label="slot.item.name"
@@ -22,7 +35,12 @@
             :height="'100%'"
           />
         </div>
-        <div v-else class="slot-empty">&nbsp;</div>
+        <div
+          v-else
+          class="slot-empty"
+        >
+          &nbsp;
+        </div>
       </div>
     </div>
   </div>
@@ -31,6 +49,8 @@
 <script setup>
 import DraggableItem from "@/components/inventory/DraggableItem.vue";
 import { computed } from "vue";
+// Import the whole mdi namespace and pick the exact exported names that exist
+import * as mdi from "@mdi/js";
 
 const emit = defineEmits(["click-item", "move-item"]);
 
@@ -74,11 +94,21 @@ const slots = computed(() => {
     });
 
     for (let i = 0; i < Math.max(capacity, 1); i++) {
+      // map server-provided short icon names to @mdi/js SVG paths
+      const iconMap = {
+        // pick available icons from @mdi/js (the package doesn't export a plain `mdiBackpack`)
+        hand: mdi.mdiHandFrontRight || mdi.mdiHandPointingUp || null,
+        backpack: mdi.mdiBagPersonal || mdi.mdiPackage || null,
+        water: mdi.mdiWater || null,
+        "food-apple": mdi.mdiFoodApple || mdi.mdiApple || null,
+      };
       out.push({
         globalIndex: global++,
         containerId: c.id,
         localIndex: i,
         item: itemsByIndex[i] || null,
+        // containerIconSvg is an SVG path string suitable for <v-icon>
+        containerIconSvg: c && c.icon ? iconMap[c.icon] || null : null,
       });
     }
   });
@@ -118,11 +148,36 @@ function onDrop(e, slot) {
 .inventory-slot {
   border: 1px dashed rgba(0, 0, 0, 0.12);
   min-height: 64px;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.02);
   padding: 0;
+}
+.slot-icon-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.12; /* raised temporarily for debugging */
+  font-size: 48px;
+  color: rgba(255,255,255,0.95);
+}
+
+/* Ensure icons inside the slot background render at the expected size and keep them visually faint */
+.slot-icon-bg .slot-icon {
+  font-size: inherit;
+  line-height: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1em;
+  width: 1em;
+  color: inherit !important;
+  opacity: 1 !important;
 }
 .inventory-slot.highlighted {
   outline: 2px solid rgba(33, 150, 243, 0.5);

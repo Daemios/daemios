@@ -31,6 +31,39 @@ function mapItemForClient(it) {
   };
 }
 
+// derive icon name (without mdi- prefix) from containerType enum value
+function iconForContainerType(type) {
+  const t = String(type || 'BASIC').toUpperCase();
+  switch (t) {
+    case 'LIQUID':
+      return 'water';
+    case 'CONSUMABLES':
+      return 'food-apple';
+    case 'PACK':
+      return 'backpack';
+    case 'POCKETS':
+      return 'hand';
+    case 'BASIC':
+    default:
+      return null;
+  }
+}
+
+// helper: detect whether containerId falls inside the containment tree of
+// the item with id ancestorItemId. Uses the provided Prisma client.
+async function containerIsDescendantOfItem(prismaClient, containerId, ancestorItemId) {
+  let curr = containerId;
+  while (curr) {
+    const c = await prismaClient.container.findUnique({ where: { id: curr }, select: { itemId: true } });
+    if (!c) return false;
+    if (c.itemId === ancestorItemId) return true;
+    const rep = await prismaClient.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
+    if (!rep) return false;
+    curr = rep.containerId;
+  }
+  return false;
+}
+
 // New: session-backed inventory endpoint
 // GET /inventory/
 // Returns all containers owned by the active character (from session) including their items
@@ -49,9 +82,11 @@ router.get('/', async (req, res) => {
 
     // Fetch containers owned by this character, including items ordered by containerIndex
     let containers = await fetchContainersWithItems(character.id);
-    // normalize items for client (img/label)
+    // normalize items for client (img/label) and attach containerType/icon hint
     containers = containers.map((c) => ({
       ...c,
+      containerType: c.containerType || 'BASIC',
+      icon: iconForContainerType(c.containerType),
       items: (c.items || []).map(mapItemForClient),
     }));
 
@@ -82,17 +117,48 @@ router.post('/move', async (req, res) => {
     }
 
     const { itemId, source, target } = req.body || {};
-    if (!itemId || !target || typeof target.localIndex !== 'number' || !target.containerId) {
+    if (!itemId || !target || typeof target.localIndex !== 'number' || (target.containerId === undefined || target.containerId === null)) {
       return res.status(400).json({ error: 'Invalid parameters' });
     }
 
-    // load the item being moved
-    const moving = await prisma.item.findUnique({ where: { id: Number(itemId) } });
+    // load the item being moved (include ItemType for simple validation)
+    const moving = await prisma.item.findUnique({
+      where: { id: Number(itemId) },
+      include: { itemType: true },
+    });
     if (!moving) return res.status(404).json({ error: 'Item not found' });
     if (moving.characterId !== character.id) return res.status(403).json({ error: 'Item does not belong to active character' });
 
     const src = source || { containerId: moving.containerId, localIndex: moving.containerIndex };
     const tgt = target;
+
+    // Validate target container index and capacity. If target is null (unequipped)
+    // these checks are skipped.
+    if (tgt.containerId) {
+      const targetContainer = await prisma.container.findUnique({ where: { id: tgt.containerId } });
+      if (!targetContainer) return res.status(400).json({ error: 'Target container not found' });
+      if (!Number.isInteger(tgt.localIndex) || tgt.localIndex < 0) return res.status(400).json({ error: 'Invalid target index' });
+      if (tgt.localIndex >= targetContainer.capacity) return res.status(400).json({ error: 'Target index exceeds container capacity' });
+
+      // Prevent moving a container item into itself or its descendants
+      if (moving.isContainer) {
+        const wouldDescend = await containerIsDescendantOfItem(prisma, tgt.containerId, moving.id);
+        if (wouldDescend) return res.status(400).json({ error: 'Cannot place a container into itself or its nested containers' });
+      }
+
+      // Basic container-type rules: disallow moving items that don't match
+    // simple heuristics for LIQUID and CONSUMABLES container types.
+      if (targetContainer && targetContainer.containerType) {
+        const ttype = String(targetContainer.containerType).toUpperCase();
+        const itemTypeName = (moving.itemType && moving.itemType.name) ? String(moving.itemType.name).toLowerCase() : '';
+        if (ttype === 'LIQUID') {
+          if (!itemTypeName.includes('liquid')) return res.status(400).json({ error: 'Only liquid items can be placed in this container' });
+        }
+        if (ttype === 'CONSUMABLES') {
+          if (!itemTypeName.includes('consum') && !itemTypeName.includes('food')) return res.status(400).json({ error: 'Only consumable items can be placed in this container' });
+        }
+      }
+    }
 
     // find any item occupying the target slot
     const occupied = await prisma.item.findFirst({
@@ -144,6 +210,8 @@ router.post('/move', async (req, res) => {
     let containers = await fetchContainersWithItems(character.id);
     containers = containers.map((c) => ({
       ...c,
+      containerType: c.containerType || 'BASIC',
+      icon: iconForContainerType(c.containerType),
       items: (c.items || []).map(mapItemForClient),
     }));
 

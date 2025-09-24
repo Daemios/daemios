@@ -86,49 +86,45 @@ model ArchetypeRole {
 }
 
 model Item {
-  id                    Int        @id @default(autoincrement())
+  id                    Int          @id @default(autoincrement())
   name                  String
-  locationId            Int?
+  // locationId removed: locations are represented by ephemeral loot items
+  // produced by a loot generator; Items no longer belong directly to Locations.
   containerId           Int?
   characterId           Int
   createdBy             Int?
-  createdOn             DateTime?  @default(now())
+  createdOn             DateTime?    @default(now())
   description           String?
   image                 String?
   itemEffectId          Int?
   itemTypeId            Int?
   lastUpdate            Int?
   quantity              Int?
-  // container-as-item fields
-  isContainer           Boolean?   @default(false)
+  containerIndex        Int?
+  isContainer           Boolean?     @default(false)
   capacity              Int?
-  removable             Boolean?   @default(true)
+  removable             Boolean?     @default(true)
   lockType              String?
   parentContainerItemId Int?
-  containerIndex        Int?
-  character             Character  @relation(fields: [characterId], references: [id])
-  Container             Container? @relation("Container_Items", fields: [containerId], references: [id])
-  itemEffect            Effect?    @relation(fields: [itemEffectId], references: [id])
-  itemType              ItemType?  @relation(fields: [itemTypeId], references: [id])
-  Location              Location?  @relation(fields: [locationId], references: [id])
+  RepresentedContainer  Container?   @relation("Container_ItemObject")
+  equippedIn            Equipment[]
+  character             Character    @relation(fields: [characterId], references: [id])
+  Container             Container?   @relation("Container_Items", fields: [containerId], references: [id], onDelete: SetNull)
+  itemEffect            Effect?      @relation(fields: [itemEffectId], references: [id])
+  itemType              ItemType?    @relation(fields: [itemTypeId], references: [id])
+  // Location relation removed
+  ParentContainerItem   Item?        @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
+  ChildContainerItems   Item[]       @relation("ParentContainer")
+  itemEffects           ItemEffect[]
   Reward                Reward[]
-
-  // self-relation for nested container items (optional)
-  ParentContainerItem  Item?        @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
-  ChildContainerItems  Item[]       @relation("ParentContainer")
-  // if this Item represents a Container row, this links back to that Container
-  RepresentedContainer Container?   @relation("Container_ItemObject")
-  // equipment reverse relation (items that are currently equipped reference this item)
-  equippedIn           Equipment[]
-  // per-item effects
-  itemEffects          ItemEffect[]
 
   @@unique([containerId, containerIndex])
   @@index([characterId], map: "Item_characterId_fkey")
   @@index([itemEffectId], map: "Item_itemEffectId_fkey")
   @@index([itemTypeId], map: "Item_itemTypeId_fkey")
-  @@index([locationId], map: "Item_locationId_fkey")
+  // locationId index removed
   @@index([containerId])
+  @@index([parentContainerItemId], map: "Item_parentContainerItemId_fkey")
 }
 
 model ItemType {
@@ -229,9 +225,9 @@ model Character {
   adventure         Adventure?  @relation(fields: [adventureId], references: [id])
   race              Race        @relation(fields: [raceId], references: [id], onDelete: Cascade)
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipment         Equipment[]
   factions          Faction[]
   inventory         Item[]
-  equipment         Equipment[]
   skills            Skill[]
 
   @@index([raceId])
@@ -281,7 +277,6 @@ model Location {
   adventureId Int
   containers  Container[]
   entities    Entity[]
-  items       Item[]
   adventure   Adventure   @relation(fields: [adventureId], references: [id])
 
   @@index([adventureId], map: "Location_adventureId_fkey")
@@ -300,36 +295,22 @@ model Entity {
 }
 
 model Container {
-  id          Int       @id @default(autoincrement())
-  name        String
-  capacity    Int
-  lockType    String?
-  locationId  Int?
-  characterId Int?
-  removable   Boolean   @default(true)
-  location    Location? @relation(fields: [locationId], references: [id])
-  // Items that are stored inside this container
-  items       Item[]    @relation("Container_Items")
-  // optional link to an Item that represents this container
-  itemId      Int?      @unique
-  ItemObject  Item?     @relation("Container_ItemObject", fields: [itemId], references: [id])
+  id            Int           @id @default(autoincrement())
+  name          String
+  capacity      Int
+  lockType      String?
+  locationId    Int?
+  characterId   Int?
+  removable     Boolean       @default(true)
+  itemId        Int?          @unique
+  containerType ContainerType @default(BASIC)
+  ItemObject    Item?         @relation("Container_ItemObject", fields: [itemId], references: [id], onDelete: Cascade)
+  location      Location?     @relation(fields: [locationId], references: [id])
+  items         Item[]        @relation("Container_Items")
 
   @@index([locationId], map: "Container_locationId_fkey")
   @@index([characterId])
-}
-
-// Equipment slot enum and Equipment model map characters to equipped items
-enum EquipmentSlot {
-  BACKPACK
-  BELT
-  BANDOLIER
-  LEG
-  HEAD
-  CHEST
-  HANDS
-  FEET
-  TRINKET1
-  TRINKET2
+  @@unique([characterId, name])
 }
 
 model Equipment {
@@ -339,26 +320,24 @@ model Equipment {
   itemId      Int?
   createdOn   DateTime      @default(now())
   updatedOn   DateTime      @updatedAt
-
-  Character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  Item      Item?     @relation(fields: [itemId], references: [id])
+  Character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  Item        Item?         @relation(fields: [itemId], references: [id])
 
   @@unique([characterId, slot])
   @@index([itemId])
 }
 
-// Attach flexible per-item effects/params
 model ItemEffect {
   id        Int      @id @default(autoincrement())
   itemId    Int
   effectId  Int?
-  params    Json?
+  params    String?  @db.LongText
   createdOn DateTime @default(now())
-
-  Item   Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  Effect Effect? @relation(fields: [effectId], references: [id])
+  Effect    Effect?  @relation(fields: [effectId], references: [id])
+  Item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
+  @@index([effectId], map: "ItemEffect_effectId_fkey")
 }
 
 model NPC {
@@ -430,6 +409,27 @@ model Structure_backup {
   locationId  Int
 
   @@ignore
+}
+
+enum ContainerType {
+  BASIC
+  LIQUID
+  CONSUMABLES
+  PACK
+  POCKETS
+}
+
+enum EquipmentSlot {
+  BACKPACK
+  BELT
+  BANDOLIER
+  LEG
+  HEAD
+  CHEST
+  HANDS
+  FEET
+  TRINKET1
+  TRINKET2
 }
 
 enum WorldLocationType {

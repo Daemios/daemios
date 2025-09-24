@@ -7,7 +7,6 @@
     <v-alert
       prominent
       type="error"
-      :icon="mdiCloudAlert"
     >
       <h3>
         Oops!
@@ -20,13 +19,14 @@
       >
         Try to reload the page
       </a>
+      <template #icon>
+        <v-icon>mdi-cloud-alert</v-icon>
+      </template>
     </v-alert>
   </v-layout>
 </template>
 
 <script setup>
-import { mdiCloudAlert } from "@mdi/js";
-
 function reload() {
   document.location.reload();
 }
