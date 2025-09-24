@@ -10,20 +10,14 @@
         @dragover.prevent
         @drop="onDrop($event, slot)"
       >
-        <div
-          v-if="slot.containerIconSvg"
-          class="slot-icon-bg"
-        >
+        <div v-if="slot.containerIconSvg" class="slot-icon-bg">
           <!-- Pass the SVG path (from @mdi/js) as slot content to v-icon so mdi-svg renders it -->
           <v-icon class="slot-icon">
             {{ slot.containerIconSvg }}
           </v-icon>
         </div>
 
-        <div
-          v-if="slot.item"
-          class="slot-item"
-        >
+        <div v-if="slot.item" class="slot-item">
           <DraggableItem
             :item="slot.item"
             :label="slot.item.name"
@@ -35,12 +29,7 @@
             :height="'100%'"
           />
         </div>
-        <div
-          v-else
-          class="slot-empty"
-        >
-          &nbsp;
-        </div>
+        <div v-else class="slot-empty">&nbsp;</div>
       </div>
     </div>
   </div>
@@ -164,7 +153,7 @@ function onDrop(e, slot) {
   pointer-events: none;
   opacity: 0.12; /* raised temporarily for debugging */
   font-size: 48px;
-  color: rgba(255,255,255,0.95);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 /* Ensure icons inside the slot background render at the expected size and keep them visually faint */

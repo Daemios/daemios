@@ -308,9 +308,9 @@ model Container {
   location      Location?     @relation(fields: [locationId], references: [id])
   items         Item[]        @relation("Container_Items")
 
+  @@unique([characterId, name])
   @@index([locationId], map: "Container_locationId_fkey")
   @@index([characterId])
-  @@unique([characterId, name])
 }
 
 model Equipment {
