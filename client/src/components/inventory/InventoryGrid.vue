@@ -51,6 +51,19 @@ const props = defineProps({
 // includes: globalIndex, containerId, localIndex, and item (or null).
 const slots = computed(() => {
   const out = [];
+  try {
+    console.debug(
+      "[InventoryGrid] building slots for containers",
+      props.containers &&
+        props.containers.map((c) => ({
+          id: c.id,
+          capacity: c.capacity,
+          items: c.items && c.items.length,
+        }))
+    );
+  } catch (e) {
+    /* ignore */
+  }
   let global = 0;
   (props.containers || []).forEach((c) => {
     const capacity = c?.capacity || 0;

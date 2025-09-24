@@ -86,26 +86,42 @@ model ArchetypeRole {
 }
 
 model Item {
-  id             Int        @id @default(autoincrement())
-  name           String
-  locationId     Int?
-  containerId    Int?
-  characterId    Int
-  createdBy      Int?
-  createdOn      DateTime?  @default(now())
-  description    String?
-  image          String?
-  itemEffectId   Int?
-  itemTypeId     Int?
-  lastUpdate     Int?
-  quantity       Int?
-  containerIndex Int?
-  character      Character  @relation(fields: [characterId], references: [id])
-  Container      Container? @relation(fields: [containerId], references: [id])
-  itemEffect     Effect?    @relation(fields: [itemEffectId], references: [id])
-  itemType       ItemType?  @relation(fields: [itemTypeId], references: [id])
-  Location       Location?  @relation(fields: [locationId], references: [id])
-  Reward         Reward[]
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  locationId            Int?
+  containerId           Int?
+  characterId           Int
+  createdBy             Int?
+  createdOn             DateTime?  @default(now())
+  description           String?
+  image                 String?
+  itemEffectId          Int?
+  itemTypeId            Int?
+  lastUpdate            Int?
+  quantity              Int?
+  // container-as-item fields
+  isContainer           Boolean?   @default(false)
+  capacity              Int?
+  removable             Boolean?   @default(true)
+  lockType              String?
+  parentContainerItemId Int?
+  containerIndex        Int?
+  character             Character  @relation(fields: [characterId], references: [id])
+  Container             Container? @relation("Container_Items", fields: [containerId], references: [id])
+  itemEffect            Effect?    @relation(fields: [itemEffectId], references: [id])
+  itemType              ItemType?  @relation(fields: [itemTypeId], references: [id])
+  Location              Location?  @relation(fields: [locationId], references: [id])
+  Reward                Reward[]
+
+  // self-relation for nested container items (optional)
+  ParentContainerItem  Item?        @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
+  ChildContainerItems  Item[]       @relation("ParentContainer")
+  // if this Item represents a Container row, this links back to that Container
+  RepresentedContainer Container?   @relation("Container_ItemObject")
+  // equipment reverse relation (items that are currently equipped reference this item)
+  equippedIn           Equipment[]
+  // per-item effects
+  itemEffects          ItemEffect[]
 
   @@unique([containerId, containerIndex])
   @@index([characterId], map: "Item_characterId_fkey")
@@ -160,6 +176,7 @@ model Effect {
   ArchetypeRange   ArchetypeRange? @relation(fields: [archetypeRangeId], references: [id])
   ArchetypeRole    ArchetypeRole?  @relation(fields: [archetypeRoleId], references: [id])
   Item             Item[]
+  itemEffects      ItemEffect[]
 
   @@index([archetypeRangeId], map: "Effect_archetypeRangeId_fkey")
   @@index([archetypeRoleId], map: "Effect_archetypeRoleId_fkey")
@@ -198,22 +215,23 @@ model User {
 }
 
 model Character {
-  id                Int        @id @default(autoincrement())
+  id                Int         @id @default(autoincrement())
   userId            Int
   raceId            Int
-  active            Boolean    @default(false)
+  active            Boolean     @default(false)
   name              String
   image             String?
   archetypeDistance Int?
   archetypeRole     Int?
-  level             Int        @default(1)
-  experience        Int        @default(0)
+  level             Int         @default(1)
+  experience        Int         @default(0)
   adventureId       Int?
-  adventure         Adventure? @relation(fields: [adventureId], references: [id])
-  race              Race       @relation(fields: [raceId], references: [id], onDelete: Cascade)
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adventure         Adventure?  @relation(fields: [adventureId], references: [id])
+  race              Race        @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   factions          Faction[]
   inventory         Item[]
+  equipment         Equipment[]
   skills            Skill[]
 
   @@index([raceId])
@@ -290,10 +308,57 @@ model Container {
   characterId Int?
   removable   Boolean   @default(true)
   location    Location? @relation(fields: [locationId], references: [id])
-  items       Item[]
+  // Items that are stored inside this container
+  items       Item[]    @relation("Container_Items")
+  // optional link to an Item that represents this container
+  itemId      Int?      @unique
+  ItemObject  Item?     @relation("Container_ItemObject", fields: [itemId], references: [id])
 
   @@index([locationId], map: "Container_locationId_fkey")
   @@index([characterId])
+}
+
+// Equipment slot enum and Equipment model map characters to equipped items
+enum EquipmentSlot {
+  BACKPACK
+  BELT
+  BANDOLIER
+  LEG
+  HEAD
+  CHEST
+  HANDS
+  FEET
+  TRINKET1
+  TRINKET2
+}
+
+model Equipment {
+  id          Int           @id @default(autoincrement())
+  characterId Int
+  slot        EquipmentSlot
+  itemId      Int?
+  createdOn   DateTime      @default(now())
+  updatedOn   DateTime      @updatedAt
+
+  Character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  Item      Item?     @relation(fields: [itemId], references: [id])
+
+  @@unique([characterId, slot])
+  @@index([itemId])
+}
+
+// Attach flexible per-item effects/params
+model ItemEffect {
+  id        Int      @id @default(autoincrement())
+  itemId    Int
+  effectId  Int?
+  params    Json?
+  createdOn DateTime @default(now())
+
+  Item   Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  Effect Effect? @relation(fields: [effectId], references: [id])
+
+  @@index([itemId])
 }
 
 model NPC {

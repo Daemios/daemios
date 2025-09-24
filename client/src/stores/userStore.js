@@ -46,10 +46,99 @@ export const useUserStore = defineStore("user", {
     },
     setCharacter(character) {
       this.character = character;
+      try {
+        console.debug('[userStore] setCharacter', character && { id: character.id, equipped: character.equipped });
+      } catch (e) {
+        /* ignore logging errors */
+      }
     },
-    setInventory(inventory) {
-      this.inventory = inventory;
-    },
+    // Set both character and inventory atomically to avoid UI flicker during
+    // equip operations that update slot and inventory together.
+      // Helper to map server Item -> client-friendly shape used by components
+      mapItemForClient(it) {
+        if (!it) return null;
+        return {
+          ...it,
+          img: it.image || it.img || '/img/debug/placeholder.png',
+          label: it.label || it.name || it.displayName || null,
+        };
+      },
+      setInventory(inventory) {
+        if (!Array.isArray(inventory)) {
+          this.inventory = inventory || [];
+          return;
+        }
+        // Normalize each container and its items so the UI can rely on label/img
+        const mapped = inventory.map((c) => {
+          const items = Array.isArray(c.items) ? c.items.map((it) => this.mapItemForClient(it)) : [];
+          items.sort((a, b) => (Number.isInteger(a && a.containerIndex) ? a.containerIndex : 0) - (Number.isInteger(b && b.containerIndex) ? b.containerIndex : 0));
+          return { ...c, items };
+        });
+        try { console.debug('[userStore] setInventory mapped containers', mapped.map(m=>({id:m.id, capacity:m.capacity, items:m.items.length}))); } catch(e){ /* ignore */ }
+        this.inventory = mapped;
+      },
+      setCharacterAndInventory(character, inventory, options = {}) {
+        this.character = character;
+        // If server indicates capacityUpdated and provides container ids,
+        // replace only those containers wholesale to avoid client-side diffing.
+        const capacityUpdated = options.capacityUpdated === true;
+        const updatedContainerIds = Array.isArray(options.updatedContainerIds) ? options.updatedContainerIds : [];
+
+        if (Array.isArray(inventory)) {
+          if (capacityUpdated) {
+            // If any container capacity changed, replace the canonical
+            // containers list to ensure the UI reflects new capacities.
+            this.setInventory(inventory);
+          } else if (updatedContainerIds.length > 0 && Array.isArray(this.inventory)) {
+            // Map incoming containers for easy lookup (use string keys to
+            // avoid mismatches between number/string ids coming from server)
+            const incoming = (inventory || []).map((c) => ({ ...c }));
+            const incomingById = new Map();
+            incoming.forEach((c) => incomingById.set(String(c.id), c));
+
+            const updatedSet = new Set(updatedContainerIds.map((id) => String(id)));
+
+            // Replace matching containers in-place, preserving order of existing inventory
+            const existing = Array.isArray(this.inventory) ? this.inventory.slice() : [];
+            const replaced = existing.map((c) => {
+              const key = String(c.id);
+              if (updatedSet.has(key) && incomingById.has(key)) {
+                // normalize the server container before inserting
+                const srv = incomingById.get(key);
+                const items = Array.isArray(srv.items) ? srv.items.map((it) => this.mapItemForClient(it)) : [];
+                items.sort((a, b) => (Number.isInteger(a && a.containerIndex) ? a.containerIndex : 0) - (Number.isInteger(b && b.containerIndex) ? b.containerIndex : 0));
+                return { ...srv, items };
+              }
+              return c;
+            });
+
+            // Also add any incoming containers that did not exist locally
+            incoming.forEach((c) => {
+              const key = String(c.id);
+              if (!existing.find((e) => String(e.id) === key)) {
+                const items = Array.isArray(c.items) ? c.items.map((it) => this.mapItemForClient(it)) : [];
+                items.sort((a, b) => (Number.isInteger(a && a.containerIndex) ? a.containerIndex : 0) - (Number.isInteger(b && b.containerIndex) ? b.containerIndex : 0));
+                replaced.push({ ...c, items });
+              }
+            });
+
+            this.inventory = replaced;
+            try { console.debug('[userStore] replaced containers', { updatedContainerIds, replacedCount: replaced.length }); } catch (e) { /* ignore */ }
+          } else {
+            // No selective replace needed; replace all containers with canonical list
+            this.setInventory(inventory);
+          }
+        } else if (inventory) {
+          this.inventory = inventory;
+        }
+
+        try {
+          console.debug('[userStore] setCharacterAndInventory', { id: character && character.id, inventoryCount: (this.inventory || []).length, capacityUpdated, updatedContainerIds });
+        } catch (e) {
+          /* ignore logging errors */
+        }
+      },
+    // (normalized setInventory defined above)
     async getUser() {
       const response = await api.get("user/refresh");
       this.setCharacter(response.character);
@@ -94,6 +183,7 @@ export const useUserStore = defineStore("user", {
           await api.post('user/logout');
           return null;
         }
+        console.debug('[userStore] bootstrapOnMount received character', response.character && { id: response.character.id, equipped: response.character.equipped });
         this.setCharacter(response.character);
         // ensure inventory is fetched once and cached
         await this.ensureInventory();

@@ -2,12 +2,12 @@
   <div class="flex-grow-0">
     <div class="doll-grid">
       <!-- Equipment quick slots: Backpack, Belt, Bandolier -->
-      <div class="trinkets d-flex">
+      <div class="trinkets">
         <DollSlot
-          slot-name="backpack"
-          :item="equipped.backpack"
+          slot-name="bandolier"
+          :item="equipped.bandolier"
           left
-          @click="selected = equipped.backpack"
+          @click="selected = equipped.bandolier"
           @equip-item="onEquipItem"
         />
         <DollSlot
@@ -18,10 +18,10 @@
           @equip-item="onEquipItem"
         />
         <DollSlot
-          slot-name="bandolier"
-          :item="equipped.bandolier"
+          slot-name="backpack"
+          :item="equipped.backpack"
           left
-          @click="selected = equipped.bandolier"
+          @click="selected = equipped.backpack"
           @equip-item="onEquipItem"
         />
       </div>
@@ -121,7 +121,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { mdiClose } from "@mdi/js";
 import DollSlot from "@/components/character/DollSlot.vue";
 import ItemDialog from "@/components/inventory/ItemDialog.vue";
@@ -147,14 +147,52 @@ async function onEquipItem(payload) {
 
     // persist to server
     // Assumption: API endpoint POST /character/equip { itemId, targetSlot, source }
+    // Only send minimal data: itemId and targetSlot. Server will resolve
+    // active character from the session and perform the swap atomically.
     const body = {
       itemId: payload.item.id,
       targetSlot: payload.targetSlot,
-      source: payload.source,
     };
+    console.debug("[PaperDoll] equip request body", body);
     const res = await api.post("/character/equip", body);
+    console.debug("[PaperDoll] equip response", res);
+    // server may return updated character/equipment or containers+equipment depending on container swap
     if (res && res.character) {
       userStore.setCharacter(res.character);
+    } else if (res && (res.containers || res.equipment)) {
+      // Merge equipment rows returned by server. Server may include full Item
+      // objects under `Item` (via include: { Item: true }). Map those into the
+      // character.equipped shape expected by the client.
+      const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+      if (!newChar.equipped) newChar.equipped = {};
+      res.equipment.forEach((eq) => {
+        if (eq.Item) {
+          newChar.equipped[String(eq.slot).toLowerCase()] = {
+            ...eq.Item,
+            img:
+              eq.Item.image ||
+              eq.Item.img ||
+              eq.Item.img ||
+              "/img/debug/placeholder.png",
+            label: eq.Item.label || eq.Item.name || eq.Item.displayName || null,
+          };
+        } else if (eq.itemId) {
+          newChar.equipped[String(eq.slot).toLowerCase()] = { id: eq.itemId };
+        } else {
+          newChar.equipped[String(eq.slot).toLowerCase()] = null;
+        }
+      });
+      // If server returned canonical containers (inventory), update both
+      // character and inventory atomically to avoid flicker.
+      if (res.containers) {
+        // pass capacity update hints so store can selectively replace containers
+        userStore.setCharacterAndInventory(newChar, res.containers, {
+          capacityUpdated: res.capacityUpdated,
+          updatedContainerIds: res.updatedContainerIds,
+        });
+      } else {
+        userStore.setCharacter(newChar);
+      }
     }
   } catch (err) {
     console.warn("equip failed, rolling back", err);
@@ -170,6 +208,17 @@ async function onEquipItem(payload) {
 
 const character = computed(() => userStore.character || { equipped: {} });
 const equipped = computed(() => character.value.equipped || {});
+// debug: log what backpack object looks like when paper doll renders
+watch(
+  () => equipped.value.backpack,
+  (v) => {
+    console.debug(
+      "[PaperDoll] backpack",
+      v && { id: v.id, img: v && v.img, label: v && v.label }
+    );
+  },
+  { immediate: true }
+);
 </script>
 
 <style>
@@ -184,6 +233,21 @@ const equipped = computed(() => character.value.equipped || {});
 }
 .doll-grid .trinkets {
   grid-column: span 4;
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+}
+.doll-grid .trinkets > * {
+  flex: 1 1 0;
+  min-width: 0; /* allow shrinking */
+  /* match the grid row height so trinkets match other rows */
+  height: 100%;
+}
+
+.doll-grid .trinkets {
+  /* force the trinkets row to the same height as grid-auto-rows */
+  height: 100px;
 }
 .doll-grid .weapon-mainhand,
 .doll-grid .weapon-offhand {

@@ -4,28 +4,56 @@ import characters from '../lib/characters.js';
 
 const router = express.Router();
 
+// Helper: fetch containers and include items (resilient to missing itemId column)
+async function fetchContainersWithItems(characterId) {
+  try {
+    return prisma.container.findMany({
+      where: { characterId },
+      include: { items: { orderBy: { containerIndex: 'asc' } } },
+    });
+  } catch (err) {
+    // handle missing column (P2022) by falling back to a simpler query
+    if (err && err.code === 'P2022') {
+      console.warn('fetchContainersWithItems: schema mismatch, falling back to basic container fetch');
+      return prisma.container.findMany({ where: { characterId } });
+    }
+    throw err;
+  }
+}
+
+// map DB item -> client shape
+function mapItemForClient(it) {
+  if (!it) return null;
+  return {
+    ...it,
+    img: it.image || it.img || '/img/debug/placeholder.png',
+    label: it.label || it.name || null,
+  };
+}
+
 // New: session-backed inventory endpoint
 // GET /inventory/
 // Returns all containers owned by the active character (from session) including their items
 router.get('/', async (req, res) => {
   try {
-  const userId = req.session && req.session.passport && req.session.passport.user && req.session.passport.user.id;
-  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-  const character = await characters.getActiveCharacter(userId);
+    const userId = req.session
+      && req.session.passport
+      && req.session.passport.user
+      && req.session.passport.user.id;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    const character = await characters.getActiveCharacter(userId);
 
     if (!character || !character.id) {
       return res.status(404).json({ error: 'No active character found' });
     }
 
     // Fetch containers owned by this character, including items ordered by containerIndex
-    const containers = await prisma.container.findMany({
-      where: { characterId: character.id },
-      include: {
-        items: {
-          orderBy: { containerIndex: 'asc' },
-        },
-      },
-    });
+    let containers = await fetchContainersWithItems(character.id);
+    // normalize items for client (img/label)
+    containers = containers.map((c) => ({
+      ...c,
+      items: (c.items || []).map(mapItemForClient),
+    }));
 
     return res.json({ success: true, characterId: character.id, containers });
   } catch (e) {
@@ -38,13 +66,20 @@ router.get('/', async (req, res) => {
 // Body: { itemId, source: { containerId, localIndex }, target: { containerId, localIndex } }
 router.post('/move', async (req, res) => {
   try {
-  console.log('/inventory/move called, body=', req.body);
-  const userId = req.session && req.session.passport && req.session.passport.user && req.session.passport.user.id;
-  console.log('userId from session:', userId);
-  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-  const character = await characters.getActiveCharacter(userId);
+    console.log('/inventory/move called, body=', req.body);
+    const userId = req.session
+      && req.session.passport
+      && req.session.passport.user
+      && req.session.passport.user.id;
+    console.log('userId from session:', userId);
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    const character = await characters.getActiveCharacter(userId);
     console.log('active character:', character && character.id);
-    if (!character || !character.id) return res.status(404).json({ error: 'No active character' });
+    if (!character || !character.id) {
+      return res.status(404).json({ error: 'No active character' });
+    }
 
     const { itemId, source, target } = req.body || {};
     if (!itemId || !target || typeof target.localIndex !== 'number' || !target.containerId) {
@@ -60,7 +95,9 @@ router.post('/move', async (req, res) => {
     const tgt = target;
 
     // find any item occupying the target slot
-    const occupied = await prisma.item.findFirst({ where: { containerId: tgt.containerId, containerIndex: tgt.localIndex } });
+    const occupied = await prisma.item.findFirst({
+      where: { containerId: tgt.containerId, containerIndex: tgt.localIndex },
+    });
 
     // perform transactional move with swap handling
     if (occupied) {
@@ -69,27 +106,46 @@ router.post('/move', async (req, res) => {
         // swapping within same container: use temporary index to avoid unique constraint conflict
         const TEMP_INDEX = -999999;
         await prisma.$transaction([
-          prisma.item.update({ where: { id: moving.id }, data: { containerIndex: TEMP_INDEX } }),
-          prisma.item.update({ where: { id: occupied.id }, data: { containerIndex: src.localIndex } }),
-          prisma.item.update({ where: { id: moving.id }, data: { containerId: tgt.containerId, containerIndex: tgt.localIndex } }),
+          prisma.item.update({
+            where: { id: moving.id },
+            data: { containerIndex: TEMP_INDEX },
+          }),
+          prisma.item.update({
+            where: { id: occupied.id },
+            data: { containerIndex: src.localIndex },
+          }),
+          prisma.item.update({
+            where: { id: moving.id },
+            data: { containerId: tgt.containerId, containerIndex: tgt.localIndex },
+          }),
         ]);
       } else {
         // different containers: swap directly in a transaction
         await prisma.$transaction([
-          prisma.item.update({ where: { id: occupied.id }, data: { containerId: src.containerId, containerIndex: src.localIndex } }),
-          prisma.item.update({ where: { id: moving.id }, data: { containerId: tgt.containerId, containerIndex: tgt.localIndex } }),
+          prisma.item.update({
+            where: { id: occupied.id },
+            data: { containerId: src.containerId, containerIndex: src.localIndex },
+          }),
+          prisma.item.update({
+            where: { id: moving.id },
+            data: { containerId: tgt.containerId, containerIndex: tgt.localIndex },
+          }),
         ]);
       }
     } else {
       // target empty: just move
-      await prisma.item.update({ where: { id: moving.id }, data: { containerId: tgt.containerId, containerIndex: tgt.localIndex } });
+      await prisma.item.update({
+        where: { id: moving.id },
+        data: { containerId: tgt.containerId, containerIndex: tgt.localIndex },
+      });
     }
 
     // Return updated containers for the active character
-    const containers = await prisma.container.findMany({
-      where: { characterId: character.id },
-      include: { items: { orderBy: { containerIndex: 'asc' } } },
-    });
+    let containers = await fetchContainersWithItems(character.id);
+    containers = containers.map((c) => ({
+      ...c,
+      items: (c.items || []).map(mapItemForClient),
+    }));
 
     return res.json({ success: true, containers });
   } catch (e) {

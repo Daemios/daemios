@@ -86,9 +86,48 @@ import InventoryGrid from "@/components/inventory/InventoryGrid.vue";
 import api from "@/utils/api.js";
 
 const userStore = useUserStore();
-const { inventory } = storeToRefs(userStore);
-const containers = computed(() =>
-  Array.isArray(inventory.value) ? inventory.value : []
+const { inventory, character } = storeToRefs(userStore);
+
+// Only show containers that are actually equipped (backpack/belt/bandolier)
+// plus the Pockets container. This avoids rendering unrelated containers
+// that belong to the character but are not currently equipped.
+const containers = computed(() => {
+  const inv = Array.isArray(inventory.value) ? inventory.value : [];
+  const equippedMap = (character.value && character.value.equipped) || {};
+  const equippedIds = new Set(
+    Object.values(equippedMap)
+      .map((it) => (it && it.id ? Number(it.id) : null))
+      .filter((v) => v !== null)
+  );
+
+  return inv.filter((c) => {
+    // Always include pockets
+    if (c && String(c.name).toLowerCase() === "pockets") return true;
+    // Include containers whose itemId corresponds to an equipped item
+    if (c && c.itemId !== undefined && c.itemId !== null) {
+      return equippedIds.has(Number(c.itemId));
+    }
+    return false;
+  });
+});
+watch(
+  containers,
+  (val) => {
+    try {
+      console.debug(
+        "[InventoryPanel] containers changed",
+        val &&
+          val.map((c) => ({
+            id: c.id,
+            capacity: c.capacity,
+            items: c.items && c.items.length,
+          }))
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  },
+  { deep: true, immediate: true }
 );
 const flatInventory = computed(() => {
   // flatten containers -> items for legacy full-list view
