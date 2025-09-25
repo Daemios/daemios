@@ -186,9 +186,12 @@ function onMoveItem(payload) {
               await userStore.refreshCharacter();
             else {
               // best-effort local update: if source.slot provided, clear it
-              const newChar = JSON.parse(
-                JSON.stringify(userStore.character || {})
-              );
+              const newChar = {
+                ...(userStore.character || {}),
+                equipped: {
+                  ...(userStore.character && userStore.character.equipped),
+                },
+              };
               if (newChar && newChar.equipped && src.slot)
                 newChar.equipped[src.slot] = null;
               userStore.setCharacter(newChar);
@@ -209,10 +212,17 @@ function onMoveItem(payload) {
 
     // Existing in-container swap/move logic follows for items moved between containers
     // keep previous inventory for rollback in case the server rejects the move
-    const prevInventory = JSON.parse(JSON.stringify(inventory.value || []));
+    // Shallow-clone containers and items only (avoid expensive JSON stringify)
+    const prevInventory = (inventory.value || []).map((c) => ({
+      ...c,
+      items: Array.isArray(c.items) ? c.items.map((it) => ({ ...it })) : [],
+    }));
 
-    // Work on a deep clone of inventory to avoid mutating pinia state directly
-    const newInventory = JSON.parse(JSON.stringify(inventory.value || []));
+    // Work on a shallow clone of inventory to avoid mutating pinia state directly
+    const newInventory = (inventory.value || []).map((c) => ({
+      ...c,
+      items: Array.isArray(c.items) ? c.items.map((it) => ({ ...it })) : [],
+    }));
 
     const sourceContainer = newInventory.find((c) => c.id === src.containerId);
     const targetContainer = newInventory.find((c) => c.id === tgt.containerId);

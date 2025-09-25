@@ -65,27 +65,47 @@ async function containerIsDescendantOfItem(prismaClient, containerId, ancestorIt
   return false;
 }
 
+// Response helpers to ensure consistent, human readable messages
+function badRequest(res, message, details) {
+  return res.status(400).json({ success: false, error: String(message || 'Bad request'), details: details || null });
+}
+
+function unauthorized(res, message) {
+  return res.status(401).json({ success: false, error: String(message || 'Not authenticated') });
+}
+
+function notFound(res, message, details) {
+  return res.status(404).json({ success: false, error: String(message || 'Not found'), details: details || null });
+}
+
+function serverError(res, message, details) {
+  return res.status(500).json({ success: false, error: String(message || 'Server error'), details: details || null });
+}
+
 // New: session-backed inventory endpoint
 // GET /inventory/
 // Returns all containers owned by the active character (from session) including their items
 router.get('/', async (req, res) => {
   try {
+    // safe session read, split to satisfy line-length lint
     const userId = req.session
       && req.session.passport
       && req.session.passport.user
       && req.session.passport.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    const character = await characters.getActiveCharacter(userId);
+    if (!userId) return unauthorized(res, 'User must be authenticated to fetch inventory');
 
+    const character = await characters.getActiveCharacter(userId);
     if (!character || !character.id) {
-      return res.status(404).json({ error: 'No active character found' });
+      return notFound(res, 'No active character found for the authenticated user');
     }
 
     // Fetch containers owned by this character, including items ordered by containerIndex
     let containers = await fetchContainersWithItems(character.id);
     // normalize items for client (img/label) and attach containerType/icon hint
     containers = containers.map((c) => ({
-      ...c,
+      id: c.id,
+      label: c.label || null,
+      capacity: c.capacity || 0,
       containerType: c.containerType || 'BASIC',
       icon: iconForContainerType(c.containerType),
       items: (c.items || []).map(mapItemForClient),
@@ -93,8 +113,8 @@ router.get('/', async (req, res) => {
 
     return res.json({ success: true, characterId: character.id, containers });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Server Error' });
+    console.error('inventory fetch failed', e);
+    return serverError(res, 'Failed to fetch inventory', { message: e && e.message });
   }
 });
 
@@ -108,24 +128,22 @@ router.post('/move', async (req, res) => {
       && req.session.passport.user
       && req.session.passport.user.id;
     console.log('userId from session:', userId);
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    if (!userId) return unauthorized(res, 'Authentication required to move items');
+
     const character = await characters.getActiveCharacter(userId);
     console.log('active character:', character && character.id);
-    if (!character || !character.id) {
-      return res.status(404).json({ error: 'No active character' });
-    }
+    if (!character || !character.id) return notFound(res, 'Active character not found for user');
 
     const { itemId, source, target } = req.body || {};
-    if (!itemId || !target || typeof target.localIndex !== 'number' || (target.containerId === undefined || target.containerId === null)) {
-      return res.status(400).json({ error: 'Invalid parameters' });
-    }
+    if (!itemId) return badRequest(res, 'Missing itemId in request body');
+    if (!target) return badRequest(res, 'Missing target in request body');
+    if (!Number.isInteger(target.localIndex) || target.localIndex < 0) return badRequest(res, 'target.localIndex must be a non-negative integer');
+    if (target.containerId === undefined || target.containerId === null) return badRequest(res, 'target.containerId must be provided (use null for unequipped)');
 
     // load the item being moved (include ItemType for simple validation)
     const moving = await prisma.item.findUnique({ where: { id: Number(itemId) } });
-    if (!moving) return res.status(404).json({ error: 'Item not found' });
-    if (moving.characterId !== character.id) return res.status(403).json({ error: 'Item does not belong to active character' });
+    if (!moving) return notFound(res, 'Item not found');
+    if (moving.characterId !== character.id) return res.status(403).json({ success: false, error: 'Item does not belong to the active character' });
 
     const src = source || { containerId: moving.containerId, localIndex: moving.containerIndex };
     const tgt = target;
@@ -134,16 +152,16 @@ router.post('/move', async (req, res) => {
     // these checks are skipped.
     if (tgt.containerId) {
       const targetContainer = await prisma.container.findUnique({ where: { id: tgt.containerId } });
-      if (!targetContainer) return res.status(400).json({ error: 'Target container not found' });
-      if (!Number.isInteger(tgt.localIndex) || tgt.localIndex < 0) return res.status(400).json({ error: 'Invalid target index' });
-      if (tgt.localIndex >= targetContainer.capacity) return res.status(400).json({ error: 'Target index exceeds container capacity' });
+      if (!targetContainer) return badRequest(res, 'Target container not found');
+      if (!Number.isInteger(tgt.localIndex) || tgt.localIndex < 0) return badRequest(res, 'Invalid target index');
+      if (tgt.localIndex >= targetContainer.capacity) return badRequest(res, 'Target index exceeds container capacity');
 
       // Prevent moving a container item into itself or its descendants
       if (moving.isContainer) {
         const wouldDescend = await containerIsDescendantOfItem(prisma, tgt.containerId, moving.id);
         if (wouldDescend) {
           console.warn(`inventory move blocked: moving container item ${moving.id} into container ${tgt.containerId} would create a self/descendant containment`);
-          return res.status(400).json({ error: 'Cannot place a container into itself or its nested containers', details: { movingId: moving.id, targetContainerId: tgt.containerId } });
+          return badRequest(res, 'Cannot place a container into itself or its nested containers', { movingId: moving.id, targetContainerId: tgt.containerId });
         }
       }
 
@@ -152,12 +170,8 @@ router.post('/move', async (req, res) => {
       if (targetContainer && targetContainer.containerType) {
         const ttype = String(targetContainer.containerType).toUpperCase();
         const itype = moving.itemType ? String(moving.itemType).toUpperCase() : '';
-        if (ttype === 'LIQUID') {
-          if (itype !== 'LIQUID') return res.status(400).json({ error: 'Only liquid items can be placed in this container' });
-        }
-        if (ttype === 'CONSUMABLES') {
-          if (itype !== 'CONSUMABLE' && itype !== 'FOOD') return res.status(400).json({ error: 'Only consumable items can be placed in this container' });
-        }
+        if (ttype === 'LIQUID' && itype !== 'LIQUID') return badRequest(res, 'Only liquid items can be placed in this container');
+        if (ttype === 'CONSUMABLES' && itype !== 'CONSUMABLE' && itype !== 'FOOD') return badRequest(res, 'Only consumable items can be placed in this container');
       }
     }
 
@@ -210,16 +224,18 @@ router.post('/move', async (req, res) => {
     // Return updated containers for the active character
     let containers = await fetchContainersWithItems(character.id);
     containers = containers.map((c) => ({
-      ...c,
+      id: c.id,
+      label: c.label || null,
+      capacity: c.capacity || 0,
       containerType: c.containerType || 'BASIC',
       icon: iconForContainerType(c.containerType),
       items: (c.items || []).map(mapItemForClient),
     }));
 
-    return res.json({ success: true, containers });
+    return res.json({ success: true, message: 'Move completed', containers });
   } catch (e) {
     console.error('inventory move failed', e);
-    return res.status(500).json({ error: 'Move failed' });
+    return serverError(res, 'Move failed', { message: e && e.message });
   }
 });
 

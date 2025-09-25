@@ -79,8 +79,24 @@ const slots = computed(() => {
   } catch (e) {
     /* ignore */
   }
+
+  // safety: avoid building extremely large slot arrays synchronously which
+  // can block the main thread and make the whole browser tab/jank. If the
+  // total number of slots across containers exceeds MAX_SLOTS, we stop
+  // building further slots and return a truncated view. This keeps the UI
+  // responsive while still showing the leading portion of the inventory.
+  const MAX_SLOTS = 500; // tunable; large enough for normal use, small enough to avoid blocking
   let global = 0;
-  (props.containers || []).forEach((c) => {
+
+  // precompute icon map once to avoid recreating it per slot
+  const iconMap = {
+    hand: mdi.mdiHandFrontRight || mdi.mdiHandPointingUp || null,
+    backpack: mdi.mdiBagPersonal || mdi.mdiPackage || null,
+    water: mdi.mdiWater || null,
+    "food-apple": mdi.mdiFoodApple || mdi.mdiApple || null,
+  };
+
+  for (const c of props.containers || []) {
     const capacity = c?.capacity || 0;
     const itemsByIndex = {};
     (c?.items || []).forEach((it) => {
@@ -88,27 +104,35 @@ const slots = computed(() => {
         itemsByIndex[it.containerIndex] = it;
     });
 
-    for (let i = 0; i < Math.max(capacity, 1); i++) {
-      // map server-provided short icon names to @mdi/js SVG paths
-      const iconMap = {
-        // pick available icons from @mdi/js (the package doesn't export a plain `mdiBackpack`)
-        hand: mdi.mdiHandFrontRight || mdi.mdiHandPointingUp || null,
-        backpack: mdi.mdiBagPersonal || mdi.mdiPackage || null,
-        water: mdi.mdiWater || null,
-        "food-apple": mdi.mdiFoodApple || mdi.mdiApple || null,
-      };
+    const loopMax = Math.max(capacity, 1);
+    for (let i = 0; i < loopMax; i++) {
+      if (global >= MAX_SLOTS) {
+        console.warn(
+          "[InventoryGrid] slot build truncated at",
+          MAX_SLOTS,
+          "slots to avoid blocking UI"
+        );
+        // push a single sentinel entry indicating truncation and stop
+        out.push({
+          globalIndex: global++,
+          containerId: null,
+          localIndex: -1,
+          item: null,
+          truncated: true,
+        });
+        return out;
+      }
+
       out.push({
         globalIndex: global++,
         containerId: c.id,
         localIndex: i,
         item: itemsByIndex[i] || null,
-        // containerIconSvg is an SVG path string suitable for <v-icon>
         containerIconSvg: c && c.icon ? iconMap[c.icon] || null : null,
       });
     }
-  });
+  }
 
-  // ensure at least one slot for empty
   if (out.length === 0)
     out.push({ globalIndex: 0, containerId: null, localIndex: 0, item: null });
   return out;

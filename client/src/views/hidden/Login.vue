@@ -1,139 +1,117 @@
 <template>
-  <v-layout
-    justify-center
-    align-center
-    column
-    class="login"
-  >
-    <!-- Register -->
-    <v-layout
-      v-if="showRegister"
-      class="flex-grow-0 pane pa-4"
-      column
-      align-center
-    >
-      <v-form>
-        <v-text-field
-          v-model="form.new_email"
-          label="Email"
-          type="email"
-          autocomplete="email"
-        />
-        <v-text-field
-          v-model="form.new_password"
-          label="Password"
-          type="password"
-          autocomplete="new-password"
-        />
-        <v-text-field
-          v-model="form.confirm_password"
-          label="Confirm Password"
-          type="password"
-          autocomplete="new-password"
-        />
-        <v-text-field
-          v-model="form.displayName"
-          label="Display Name"
-        />
-      </v-form>
-      <v-row>
-        <v-col>
-          <v-btn
-            text
-            small
-            @click="showRegister = false"
-          >
-            Cancel
-          </v-btn>
-        </v-col>
-        <v-col>
-          <v-btn
-            color="primary"
-            small
-            @click="registerUser()"
-          >
-            Register
-          </v-btn>
-        </v-col>
-      </v-row>
-    </v-layout>
-
-    <!-- Login -->
-    <v-layout
-      v-else
-      column
-      class="flex-grow-0"
-      align-center
-    >
-      <v-img
-        class="hover-animate"
-        height="512"
-        width="512"
-        src="/img/branding/splash.png"
-      />
-      <div class="login-pane pane pa-4">
-        <form>
-          <v-text-field
-            v-model="form.email"
-            label="Email"
-            type="email"
-            autocomplete="username"
-            @keydown.enter="login()"
-          />
-          <v-text-field
-            v-model="form.password"
-            label="Password"
-            type="password"
-            autocomplete="current-password"
-            @keydown.enter="login()"
-          />
-        </form>
-        <v-row>
-          <v-col>
-            <v-btn
-              text
-              small
-              @click="showRegister = true"
-            >
-              Register
-            </v-btn>
+  <v-container class="fill-height pa-0 login" fluid>
+    <v-row class="fill-height" align="center" justify="center">
+      <v-col cols="12" md="8" lg="6" class="d-flex justify-center">
+        <v-row
+          class="ma-0"
+          align="center"
+          justify="space-between"
+          style="width: 100%"
+        >
+          <!-- Left: Splash / branding -->
+          <v-col cols="12" md="6" class="d-flex justify-center">
+            <v-img src="/img/branding/splash.png" class="splash-img" contain />
           </v-col>
-          <v-col
-            class="d-flex justify-end"
-          >
-            <v-btn
-              color="primary"
-              small
-              @click="login()"
-            >
-              Login
-            </v-btn>
+
+          <!-- Right: Card with login/register -->
+          <v-col cols="12" md="6" class="d-flex align-center">
+            <v-card class="pa-6 login-card" elevation="6">
+              <v-card-title class="justify-center">
+                <span class="text-h5">Welcome to Daemios</span>
+              </v-card-title>
+
+              <v-card-text>
+                <v-form>
+                  <template v-if="!showRegister">
+                    <v-text-field
+                      v-model="form.email"
+                      label="Email"
+                      type="email"
+                      autocomplete="username"
+                      density="comfortable"
+                      @keydown.enter="login()"
+                    />
+                    <v-text-field
+                      v-model="form.password"
+                      label="Password"
+                      type="password"
+                      autocomplete="current-password"
+                      density="comfortable"
+                      @keydown.enter="login()"
+                    />
+                  </template>
+
+                  <template v-else>
+                    <v-text-field
+                      v-model="form.new_email"
+                      label="Email"
+                      type="email"
+                      autocomplete="email"
+                    />
+                    <v-text-field
+                      v-model="form.new_password"
+                      label="Password"
+                      type="password"
+                      autocomplete="new-password"
+                    />
+                    <v-text-field
+                      v-model="form.confirm_password"
+                      label="Confirm Password"
+                      type="password"
+                      autocomplete="new-password"
+                    />
+                    <v-text-field
+                      v-model="form.displayName"
+                      label="Display Name"
+                    />
+                  </template>
+                </v-form>
+              </v-card-text>
+
+              <v-card-actions class="justify-space-between">
+                <v-btn text @click="showRegister = !showRegister">
+                  {{ showRegister ? "Back" : "Register" }}
+                </v-btn>
+
+                <v-spacer />
+
+                <v-btn
+                  color="primary"
+                  @click="showRegister ? registerUser() : login()"
+                >
+                  {{ showRegister ? "Create Account" : "Login" }}
+                </v-btn>
+              </v-card-actions>
+
+              <v-divider class="my-3" />
+
+              <v-row align="center" justify="space-between" class="px-2">
+                <v-col cols="6" class="d-flex align-center">
+                  <v-icon class="mr-2" @click="toggleMute">
+                    {{ mdiVolumeSource }}
+                  </v-icon>
+                  <span class="text-caption">Volume</span>
+                </v-col>
+                <v-col cols="6" class="d-flex justify-end">
+                  <v-text-field
+                    type="number"
+                    density="compact"
+                    hide-details
+                    style="max-width: 110px"
+                    :model-value="volume"
+                    min="0"
+                    max="100"
+                    step="1"
+                    @update:model-value="onVolumeChange"
+                  />
+                </v-col>
+              </v-row>
+            </v-card>
           </v-col>
         </v-row>
-      </div>
-    </v-layout>
-
-    <!-- Sound Control -->
-    <div class="audio-pane pane d-flex justify-space-between px-1 mt-2">
-      <v-icon
-        class="mr-1"
-        @click="toggleMute"
-      >
-        {{ mdiVolumeSource }}
-      </v-icon>
-      <v-text-field
-        type="number"
-        density="compact"
-        hide-details
-        style="max-width: 90px"
-        :model-value="volume"
-        min="0"
-        max="100"
-        step="1"
-        @update:model-value="onVolumeChange"
-      />
-    </div>
-  </v-layout>
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
 
 <script setup>
@@ -224,9 +202,16 @@ function registerUser() {
 }
 .login-pane {
   width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
 }
 .audio-pane {
   width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .hover-animate {
   animation: zoomEffect 5s ease-in-out infinite;

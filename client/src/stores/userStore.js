@@ -199,7 +199,9 @@ export const useUserStore = defineStore("user", {
       if (response.success) {
         router.push("/");
         this.setCharacter(response.character);
-        this.setInventory(response.inventory);
+        // server may return canonical containers under `containers` (new) or
+        // `inventory` (legacy). Accept either to remain compatible.
+        this.setInventory(response.containers || response.inventory || []);
       } else {
         console.log(response.error);
       }

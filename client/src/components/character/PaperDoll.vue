@@ -140,10 +140,16 @@ const equipErrorMsg = ref("");
 async function onEquipItem(payload) {
   // payload: { item, source, targetSlot }
   if (!payload || !payload.item) return;
-  const prevChar = JSON.parse(JSON.stringify(userStore.character || {}));
+  const prevChar = {
+    ...(userStore.character || {}),
+    equipped: { ...(userStore.character && userStore.character.equipped) },
+  };
   try {
     // optimistic local equip: update store.character.equipped[targetSlot] = item
-    const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+    const newChar = {
+      ...(userStore.character || {}),
+      equipped: { ...(userStore.character && userStore.character.equipped) },
+    };
     if (!newChar.equipped) newChar.equipped = {};
     newChar.equipped[payload.targetSlot] = payload.item;
     userStore.setCharacter(newChar);
@@ -166,7 +172,10 @@ async function onEquipItem(payload) {
       // Merge equipment rows returned by server. Server may include full Item
       // objects under `Item` (via include: { Item: true }). Map those into the
       // character.equipped shape expected by the client.
-      const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+      const newChar = {
+        ...(userStore.character || {}),
+        equipped: { ...(userStore.character && userStore.character.equipped) },
+      };
       if (!newChar.equipped) newChar.equipped = {};
       res.equipment.forEach((eq) => {
         if (eq.Item) {

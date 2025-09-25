@@ -126,11 +126,36 @@ router.post('/character/select', async (req, res) => {
       return res.status(404).json({ error: 'No active character found' });
     }
 
-    // include equipped items in the response
+    // include equipped items and canonical containers in the response
     try {
       const charWithEquip = await buildCharacterWithEquipment(character);
-      console.debug('[user.select] responding with character', { id: charWithEquip.id, equipped: charWithEquip.equipped });
-      res.json({ success: true, character: charWithEquip });
+
+      // fetch containers (including items) so client can set inventory immediately
+      let containers = [];
+      try {
+        containers = await prisma.container.findMany({ where: { characterId: character.id }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
+        // normalize items for client
+        containers = containers.map((c) => ({
+          ...c,
+          containerType: c.containerType || 'BASIC',
+          icon: (function t(tpe) {
+            const tstr = String(tpe || 'BASIC').toUpperCase();
+            switch (tstr) {
+              case 'LIQUID': return 'water';
+              case 'CONSUMABLES': return 'food-apple';
+              case 'PACK': return 'backpack';
+              case 'POCKETS': return 'hand';
+              default: return null;
+            }
+          }(c.containerType)),
+          items: (c.items || []).map((it) => ({ ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null })),
+        }));
+      } catch (e) {
+        console.warn('user.select: could not fetch containers for character', e && e.code);
+      }
+
+      console.debug('[user.select] responding with character', { id: charWithEquip.id, equipped: charWithEquip.equipped, containers: containers.length });
+      res.json({ success: true, character: charWithEquip, containers });
     } catch (e) {
       console.warn('Failed to load equipment for character', character.id, e);
       console.debug('[user.select] responding with character (no equip)', { id: character.id, equipped: character.equipped });
@@ -149,7 +174,8 @@ router.post('/character/create', async (req, res) => {
     console.log('userId', userId);
     const { name, raceId, image } = req.body;
     console.log(req.body);
-    await prisma.character.create({
+    // Create the character (do not mark active here; user will select their active character)
+    const createdChar = await prisma.character.create({
       data: {
         name,
         image,
@@ -166,10 +192,30 @@ router.post('/character/create', async (req, res) => {
       },
     });
 
+    // Create an implicit 'Pockets' container (6 slots) for the new character.
+    // Pockets are special: they do not require an Item to represent them.
+    try {
+      if (createdChar && createdChar.id) {
+        await prisma.container.create({
+          data: {
+            name: 'Pockets',
+            capacity: 6,
+            characterId: createdChar.id,
+            removable: true,
+            // itemId omitted intentionally for special pocket containers
+            containerType: 'POCKETS',
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to create pockets container for new character', e && e.code);
+    }
+
     // TODO add the intro adventure to the character to give them first abilities, etc
     // each node should reward an option of 3 abilities,
     // and the final node should reward a vessel (maybe)
-    res.status(200).json({ success: 'Character created' });
+    // Return created character so client can reflect active character and fetch inventory
+    res.status(200).json({ success: true, character: createdChar });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
