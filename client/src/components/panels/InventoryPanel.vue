@@ -158,6 +158,56 @@ function onMoveItem(payload) {
     const src = payload.source || {};
     const tgt = payload.target || {};
 
+    // If the drag originated from an equipped slot (paper doll), the source
+    // object will be flagged with `equip: true`. In that case, the server
+    // should be asked to move the item from the equipped state into the
+    // target container. We'll call POST /inventory/move and adopt the
+    // canonical containers returned by the server. This avoids complex
+    // optimistic logic for unequipping.
+    if (src && src.equip) {
+      (async () => {
+        try {
+          const body = {
+            itemId: payload.item && payload.item.id,
+            source: src,
+            target: tgt,
+          };
+          const res = await api.post("/inventory/move", body);
+          if (res && res.containers) {
+            // server returns canonical containers for active character
+            userStore.setInventory(res.containers);
+          }
+          // Also refresh character equipped mapping to ensure the slot is cleared
+          // after unequip. The userStore.refreshCharacter method will re-fetch
+          // the active character from the server if available; fall back to
+          // clearing the local equipped entry.
+          try {
+            if (userStore && userStore.refreshCharacter)
+              await userStore.refreshCharacter();
+            else {
+              // best-effort local update: if source.slot provided, clear it
+              const newChar = JSON.parse(
+                JSON.stringify(userStore.character || {})
+              );
+              if (newChar && newChar.equipped && src.slot)
+                newChar.equipped[src.slot] = null;
+              userStore.setCharacter(newChar);
+            }
+          } catch (e) {
+            /* ignore character refresh errors */
+          }
+          return;
+        } catch (err) {
+          console.warn("unequip move failed", err);
+          errorMsg.value = "Failed to unequip item. Changes were reverted.";
+          errorVisible.value = true;
+          return;
+        }
+      })();
+      return;
+    }
+
+    // Existing in-container swap/move logic follows for items moved between containers
     // keep previous inventory for rollback in case the server rejects the move
     const prevInventory = JSON.parse(JSON.stringify(inventory.value || []));
 

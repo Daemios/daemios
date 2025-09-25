@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL") //mariadb
 }
 
 model AbilityElement {
@@ -97,21 +97,19 @@ model Item {
   description           String?
   image                 String?
   itemEffectId          Int?
-  itemTypeId            Int?
+  itemType              ItemType?
   lastUpdate            Int?
   quantity              Int?
   containerIndex        Int?
   isContainer           Boolean?     @default(false)
   capacity              Int?
   removable             Boolean?     @default(true)
-  lockType              String?
   parentContainerItemId Int?
   RepresentedContainer  Container?   @relation("Container_ItemObject")
   equippedIn            Equipment[]
   character             Character    @relation(fields: [characterId], references: [id])
   Container             Container?   @relation("Container_Items", fields: [containerId], references: [id], onDelete: SetNull)
   itemEffect            Effect?      @relation(fields: [itemEffectId], references: [id])
-  itemType              ItemType?    @relation(fields: [itemTypeId], references: [id])
   // Location relation removed
   ParentContainerItem   Item?        @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
   ChildContainerItems   Item[]       @relation("ParentContainer")
@@ -121,18 +119,8 @@ model Item {
   @@unique([containerId, containerIndex])
   @@index([characterId], map: "Item_characterId_fkey")
   @@index([itemEffectId], map: "Item_itemEffectId_fkey")
-  @@index([itemTypeId], map: "Item_itemTypeId_fkey")
-  // locationId index removed
   @@index([containerId])
   @@index([parentContainerItemId], map: "Item_parentContainerItemId_fkey")
-}
-
-model ItemType {
-  id          Int     @id @default(autoincrement())
-  slot        Int?
-  name        String
-  description String?
-  items       Item[]
 }
 
 model Creature {
@@ -298,7 +286,6 @@ model Container {
   id            Int           @id @default(autoincrement())
   name          String
   capacity      Int
-  lockType      String?
   locationId    Int?
   characterId   Int?
   removable     Boolean       @default(true)
@@ -369,18 +356,6 @@ model Faction {
   @@index([characterId], map: "Faction_characterId_fkey")
 }
 
-model ArenaHistory {
-  arena_history_id Int       @id @default(autoincrement())
-  name             String
-  seed             String
-  size             Int
-  created_on       DateTime  @default(now())
-  last_updated     DateTime  @updatedAt
-  last_active      DateTime?
-
-  @@map("arena_history")
-}
-
 model WorldLocation {
   id          Int               @id @default(autoincrement())
   name        String
@@ -400,17 +375,6 @@ model WorldLocation {
   @@index([ownerUserId], map: "WorldLocation_ownerUserId_fkey")
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Structure_backup {
-  id          Int     @default(0)
-  name        String
-  type        String
-  description String?
-  locationId  Int
-
-  @@ignore
-}
-
 enum ContainerType {
   BASIC
   LIQUID
@@ -419,17 +383,30 @@ enum ContainerType {
   POCKETS
 }
 
+enum ItemType {
+  LIQUID
+  CONSUMABLE
+  FOOD
+  WEAPON
+  ARMOR
+  CONTAINER
+  PACK
+  GENERIC
+}
+
 enum EquipmentSlot {
-  BACKPACK
+  TRINKET
   BELT
-  BANDOLIER
+  BACKPACK
   LEG
   HEAD
   CHEST
   HANDS
   FEET
-  TRINKET1
-  TRINKET2
+  MAINHAND
+  OFFHAND
+  TWO_HANDED
+  CONSTRUCT
 }
 
 enum WorldLocationType {

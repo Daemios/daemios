@@ -28,6 +28,7 @@ function mapItemForClient(it) {
     ...it,
     img: it.image || it.img || '/img/debug/placeholder.png',
     label: it.label || it.name || null,
+    itemType: it.itemType ? String(it.itemType) : null,
   };
 }
 
@@ -122,10 +123,7 @@ router.post('/move', async (req, res) => {
     }
 
     // load the item being moved (include ItemType for simple validation)
-    const moving = await prisma.item.findUnique({
-      where: { id: Number(itemId) },
-      include: { itemType: true },
-    });
+    const moving = await prisma.item.findUnique({ where: { id: Number(itemId) } });
     if (!moving) return res.status(404).json({ error: 'Item not found' });
     if (moving.characterId !== character.id) return res.status(403).json({ error: 'Item does not belong to active character' });
 
@@ -143,19 +141,22 @@ router.post('/move', async (req, res) => {
       // Prevent moving a container item into itself or its descendants
       if (moving.isContainer) {
         const wouldDescend = await containerIsDescendantOfItem(prisma, tgt.containerId, moving.id);
-        if (wouldDescend) return res.status(400).json({ error: 'Cannot place a container into itself or its nested containers' });
+        if (wouldDescend) {
+          console.warn(`inventory move blocked: moving container item ${moving.id} into container ${tgt.containerId} would create a self/descendant containment`);
+          return res.status(400).json({ error: 'Cannot place a container into itself or its nested containers', details: { movingId: moving.id, targetContainerId: tgt.containerId } });
+        }
       }
 
       // Basic container-type rules: disallow moving items that don't match
-    // simple heuristics for LIQUID and CONSUMABLES container types.
+      // simple heuristics for LIQUID and CONSUMABLES container types.
       if (targetContainer && targetContainer.containerType) {
         const ttype = String(targetContainer.containerType).toUpperCase();
-        const itemTypeName = (moving.itemType && moving.itemType.name) ? String(moving.itemType.name).toLowerCase() : '';
+        const itype = moving.itemType ? String(moving.itemType).toUpperCase() : '';
         if (ttype === 'LIQUID') {
-          if (!itemTypeName.includes('liquid')) return res.status(400).json({ error: 'Only liquid items can be placed in this container' });
+          if (itype !== 'LIQUID') return res.status(400).json({ error: 'Only liquid items can be placed in this container' });
         }
         if (ttype === 'CONSUMABLES') {
-          if (!itemTypeName.includes('consum') && !itemTypeName.includes('food')) return res.status(400).json({ error: 'Only consumable items can be placed in this container' });
+          if (itype !== 'CONSUMABLE' && itype !== 'FOOD') return res.status(400).json({ error: 'Only consumable items can be placed in this container' });
         }
       }
     }

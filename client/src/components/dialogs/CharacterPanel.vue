@@ -29,6 +29,7 @@
               <v-btn-toggle v-model="mode" mandatory dense>
                 <v-btn value="inventory" dense> Inventory </v-btn>
                 <v-btn value="abilities" dense> Abilities </v-btn>
+                <v-btn value="stats" dense> Stats </v-btn>
               </v-btn-toggle>
             </v-card-title>
             <v-card-text>
@@ -46,6 +47,7 @@ import { computed, ref } from "vue";
 import PaperDoll from "@/components/character/PaperDoll.vue";
 import InventoryPanel from "@/components/panels/InventoryPanel.vue";
 import AbilitiesPanel from "@/components/panels/AbilitiesPanel.vue";
+import StatsPanel from "@/components/panels/StatsPanel.vue";
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { mdiClose } from "@mdi/js";
 
@@ -61,7 +63,9 @@ function close() {
   isCharacterOpen.value = false;
 }
 
-const modeComponent = computed(() =>
-  mode.value === "abilities" ? AbilitiesPanel : InventoryPanel
-);
+const modeComponent = computed(() => {
+  if (mode.value === "abilities") return AbilitiesPanel;
+  if (mode.value === "stats") return StatsPanel;
+  return InventoryPanel;
+});
 </script>

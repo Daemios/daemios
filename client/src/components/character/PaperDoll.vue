@@ -5,6 +5,7 @@
       <div class="trinkets">
         <DollSlot
           slot-name="bandolier"
+          label="Trinket"
           :item="equipped.bandolier"
           left
           @click="selected = equipped.bandolier"
@@ -12,6 +13,7 @@
         />
         <DollSlot
           slot-name="belt"
+          label="Belt"
           :item="equipped.belt"
           left
           @click="selected = equipped.belt"
@@ -19,6 +21,7 @@
         />
         <DollSlot
           slot-name="backpack"
+          label="Backpack"
           :item="equipped.backpack"
           left
           @click="selected = equipped.backpack"
@@ -57,7 +60,10 @@
       />
 
       <!-- Avatar -->
-      <v-card class="avatar d-flex align-center justify-center" flat>
+      <v-card
+        class="avatar d-flex align-center justify-center"
+        flat
+      >
         <v-icon>
           {{ mdiClose }}
         </v-icon>
@@ -110,12 +116,24 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog :item="selected" @close="selected = null" />
+    <ItemDialog
+      :item="selected"
+      @close="selected = null"
+    />
   </div>
-  <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
+  <v-snackbar
+    v-model="equipErrorVisible"
+    color="error"
+    timeout="6000"
+  >
     {{ equipErrorMsg }}
     <template #action>
-      <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
+      <v-btn
+        text
+        @click="() => (equipErrorVisible = false)"
+      >
+        Close
+      </v-btn>
     </template>
   </v-snackbar>
 </template>
