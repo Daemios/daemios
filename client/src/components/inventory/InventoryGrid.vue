@@ -4,20 +4,26 @@
       <div
         v-for="slot in slots"
         :key="slot.globalIndex"
-        class="inventory-slot"
+        class="inventory-slot d-flex align-center justify-center"
         :class="{ highlighted: slot.containerId === highlightedContainerId }"
         @click="() => $emit('click-item', slot.item)"
         @dragover.prevent
         @drop="onDrop($event, slot)"
       >
-        <div v-if="slot.containerIconSvg" class="slot-icon-bg">
+        <div
+          v-if="slot.containerIconSvg"
+          class="slot-icon-bg d-flex align-center justify-center"
+        >
           <!-- Pass the SVG path (from @mdi/js) as slot content to v-icon so mdi-svg renders it -->
-          <v-icon class="slot-icon">
+          <v-icon class="slot-icon d-inline-flex align-center justify-center">
             {{ slot.containerIconSvg }}
           </v-icon>
         </div>
 
-        <div v-if="slot.item" class="slot-item">
+        <div
+          v-if="slot.item"
+          class="slot-item d-flex align-center justify-center"
+        >
           <DraggableItem
             :item="slot.item"
             :label="slot.item.name"
@@ -138,18 +144,12 @@ function onDrop(e, slot) {
   border: 1px dashed rgba(0, 0, 0, 0.12);
   min-height: 64px;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: rgba(255, 255, 255, 0.02);
   padding: 0;
 }
 .slot-icon-bg {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
   opacity: 0.12; /* raised temporarily for debugging */
   font-size: 48px;
@@ -160,9 +160,6 @@ function onDrop(e, slot) {
 .slot-icon-bg .slot-icon {
   font-size: inherit;
   line-height: inherit;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   height: 1em;
   width: 1em;
   color: inherit !important;
@@ -181,9 +178,6 @@ function onDrop(e, slot) {
 .slot-item {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .item-name {
   font-size: 0.75rem;
