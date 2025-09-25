@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE `Session` MODIFY `data` MEDIUMTEXT NOT NULL;
