@@ -1,7 +1,7 @@
 <template>
   <div
     :class="dollSlotClasses"
-    style="position: relative;"
+    style="position: relative"
     @dragover.prevent
     @drop="onDrop"
   >
@@ -26,7 +26,12 @@
     <!-- slot name chip at bottom -->
     <div
       v-if="displayLabel"
-      style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);"
+      style="
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+      "
     >
       <v-chip
         small
@@ -34,7 +39,7 @@
         elevation="0"
         color="#ffcc00"
         text-color="#000000"
-        style="font-size:10px; padding:2px 6px; opacity:0.95;"
+        style="font-size: 10px; padding: 2px 6px; opacity: 0.95"
       >
         {{ displayLabel }}
       </v-chip>
@@ -80,7 +85,8 @@ const dollSlotClasses = computed(() => ({
 
 // canonical slot id used for emits and validation (always lowercased)
 const slotId = computed(() => {
-  const candidate = props.slotName || (props.item && props.item.slot) || props.label || "";
+  const candidate =
+    props.slotName || (props.item && props.item.slot) || props.label || "";
   return String(candidate || "").toLowerCase();
 });
 
@@ -110,9 +116,7 @@ const displayLabel = computed(() => {
   };
   if (map[s]) return map[s];
   // fallback: title-case the slot id (replace dashes/underscores)
-  return s
-    .replace(/[_-]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return s.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 });
 
 const safeItem = computed(() => props.item || {});
@@ -168,9 +172,11 @@ function allowedForSlot(item, slotName) {
     return !!item.isContainer;
   }
   // mainhand/offhand heuristics: require weapon type if present
-    if (s === "mainhand" || s === "offhand") {
+  if (s === "mainhand" || s === "offhand") {
     if (item.itemType) {
-      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(String(item.itemType));
+      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(
+        String(item.itemType)
+      );
     }
     return true; // allow if we don't have a type to judge
   }
