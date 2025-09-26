@@ -1,35 +1,6 @@
 import { prisma } from '../../db/prisma';
 import { EquipmentSlot } from '@prisma/client';
-import { ensureItemBelongsToCharacter, DomainError } from './equipment.domain';
-
-function iconForContainerType(type: any) {
-  const t = String(type || 'BASIC').toUpperCase();
-  switch (t) {
-    case 'LIQUID': return 'water';
-    case 'CONSUMABLES': return 'food-apple';
-    case 'PACK': return 'backpack';
-    case 'POCKETS': return 'hand';
-    default: return null;
-  }
-}
-
-async function containerIsDescendantOfItem(tx: any, containerId: any, ancestorItemId: any) {
-  if (!containerId) return false;
-  const c = await tx.container.findUnique({ where: { id: containerId }, select: { itemId: true } });
-  if (!c) return false;
-  if (c.itemId === ancestorItemId) return true;
-  if (!c.itemId) return false;
-  const rep = await tx.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
-  if (!rep) return false;
-  return containerIsDescendantOfItem(tx, rep.containerId, ancestorItemId);
-}
-
-function isValidForSlot(item: any, containerRow: any, slot: any) {
-  if (!item || !slot) return false;
-  const declared = item.itemType ? String(item.itemType).toUpperCase() : null;
-  const s = String(slot || '').toUpperCase();
-  return declared === s;
-}
+import { ensureItemBelongsToCharacter, DomainError, iconForContainerType, containerIsDescendantOfItem, isValidForSlot } from './equipment.domain';
 
 export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
   // Use a transaction so we both upsert the equipment and clear any
@@ -87,9 +58,9 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
   // capacity and create the container when necessary.
 
   const declaredSlot = (item && item.itemType) ? String(item.itemType).toUpperCase() : null;
-  if (!declaredSlot || declaredSlot !== normalizedSlot) {
-    throw new DomainError('INVALID_SLOT', 'Item type slot does not match target slot');
-  }
+  // Fail fast if the item's declared equip slot doesn't match the requested one.
+  if (!declaredSlot || declaredSlot !== normalizedSlot) throw new DomainError('INVALID_SLOT', 'Item type slot does not match target slot');
+  // Domain validation: ensure item is legal for this slot
   if (!isValidForSlot(item, newContainer, normalizedSlot)) throw new DomainError('INVALID_ITEM_FOR_SLOT', 'Item cannot be equipped into that slot');
 
   await prisma.$transaction(async (tx: any) => {
@@ -145,19 +116,15 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     }
 
     if (oldItem && oldItem.isContainer && targetContainerForOldItem !== null) {
+      // Prevent cycles: placing a container into itself or its descendants
       const wouldDescend = await containerIsDescendantOfItem(tx, targetContainerForOldItem, oldItem.id);
       if (wouldDescend) throw new DomainError('CANNOT_PLACE_CONTAINER_IN_SELF', 'Cannot place a container into itself or its nested containers');
     }
 
     if (item.isContainer) {
-      // Ensure a container record exists inside the transaction. If it
-      // does not, create a minimal record using the item's metadata so
-      // subsequent capacity validation can proceed.
+      // Ensure minimal container metadata exists for capacity checks.
       let c = await tx.container.findFirst({ where: { itemId } });
       if (!c) {
-        // Build a safe unique name to avoid a (characterId,name) unique
-        // constraint collision. Use itemId suffix which guarantees uniqueness
-        // for this character + item pair.
         const baseName = String(item.label || item.name || 'Container').substring(0, 60);
         const uniqueName = `${baseName}-${itemId}`;
         c = await tx.container.create({
@@ -171,14 +138,11 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
           },
         });
       }
+      // Determine capacity preference: explicit item.capacity > container.capacity
       let capacityFromItem: any = null;
-      if (Number.isInteger(item.capacity)) {
-        capacityFromItem = item.capacity;
-      } else if (Number.isInteger(c.capacity)) {
-        capacityFromItem = c.capacity;
-      } else {
-        capacityFromItem = null;
-      }
+      if (Number.isInteger(item.capacity)) capacityFromItem = item.capacity;
+      else if (Number.isInteger(c.capacity)) capacityFromItem = c.capacity;
+      else capacityFromItem = null;
       if (capacityFromItem === null) throw new DomainError('CONTAINER_CAPACITY_UNKNOWN', 'Container capacity unknown');
       const currentCount = await tx.item.count({ where: { containerId: c.id } });
       if (capacityFromItem < currentCount) throw new DomainError('CONTAINER_OVERFLOW', 'New capacity is less than current items in container');
@@ -243,7 +207,7 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     }
   });
 
-  const equipment = await prisma.equipment.findMany({ where: { characterId }, include: { Item: true } });
+    const equipment = await prisma.equipment.findMany({ where: { characterId }, include: { Item: true } });
   const containers = await prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
   const annotatedContainers = containers.map((c: any) => ({ ...c, containerType: c.containerType || 'BASIC', icon: iconForContainerType(c.containerType) }));
   const updatedContainerIds: any[] = [];
