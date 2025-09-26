@@ -1,11 +1,19 @@
 import { prisma } from '../../db/prisma';
 import { EquipmentSlot } from '@prisma/client';
+import { ensureItemBelongsToCharacter, DomainError } from './characterEquip.domain';
 
 export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
-  // Ensure item exists and belongs to character
+  // Ensure item exists and belongs to character (domain validation)
   const item = await prisma.item.findUnique({ where: { id: itemId } });
-  if (!item) throw Object.assign(new Error('Item not found'), { status: 404 });
-  if (item.characterId !== characterId) throw Object.assign(new Error('Item does not belong to character'), { status: 403 });
+  try {
+    ensureItemBelongsToCharacter(item, characterId);
+  } catch (e: any) {
+    if (e instanceof DomainError) {
+      if (e.code === 'ITEM_NOT_FOUND') throw Object.assign(new Error(e.message), { status: 404 });
+      if (e.code === 'ITEM_NOT_OWNED') throw Object.assign(new Error(e.message), { status: 403 });
+    }
+    throw e;
+  }
 
   // Upsert equipment for slot
   const upserted = await prisma.equipment.upsert({

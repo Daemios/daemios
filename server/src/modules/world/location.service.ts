@@ -1,5 +1,5 @@
-import { prisma } from '../db/prisma';
-import { newLocation, newLocationOfType } from '../modules/world/world.domain';
+import { prisma } from '../../db/prisma';
+import { newLocation, newLocationOfType } from './world.domain';
 
 export async function listLocations(filter: Record<string, any> = {}) {
   return prisma.location.findMany({ where: filter });

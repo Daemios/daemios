@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma';
+import { validateCreateArenaHistory, DomainError } from './arena.domain';
 
 // Note: the current Prisma schema does not declare an ArenaHistory model.
 // The legacy JS code used `prisma.arenaHistory`. To avoid changing schema here
@@ -32,6 +33,14 @@ export async function updateArenaLastActive(id: number | string): Promise<any> {
 }
 
 export async function createArenaHistory(data: { name: string; seed: string; size: number }): Promise<any> {
-  // Stubbed - no-op
-  return { insertedId: null };
+  // Validate payload using domain rules. Keep behavior as a stubbed insert until
+  // the Prisma schema is updated; validation still helps prevent bad input.
+  try {
+    const validated = validateCreateArenaHistory(data);
+    // Stubbed DB behavior — mirror the previous no-op response but include validated data
+    return { insertedId: null, validated };
+  } catch (e) {
+    if (e instanceof DomainError) throw Object.assign(new Error(e.message), { status: 400 });
+    throw e;
+  }
 }

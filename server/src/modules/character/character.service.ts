@@ -1,11 +1,8 @@
 import { prisma } from '../../db/prisma';
+import { mapItemForClient, makePocketsPlaceholder } from './character.domain';
 
 export async function buildCharacterWithEquipment(character: any) {
-  function mapItemForClient(it: any) {
-    if (!it) return null;
-    const img = it.image || it.img || '/img/debug/placeholder.png';
-    return { ...it, img, label: it.label || it.name || (it.displayName || null) };
-  }
+  // ...existing code...
 
   let equipmentRows: any[] = [];
   try {
@@ -34,7 +31,7 @@ export async function buildCharacterWithEquipment(character: any) {
         }
       }
       if (!pocketItem) {
-        pocketItem = { id: null, label: 'Pockets', img: null, isContainer: true, containerId: pockets.id, capacity: pockets.capacity || 0 };
+        pocketItem = makePocketsPlaceholder(pockets);
       }
       equipped.pocket = pocketItem;
     } else {

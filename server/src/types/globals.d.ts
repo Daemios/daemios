@@ -6,7 +6,6 @@ declare module 'express-session' {
   }
 }
 
-// Clean module declarations for world subroutes used by relative imports
 declare module './world/locations' {
   import { Router } from 'express';
   const value: Router;

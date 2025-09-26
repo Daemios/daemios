@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { listLocations, createLocation, getLocation, deleteLocation } from '../../services/locationService';
+import { listLocations, createLocation, getLocation, deleteLocation } from './location.service';
+import { DomainError } from './world.domain';
 
 export async function index(req: Request, res: Response) {
   try {
@@ -20,6 +21,10 @@ export async function create(req: Request, res: Response) {
     res.status(201).json(created);
   } catch (e) {
     console.error(e);
+    if (e instanceof DomainError) {
+      if (e.code === 'NAME_REQUIRED') return res.status(422).json({ error: 'invalid_name' });
+      if (e.code === 'INVALID_ADVENTURE') return res.status(422).json({ error: 'invalid_adventure' });
+    }
     res.status(500).send('Server Error');
   }
 }

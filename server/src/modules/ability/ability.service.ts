@@ -1,7 +1,15 @@
 import { prisma } from '../../db/prisma';
+import { normalizeAbilityElementPayload, DomainError } from './ability.domain';
 
 export async function createAbilityElement(payload: any) {
-  return prisma.abilityElement.create({ data: { name: payload.name || null, icon: payload.icon || null, effect: payload.effect || null, tag: payload.tag || null, damage: payload.damage || null, healing: payload.healing || null, debuff: payload.debuff || null, buff: payload.buff || null, color: payload.color || null } });
+  const normalized = normalizeAbilityElementPayload(payload || {});
+  try {
+    return prisma.abilityElement.create({ data: normalized as any });
+  } catch (e: any) {
+    // If domain validation threw, map it to a JS Error for callers
+    if (e instanceof DomainError) throw new Error(e.message);
+    throw e;
+  }
 }
 
 export async function listAbilityElements() {

@@ -1,5 +1,6 @@
 import { prisma } from '../../db/prisma';
 import { characterService } from '../character/character.service';
+import { validateMovePayload, ensureValidTargetIndex, DomainError } from './inventory.domain';
 
 export async function fetchContainersWithItems(characterId: number) {
   try {
@@ -46,8 +47,15 @@ export async function containerIsDescendantOfItem(containerId: number | null, an
 
 // Move an item with all validation and swapping logic, returns updated containers for the character
 export async function moveItemForCharacter(character: any, payload: any) {
-  const { itemId, source, target } = payload || {};
-  if (!itemId) throw new Error('Missing itemId');
+  let norm: any;
+  try {
+    norm = validateMovePayload(payload);
+  } catch (e: any) {
+    if (e instanceof DomainError) throw Object.assign(new Error(e.message), { status: 400 });
+    throw e;
+  }
+
+  const { itemId, source, target } = norm;
 
   const moving = await prisma.item.findUnique({ where: { id: Number(itemId) } });
   if (!moving) throw Object.assign(new Error('Item not found'), { status: 404 });
@@ -56,10 +64,15 @@ export async function moveItemForCharacter(character: any, payload: any) {
   const src = source || { containerId: moving.containerId, localIndex: moving.containerIndex };
   const tgt = target;
 
-  if (tgt && tgt.containerId) {
+    if (tgt && tgt.containerId) {
     const targetContainer = await prisma.container.findUnique({ where: { id: tgt.containerId } });
     if (!targetContainer) throw Object.assign(new Error('Target container not found'), { status: 400 });
-    if (!Number.isInteger(tgt.localIndex) || tgt.localIndex < 0) throw Object.assign(new Error('Invalid target index'), { status: 400 });
+    try {
+      ensureValidTargetIndex(tgt);
+    } catch (e: any) {
+      if (e instanceof DomainError) throw Object.assign(new Error(e.message), { status: 400 });
+      throw e;
+    }
     if (tgt.localIndex >= (targetContainer.capacity || 0)) throw Object.assign(new Error('Target index exceeds container capacity'), { status: 400 });
 
     if (moving.isContainer) {

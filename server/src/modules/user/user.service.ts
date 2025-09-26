@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { userRepository } from './user.repository';
+import { DomainError, newUser } from './user.domain';
 import { HttpError } from '../../utils/httpError';
 
 export const hashPassword = async (password: string) => {
@@ -8,10 +9,13 @@ export const hashPassword = async (password: string) => {
 };
 
 export async function createUser({ email, password, displayName }: { email: string; password: string; displayName: string }) {
+  // Policy: validate registration inputs at domain layer once password is hashed
   const existing = await userRepository.findByEmail(email);
   if (existing) throw new HttpError(409, 'Email already registered');
+
   const hashed = await hashPassword(password);
-  return userRepository.create({ email, password: hashed, displayName });
+  const entity = newUser({ email, displayName, passwordHash: hashed });
+  return userRepository.create({ email: entity.email, password: entity.passwordHash, displayName: entity.displayName });
 }
 
 export async function getUser({ id, email }: { id?: number; email?: string }) {
@@ -32,8 +36,11 @@ export default { hashPassword, createUser, getUser, validateRegistration };
 export const userService = {
   createUser: (email: string, password: string, displayName: string) => createUser({ email, password, displayName }),
   getUser: async (idOrEmail: any) => {
-    if (typeof idOrEmail === 'number') return getUser({ id: idOrEmail });
-    if (typeof idOrEmail === 'string') return getUser({ email: idOrEmail });
-    return null;
+    let result = null as any;
+    if (typeof idOrEmail === 'number') result = await getUser({ id: idOrEmail });
+    else if (typeof idOrEmail === 'string') result = await getUser({ email: idOrEmail });
+    if (!result) throw new HttpError(404, 'User not found');
+    return result;
   },
 };
+
