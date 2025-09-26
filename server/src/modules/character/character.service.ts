@@ -45,6 +45,31 @@ export async function buildCharacterWithEquipment(character: any) {
   return { ...character, equipped };
 }
 
+export async function getContainersForCharacter(characterId: number) {
+  let containers: any[] = [];
+  try {
+    containers = await prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
+    containers = containers.map((c: any) => ({
+      ...c,
+      containerType: c.containerType || 'BASIC',
+      icon: ((tpe: any) => {
+        const tstr = String(tpe || 'BASIC').toUpperCase();
+        switch (tstr) {
+          case 'LIQUID': return 'water';
+          case 'CONSUMABLES': return 'food-apple';
+          case 'PACK': return 'backpack';
+          case 'POCKETS': return 'hand';
+          default: return null;
+        }
+      })(c.containerType),
+      items: (c.items || []).map((it: any) => ({ ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null })),
+    }));
+  } catch (e) {
+    console.warn('getContainersForCharacter: could not fetch containers for character', (e as any)?.code);
+  }
+  return containers;
+}
+
 export const characterService = {
   async getActiveCharacterForUser(userId: number) {
     return prisma.character.findFirst({
@@ -77,4 +102,6 @@ export const characterService = {
   async listCharactersForUser(userId: number) {
     return prisma.character.findMany({ where: { userId } });
   },
+  buildCharacterWithEquipment,
+  getContainersForCharacter,
 };

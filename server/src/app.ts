@@ -14,7 +14,7 @@ import abilityRouter from './routes/ability';
 import arenaRouter from './routes/arena';
 import worldRouter from './routes/world';
 import dmRouter from './routes/dm';
-import characterEquipRouter from './routes/characterEquip';
+import equipmentRouter from './routes/equipment';
 
 import initializePassport from './passport-config';
 import { isAuth } from './middlewares/user';
@@ -57,7 +57,7 @@ app.use('/ability', abilityRouter);
 app.use('/arena', arenaRouter);
 app.use('/world', worldRouter);
 app.use('/dm', dmRouter);
-app.use('/character', characterEquipRouter);
+app.use('/character', equipmentRouter);
 
 app.get('/_health', (_req, res) => res.json({ ok: true }));
 

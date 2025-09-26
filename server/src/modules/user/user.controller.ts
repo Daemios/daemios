@@ -24,7 +24,10 @@ export const userController = {
   },
   getOne: async (req: Request, res: Response) => {
     const { id } = req.params;
-    const user = await userService.getUser(Number(id));
+    const idNum = Number(id);
+    if (!Number.isInteger(idNum) || idNum <= 0) return res.status(400).json({ error: 'invalid_id' });
+    const user = await userService.getUser(idNum);
+    if (!user) return res.status(404).json({ error: 'not_found' });
     res.json(user);
   },
 };

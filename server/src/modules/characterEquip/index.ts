@@ -1,3 +1,2 @@
-export { equipItemToCharacter, unequipItemFromSlot, listEquipmentForCharacter } from './characterEquip.service';
-export { postEquip, postUnequip, getList } from './characterEquip.controller';
-export { default as characterEquipRouter } from './characterEquip.routes';
+// characterEquip module removed; use modules/equipment instead
+throw new Error('Module "characterEquip" removed; use "modules/equipment" instead.');

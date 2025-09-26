@@ -1,7 +1,7 @@
 import passport from 'passport';
 import express, { Request, Response } from 'express';
 import { registrationValidator } from '../middlewares/user';
-import { createUser, hashPassword } from '../modules/user/user.service';
+import { userService } from '../modules/user/user.service';
 
 const router = express.Router();
 
@@ -24,9 +24,8 @@ router.post('/login', passport.authenticate('local'), (req: Request, res: Respon
 router.post('/register', registrationValidator, async (req: Request, res: Response) => {
   console.log('registering user');
   try {
-    const { email, password, displayName } = req.body as any;
-    const hashedPassword = await hashPassword(password);
-    const newUser = await createUser({ email, password: hashedPassword, displayName });
+  const { email, password, displayName } = req.body as any;
+  const newUser = await userService.createUser(email, password, displayName);
 
     res.status(200).json({
       success: 'User created',

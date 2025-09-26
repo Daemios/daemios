@@ -1,7 +1,6 @@
 import bcrypt from 'bcrypt';
 import { userRepository } from './user.repository';
 import { DomainError, newUser } from './user.domain';
-import { HttpError } from '../../utils/httpError';
 
 export const hashPassword = async (password: string) => {
   const salt = await bcrypt.genSalt(10);
@@ -9,9 +8,9 @@ export const hashPassword = async (password: string) => {
 };
 
 export async function createUser({ email, password, displayName }: { email: string; password: string; displayName: string }) {
-  // Policy: validate registration inputs at domain layer once password is hashed
+  // Policy: check uniqueness at the orchestration layer
   const existing = await userRepository.findByEmail(email);
-  if (existing) throw new HttpError(409, 'Email already registered');
+  if (existing) throw new DomainError('EMAIL_IN_USE', 'Email already registered');
 
   const hashed = await hashPassword(password);
   const entity = newUser({ email, displayName, passwordHash: hashed });
@@ -39,7 +38,6 @@ export const userService = {
     let result = null as any;
     if (typeof idOrEmail === 'number') result = await getUser({ id: idOrEmail });
     else if (typeof idOrEmail === 'string') result = await getUser({ email: idOrEmail });
-    if (!result) throw new HttpError(404, 'User not found');
     return result;
   },
 };

@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { characterService, buildCharacterWithEquipment } from './character.service';
-import { prisma } from '../../db/prisma';
 
 export const characterController = {
   logout: async (req: Request, res: Response) => {
@@ -51,27 +50,7 @@ export const characterController = {
 
       try {
         const charWithEquip = await buildCharacterWithEquipment(character);
-        let containers: any[] = [];
-        try {
-          containers = await prisma.container.findMany({ where: { characterId: character.id }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
-          containers = containers.map((c) => ({
-            ...c,
-            containerType: c.containerType || 'BASIC',
-            icon: (function t(tpe) {
-              const tstr = String(tpe || 'BASIC').toUpperCase();
-              switch (tstr) {
-                case 'LIQUID': return 'water';
-                case 'CONSUMABLES': return 'food-apple';
-                case 'PACK': return 'backpack';
-                case 'POCKETS': return 'hand';
-                default: return null;
-              }
-            }(c.containerType)),
-            items: (c.items || []).map((it: any) => ({ ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null })),
-          }));
-        } catch (e) {
-          console.warn('user.select: could not fetch containers for character', (e as any)?.code);
-        }
+        const containers = await characterService.getContainersForCharacter(character.id);
         res.json({ success: true, character: charWithEquip, containers });
       } catch (e) {
         console.warn('Failed to load equipment for character', character.id, e);
