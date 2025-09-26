@@ -6,10 +6,7 @@
       <!-- Unified inventory grid that receives the full containers list -->
       <v-row dense>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               Inventory
             </div>
@@ -28,10 +25,7 @@
     <div v-else>
       <v-row>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2 mb-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2 mb-2" elevation="0">
             <div class="sheet-title subtitle-1 font-weight-medium">
               No containers equipped
             </div>
@@ -72,23 +66,11 @@
       </v-data-iterator>
     </div>
 
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
-    <v-snackbar
-      v-model="errorVisible"
-      color="error"
-      timeout="6000"
-    >
+    <ItemDialog :item="selected" @close="selected = null" />
+    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
       {{ errorMsg }}
       <template #action>
-        <v-btn
-          text
-          @click="() => (errorVisible = false)"
-        >
-          Close
-        </v-btn>
+        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -122,7 +104,12 @@ const containers = computed(() => {
     // Always include pockets. Some server responses represent pockets via
     // container.name === 'Pockets' while others may only set containerType
     // to 'POCKETS'. Accept either form (case-insensitive).
-    if (c && (String(c.name || '').toLowerCase() === 'pockets' || String(c.containerType || '').toUpperCase() === 'POCKETS')) return true;
+    if (
+      c &&
+      (String(c.name || "").toLowerCase() === "pockets" ||
+        String(c.containerType || "").toUpperCase() === "POCKETS")
+    )
+      return true;
     // Include containers whose itemId corresponds to an equipped item
     if (c && c.itemId !== undefined && c.itemId !== null) {
       return equippedIds.has(Number(c.itemId));

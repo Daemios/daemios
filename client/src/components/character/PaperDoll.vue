@@ -60,10 +60,7 @@
       />
 
       <!-- Avatar -->
-      <v-card
-        class="avatar d-flex align-center justify-center"
-        flat
-      >
+      <v-card class="avatar d-flex align-center justify-center" flat>
         <v-icon>
           {{ mdiClose }}
         </v-icon>
@@ -116,24 +113,12 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog
-      :item="selected"
-      @close="selected = null"
-    />
+    <ItemDialog :item="selected" @close="selected = null" />
   </div>
-  <v-snackbar
-    v-model="equipErrorVisible"
-    color="error"
-    timeout="6000"
-  >
+  <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
     {{ equipErrorMsg }}
     <template #action>
-      <v-btn
-        text
-        @click="() => (equipErrorVisible = false)"
-      >
-        Close
-      </v-btn>
+      <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
     </template>
   </v-snackbar>
 </template>
@@ -180,7 +165,10 @@ async function onEquipItem(payload) {
     // to produce the exact enum token the server expects (e.g. 'PACK').
     const desired = payload.targetSlot || payload.slot || null;
     const mappedSlot = desired ? String(desired).toUpperCase() : null;
-    const body = Object.assign({ itemId: payload.item.id }, mappedSlot ? { slot: mappedSlot } : {});
+    const body = Object.assign(
+      { itemId: payload.item.id },
+      mappedSlot ? { slot: mappedSlot } : {}
+    );
     console.debug("[PaperDoll] equip request body", body);
     const res = await api.post("/character/equip", body);
     console.debug("[PaperDoll] equip response", res);
@@ -197,11 +185,11 @@ async function onEquipItem(payload) {
       };
       if (!newChar.equipped) newChar.equipped = {};
       res.equipment.forEach((eq) => {
-        const key = String(eq.slot || '').toLowerCase();
+        const key = String(eq.slot || "").toLowerCase();
         if (eq.Item) {
           newChar.equipped[key] = {
             ...eq.Item,
-            img: eq.Item.image || eq.Item.img || '/img/debug/placeholder.png',
+            img: eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
             label: eq.Item.label || eq.Item.name || eq.Item.displayName || null,
           };
         } else if (eq.itemId) {
