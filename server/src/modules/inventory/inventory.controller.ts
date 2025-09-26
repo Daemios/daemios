@@ -1,12 +1,12 @@
 import express from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter } from './inventory.service';
+import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, iconForContainerType } from './inventory.service';
 
 export const getInventory = asyncHandler(async (req: express.Request, res: express.Response) => {
   const user = req.session?.activeCharacter as any;
   if (!user) return res.status(200).json([]);
   const containers = await fetchContainersWithItems(user.id);
-  const out = containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', icon: c.containerType ? String(c.containerType).toUpperCase() : null, items: (c.items || []).map(mapItemForClient) }));
+  const out = containers.map((c: any) => ({ id: c.id, name: c.name || null, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', icon: iconForContainerType(c.containerType), items: (c.items || []).map(mapItemForClient) }));
   res.json(out);
 });
 

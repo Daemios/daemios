@@ -4,27 +4,27 @@
       <!-- Equipment quick slots: Backpack, Belt, Bandolier -->
       <div class="trinkets">
         <DollSlot
-          slot-name="bandolier"
+          slot-name="trinket1"
           label="Trinket"
-          :item="equipped.bandolier"
+          :item="equipped.trinket1"
           left
-          @click="selected = equipped.bandolier"
+          @click="selected = equipped.trinket1"
           @equip-item="onEquipItem"
         />
         <DollSlot
-          slot-name="belt"
+          slot-name="trinket2"
           label="Belt"
-          :item="equipped.belt"
+          :item="equipped.trinket2"
           left
-          @click="selected = equipped.belt"
+          @click="selected = equipped.trinket2"
           @equip-item="onEquipItem"
         />
         <DollSlot
-          slot-name="backpack"
+          slot-name="pack"
           label="Backpack"
-          :item="equipped.backpack"
+          :item="equipped.pack"
           left
-          @click="selected = equipped.backpack"
+          @click="selected = equipped.pack"
           @equip-item="onEquipItem"
         />
       </div>
@@ -60,7 +60,10 @@
       />
 
       <!-- Avatar -->
-      <v-card class="avatar d-flex align-center justify-center" flat>
+      <v-card
+        class="avatar d-flex align-center justify-center"
+        flat
+      >
         <v-icon>
           {{ mdiClose }}
         </v-icon>
@@ -83,9 +86,9 @@
       />
       <DollSlot
         label="Legs"
-        :item="equipped.legs"
+        :item="equipped.leg"
         right
-        @click="selected = equipped.legs"
+        @click="selected = equipped.leg"
         @equip-item="onEquipItem"
       />
       <DollSlot
@@ -113,12 +116,24 @@
     </div>
 
     <!-- Equipment Item Dialog -->
-    <ItemDialog :item="selected" @close="selected = null" />
+    <ItemDialog
+      :item="selected"
+      @close="selected = null"
+    />
   </div>
-  <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
+  <v-snackbar
+    v-model="equipErrorVisible"
+    color="error"
+    timeout="6000"
+  >
     {{ equipErrorMsg }}
     <template #action>
-      <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
+      <v-btn
+        text
+        @click="() => (equipErrorVisible = false)"
+      >
+        Close
+      </v-btn>
     </template>
   </v-snackbar>
 </template>
@@ -158,10 +173,14 @@ async function onEquipItem(payload) {
     // Assumption: API endpoint POST /character/equip { itemId, targetSlot, source }
     // Only send minimal data: itemId and targetSlot. Server will resolve
     // active character from the session and perform the swap atomically.
-    const body = {
-      itemId: payload.item.id,
-      targetSlot: payload.targetSlot,
-    };
+    // Map UI slot labels to server EquipmentSlot values and only include
+    // defined keys so we don't send useless undefined fields.
+    // The UI emits canonical slot names in `payload.targetSlot` that match
+    // the server EquipmentSlot enum (lowercased). Normalize by uppercasing
+    // to produce the exact enum token the server expects (e.g. 'PACK').
+    const desired = payload.targetSlot || payload.slot || null;
+    const mappedSlot = desired ? String(desired).toUpperCase() : null;
+    const body = Object.assign({ itemId: payload.item.id }, mappedSlot ? { slot: mappedSlot } : {});
     console.debug("[PaperDoll] equip request body", body);
     const res = await api.post("/character/equip", body);
     console.debug("[PaperDoll] equip response", res);
@@ -178,20 +197,17 @@ async function onEquipItem(payload) {
       };
       if (!newChar.equipped) newChar.equipped = {};
       res.equipment.forEach((eq) => {
+        const key = String(eq.slot || '').toLowerCase();
         if (eq.Item) {
-          newChar.equipped[String(eq.slot).toLowerCase()] = {
+          newChar.equipped[key] = {
             ...eq.Item,
-            img:
-              eq.Item.image ||
-              eq.Item.img ||
-              eq.Item.img ||
-              "/img/debug/placeholder.png",
+            img: eq.Item.image || eq.Item.img || '/img/debug/placeholder.png',
             label: eq.Item.label || eq.Item.name || eq.Item.displayName || null,
           };
         } else if (eq.itemId) {
-          newChar.equipped[String(eq.slot).toLowerCase()] = { id: eq.itemId };
+          newChar.equipped[key] = { id: eq.itemId };
         } else {
-          newChar.equipped[String(eq.slot).toLowerCase()] = null;
+          newChar.equipped[key] = null;
         }
       });
       // If server returned canonical containers (inventory), update both
@@ -222,7 +238,7 @@ const character = computed(() => userStore.character || { equipped: {} });
 const equipped = computed(() => character.value.equipped || {});
 // debug: log what backpack object looks like when paper doll renders
 watch(
-  () => equipped.value.backpack,
+  () => equipped.value.pack,
   (v) => {
     console.debug(
       "[PaperDoll] backpack",

@@ -395,9 +395,10 @@ enum ItemType {
 }
 
 enum EquipmentSlot {
-  TRINKET
-  BELT
-  BACKPACK
+  TRINKET1
+  TRINKET2
+  TRINKET3
+  PACK
   LEG
   HEAD
   CHEST

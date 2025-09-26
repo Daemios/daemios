@@ -1,4 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Mock bcrypt at the module level to avoid spying on non-configurable properties
+vi.mock('bcrypt', () => ({
+  default: {
+    genSalt: async () => 'salt',
+    hash: async () => 'hashed-secret',
+  },
+}));
+
 import { userService } from '../user.service';
 import * as repo from '../user.repository';
 import { DomainError } from '../user.domain';
@@ -14,10 +23,8 @@ describe('userService', () => {
   it('creates when unique', async () => {
     vi.spyOn(repo.userRepository, 'findByEmail').mockResolvedValue(null as any);
     vi.spyOn(repo.userRepository, 'create').mockResolvedValue({ id: 2, email: 'c@d.com', displayName: 'Z' } as any);
-    // mock bcrypt.hash to return a stable value
-    const bcrypt = await import('bcrypt');
-    vi.spyOn(bcrypt, 'hash').mockResolvedValue('hashed-secret' as any);
-    const user = await userService.createUser('c@d.com', 'secret', 'Z');
+  // bcrypt module is mocked at top-level to return stable hash
+  const user = await userService.createUser('c@d.com', 'secret', 'ZZ');
     expect(user.email).toBe('c@d.com');
   });
 

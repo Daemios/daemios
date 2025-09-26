@@ -9,16 +9,19 @@ export const ContainerTypes = ['BASIC', 'LIQUID', 'CONSUMABLES', 'PACK', 'POCKET
 export type ContainerType = (typeof ContainerTypes)[number];
 
 export const EquipmentSlot = [
-  'BACKPACK',
-  'BELT',
-  'BANDOLIER',
+  'TRINKET1',
+  'TRINKET2',
+  'TRINKET3',
+  'PACK',
   'LEG',
   'HEAD',
   'CHEST',
   'HANDS',
   'FEET',
-  'TRINKET1',
-  'TRINKET2',
+  'MAINHAND',
+  'OFFHAND',
+  'TWO_HANDED',
+  'CONSTRUCT',
 ] as const;
 
 export type EquipmentSlot = (typeof EquipmentSlot)[number];

@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
+import { unequipItemFromSlot } from '../modules/equipment/equipment.service';
 import { characterService } from '../modules/character/character.service';
 
 const router = express.Router();
@@ -90,6 +91,7 @@ router.get('/', async (req: Request, res: Response) => {
     let containers = await fetchContainersWithItems(character.id);
     containers = containers.map((c: any) => ({
       id: c.id,
+      name: c.name || null,
       label: c.label || null,
       capacity: c.capacity || 0,
       containerType: c.containerType || 'BASIC',
@@ -170,6 +172,14 @@ router.post('/move', async (req: Request, res: Response) => {
       }
     } else {
       await prisma.item.update({ where: { id: moving.id }, data: { containerId: tgt.containerId, containerIndex: tgt.localIndex } });
+    }
+    // Best-effort: clear any equipment rows that reference this item for the
+    // active character. This ensures stale equipment entries are removed
+    // when items are moved out of equipped slots or otherwise relocated.
+    try {
+      await prisma.equipment.updateMany({ where: { characterId: character.id, itemId: moving.id }, data: { itemId: null } });
+    } catch (e) {
+      console.warn('failed to clear equipment after move', e);
     }
 
     let containers = await fetchContainersWithItems(character.id);

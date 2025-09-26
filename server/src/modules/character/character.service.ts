@@ -13,6 +13,7 @@ export async function buildCharacterWithEquipment(character: any) {
   }
 
   const equipped: Record<string, any> = {};
+
   equipmentRows.forEach((r) => {
     const key = String(r.slot).toLowerCase();
     equipped[key] = mapItemForClient(r.Item) || null;

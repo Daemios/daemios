@@ -18,6 +18,7 @@ async function containerIsDescendantOfItem(tx: any, containerId: any, ancestorIt
   const c = await tx.container.findUnique({ where: { id: containerId }, select: { itemId: true } });
   if (!c) return false;
   if (c.itemId === ancestorItemId) return true;
+  if (!c.itemId) return false;
   const rep = await tx.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
   if (!rep) return false;
   return containerIsDescendantOfItem(tx, rep.containerId, ancestorItemId);
@@ -31,10 +32,22 @@ function isValidForSlot(item: any, containerRow: any, slot: any) {
 }
 
 export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
-  const upserted = await prisma.equipment.upsert({
-    where: { characterId_slot: { characterId, slot } as any },
-    create: { characterId, slot, itemId },
-    update: { itemId },
+  // Use a transaction so we both upsert the equipment and clear any
+  // container references atomically. This mirrors the behavior in
+  // performEquipForCharacter so all equip code paths leave the DB in a
+  // consistent state (item.containerId cleared and any container that
+  // represented the item unlinked).
+  const [upserted] = await prisma.$transaction(async (tx: any) => {
+    const u = await tx.equipment.upsert({
+      where: { characterId_slot: { characterId, slot } as any },
+      create: { characterId, slot, itemId },
+      update: { itemId },
+    });
+
+    // Clear the item's container reference so it is not also listed in a container
+    await tx.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
+
+    return u;
   });
   return upserted;
 }
@@ -67,7 +80,11 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
       newContainer = null;
     } else throw err;
   }
-  if (item.isContainer && !newContainer) throw new DomainError('CONTAINER_RECORD_NOT_FOUND', 'Container record not found for this item; cannot set capacity');
+  // Note: we do not immediately fail if the container record is missing
+  // here. It is possible the DB is in an inconsistent state (container
+  // record missing) and we can recover by creating the container record
+  // inside the equip transaction. The transaction below will validate
+  // capacity and create the container when necessary.
 
   const declaredSlot = (item && item.itemType) ? String(item.itemType).toUpperCase() : null;
   if (!declaredSlot || declaredSlot !== normalizedSlot) {
@@ -133,8 +150,27 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     }
 
     if (item.isContainer) {
-      const c = await tx.container.findFirst({ where: { itemId } });
-      if (!c) throw new DomainError('CONTAINER_RECORD_NOT_FOUND_TX', 'Container record not found inside transaction');
+      // Ensure a container record exists inside the transaction. If it
+      // does not, create a minimal record using the item's metadata so
+      // subsequent capacity validation can proceed.
+      let c = await tx.container.findFirst({ where: { itemId } });
+      if (!c) {
+        // Build a safe unique name to avoid a (characterId,name) unique
+        // constraint collision. Use itemId suffix which guarantees uniqueness
+        // for this character + item pair.
+        const baseName = String(item.label || item.name || 'Container').substring(0, 60);
+        const uniqueName = `${baseName}-${itemId}`;
+        c = await tx.container.create({
+          data: {
+            itemId,
+            name: uniqueName,
+            capacity: Number.isInteger(item.capacity) ? item.capacity : 0,
+            characterId,
+            removable: true,
+            containerType: (item.itemType ? String(item.itemType).toUpperCase() : 'PACK'),
+          },
+        });
+      }
       let capacityFromItem: any = null;
       if (Number.isInteger(item.capacity)) {
         capacityFromItem = item.capacity;
@@ -193,7 +229,15 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
         }));
       }
     }
+    // When an item is equipped, clear its container reference so it is no
+    // longer listed as residing in an unequipped container.
     await tx.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
+
+    // Note: do NOT unlink container.itemId here. Container records
+    // represent the container structure and must exist for capacity
+    // validation; unlinking them prematurely can cause subsequent
+    // equip attempts to fail with CONTAINER_RECORD_NOT_FOUND. We will
+    // only clear the item's container reference below.
     if (oldItem && targetContainerForOldItem !== null) {
       await tx.item.update({ where: { id: oldItem.id }, data: { containerId: targetContainerForOldItem, containerIndex: targetIndexForOldItem } });
     }
