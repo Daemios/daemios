@@ -1,10 +1,24 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { createAbilityElement, listAbilityElements, getAbilityElement, updateAbilityElement, deleteAbilityElement } from './ability.service';
+import {
+  createAbilityElement,
+  listAbilityElements,
+  getAbilityElement,
+  updateAbilityElement,
+  deleteAbilityElement,
+} from './ability.service';
+import { AbilityElementCreatePayload, AbilityElementUpdatePayload, DomainError } from './ability.domain';
 
 export const postCreate = asyncHandler(async (req: Request, res: Response) => {
-  const created = await createAbilityElement(req.body);
-  res.status(201).json(created);
+  try {
+    const created = await createAbilityElement(req.body as AbilityElementCreatePayload);
+    res.status(201).json(created);
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(400).json({ error: err.message, code: err.code });
+    }
+    throw err;
+  }
 });
 
 export const getList = asyncHandler(async (_req: Request, res: Response) => {
@@ -21,8 +35,15 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
 
 export const putUpdate = asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const updated = await updateAbilityElement(id, req.body);
-  res.json(updated);
+  try {
+    const updated = await updateAbilityElement(id, req.body as AbilityElementUpdatePayload);
+    res.json(updated);
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(400).json({ error: err.message, code: err.code });
+    }
+    throw err;
+  }
 });
 
 export const delOne = asyncHandler(async (req: Request, res: Response) => {
