@@ -1,13 +1,18 @@
 import { prisma } from '../../db/prisma';
-import { normalizeAbilityElementPayload, DomainError } from './ability.domain';
+import {
+  normalizeAbilityElementCreatePayload,
+  normalizeAbilityElementUpdatePayload,
+  DomainError,
+  AbilityElementCreatePayload,
+  AbilityElementUpdatePayload,
+} from './ability.domain';
 
-export async function createAbilityElement(payload: any) {
-  const normalized = normalizeAbilityElementPayload(payload || {});
+export async function createAbilityElement(payload: AbilityElementCreatePayload) {
   try {
-    return prisma.abilityElement.create({ data: normalized as any });
-  } catch (e: any) {
-    // If domain validation threw, map it to a JS Error for callers
-    if (e instanceof DomainError) throw new Error(e.message);
+    const normalized = normalizeAbilityElementCreatePayload(payload);
+    return await prisma.abilityElement.create({ data: normalized });
+  } catch (e) {
+    if (e instanceof DomainError) throw e;
     throw e;
   }
 }
@@ -20,8 +25,14 @@ export async function getAbilityElement(id: number) {
   return prisma.abilityElement.findUnique({ where: { id } });
 }
 
-export async function updateAbilityElement(id: number, data: any) {
-  return prisma.abilityElement.update({ where: { id }, data });
+export async function updateAbilityElement(id: number, data: AbilityElementUpdatePayload) {
+  try {
+    const normalized = normalizeAbilityElementUpdatePayload(data);
+    return await prisma.abilityElement.update({ where: { id }, data: normalized });
+  } catch (e) {
+    if (e instanceof DomainError) throw e;
+    throw e;
+  }
 }
 
 export async function deleteAbilityElement(id: number) {

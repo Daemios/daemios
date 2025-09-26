@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { postCreate, getList, getOne, putUpdate, delOne } from './ability.controller';
+import { validate } from '../../middlewares/validate';
+import { abilityIdRules, createAbilityRules, updateAbilityRules } from './ability.validators';
 
 const router = Router();
 
-router.post('/', postCreate);
+router.post('/', validate(createAbilityRules), postCreate);
 router.get('/', getList);
-router.get('/:id', getOne);
-router.put('/:id', putUpdate);
-router.delete('/:id', delOne);
+router.get('/:id', validate(abilityIdRules), getOne);
+router.put('/:id', validate([...abilityIdRules, ...updateAbilityRules]), putUpdate);
+router.delete('/:id', validate(abilityIdRules), delOne);
 
 export default router;
