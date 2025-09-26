@@ -19,8 +19,11 @@ import equipmentRouter from './routes/equipment';
 import initializePassport from './passport-config';
 import { isAuth } from './middlewares/user';
 import { prisma } from './db/prisma';
+import verifyEnums from './db/verify-enums';
 
 if (process.env.NODE_ENV !== 'production') dotenv.config();
+
+verifyEnums();
 
 const app = express();
 
