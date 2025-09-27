@@ -36,8 +36,9 @@
     <v-row class="mt-4">
       <v-col>
         <AbilitiesSlots
-          @ability-drop="(p) => $emit('ability-drop', p)"
-          @ability-click="(i) => $emit('ability-click', i)"
+          :slots="abilitySlots"
+          @ability-drop="onAbilityDrop"
+          @ability-click="onAbilityClick"
         />
       </v-col>
     </v-row>
@@ -46,15 +47,18 @@
 
 <script setup>
 import { computed, onMounted } from "vue";
+import { storeToRefs } from "pinia";
 import { useAbilityStore } from "@/stores/abilityStore";
 import { useUserStore } from "@/stores/userStore";
 import VesselMini from "@/components/ability/VesselMini.vue";
 import AbilityMockup from "@/components/ability/AbilityMockup.vue";
 import AbilitiesSlots from "@/components/abilities/AbilitiesSlots.vue";
-defineEmits(["ability-drop", "ability-click"]);
+import api from "@/utils/api.js";
+const emit = defineEmits(["ability-drop", "ability-click"]);
 
 const abilityStore = useAbilityStore();
 const userStore = useUserStore();
+const { character } = storeToRefs(userStore);
 
 const coresArr = computed(() => {
   const cores = userStore.character && userStore.character.cores;
@@ -63,12 +67,102 @@ const coresArr = computed(() => {
   return Object.values(cores);
 });
 
+const abilityItem = computed(() => {
+  const equipped = (character.value && character.value.equipped) || {};
+  return equipped.ability || null;
+});
+
+const abilitySlots = computed(() => {
+  const item = abilityItem.value || null;
+  return [
+    {
+      id: "ability",
+      label: item && (item.label || item.name) ? item.label || item.name : "Ability",
+      item,
+      source:
+        item && item.id != null
+          ? { equip: true, slot: "ability", equippedItemId: item.id }
+          : null,
+    },
+  ];
+});
+
 function elementColor(core) {
   if (!abilityStore.elements) return "#888";
   const el = abilityStore.elements.find(
     (e) => e.element_id === core.element || e.id === core.element
   );
   return el ? el.color : "#888";
+}
+
+function mapItemForEquip(item) {
+  if (!item) return null;
+  if (typeof userStore.mapItemForClient === "function") {
+    return userStore.mapItemForClient(item);
+  }
+  return {
+    ...item,
+    img: item.image || item.img || "/img/debug/placeholder.png",
+    label: item.label || item.name || item.displayName || null,
+  };
+}
+
+function applyEquipmentResponse(res, fallbackItem) {
+  const current = userStore.character || {};
+  const updated = {
+    ...current,
+    equipped: {
+      ...(current.equipped || {}),
+    },
+  };
+  if (!updated.equipped) updated.equipped = {};
+
+  if (res && Array.isArray(res.equipment)) {
+    res.equipment.forEach((eq) => {
+      const key = String(eq.slot || "").toLowerCase();
+      if (!key) return;
+      if (eq.Item) {
+        updated.equipped[key] = mapItemForEquip(eq.Item);
+      } else if (eq.itemId != null) {
+        updated.equipped[key] = { id: eq.itemId };
+      } else {
+        updated.equipped[key] = null;
+      }
+    });
+  } else if (fallbackItem) {
+    updated.equipped.ability = fallbackItem;
+  }
+
+  if (res && Array.isArray(res.containers)) {
+    userStore.setCharacterAndInventory(updated, res.containers, {
+      capacityUpdated: res.capacityUpdated,
+      updatedContainerIds: res.updatedContainerIds,
+    });
+  } else {
+    userStore.setCharacter(updated);
+  }
+}
+
+async function onAbilityDrop(evt) {
+  try {
+    if (!evt || !evt.payload || !evt.payload.item) return;
+    const rawItem = evt.payload.item;
+    const itemId = rawItem.id || rawItem.itemId;
+    if (itemId == null) return;
+    const fallback = mapItemForEquip(rawItem);
+    const res = await api.post("/character/equip", {
+      itemId,
+      slot: "ABILITY",
+    });
+    applyEquipmentResponse(res, fallback);
+    emit("ability-drop", evt);
+  } catch (err) {
+    console.warn("Failed to equip ability", err);
+  }
+}
+
+function onAbilityClick(item) {
+  emit("ability-click", item);
 }
 
 onMounted(() => {
