@@ -1,6 +1,6 @@
 <template>
   <div
-    :class="['equipment-slot', { 'doll-left': left, 'doll-right': right } ]"
+    :class="['equipment-slot', { 'doll-left': left, 'doll-right': right }]"
     style="position: relative"
     @dragover.prevent
     @drop="onDrop"
@@ -16,10 +16,7 @@
       />
     </template>
     <template v-else>
-      <div
-        class="empty-slot d-flex align-center justify-center"
-        role="button"
-      >
+      <div class="empty-slot d-flex align-center justify-center" role="button">
         <v-icon class="empty-icon">
           {{ mdiClose }}
         </v-icon>
@@ -28,7 +25,12 @@
 
     <div
       v-if="displayLabel"
-      style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);"
+      style="
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+      "
     >
       <v-chip
         small
@@ -45,11 +47,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import DraggableItem from '@/components/inventory/DraggableItem.vue';
-import { mdiClose } from '@mdi/js';
-import { useUserStore } from '@/stores/userStore';
-import api from '@/utils/api.js';
+import { computed } from "vue";
+import DraggableItem from "@/components/inventory/DraggableItem.vue";
+import { mdiClose } from "@mdi/js";
+import { useUserStore } from "@/stores/userStore";
+import api from "@/utils/api.js";
 
 const props = defineProps({
   item: { type: Object, default: null },
@@ -59,15 +61,16 @@ const props = defineProps({
   right: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['click', 'equip-success', 'invalid-drop']);
+const emit = defineEmits(["click", "equip-success", "invalid-drop"]);
 
 const userStore = useUserStore();
 
 const safeItem = computed(() => props.item || {});
 
 const slotId = computed(() => {
-  const candidate = props.slotName || (props.item && props.item.slot) || props.label || '';
-  return String(candidate || '').toLowerCase();
+  const candidate =
+    props.slotName || (props.item && props.item.slot) || props.label || "";
+  return String(candidate || "").toLowerCase();
 });
 
 const displayLabel = computed(() => {
@@ -75,37 +78,46 @@ const displayLabel = computed(() => {
   const s = slotId.value;
   if (!s) return null;
   const map = {
-    bandolier: 'Trinket',
-    backpack: 'Backpack',
-    belt: 'Belt',
-    mainhand: 'Main Hand',
-    offhand: 'Off Hand',
-    head: 'Head',
-    shoulders: 'Shoulders',
-    back: 'Back',
-    chest: 'Chest',
-    hands: 'Hands',
-    waist: 'Waist',
-    legs: 'Legs',
-    feet: 'Feet',
+    bandolier: "Trinket",
+    backpack: "Backpack",
+    belt: "Belt",
+    mainhand: "Main Hand",
+    offhand: "Off Hand",
+    head: "Head",
+    shoulders: "Shoulders",
+    back: "Back",
+    chest: "Chest",
+    hands: "Hands",
+    waist: "Waist",
+    legs: "Legs",
+    feet: "Feet",
   };
   if (map[s]) return map[s];
-  return s.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return s.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 });
 
 function allowedForSlot(item, slotName) {
   if (!item) return false;
-  const s = String(slotName || '').toLowerCase();
-  if (s === 'backpack' || s === 'bandolier' || s === 'belt') {
+  const s = String(slotName || "").toLowerCase();
+  if (s === "backpack" || s === "bandolier" || s === "belt") {
     if (item.itemType) {
-      const it = String(item.itemType || '').toLowerCase();
-      if (it.includes('backpack') || it.includes('pack') || it.includes('belt') || it.includes('bandolier') || it.includes('pouch')) return true;
+      const it = String(item.itemType || "").toLowerCase();
+      if (
+        it.includes("backpack") ||
+        it.includes("pack") ||
+        it.includes("belt") ||
+        it.includes("bandolier") ||
+        it.includes("pouch")
+      )
+        return true;
     }
     return !!item.isContainer;
   }
-  if (s === 'mainhand' || s === 'offhand') {
+  if (s === "mainhand" || s === "offhand") {
     if (item.itemType) {
-      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(String(item.itemType));
+      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(
+        String(item.itemType)
+      );
     }
     return true;
   }
@@ -114,31 +126,49 @@ function allowedForSlot(item, slotName) {
 
 async function onDrop(e) {
   try {
-    const raw = e.dataTransfer.getData('application/json');
+    const raw = e.dataTransfer.getData("application/json");
     if (!raw) return;
     const payload = JSON.parse(raw);
-    if (!payload || payload.type !== 'item') return;
+    if (!payload || payload.type !== "item") return;
     // Quick client-side heuristic validation
     if (!allowedForSlot(payload.item, slotId.value)) {
-      emit('invalid-drop', { reason: 'Item not valid for slot', slot: slotId.value, item: payload.item });
+      emit("invalid-drop", {
+        reason: "Item not valid for slot",
+        slot: slotId.value,
+        item: payload.item,
+      });
       return;
     }
 
     // Always ask server to equip the item into this slot. Server will handle
     // moving between containers/equipment and return canonical data.
-    const body = { itemId: payload.item && payload.item.id, slot: String(slotId.value).toUpperCase() };
+    const body = {
+      itemId: payload.item && payload.item.id,
+      slot: String(slotId.value).toUpperCase(),
+    };
     try {
-      const res = await api.post('/character/equip', body);
+      const res = await api.post("/character/equip", body);
       if (res && res.character) {
         userStore.setCharacter(res.character);
       } else if (res && (res.containers || res.equipment)) {
-        const newChar = { ...(userStore.character || {}), equipped: { ...(userStore.character && userStore.character.equipped) } };
+        const newChar = {
+          ...(userStore.character || {}),
+          equipped: {
+            ...(userStore.character && userStore.character.equipped),
+          },
+        };
         if (!newChar.equipped) newChar.equipped = {};
         if (res.equipment && Array.isArray(res.equipment)) {
           res.equipment.forEach((eq) => {
-            const key = String(eq.slot || '').toLowerCase();
+            const key = String(eq.slot || "").toLowerCase();
             if (eq.Item) {
-              newChar.equipped[key] = { ...eq.Item, img: eq.Item.image || eq.Item.img || '/img/debug/placeholder.png', label: eq.Item.label || eq.Item.name || eq.Item.displayName || null };
+              newChar.equipped[key] = {
+                ...eq.Item,
+                img:
+                  eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
+                label:
+                  eq.Item.label || eq.Item.name || eq.Item.displayName || null,
+              };
             } else if (eq.itemId) {
               newChar.equipped[key] = { id: eq.itemId };
             } else {
@@ -147,23 +177,30 @@ async function onDrop(e) {
           });
         }
         if (res.containers) {
-          userStore.setCharacterAndInventory(newChar, res.containers, { capacityUpdated: res.capacityUpdated, updatedContainerIds: res.updatedContainerIds });
+          userStore.setCharacterAndInventory(newChar, res.containers, {
+            capacityUpdated: res.capacityUpdated,
+            updatedContainerIds: res.updatedContainerIds,
+          });
         } else {
           userStore.setCharacter(newChar);
         }
       }
-      emit('equip-success', { slot: slotId.value });
+      emit("equip-success", { slot: slotId.value });
     } catch (err) {
-      console.warn('equip failed', err);
-      emit('invalid-drop', { reason: 'Server equip failed', slot: slotId.value, item: payload.item });
+      console.warn("equip failed", err);
+      emit("invalid-drop", {
+        reason: "Server equip failed",
+        slot: slotId.value,
+        item: payload.item,
+      });
     }
   } catch (err) {
-    console.warn('equipment slot drop failed', err);
+    console.warn("equipment slot drop failed", err);
   }
 }
 
 function onClick() {
-  emit('click', safeItem.value);
+  emit("click", safeItem.value);
 }
 </script>
 

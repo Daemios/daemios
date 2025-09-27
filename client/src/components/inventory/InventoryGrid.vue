@@ -38,12 +38,7 @@
             :height="'100%'"
           />
         </div>
-        <div
-          v-else
-          class="slot-empty"
-        >
-          &nbsp;
-        </div>
+        <div v-else class="slot-empty">&nbsp;</div>
       </div>
     </div>
   </div>
@@ -122,9 +117,9 @@ const slots = computed(() => {
             .includes("pack"))
     );
 
-  const loopMax = Math.max(capacity, 1);
-  const startIndex = c && c.hiddenFirstCell ? 1 : 0;
-  for (let i = startIndex; i < loopMax; i++) {
+    const loopMax = Math.max(capacity, 1);
+    const startIndex = c && c.hiddenFirstCell ? 1 : 0;
+    for (let i = startIndex; i < loopMax; i++) {
       if (global >= MAX_SLOTS) {
         console.warn(
           "[InventoryGrid] slot build truncated at",

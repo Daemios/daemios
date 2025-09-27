@@ -103,17 +103,17 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { mdiClose } from '@mdi/js';
-import EquipmentSlot from '@/components/character/EquipmentSlot.vue';
-import ItemDialog from '@/components/inventory/ItemDialog.vue';
-import { useUserStore } from '@/stores/userStore';
+import { ref, computed, watch } from "vue";
+import { mdiClose } from "@mdi/js";
+import EquipmentSlot from "@/components/character/EquipmentSlot.vue";
+import ItemDialog from "@/components/inventory/ItemDialog.vue";
+import { useUserStore } from "@/stores/userStore";
 
 const selected = ref(null);
 const userStore = useUserStore();
 
 const equipErrorVisible = ref(false);
-const equipErrorMsg = ref('');
+const equipErrorMsg = ref("");
 
 function onEquipSuccess(evt) {
   // EquipmentSlot already updated the store. Keep placeholder for future UI actions.
@@ -126,25 +126,75 @@ const equipped = computed(() => character.value.equipped || {});
 watch(
   () => equipped.value.pack,
   (v) => {
-    console.debug('[PaperDoll] backpack', v && { id: v.id, img: v && v.img, label: v && v.label });
+    console.debug(
+      "[PaperDoll] backpack",
+      v && { id: v.id, img: v && v.img, label: v && v.label }
+    );
   },
   { immediate: true }
 );
 </script>
 
 <style>
-.doll-grid { display: grid; grid-template-columns: 100px auto auto 100px; grid-template-rows: repeat(5, 100px); grid-gap: 0.5rem; grid-auto-flow: dense; min-width: 650px; max-width: 650px; }
-.doll-grid .avatar { grid-column: 2 / 4; grid-row: span 3; }
-.doll-grid .left-row-1 { grid-column: 1; grid-row: 1; }
-.doll-grid .left-row-2 { grid-column: 1; grid-row: 2; }
-.doll-grid .left-row-3 { grid-column: 1; grid-row: 3; }
-.doll-grid .left-row-4 { grid-column: 1; grid-row: 4; }
-.doll-grid .left-row-5 { grid-column: 1; grid-row: 5; }
-.doll-grid .right-row-1 { grid-column: 4; grid-row: 1; }
-.doll-grid .right-row-2 { grid-column: 4; grid-row: 2; }
-.doll-grid .right-row-3 { grid-column: 4; grid-row: 3; }
-.doll-grid .right-row-4 { grid-column: 4; grid-row: 4; }
-.doll-grid .right-row-5 { grid-column: 4; grid-row: 5; }
-.doll-grid .avatar span { width: 100% !important; height: 100% !important; }
-.doll-grid .avatar .v-icon__svg { width: 100% !important; height: 100% !important; }
+.doll-grid {
+  display: grid;
+  grid-template-columns: 100px auto auto 100px;
+  grid-template-rows: repeat(5, 100px);
+  grid-gap: 0.5rem;
+  grid-auto-flow: dense;
+  min-width: 650px;
+  max-width: 650px;
+}
+.doll-grid .avatar {
+  grid-column: 2 / 4;
+  grid-row: span 3;
+}
+.doll-grid .left-row-1 {
+  grid-column: 1;
+  grid-row: 1;
+}
+.doll-grid .left-row-2 {
+  grid-column: 1;
+  grid-row: 2;
+}
+.doll-grid .left-row-3 {
+  grid-column: 1;
+  grid-row: 3;
+}
+.doll-grid .left-row-4 {
+  grid-column: 1;
+  grid-row: 4;
+}
+.doll-grid .left-row-5 {
+  grid-column: 1;
+  grid-row: 5;
+}
+.doll-grid .right-row-1 {
+  grid-column: 4;
+  grid-row: 1;
+}
+.doll-grid .right-row-2 {
+  grid-column: 4;
+  grid-row: 2;
+}
+.doll-grid .right-row-3 {
+  grid-column: 4;
+  grid-row: 3;
+}
+.doll-grid .right-row-4 {
+  grid-column: 4;
+  grid-row: 4;
+}
+.doll-grid .right-row-5 {
+  grid-column: 4;
+  grid-row: 5;
+}
+.doll-grid .avatar span {
+  width: 100% !important;
+  height: 100% !important;
+}
+.doll-grid .avatar .v-icon__svg {
+  width: 100% !important;
+  height: 100% !important;
+}
 </style>
