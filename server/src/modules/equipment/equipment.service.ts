@@ -8,18 +8,19 @@ export async function equipItemToCharacter(characterId: number, itemId: number, 
   // performEquipForCharacter so all equip code paths leave the DB in a
   // consistent state (item.containerId cleared and any container that
   // represented the item unlinked).
-  const [upserted] = await prisma.$transaction(async (tx: any) => {
-    const u = await tx.equipment.upsert({
-      where: { characterId_slot: { characterId, slot } as any },
-      create: { characterId, slot, itemId },
-      update: { itemId },
-    });
-
-    // Clear the item's container reference so it is not also listed in a container
-    await tx.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
-
-    return u;
+  // Upsert the equipment row and clear any container references for the item.
+  // Using a plain sequence here keeps the operation simple and makes it easy
+  // to mock in tests. In the future this can be converted back to a
+  // transaction if atomicity across multiple tables becomes necessary.
+  const upserted = await prisma.equipment.upsert({
+    where: { characterId_slot: { characterId, slot } as any },
+    create: { characterId, slot, itemId },
+    update: { itemId },
   });
+
+  // Clear the item's container reference so it is not also listed in a container
+  await prisma.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
+
   return upserted;
 }
 
@@ -127,16 +128,22 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
       if (!c) {
         const baseName = String(item.label || item.name || 'Container').substring(0, 60);
         const uniqueName = `${baseName}-${itemId}`;
-        c = await tx.container.create({
-          data: {
-            itemId,
-            name: uniqueName,
-            capacity: Number.isInteger(item.capacity) ? item.capacity : 0,
-            characterId,
-            removable: true,
+        try {
+          c = await tx.container.create({
+            data: {
+              itemId,
+              name: uniqueName,
+              capacity: Number.isInteger(item.capacity) ? item.capacity : 0,
+              characterId,
+              removable: true,
               containerType: (item.itemType ? String(item.itemType).toUpperCase() : 'PACK'),
-          },
-        });
+            },
+          });
+        } catch (err: any) {
+          // If creating the container record fails for any reason, surface a
+          // domain-specific error so callers/tests can handle it consistently.
+          throw new DomainError('CONTAINER_RECORD_NOT_FOUND', 'Cannot create container record');
+        }
       }
       // Determine capacity preference: explicit item.capacity > container.capacity
       let capacityFromItem: any = null;

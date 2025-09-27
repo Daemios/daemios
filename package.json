@@ -12,7 +12,7 @@
     "client": "npm --prefix client run dev",
     "server": "npm --prefix server run dev",
     "prisma:generate:server": "npx --prefix server prisma generate",
-    "test": "npm --prefix shared run test && npm --prefix server run test"
+    "test": "npx --prefix shared vitest --run && npx --prefix server vitest --run"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

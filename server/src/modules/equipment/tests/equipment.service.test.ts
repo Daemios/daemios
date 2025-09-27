@@ -18,8 +18,12 @@ const mockPrisma: any = {
     count: vi.fn(),
   },
   character: { findUnique: vi.fn() },
-  container: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-  $transaction: vi.fn(),
+  container: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn(), create: vi.fn() },
+  $transaction: vi.fn(async (cb: any) => cb({
+    equipment: mockPrisma.equipment,
+    item: mockPrisma.item,
+    container: mockPrisma.container,
+  })),
 };
 
 // Mock the prisma module import used by the service file. The correct relative path from this test to server/src/db/prisma is '../../../db/prisma'.

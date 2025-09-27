@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockTx = {
   equipment: { findUnique: vi.fn(), findFirst: vi.fn(), upsert: vi.fn(), update: vi.fn() },
   item: { findUnique: vi.fn(), update: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
-  container: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+  container: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn(), create: vi.fn() },
 };
 
-const mockPrisma: any = {
+  const mockPrisma: any = {
   character: { findUnique: vi.fn() },
   item: { findUnique: vi.fn() },
-  container: { findFirst: vi.fn(), findMany: vi.fn() },
+  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   equipment: { findMany: vi.fn() },
   $transaction: vi.fn(async (cb: any) => cb(mockTx)),
 };
@@ -73,6 +73,10 @@ describe('performEquipForCharacter negative flows', () => {
   mockPrisma.item.findUnique.mockResolvedValue({ id: 60, characterId: 1, isContainer: true, equipmentSlot: 'PACK' });
     // container.findFirst returns null
     mockPrisma.container.findFirst.mockResolvedValue(null);
+  // simulate container.create throwing (e.g., DB constraint) when attempted
+  mockPrisma.container.create.mockRejectedValue(new Error('db create failed'));
+  // Also ensure the transaction-level create rejects so tx.container.create throws
+  mockTx.container.create.mockRejectedValue(new Error('db create failed'));
     const svc = await import('../equipment.service');
     await expect(svc.performEquipForCharacter(1, 60, 'PACK')).rejects.toHaveProperty('code', 'CONTAINER_RECORD_NOT_FOUND');
   });

@@ -19,6 +19,7 @@ const mockTx: any = {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    create: vi.fn(),
     findMany: vi.fn(),
   },
 };
@@ -26,7 +27,7 @@ const mockTx: any = {
 const mockPrisma: any = {
   character: { findUnique: vi.fn() },
   item: { findUnique: vi.fn() },
-  container: { findFirst: vi.fn(), findMany: vi.fn() },
+  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   equipment: { findMany: vi.fn() },
   $transaction: vi.fn(async (cb: any) => cb(mockTx)),
   // the top-level container findFirst should also be available
@@ -48,7 +49,7 @@ describe('performEquipForCharacter - container equip flow', () => {
 
     mockPrisma.character.findUnique.mockResolvedValue({ id: characterId });
     // item is a container, belongs to character, capacity defined on item
-    mockPrisma.item.findUnique.mockResolvedValue({ id: itemId, characterId, isContainer: true, itemType: 'PACK', capacity: 5, containerId: null, containerIndex: null });
+  mockPrisma.item.findUnique.mockResolvedValue({ id: itemId, characterId, isContainer: true, itemType: 'PACK', equipmentSlot: 'PACK', capacity: 5, containerId: null, containerIndex: null });
     // top-level container.findFirst before tx should find a container record
     mockPrisma.container.findFirst.mockResolvedValue({ id: containerId, itemId });
 
