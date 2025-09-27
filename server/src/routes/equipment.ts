@@ -13,44 +13,41 @@ function ensureAuth(req: any, res: any, next: any) {
   next();
 }
 
-// helper functions moved to service
-
 router.post('/equip', ensureAuth, async (req: any, res: any) => {
+  // Only accept the explicit shape: { itemId: number, slot: string }
+  const { itemId, slot } = req.body || {};
+
+  // Resolve user -> active character
   let userId: any = null;
   if (req.session && req.session.passport && req.session.passport.user) {
     const puser = req.session.passport.user;
     userId = (puser && puser.id) ? puser.id : puser;
   }
-  const { characterId: bodyCharacterId, itemId: bodyItemId, item, targetSlot, slot } = req.body || {};
-  // debug: log incoming payload to help trace missing params in client requests
-  // eslint-disable-next-line no-console
-  console.debug('equip request body:', { itemId: bodyItemId ?? (item && item.id), slot });
-  // support multiple client shapes: { itemId } or { item: { id } }
-  const itemId = bodyItemId ?? (item && item.id);
-  const desiredSlot = targetSlot || slot;
-  let characterId = bodyCharacterId;
+
+  let characterId: number | null = null;
   try {
-    if (!characterId) {
-      const character = await characterService.getActiveCharacterForUser(userId);
-      if (character && character.id) characterId = character.id;
-    }
-  } catch (e) {
-    console.warn('equipment: failed to resolve active character from session', e && (e as any).code);
+    const character = await characterService.getActiveCharacterForUser(userId);
+    if (character && character.id) characterId = character.id;
+  } catch (err) {
+    console.warn('equipment: failed to resolve active character from session', err && (err as any).code);
   }
-  if (!itemId || !desiredSlot) return res.status(400).json({ error: 'Missing parameters: itemId and targetSlot/slot are required' });
+
+  if (!itemId || !slot) {
+    return res.status(400).json({ error: 'Missing parameters: itemId and slot are required' });
+  }
   if (!characterId) return res.status(404).json({ error: 'No active character found for session' });
-  const normalizedSlot = String(desiredSlot).toUpperCase();
-  // Validate slot is exactly one of the Prisma EquipmentSlot values.
+
+  const normalizedSlot = String(slot).toUpperCase();
   const allowedSlots = Object.values(PrismaEquipmentSlot).map((s) => String(s).toUpperCase());
   if (!allowedSlots.includes(normalizedSlot)) {
     return res.status(400).json({ error: 'Invalid slot value', detail: `slot must be one of: ${allowedSlots.join(', ')}` });
   }
+
   try {
     const result = await performEquipForCharacter(characterId, itemId, normalizedSlot);
     return res.json({ success: true, ...result });
   } catch (e: any) {
     if (e instanceof DomainError) {
-      // include the domain error code in the response for easier client debugging
       switch (e.code) {
         case 'ITEM_NOT_FOUND': return res.status(404).json({ error: e.message, code: e.code });
         case 'ITEM_NOT_OWNED': return res.status(403).json({ error: e.message, code: e.code });

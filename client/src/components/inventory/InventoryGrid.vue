@@ -5,7 +5,10 @@
         v-for="slot in slots"
         :key="slot.globalIndex"
         class="inventory-slot d-flex align-center justify-center"
-        :class="{ highlighted: slot.containerId === highlightedContainerId }"
+        :class="{
+          highlighted: slot.containerId === highlightedContainerId,
+          'pack-slot': slot.isPack,
+        }"
         @click="() => $emit('click-item', slot.item)"
         @dragover.prevent
         @drop="onDrop($event, slot)"
@@ -35,7 +38,12 @@
             :height="'100%'"
           />
         </div>
-        <div v-else class="slot-empty">&nbsp;</div>
+        <div
+          v-else
+          class="slot-empty"
+        >
+          &nbsp;
+        </div>
       </div>
     </div>
   </div>
@@ -104,8 +112,19 @@ const slots = computed(() => {
         itemsByIndex[it.containerIndex] = it;
     });
 
-    const loopMax = Math.max(capacity, 1);
-    for (let i = 0; i < loopMax; i++) {
+    // heuristics to detect backpack-like containers so we can render a larger slot
+    const isBackpackContainer = Boolean(
+      c &&
+        (c.icon === "backpack" ||
+          String(c.containerType || "").toUpperCase() === "BACKPACK" ||
+          String(c.name || "")
+            .toLowerCase()
+            .includes("pack"))
+    );
+
+  const loopMax = Math.max(capacity, 1);
+  const startIndex = c && c.hiddenFirstCell ? 1 : 0;
+  for (let i = startIndex; i < loopMax; i++) {
       if (global >= MAX_SLOTS) {
         console.warn(
           "[InventoryGrid] slot build truncated at",
@@ -129,6 +148,9 @@ const slots = computed(() => {
         localIndex: i,
         item: itemsByIndex[i] || null,
         containerIconSvg: c && c.icon ? iconMap[c.icon] || null : null,
+        // only treat the first cell as the special pack cell when the container
+        // isn't using hiddenFirstCell (we render the visual pack slot separately)
+        isPack: isBackpackContainer && !c.hiddenFirstCell && i === 0,
       });
     }
   }
@@ -213,5 +235,23 @@ function onDrop(e, slot) {
 }
 .slot-empty {
   opacity: 0.25;
+}
+.inventory-slot.pack-slot {
+  /* larger visual slot: span two grid cells horizontally and vertically
+     reduced size so it doesn't overpower the grid; add responsive rules
+     to collapse to a single cell on small screens */
+  grid-column: span 2;
+  grid-row: span 2;
+  min-height: 104px;
+  transition: all 160ms ease-in-out;
+}
+
+@media (max-width: 640px) {
+  /* On narrow screens make the pack slot occupy a single cell and reduce height */
+  .inventory-slot.pack-slot {
+    grid-column: span 1;
+    grid-row: span 1;
+    min-height: 96px;
+  }
 }
 </style>

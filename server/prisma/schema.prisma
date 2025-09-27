@@ -397,7 +397,6 @@ enum ItemType {
 enum EquipmentSlot {
   TRINKET1
   TRINKET2
-  TRINKET3
   PACK
   LEG
   HEAD
@@ -406,7 +405,7 @@ enum EquipmentSlot {
   FEET
   MAINHAND
   OFFHAND
-  TWO_HANDED
+  WAIST
   CONSTRUCT
 }
 

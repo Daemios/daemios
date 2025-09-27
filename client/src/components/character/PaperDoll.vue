@@ -1,285 +1,150 @@
 <template>
   <div class="flex-grow-0">
     <div class="doll-grid">
-      <!-- Equipment quick slots: Backpack, Belt, Bandolier -->
-      <div class="trinkets">
-        <DollSlot
-          slot-name="trinket1"
-          label="Trinket"
-          :item="equipped.trinket1"
-          left
-          @click="selected = equipped.trinket1"
-          @equip-item="onEquipItem"
-        />
-        <DollSlot
-          slot-name="trinket2"
-          label="Belt"
-          :item="equipped.trinket2"
-          left
-          @click="selected = equipped.trinket2"
-          @equip-item="onEquipItem"
-        />
-        <DollSlot
-          slot-name="pack"
-          label="Backpack"
-          :item="equipped.pack"
-          left
-          @click="selected = equipped.pack"
-          @equip-item="onEquipItem"
-        />
-      </div>
-
-      <!-- Left Column -->
-      <DollSlot
-        label="Head"
-        :item="equipped.head"
+      <EquipmentSlot
+        slot-name="mainhand"
+        label="Mainhand"
+        :item="equipped.mainhand"
+        class="left-row-1"
         left
-        @click="selected = equipped.head"
-        @equip-item="onEquipItem"
-      />
-      <DollSlot
-        label="Shoulders"
-        :item="equipped.shoulders"
-        left
-        @click="selected = equipped.shoulders"
-        @equip-item="onEquipItem"
-      />
-      <DollSlot
-        label="Back"
-        :item="equipped.back"
-        left
-        @click="selected = equipped.back"
-        @equip-item="onEquipItem"
-      />
-      <DollSlot
-        label="Chest"
-        :item="equipped.chest"
-        left
-        @click="selected = equipped.chest"
-        @equip-item="onEquipItem"
+        @click="selected = { ...equipped.mainhand }"
+        @equip-success="onEquipSuccess"
       />
 
-      <!-- Avatar -->
-      <v-card class="avatar d-flex align-center justify-center" flat>
-        <v-icon>
-          {{ mdiClose }}
-        </v-icon>
-      </v-card>
+      <EquipmentSlot
+        slot-name="offhand"
+        label="Offhand"
+        :item="equipped.offhand"
+        class="left-row-2"
+        @click="selected = { ...equipped.offhand }"
+        @equip-success="onEquipSuccess"
+      />
 
-      <!-- Right Column -->
-      <DollSlot
+      <EquipmentSlot
         label="Hands"
         :item="equipped.hands"
-        right
+        class="left-row-3"
         @click="selected = equipped.hands"
-        @equip-item="onEquipItem"
+        @equip-success="onEquipSuccess"
       />
-      <DollSlot
+
+      <EquipmentSlot
+        slot-name="trinket1"
+        label="Trinket"
+        :item="equipped.trinket1"
+        class="left-row-4"
+        @click="selected = equipped.trinket1"
+        @equip-success="onEquipSuccess"
+      />
+
+      <EquipmentSlot
+        slot-name="trinket2"
+        label="Trinket"
+        :item="equipped.trinket2"
+        class="left-row-5"
+        @click="selected = equipped.trinket2"
+        @equip-success="onEquipSuccess"
+      />
+
+      <EquipmentSlot
+        label="Head"
+        :item="equipped.head"
+        class="right-row-1"
+        @click="selected = equipped.head"
+        @equip-success="onEquipSuccess"
+      />
+
+      <EquipmentSlot
+        label="Chest"
+        :item="equipped.chest"
+        class="right-row-2"
+        @click="selected = equipped.chest"
+        @equip-success="onEquipSuccess"
+      />
+
+      <EquipmentSlot
         label="Waist"
         :item="equipped.waist"
-        right
+        class="right-row-3"
         @click="selected = equipped.waist"
-        @equip-item="onEquipItem"
+        @equip-success="onEquipSuccess"
       />
-      <DollSlot
+
+      <EquipmentSlot
         label="Legs"
         :item="equipped.leg"
-        right
+        class="right-row-4"
         @click="selected = equipped.leg"
-        @equip-item="onEquipItem"
-      />
-      <DollSlot
-        label="Feet"
-        :item="equipped.feet"
-        right
-        @equip-item="onEquipItem"
+        @equip-success="onEquipSuccess"
       />
 
-      <!-- Weapons -->
-      <DollSlot
-        label="mainhand"
-        :item="equipped.mainhand"
-        class="weapon-mainhand"
-        @click="selected = { ...equipped.mainhand }"
-        @equip-item="onEquipItem"
+      <EquipmentSlot
+        label="Boots"
+        :item="equipped.feet"
+        class="right-row-5"
+        @click="selected = equipped.feet"
+        @equip-success="onEquipSuccess"
       />
-      <DollSlot
-        label="offhand"
-        :item="equipped.offhand"
-        class="weapon-offhand"
-        @click="selected = { ...equipped.offhand }"
-        @equip-item="onEquipItem"
-      />
+
+      <v-card class="avatar d-flex align-center justify-center" flat>
+        <v-icon>{{ mdiClose }}</v-icon>
+      </v-card>
     </div>
 
-    <!-- Equipment Item Dialog -->
     <ItemDialog :item="selected" @close="selected = null" />
+
+    <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
+      {{ equipErrorMsg }}
+      <template #action>
+        <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
+      </template>
+    </v-snackbar>
   </div>
-  <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
-    {{ equipErrorMsg }}
-    <template #action>
-      <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
-    </template>
-  </v-snackbar>
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
-import { mdiClose } from "@mdi/js";
-import DollSlot from "@/components/character/DollSlot.vue";
-import ItemDialog from "@/components/inventory/ItemDialog.vue";
-import { useUserStore } from "@/stores/userStore";
-import api from "@/utils/api.js";
+import { ref, computed, watch } from 'vue';
+import { mdiClose } from '@mdi/js';
+import EquipmentSlot from '@/components/character/EquipmentSlot.vue';
+import ItemDialog from '@/components/inventory/ItemDialog.vue';
+import { useUserStore } from '@/stores/userStore';
 
 const selected = ref(null);
 const userStore = useUserStore();
 
 const equipErrorVisible = ref(false);
-const equipErrorMsg = ref("");
+const equipErrorMsg = ref('');
 
-async function onEquipItem(payload) {
-  // payload: { item, source, targetSlot }
-  if (!payload || !payload.item) return;
-  const prevChar = {
-    ...(userStore.character || {}),
-    equipped: { ...(userStore.character && userStore.character.equipped) },
-  };
-  try {
-    // optimistic local equip: update store.character.equipped[targetSlot] = item
-    const newChar = {
-      ...(userStore.character || {}),
-      equipped: { ...(userStore.character && userStore.character.equipped) },
-    };
-    if (!newChar.equipped) newChar.equipped = {};
-    newChar.equipped[payload.targetSlot] = payload.item;
-    userStore.setCharacter(newChar);
-
-    // persist to server
-    // Assumption: API endpoint POST /character/equip { itemId, targetSlot, source }
-    // Only send minimal data: itemId and targetSlot. Server will resolve
-    // active character from the session and perform the swap atomically.
-    // Map UI slot labels to server EquipmentSlot values and only include
-    // defined keys so we don't send useless undefined fields.
-    // The UI emits canonical slot names in `payload.targetSlot` that match
-    // the server EquipmentSlot enum (lowercased). Normalize by uppercasing
-    // to produce the exact enum token the server expects (e.g. 'PACK').
-    const desired = payload.targetSlot || payload.slot || null;
-    const mappedSlot = desired ? String(desired).toUpperCase() : null;
-    const body = Object.assign(
-      { itemId: payload.item.id },
-      mappedSlot ? { slot: mappedSlot } : {}
-    );
-    console.debug("[PaperDoll] equip request body", body);
-    const res = await api.post("/character/equip", body);
-    console.debug("[PaperDoll] equip response", res);
-    // server may return updated character/equipment or containers+equipment depending on container swap
-    if (res && res.character) {
-      userStore.setCharacter(res.character);
-    } else if (res && (res.containers || res.equipment)) {
-      // Merge equipment rows returned by server. Server may include full Item
-      // objects under `Item` (via include: { Item: true }). Map those into the
-      // character.equipped shape expected by the client.
-      const newChar = {
-        ...(userStore.character || {}),
-        equipped: { ...(userStore.character && userStore.character.equipped) },
-      };
-      if (!newChar.equipped) newChar.equipped = {};
-      res.equipment.forEach((eq) => {
-        const key = String(eq.slot || "").toLowerCase();
-        if (eq.Item) {
-          newChar.equipped[key] = {
-            ...eq.Item,
-            img: eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
-            label: eq.Item.label || eq.Item.name || eq.Item.displayName || null,
-          };
-        } else if (eq.itemId) {
-          newChar.equipped[key] = { id: eq.itemId };
-        } else {
-          newChar.equipped[key] = null;
-        }
-      });
-      // If server returned canonical containers (inventory), update both
-      // character and inventory atomically to avoid flicker.
-      if (res.containers) {
-        // pass capacity update hints so store can selectively replace containers
-        userStore.setCharacterAndInventory(newChar, res.containers, {
-          capacityUpdated: res.capacityUpdated,
-          updatedContainerIds: res.updatedContainerIds,
-        });
-      } else {
-        userStore.setCharacter(newChar);
-      }
-    }
-  } catch (err) {
-    console.warn("equip failed, rolling back", err);
-    try {
-      userStore.setCharacter(prevChar);
-    } catch (e) {
-      console.error("equip rollback failed", e);
-    }
-    equipErrorMsg.value = "Failed to equip item. Changes were reverted.";
-    equipErrorVisible.value = true;
-  }
+function onEquipSuccess(evt) {
+  // EquipmentSlot already updated the store. Keep placeholder for future UI actions.
 }
 
 const character = computed(() => userStore.character || { equipped: {} });
 const equipped = computed(() => character.value.equipped || {});
+
 // debug: log what backpack object looks like when paper doll renders
 watch(
   () => equipped.value.pack,
   (v) => {
-    console.debug(
-      "[PaperDoll] backpack",
-      v && { id: v.id, img: v && v.img, label: v && v.label }
-    );
+    console.debug('[PaperDoll] backpack', v && { id: v.id, img: v && v.img, label: v && v.label });
   },
   { immediate: true }
 );
 </script>
 
 <style>
-.doll-grid {
-  display: grid;
-  grid-template-columns: 100px auto auto 100px;
-  grid-auto-rows: 100px;
-  grid-gap: 0.5rem;
-  grid-auto-flow: dense;
-  min-width: 650px;
-  max-width: 650px;
-}
-.doll-grid .trinkets {
-  grid-column: span 4;
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  align-items: center;
-}
-.doll-grid .trinkets > * {
-  flex: 1 1 0;
-  min-width: 0; /* allow shrinking */
-  /* match the grid row height so trinkets match other rows */
-  height: 100%;
-}
-
-.doll-grid .trinkets {
-  /* force the trinkets row to the same height as grid-auto-rows */
-  height: 100px;
-}
-.doll-grid .weapon-mainhand,
-.doll-grid .weapon-offhand {
-  grid-column: span 2;
-  height: 100px;
-}
-.doll-grid .avatar {
-  grid-column: 2/4;
-  grid-row: span 4;
-}
-.doll-grid .avatar span {
-  width: 100% !important;
-  height: 100% !important;
-}
-.doll-grid .avatar .v-icon__svg {
-  width: 100% !important;
-  height: 100% !important;
-}
+.doll-grid { display: grid; grid-template-columns: 100px auto auto 100px; grid-template-rows: repeat(5, 100px); grid-gap: 0.5rem; grid-auto-flow: dense; min-width: 650px; max-width: 650px; }
+.doll-grid .avatar { grid-column: 2 / 4; grid-row: span 3; }
+.doll-grid .left-row-1 { grid-column: 1; grid-row: 1; }
+.doll-grid .left-row-2 { grid-column: 1; grid-row: 2; }
+.doll-grid .left-row-3 { grid-column: 1; grid-row: 3; }
+.doll-grid .left-row-4 { grid-column: 1; grid-row: 4; }
+.doll-grid .left-row-5 { grid-column: 1; grid-row: 5; }
+.doll-grid .right-row-1 { grid-column: 4; grid-row: 1; }
+.doll-grid .right-row-2 { grid-column: 4; grid-row: 2; }
+.doll-grid .right-row-3 { grid-column: 4; grid-row: 3; }
+.doll-grid .right-row-4 { grid-column: 4; grid-row: 4; }
+.doll-grid .right-row-5 { grid-column: 4; grid-row: 5; }
+.doll-grid .avatar span { width: 100% !important; height: 100% !important; }
+.doll-grid .avatar .v-icon__svg { width: 100% !important; height: 100% !important; }
 </style>

@@ -11,7 +11,6 @@ export type ContainerType = (typeof ContainerTypes)[number];
 export const EquipmentSlot = [
   'TRINKET1',
   'TRINKET2',
-  'TRINKET3',
   'PACK',
   'LEG',
   'HEAD',
@@ -20,7 +19,7 @@ export const EquipmentSlot = [
   'FEET',
   'MAINHAND',
   'OFFHAND',
-  'TWO_HANDED',
+  'WAIST',
   'CONSTRUCT',
 ] as const;
 
