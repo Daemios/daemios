@@ -23,8 +23,10 @@ router.post('/logout', (req, res) => {
 // Refresh character data
 router.get('/refresh', async (req: Request, res: Response) => {
   try {
-    // @ts-ignore - passport session typing
-    const userId = (req.session as any).passport.user.id;
+    // Require Passport deserialized `req.user` only
+    const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+    if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+    const userId = Number(rawUserId);
     const character = await characterService.getActiveCharacterForUser(userId);
 
     if (!character || !character.id) {
@@ -49,8 +51,9 @@ router.get('/refresh', async (req: Request, res: Response) => {
 // Select character
 router.post('/character/select', async (req: Request, res: Response) => {
   try {
-    // @ts-ignore
-    const userId = (req.session as any).passport.user.id;
+    const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+    if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+    const userId = Number(rawUserId);
     const { characterId } = req.body;
 
     await characterService.deactivateCharacters(userId);
@@ -82,8 +85,9 @@ router.post('/character/select', async (req: Request, res: Response) => {
 // Create character
 router.post('/character/create', async (req: Request, res: Response) => {
   try {
-    // @ts-ignore
-    const userId = (req.session as any).passport.user.id;
+    const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+    if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+    const userId = Number(rawUserId);
     const { name, raceId, image } = req.body;
 
     const createdChar = await characterService.createCharacterForUser(userId, { name, raceId, image });
@@ -97,8 +101,9 @@ router.post('/character/create', async (req: Request, res: Response) => {
 // Get characters
 router.get('/characters', async (req: Request, res: Response) => {
   try {
-    // @ts-ignore
-    const userId = (req.session as any).passport.user.id;
+    const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+    if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+    const userId = Number(rawUserId);
   const rows = await characterService.listCharactersForUser(userId);
     const characterList = rows.map((row: any) => ({
       ...row,

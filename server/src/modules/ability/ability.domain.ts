@@ -23,8 +23,10 @@ export type AbilityElementUpdateInput = Partial<AbilityElementRecord>;
 export type AbilityElementCreatePayload = Partial<Record<keyof AbilityElementRecord, unknown>> | null | undefined;
 export type AbilityElementUpdatePayload = AbilityElementCreatePayload;
 
-const OPTIONAL_STRING_FIELDS: Array<keyof AbilityElementRecord> = ['icon', 'effect', 'tag', 'color'];
-const OPTIONAL_NUMBER_FIELDS: Array<keyof AbilityElementRecord> = ['damage', 'healing', 'debuff', 'buff'];
+const OPTIONAL_STRING_FIELDS = ['icon', 'effect', 'tag', 'color'] as const;
+type OptionalStringField = typeof OPTIONAL_STRING_FIELDS[number];
+const OPTIONAL_NUMBER_FIELDS = ['damage', 'healing', 'debuff', 'buff'] as const;
+type OptionalNumberField = typeof OPTIONAL_NUMBER_FIELDS[number];
 
 function ensureObject(payload: AbilityElementCreatePayload): Record<string, unknown> {
   if (!payload || typeof payload !== 'object') {
@@ -80,13 +82,15 @@ export function normalizeAbilityElementUpdatePayload(payload: AbilityElementUpda
 
   for (const field of OPTIONAL_STRING_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(input, field)) {
-      normalized[field] = normalizeOptionalString(input[field]);
+      // field is narrowed to OptionalStringField, so the assignment is typed as string|null | undefined
+      normalized[field as OptionalStringField] = normalizeOptionalString(input[field as OptionalStringField]);
     }
   }
 
   for (const field of OPTIONAL_NUMBER_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(input, field)) {
-      normalized[field] = normalizeOptionalNumber(field, input[field]);
+      // field is narrowed to OptionalNumberField
+      normalized[field as OptionalNumberField] = normalizeOptionalNumber(field as string, input[field as OptionalNumberField]);
     }
   }
 

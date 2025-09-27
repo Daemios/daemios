@@ -4,7 +4,6 @@
     style="
       left: 12px;
       bottom: 12px;
-      z-index: 2200;
       background: rgba(0, 0, 0, 0.55);
       min-width: 220px;
       border-radius: 8px;

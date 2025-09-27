@@ -18,7 +18,6 @@
         v-if="showModal"
         style="
           position: fixed;
-          z-index: 9999;
           left: 0;
           top: 0;
           width: 100vw;
@@ -46,20 +45,12 @@
             style="border-bottom: 1px solid rgba(255, 255, 255, 0.12)"
           >
             <span class="text-h6">Add Location</span>
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              @click="closeModal"
-            >
+            <v-btn icon variant="text" size="small" @click="closeModal">
               <v-icon>mdi-close</v-icon>
             </v-btn>
           </div>
           <div class="px-4 py-4">
-            <v-form
-              class="d-flex flex-column gap-2"
-              @submit.prevent="submit"
-            >
+            <v-form class="d-flex flex-column gap-2" @submit.prevent="submit">
               <v-text-field
                 v-model="form.name"
                 label="Name"
@@ -138,19 +129,10 @@
                 class="mt-1"
               />
               <div class="d-flex justify-end gap-2 mt-3">
-                <v-btn
-                  variant="tonal"
-                  color="secondary"
-                  @click="closeModal"
-                >
+                <v-btn variant="tonal" color="secondary" @click="closeModal">
                   Cancel
                 </v-btn>
-                <v-btn
-                  color="primary"
-                  type="submit"
-                >
-                  Add Location
-                </v-btn>
+                <v-btn color="primary" type="submit"> Add Location </v-btn>
               </div>
             </v-form>
           </div>

@@ -18,6 +18,7 @@
 
 <script setup>
 import Item from "@/components/inventory/Item.vue";
+import dragEventBus from "@/lib/dragEventBus";
 const props = defineProps({
   item: { type: Object, required: true },
   label: { type: String, default: "" },
@@ -32,6 +33,12 @@ function onDragStart(e) {
     const dt = e.dataTransfer;
     dt.setData("application/json", JSON.stringify(payload));
     dt.effectAllowed = "move";
+    // announce global drag start so slots can highlight
+    try {
+      dragEventBus.emit("drag-start", { item: props.item, source: props.source });
+    } catch (_) {
+      /* ignore drag event bus errors */
+    }
     // create a custom drag image (small canvas) for better visuals
     try {
       const size = 48;
@@ -107,7 +114,12 @@ function onDragStart(e) {
 }
 
 function onDragEnd() {
-  // placeholder for future use
+  // announce global drag end so slots can clear highlight
+  try {
+    dragEventBus.emit("drag-end", {});
+  } catch (_) {
+    /* ignore drag event bus errors */
+  }
 }
 </script>
 

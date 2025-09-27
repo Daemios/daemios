@@ -14,7 +14,7 @@
       <v-row dense>
         <!-- Left: Equipment Card -->
         <v-col cols="12" md="auto">
-          <v-card class="pa-2" dense flat>
+          <v-card class="pa-2 overflow-visible" dense flat>
             <v-card-title>Equipment</v-card-title>
             <v-card-text>
               <PaperDoll />

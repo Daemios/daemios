@@ -51,10 +51,10 @@ async function containerIsDescendantOfItem(prismaClient: any, containerId: numbe
   let curr: number | null = containerId;
   while (curr) {
     const c = await prismaClient.container.findUnique({ where: { id: curr }, select: { itemId: true } });
-  if (!c) return false;
-  if (!c.itemId) return false;
-  if (c.itemId === ancestorItemId) return true;
-  const rep = await prismaClient.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
+    if (!c) return false;
+    if (!c.itemId) return false;
+    if (c.itemId === ancestorItemId) return true;
+    const rep = await prismaClient.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
     if (!rep) return false;
     curr = rep.containerId as number | null;
   }
@@ -79,11 +79,12 @@ function serverError(res: Response, message?: any, details?: any) {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    // @ts-ignore
-    const userId = req.session && req.session.passport && req.session.passport.user && req.session.passport.user.id;
-    if (!userId) return unauthorized(res, 'User must be authenticated to fetch inventory');
+    // Require Passport's deserialized `req.user` to be present.
+    const rawUserId = req.user && req.user.id ? req.user.id : null;
+    if (!rawUserId) return unauthorized(res, 'User must be authenticated to fetch inventory');
+    const userId = Number(rawUserId);
 
-  const character = await characterService.getActiveCharacterForUser(userId);
+    const character = await characterService.getActiveCharacterForUser(userId);
     if (!character || !character.id) {
       return notFound(res, 'No active character found for the authenticated user');
     }
@@ -109,12 +110,11 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/move', async (req: Request, res: Response) => {
   try {
     console.log('/inventory/move called, body=', req.body);
-    // @ts-ignore
-    const userId = req.session && req.session.passport && req.session.passport.user && req.session.passport.user.id;
-    console.log('userId from session:', userId);
-    if (!userId) return unauthorized(res, 'Authentication required to move items');
+    const rawUserId = req.user && req.user.id ? req.user.id : null;
+    if (!rawUserId) return unauthorized(res, 'Authentication required to move items');
+    const userId = Number(rawUserId);
 
-  const character = await characterService.getActiveCharacterForUser(userId);
+    const character = await characterService.getActiveCharacterForUser(userId);
     console.log('active character:', character && character.id);
     if (!character || !character.id) return notFound(res, 'Active character not found for user');
 

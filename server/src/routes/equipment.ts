@@ -6,27 +6,20 @@ import { EquipmentSlot as PrismaEquipmentSlot } from '@prisma/client';
 
 const router = express.Router();
 
-function ensureAuth(req: any, res: any, next: any) {
-  if (!req.session || !req.session.passport || !req.session.passport.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  next();
-}
-
-router.post('/equip', ensureAuth, async (req: any, res: any) => {
-  // Only accept the explicit shape: { itemId: number, slot: string }
+// Ensure this router's routes are explicitly protected by the shared middleware.
+// The app also mounts `isAuth` globally, but using it here makes the requirement
+// explicit and avoids in-route session checks.
+router.post('/equip', async (req: express.Request, res: express.Response) => {
   const { itemId, slot } = req.body || {};
 
-  // Resolve user -> active character
-  let userId: any = null;
-  if (req.session && req.session.passport && req.session.passport.user) {
-    const puser = req.session.passport.user;
-    userId = (puser && puser.id) ? puser.id : puser;
-  }
+  // Resolve user -> active character. Require Passport's `req.user`.
+  const rawUserId = req.user && req.user.id ? req.user.id : null;
+  if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+  const userId = Number(rawUserId);
 
   let characterId: number | null = null;
   try {
-    const character = await characterService.getActiveCharacterForUser(userId);
+  const character = await characterService.getActiveCharacterForUser(userId);
     if (character && character.id) characterId = character.id;
   } catch (err) {
     console.warn('equipment: failed to resolve active character from session', err && (err as any).code);

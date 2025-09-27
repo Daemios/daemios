@@ -26,13 +26,7 @@
     <v-card
       class="ml-n1 mb-2 pa-2 align-self-end"
       height="60"
-      style="
-        position: absolute;
-        z-index: 1;
-        width: 200px;
-        left: 92px;
-        border-radius: 4px;
-      "
+      style="position: absolute; width: 200px; left: 92px; border-radius: 4px"
       :style="`border-left: ${leftBorder}`"
     >
       <div>

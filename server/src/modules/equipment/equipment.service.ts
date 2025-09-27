@@ -57,9 +57,9 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
   // inside the equip transaction. The transaction below will validate
   // capacity and create the container when necessary.
 
-  const declaredSlot = (item && item.itemType) ? String(item.itemType).toUpperCase() : null;
+  const declaredSlot = (item && item.equipmentSlot) ? String(item.equipmentSlot).toUpperCase() : null;
   // Fail fast if the item's declared equip slot doesn't match the requested one.
-  if (!declaredSlot || declaredSlot !== normalizedSlot) throw new DomainError('INVALID_SLOT', 'Item type slot does not match target slot');
+  if (!declaredSlot || declaredSlot !== normalizedSlot) throw new DomainError('INVALID_SLOT', 'Item equipmentSlot does not match target slot');
   // Domain validation: ensure item is legal for this slot
   if (!isValidForSlot(item, newContainer, normalizedSlot)) throw new DomainError('INVALID_ITEM_FOR_SLOT', 'Item cannot be equipped into that slot');
 
@@ -134,7 +134,7 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
             capacity: Number.isInteger(item.capacity) ? item.capacity : 0,
             characterId,
             removable: true,
-            containerType: (item.itemType ? String(item.itemType).toUpperCase() : 'PACK'),
+              containerType: (item.itemType ? String(item.itemType).toUpperCase() : 'PACK'),
           },
         });
       }

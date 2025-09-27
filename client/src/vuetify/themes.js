@@ -5,23 +5,12 @@ export default {
   themes: {
     dark: {
       colors: {
-        // Primary UI: deep forest green (action buttons, highlights)
-        primary: "#2E6A42",
-        // Secondary / accents: mystical purple for magic/menus
-        secondary: "#6B4B94",
-        // Tertiary / subtle accents: warm teal for interest
-        tertiary: "#4FA3A3",
+        primary: "#ffffffff",
+        secondary: "#7a7a7a6c",
+        tertiary: "#292929ff",
 
-        // Background tones (for overlays / panels)
-        "surface": "#0F1B16",
-        "surface-2": "#16261F",
-
-        // Warm parchment/gold accents for actionable or important UI
-        "accent-gold": "#D9A441",
-
-        // Turn/flow indicators
-        "turn-inactive": "#7E7E7E",
-        "turn-active": "#D9A441",
+        surface: "#121212ff",
+        "surface-variant": "#1E1E1Eff",
 
         // Entity colors tuned for fantasy readability
         enemy: "#B33A3A",

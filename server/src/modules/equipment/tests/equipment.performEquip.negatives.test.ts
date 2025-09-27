@@ -59,10 +59,10 @@ describe('performEquipForCharacter negative flows', () => {
     await expect(svc.performEquipForCharacter(1, 50, 'HEAD')).rejects.toHaveProperty('code', 'ITEM_NOT_OWNED');
   });
 
-  it('throws INVALID_SLOT when item.itemType does not match target slot', async () => {
+  it('throws INVALID_SLOT when item.equipmentSlot does not match target slot', async () => {
     vi.resetModules();
     mockPrisma.character.findUnique.mockResolvedValue({ id: 1 });
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 51, characterId: 1, itemType: 'HEAD' });
+    mockPrisma.item.findUnique.mockResolvedValue({ id: 51, characterId: 1, equipmentSlot: 'HEAD' });
     const svc = await import('../equipment.service');
     await expect(svc.performEquipForCharacter(1, 51, 'PACK')).rejects.toHaveProperty('code', 'INVALID_SLOT');
   });
@@ -70,7 +70,7 @@ describe('performEquipForCharacter negative flows', () => {
   it('throws CONTAINER_RECORD_NOT_FOUND when item.isContainer=true but no container record', async () => {
     vi.resetModules();
     mockPrisma.character.findUnique.mockResolvedValue({ id: 1 });
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 60, characterId: 1, isContainer: true, itemType: 'PACK' });
+  mockPrisma.item.findUnique.mockResolvedValue({ id: 60, characterId: 1, isContainer: true, equipmentSlot: 'PACK' });
     // container.findFirst returns null
     mockPrisma.container.findFirst.mockResolvedValue(null);
     const svc = await import('../equipment.service');
@@ -81,7 +81,7 @@ describe('performEquipForCharacter negative flows', () => {
     vi.resetModules();
     mockPrisma.character.findUnique.mockResolvedValue({ id: 1 });
     // item is in a container at index 2
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 70, characterId: 1, itemType: 'PACK', containerId: 300, containerIndex: 2 });
+  mockPrisma.item.findUnique.mockResolvedValue({ id: 70, characterId: 1, equipmentSlot: 'PACK', containerId: 300, containerIndex: 2 });
     // container record exists
     mockPrisma.container.findFirst.mockResolvedValue({ id: 300, capacity: 10 });
     // inside transaction: container.findUnique returns src container
@@ -109,7 +109,7 @@ describe('performEquipForCharacter negative flows', () => {
     vi.resetModules();
     mockPrisma.character.findUnique.mockResolvedValue({ id: 1 });
     // item to equip
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 80, characterId: 1, itemType: 'PACK', isContainer: true, containerId: null });
+  mockPrisma.item.findUnique.mockResolvedValue({ id: 80, characterId: 1, equipmentSlot: 'PACK', isContainer: true, containerId: null });
     mockPrisma.container.findFirst.mockResolvedValue({ id: 400, itemId: 80 });
 
     // Inside tx: there is an existing equip (oldItem) that is a container
@@ -141,7 +141,7 @@ describe('performEquipForCharacter negative flows', () => {
   it('throws POCKETS_FULL when no free index in pockets for unequipped old item', async () => {
     vi.resetModules();
     mockPrisma.character.findUnique.mockResolvedValue({ id: 1 });
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 90, characterId: 1, itemType: 'PACK' });
+  mockPrisma.item.findUnique.mockResolvedValue({ id: 90, characterId: 1, equipmentSlot: 'PACK' });
     mockPrisma.container.findFirst.mockResolvedValue({ id: 600, itemId: 90 });
 
     // Simulate there is an oldItem to unequip and it has no sourceContainer, so pockets will be used

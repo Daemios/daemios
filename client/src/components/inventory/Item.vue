@@ -1,10 +1,13 @@
 <template>
   <v-card
+    ref="wrapper"
     class="item d-flex align-center justify-center"
     :class="itemClasses"
     :style="cardStyle"
     flat
     tile
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
   >
     <v-btn
       depressed
@@ -24,15 +27,27 @@
       />
     </v-btn>
 
-    <div class="item-label" :class="itemLabelClasses">
+    <div
+      class="item-label"
+      :class="itemLabelClasses"
+    >
       {{ safeItem.label }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
+    <teleport :to="portalSelector">
+      <div
+        v-if="showStats"
+        :style="panelStyle"
+      >
+        <ItemTooltip :item="statsItem" />
+      </div>
+    </teleport>
   </v-card>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import ItemTooltip from "@/components/inventory/ItemTooltip.vue";
 
 const props = defineProps({
   label: {
@@ -95,6 +110,91 @@ const cardStyle = computed(() => {
 });
 
 const emit = defineEmits(["click"]);
+
+const showStats = ref(false);
+
+// Build a stats-focused item object. Include capacity data if item represents a container.
+const statsItem = computed(() => {
+  const it = props.item || {};
+  const out = { ...it };
+  // prefer direct capacity, then nested container.capacity, then containerCapacity
+  if (out.capacity == null) {
+    if (out.container && out.container.capacity != null) out.capacity = out.container.capacity;
+    else if (out.containerCapacity != null) out.capacity = out.containerCapacity;
+  }
+  return out;
+});
+
+const wrapper = ref(null);
+const panelStyle = ref({
+  position: "absolute",
+  top: "0px",
+  left: "0px",
+  display: "none",
+});
+const portalSelector = ref("body");
+let portalAnchor = null;
+
+function handleMouseEnter() {
+  try {
+    showStats.value = true;
+    const el = wrapper.value && wrapper.value.$el ? wrapper.value.$el : wrapper.value;
+    if (el && el.getBoundingClientRect) {
+      // find nearest positioned ancestor (offsetParent) to insert portal
+      const offsetParent = el.offsetParent || document.body;
+      // create an anchor for teleport if needed and use its selector
+      if (!portalAnchor || portalAnchor.parentNode !== offsetParent) {
+        if (portalAnchor && portalAnchor.parentNode) portalAnchor.parentNode.removeChild(portalAnchor);
+        portalAnchor = document.createElement("div");
+        portalAnchor.style.position = "relative";
+        offsetParent.appendChild(portalAnchor);
+      }
+      // set teleport target to the anchor we created
+      portalSelector.value = portalAnchor;
+
+      const parentRect = offsetParent.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      const gap = 6;
+
+      // compute coordinates relative to offsetParent
+      let left = r.left - parentRect.left;
+      let top = r.bottom - parentRect.top + gap;
+
+      // clamp within parent
+      left = Math.max(4, Math.min(left, parentRect.width - 4));
+      if (top + 8 > parentRect.height) {
+        // place above if not enough space
+        top = r.top - parentRect.top - gap - 8;
+        top = Math.max(4, top);
+      }
+
+      panelStyle.value = {
+        position: "absolute",
+        top: `${Math.round(top)}px`,
+        left: `${Math.round(left)}px`,
+        display: "block",
+      };
+    } else {
+      panelStyle.value = { position: "absolute", display: "block" };
+    }
+  } catch (err) {
+    console.warn("item stats show failed", err);
+    showStats.value = true;
+    panelStyle.value = { position: "absolute", display: "block" };
+  }
+}
+
+function handleMouseLeave() {
+  showStats.value = false;
+  panelStyle.value = { position: "absolute", top: "0px", left: "0px", display: "none" };
+  try {
+    if (portalAnchor && portalAnchor.parentNode) portalAnchor.parentNode.removeChild(portalAnchor);
+  } catch (e) {
+    /* ignore */
+  }
+  portalAnchor = null;
+  portalSelector.value = "body";
+}
 
 function onClick() {
   emit("click");

@@ -5,10 +5,16 @@
     <div v-if="Array.isArray(containers) && containers.length">
       <v-row dense>
         <v-col cols="12">
-          <v-sheet class="pa-2" elevation="0">
+          <v-sheet
+            class="pa-2"
+            elevation="0"
+          >
             <div class="sheet-body">
               <div class="inventory-with-pack">
-                <div v-if="packContainer" class="pack-area">
+                <div
+                  v-if="packContainer"
+                  class="pack-area"
+                >
                   <div
                     :class="[
                       'pack-slot',
@@ -44,13 +50,24 @@
     </div>
 
     <div v-else>
-      <div class="no-containers">No containers equipped</div>
+      <div class="no-containers">
+        No containers equipped
+      </div>
     </div>
 
-    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
+    <v-snackbar
+      v-model="errorVisible"
+      color="error"
+      timeout="6000"
+    >
       {{ errorMsg }}
       <template #action>
-        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
+        <v-btn
+          text
+          @click="() => (errorVisible = false)"
+        >
+          Close
+        </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -232,15 +249,64 @@ async function onDropToPack(e) {
   }
 
   if (payload.source === "inventory") {
+    // optimistic update: move item into the current pack container immediately
+    const prevInv = JSON.parse(JSON.stringify(userStore.inventory || []));
     try {
-      await api.post("/inventory/move", {
+      // apply optimistic move locally so UI is snappy
+      try {
+        const newInv = JSON.parse(JSON.stringify(userStore.inventory || []));
+        const itemId = payload.item && payload.item.id;
+  const packC = packContainer.value || null;
+        if (itemId != null && packC) {
+          // remove from source container
+          for (const c of newInv) {
+            if (!c || !Array.isArray(c.items)) continue;
+            const idx = c.items.findIndex(
+              (it) => String(it.id) === String(itemId) || it.containerIndex === payload.source.localIndex
+            );
+            if (idx !== -1) {
+              c.items.splice(idx, 1);
+              break;
+            }
+          }
+          // insert into pack container with target index = first available (append)
+          const target = newInv.find((c) => String(c.id) === String(packC.id));
+          const moved = { ...(payload.item || {}), containerIndex: 0 };
+          if (target) {
+            // ensure no duplicate at the containerIndex
+            target.items = (target.items || []).filter((it) => String(it.id) !== String(itemId));
+            // find a free index (simple heuristic: push)
+            moved.containerIndex = (target.items && target.items.length) || 0;
+            target.items.push(moved);
+          } else {
+            // if pack container is not part of inventory list, add a simple container entry
+            newInv.push({ ...packC, items: [moved] });
+          }
+          userStore.setInventory(newInv);
+        }
+      } catch (err) {
+        console.warn("Optimistic update failed (non-fatal)", err);
+      }
+
+      const res = await api.post("/inventory/move", {
         itemId: payload.item.id,
         toContainer: "pack",
       });
-      if (userStore && userStore.refreshCharacter)
-        await userStore.refreshCharacter();
+      if (res && res.containers) {
+        userStore.setInventory(res.containers);
+      } else if (userStore && userStore.ensureInventory) {
+        await userStore.ensureInventory(true);
+      }
     } catch (err) {
+      // revert optimistic state on failure
+      try {
+        userStore.setInventory(prevInv);
+      } catch (rerr) {
+        console.error("Failed to revert optimistic inventory", rerr);
+      }
       console.error("Failed to move item to pack", err);
+      errorMsg.value = "Failed to move item to pack";
+      errorVisible.value = true;
     }
     return;
   }
@@ -264,11 +330,126 @@ function onEquipSuccess() {
 }
 
 async function onMoveItem(payload) {
+  // normalize payload: backend expects itemId (number) rather than full item object
+  let postPayload = payload;
+  if (payload && payload.item && payload.item.id) {
+    postPayload = {
+      itemId: payload.item.id,
+      source: payload.source,
+      target: payload.target,
+    };
+  }
+
+  // save previous inventory to allow revert on failure
+  const prevInv = JSON.parse(JSON.stringify(userStore.inventory || []));
+  // save previous character to allow revert on failure (paper-doll)
+  const prevChar = JSON.parse(JSON.stringify(userStore.character || {}));
+
+  // optimistic update: mutate local store to reflect the move immediately
   try {
-    await api.post("/inventory/move", payload);
-    if (userStore && userStore.refreshCharacter)
-      await userStore.refreshCharacter();
+    try {
+      const newInv = JSON.parse(JSON.stringify(userStore.inventory || []));
+      const itemId = postPayload.itemId;
+      const source = postPayload.source || {};
+      const target = postPayload.target || {};
+      let movedItem = null;
+
+      // remove from source container if present
+      if (source && source.containerId != null) {
+        const src = newInv.find((c) => String(c.id) === String(source.containerId));
+        if (src && Array.isArray(src.items)) {
+          const idx = src.items.findIndex(
+            (it) => String(it.id) === String(itemId) || it.containerIndex === source.localIndex
+          );
+          if (idx !== -1) movedItem = src.items.splice(idx, 1)[0];
+        }
+      }
+
+      // fallback: if not found by source, try find by id across all containers
+      if (!movedItem) {
+        for (const c of newInv) {
+          if (!c || !Array.isArray(c.items)) continue;
+          const idx = c.items.findIndex((it) => String(it.id) === String(itemId));
+          if (idx !== -1) {
+            movedItem = c.items.splice(idx, 1)[0];
+            break;
+          }
+        }
+      }
+
+      if (!movedItem) movedItem = { id: itemId, containerIndex: target.localIndex };
+      // set the new index for the moved item
+      movedItem.containerIndex = target.localIndex;
+
+      if (target && target.containerId != null) {
+        const tgt = newInv.find((c) => String(c.id) === String(target.containerId));
+        if (tgt) {
+          // remove any item occupying the target slot
+          tgt.items = (tgt.items || []).filter((it) => it.containerIndex !== target.localIndex);
+          tgt.items.push(movedItem);
+        } else {
+          // append a simple container entry if missing
+          newInv.push({ id: target.containerId, items: [movedItem], capacity: 1 });
+        }
+      }
+
+      userStore.setInventory(newInv);
+
+      // optimistic: if the source indicates this came from an equipped slot, clear that slot locally
+      try {
+        const src = source || {};
+        if (src && (src.equip || src.slot)) {
+          const slotKey = String(src.slot || '').toLowerCase();
+          const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+          if (!newChar.equipped) newChar.equipped = {};
+          if (slotKey) newChar.equipped[slotKey] = null;
+          if (userStore.setCharacter) userStore.setCharacter(newChar);
+        }
+      } catch (e) {
+        console.warn('optimistic character update failed', e);
+      }
+    } catch (err) {
+      console.warn("Optimistic update error", err);
+    }
+
+    const res = await api.post("/inventory/move", postPayload);
+    if (res && res.containers) {
+      userStore.setInventory(res.containers);
+    }
+    // if server returned authoritative equipment rows, sync the paper-doll
+    if (res && res.equipment) {
+      try {
+        const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+        if (!newChar.equipped) newChar.equipped = {};
+        res.equipment.forEach((eq) => {
+          const key = String(eq.slot || '').toLowerCase();
+          if (eq.Item) {
+            newChar.equipped[key] = { ...eq.Item, img: eq.Item.image || eq.Item.img || '/img/debug/placeholder.png', label: eq.Item.label || eq.Item.name || null };
+          } else if (eq.itemId) {
+            newChar.equipped[key] = { id: eq.itemId };
+          } else {
+            newChar.equipped[key] = null;
+          }
+        });
+        if (userStore.setCharacter) userStore.setCharacter(newChar);
+      } catch (e) {
+        console.warn('Failed to sync equipment from server', e);
+      }
+    } else if (userStore && userStore.ensureInventory) {
+      await userStore.ensureInventory(true);
+    }
   } catch (err) {
+    // revert optimistic state on failure (inventory + character)
+    try {
+      userStore.setInventory(prevInv);
+    } catch (rerr) {
+      console.error("Failed to revert optimistic inventory", rerr);
+    }
+    try {
+      if (userStore.setCharacter) userStore.setCharacter(prevChar);
+    } catch (rerr) {
+      console.error('Failed to revert optimistic character', rerr);
+    }
     console.error("Failed to move item", err);
     errorMsg.value = "Failed to move item";
     errorVisible.value = true;
@@ -281,13 +462,18 @@ async function onMoveItem(payload) {
   margin-bottom: 1rem;
 }
 .pack-slot {
-  width: 96px;
-  height: 96px;
-  border: 1px dashed #ccc;
+  /* Match the paper-doll slot sizing and appearance */
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  border-radius: 6px;
+  /* keep background transparent so the EquipmentSlot interior is visible */
+  background: transparent;
 }
+/* pack-slot.drag-over behavior moved to EquipmentSlot overlay */
 .empty-slot {
   color: #888;
 }

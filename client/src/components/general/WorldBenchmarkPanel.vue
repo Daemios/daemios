@@ -1,7 +1,17 @@
 <template>
   <div
     class="world-benchmark-panel position-absolute text-white py-2 px-3 rounded text-caption overflow-auto"
-    style="bottom: 6px; left: 6px; width: 440px; height: 320px; background: rgba(0, 0, 0, 0.55); pointer-events: auto; z-index: 20; display: block; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); line-height: 1.2;"
+    style="
+      bottom: 6px;
+      left: 6px;
+      width: 440px;
+      height: 320px;
+      background: rgba(0, 0, 0, 0.55);
+      pointer-events: auto;
+      display: block;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      line-height: 1.2;
+    "
     @pointerdown.stop
     @mousedown.stop
     @click.stop
@@ -33,26 +43,17 @@
         Water
       </v-tab>
     </v-tabs>
-    <div
-      v-if="tab === 'general'"
-      class="pa-2"
-    >
+    <div v-if="tab === 'general'" class="pa-2">
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         generalStatsDisplay
       }}</pre>
     </div>
-    <div
-      v-else-if="tab === 'chunk'"
-      class="pa-2"
-    >
+    <div v-else-if="tab === 'chunk'" class="pa-2">
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         chunkStatsDisplay
       }}</pre>
     </div>
-    <div
-      v-else-if="tab === 'water'"
-      class="pa-2"
-    >
+    <div v-else-if="tab === 'water'" class="pa-2">
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         waterStatsDisplay
       }}</pre>

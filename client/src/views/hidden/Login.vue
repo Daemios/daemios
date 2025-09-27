@@ -187,7 +187,6 @@ function registerUser() {
   }
 }
 .header {
-  z-index: 100;
   font-size: 10rem;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   user-select: none;

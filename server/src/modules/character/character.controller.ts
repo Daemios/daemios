@@ -18,9 +18,9 @@ export const characterController = {
 
   refresh: async (req: Request, res: Response) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const userId = (req.session as any).passport.user.id;
+      const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+      if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+      const userId = Number(rawUserId);
       const character = await characterService.getActiveCharacterForUser(userId);
       if (!character || !character.id) return res.status(404).json({ error: 'No active character found' });
       try {
@@ -38,9 +38,9 @@ export const characterController = {
 
   selectCharacter: async (req: Request, res: Response) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const userId = (req.session as any).passport.user.id;
+      const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+      if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+      const userId = Number(rawUserId);
       const { characterId } = req.body;
       await characterService.deactivateCharacters(userId);
       const rows = await characterService.activateCharacter(userId, characterId);
@@ -64,9 +64,9 @@ export const characterController = {
 
   createCharacter: async (req: Request, res: Response) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const userId = (req.session as any).passport.user.id;
+      const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+      if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+      const userId = Number(rawUserId);
       const { name, raceId, image } = req.body;
       const createdChar = await characterService.createCharacterForUser(userId, { name, raceId, image });
       res.status(200).json({ success: true, character: createdChar });
@@ -78,9 +78,9 @@ export const characterController = {
 
   listCharacters: async (req: Request, res: Response) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const userId = (req.session as any).passport.user.id;
+      const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+      if (!rawUserId) return res.status(401).json({ error: 'Not authenticated' });
+      const userId = Number(rawUserId);
       const rows = await characterService.listCharactersForUser(userId);
       const characterList = rows.map((row: any) => ({
         ...row,

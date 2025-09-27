@@ -157,7 +157,11 @@ function allowedForSlot(item, slotName) {
   const s = String(slotName || "").toLowerCase();
   // require container items for the backpack slot
   if (s === "backpack" || s === "bandolier" || s === "belt") {
-    // prefer explicit itemType if present, otherwise fallback to isContainer
+    if (item.equipmentSlot) {
+      const es = String(item.equipmentSlot || "").toLowerCase();
+      if (es.includes("pack") || es.includes("back") || es.includes("belt") || es.includes("bandolier")) return true;
+    }
+    // prefer itemType fallback if present
     if (item.itemType) {
       const it = String(item.itemType || "").toLowerCase();
       if (
@@ -171,14 +175,17 @@ function allowedForSlot(item, slotName) {
     }
     return !!item.isContainer;
   }
-  // mainhand/offhand heuristics: require weapon type if present
   if (s === "mainhand" || s === "offhand") {
-    if (item.itemType) {
-      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(
-        String(item.itemType)
-      );
+    if (item.equipmentSlot) {
+      const es = String(item.equipmentSlot || "").toLowerCase();
+      if (es === "mainhand" || es === "offhand") return true;
+      return false;
     }
-    return true; // allow if we don't have a type to judge
+    // fallback: if no equipmentSlot present, use itemType heuristics to decide
+    if (item.itemType) {
+      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(String(item.itemType));
+    }
+    return true;
   }
   // default: allow and let server validate
   return true;

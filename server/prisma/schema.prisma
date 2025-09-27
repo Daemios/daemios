@@ -98,6 +98,7 @@ model Item {
   image                 String?
   itemEffectId          Int?
   itemType              ItemType?
+  equipmentSlot         EquipmentSlot?
   lastUpdate            Int?
   quantity              Int?
   containerIndex        Int?
@@ -406,7 +407,7 @@ enum EquipmentSlot {
   MAINHAND
   OFFHAND
   WAIST
-  CONSTRUCT
+  ABILITY
 }
 
 enum WorldLocationType {

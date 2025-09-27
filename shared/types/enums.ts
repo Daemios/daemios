@@ -20,7 +20,7 @@ export const EquipmentSlot = [
   'MAINHAND',
   'OFFHAND',
   'WAIST',
-  'CONSTRUCT',
+  'ABILITY',
 ] as const;
 
 export type EquipmentSlot = (typeof EquipmentSlot)[number];

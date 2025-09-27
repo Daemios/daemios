@@ -5,17 +5,14 @@
     style="width: 100%; height: 100%; position: relative"
   >
     <!-- Debug panel mount -->
-    <div
-      v-if="showDebug"
-      style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
-    >
+    <div v-if="showDebug" style="position: absolute; left: 12px; bottom: 12px">
       <DebugPanel @apply="onDebugApply" />
     </div>
 
     <!-- World generation panel mount -->
     <div
       v-if="showWorldGen"
-      style="position: absolute; left: 12px; bottom: 12px; z-index: 2000"
+      style="position: absolute; left: 12px; bottom: 12px"
     >
       <WorldGenPanel @apply="onWorldGenApply" />
     </div>

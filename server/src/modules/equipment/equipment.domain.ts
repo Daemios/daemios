@@ -52,7 +52,7 @@ export async function containerIsDescendantOfItem(tx: any, containerId: any, anc
  */
 export function isValidForSlot(item: any, containerRow: any, slot: any) {
   if (!item || !slot) return false;
-  const declared = item.itemType ? String(item.itemType).toUpperCase() : null;
+  const declared = item.equipmentSlot ? String(item.equipmentSlot).toUpperCase() : null;
   const s = String(slot || '').toUpperCase();
   return declared === s;
 }
