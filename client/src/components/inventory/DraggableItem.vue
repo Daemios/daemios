@@ -35,7 +35,10 @@ function onDragStart(e) {
     dt.effectAllowed = "move";
     // announce global drag start so slots can highlight
     try {
-      dragEventBus.emit("drag-start", { item: props.item, source: props.source });
+      dragEventBus.emit("drag-start", {
+        item: props.item,
+        source: props.source,
+      });
     } catch (_) {
       /* ignore drag event bus errors */
     }

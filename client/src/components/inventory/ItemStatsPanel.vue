@@ -1,34 +1,14 @@
 <template>
-  <v-card
-    class="item-stats-panel pa-2"
-    elevation="2"
-    style="min-width:160px"
-  >
-    <v-card-title
-      class="py-1"
-      style="font-size:14px; font-weight:600"
-    >
+  <v-card class="item-stats-panel pa-2" elevation="2" style="min-width: 160px">
+    <v-card-title class="py-1" style="font-size: 14px; font-weight: 600">
       {{ itemName }}
     </v-card-title>
-    <v-card-text
-      class="py-1"
-    >
-      <v-row
-        align="center"
-        class="py-0"
-      >
-        <v-col
-          cols="6"
-          class="text--secondary"
-          style="font-size:12px"
-        >
+    <v-card-text class="py-1">
+      <v-row align="center" class="py-0">
+        <v-col cols="6" class="text--secondary" style="font-size: 12px">
           Capacity
         </v-col>
-        <v-col
-          cols="6"
-          class="text-right"
-          style="font-weight:600"
-        >
+        <v-col cols="6" class="text-right" style="font-weight: 600">
           {{ capacityDisplay }}
         </v-col>
       </v-row>
@@ -37,22 +17,25 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed } from "vue";
 const props = defineProps({
   item: { type: Object, required: true },
 });
 
-const itemName = computed(() => props.item && (props.item.label || props.item.name || 'Unknown'));
+const itemName = computed(
+  () => props.item && (props.item.label || props.item.name || "Unknown")
+);
 
 // Capacity: prefer an explicit capacity on the item, otherwise fall back to container.capacity
 const capacityDisplay = computed(() => {
-  if (!props.item) return '-';
+  if (!props.item) return "-";
   if (props.item.capacity != null) return String(props.item.capacity);
   if (props.item.container && props.item.container.capacity != null)
     return String(props.item.container.capacity);
   // some server responses embed container fields directly on the item
-  if (props.item.containerCapacity != null) return String(props.item.containerCapacity);
-  return '-';
+  if (props.item.containerCapacity != null)
+    return String(props.item.containerCapacity);
+  return "-";
 });
 </script>
 

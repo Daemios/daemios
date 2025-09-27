@@ -27,18 +27,12 @@
       />
     </v-btn>
 
-    <div
-      class="item-label"
-      :class="itemLabelClasses"
-    >
+    <div class="item-label" :class="itemLabelClasses">
       {{ safeItem.label }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
     <teleport :to="portalSelector">
-      <div
-        v-if="showStats"
-        :style="panelStyle"
-      >
+      <div v-if="showStats" :style="panelStyle">
         <ItemTooltip :item="statsItem" />
       </div>
     </teleport>
@@ -119,8 +113,10 @@ const statsItem = computed(() => {
   const out = { ...it };
   // prefer direct capacity, then nested container.capacity, then containerCapacity
   if (out.capacity == null) {
-    if (out.container && out.container.capacity != null) out.capacity = out.container.capacity;
-    else if (out.containerCapacity != null) out.capacity = out.containerCapacity;
+    if (out.container && out.container.capacity != null)
+      out.capacity = out.container.capacity;
+    else if (out.containerCapacity != null)
+      out.capacity = out.containerCapacity;
   }
   return out;
 });
@@ -138,13 +134,15 @@ let portalAnchor = null;
 function handleMouseEnter() {
   try {
     showStats.value = true;
-    const el = wrapper.value && wrapper.value.$el ? wrapper.value.$el : wrapper.value;
+    const el =
+      wrapper.value && wrapper.value.$el ? wrapper.value.$el : wrapper.value;
     if (el && el.getBoundingClientRect) {
       // find nearest positioned ancestor (offsetParent) to insert portal
       const offsetParent = el.offsetParent || document.body;
       // create an anchor for teleport if needed and use its selector
       if (!portalAnchor || portalAnchor.parentNode !== offsetParent) {
-        if (portalAnchor && portalAnchor.parentNode) portalAnchor.parentNode.removeChild(portalAnchor);
+        if (portalAnchor && portalAnchor.parentNode)
+          portalAnchor.parentNode.removeChild(portalAnchor);
         portalAnchor = document.createElement("div");
         portalAnchor.style.position = "relative";
         offsetParent.appendChild(portalAnchor);
@@ -186,9 +184,15 @@ function handleMouseEnter() {
 
 function handleMouseLeave() {
   showStats.value = false;
-  panelStyle.value = { position: "absolute", top: "0px", left: "0px", display: "none" };
+  panelStyle.value = {
+    position: "absolute",
+    top: "0px",
+    left: "0px",
+    display: "none",
+  };
   try {
-    if (portalAnchor && portalAnchor.parentNode) portalAnchor.parentNode.removeChild(portalAnchor);
+    if (portalAnchor && portalAnchor.parentNode)
+      portalAnchor.parentNode.removeChild(portalAnchor);
   } catch (e) {
     /* ignore */
   }

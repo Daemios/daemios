@@ -159,7 +159,13 @@ function allowedForSlot(item, slotName) {
   if (s === "backpack" || s === "bandolier" || s === "belt") {
     if (item.equipmentSlot) {
       const es = String(item.equipmentSlot || "").toLowerCase();
-      if (es.includes("pack") || es.includes("back") || es.includes("belt") || es.includes("bandolier")) return true;
+      if (
+        es.includes("pack") ||
+        es.includes("back") ||
+        es.includes("belt") ||
+        es.includes("bandolier")
+      )
+        return true;
     }
     // prefer itemType fallback if present
     if (item.itemType) {
@@ -183,7 +189,9 @@ function allowedForSlot(item, slotName) {
     }
     // fallback: if no equipmentSlot present, use itemType heuristics to decide
     if (item.itemType) {
-      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(String(item.itemType));
+      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(
+        String(item.itemType)
+      );
     }
     return true;
   }

@@ -5,16 +5,10 @@
     <div v-if="Array.isArray(containers) && containers.length">
       <v-row dense>
         <v-col cols="12">
-          <v-sheet
-            class="pa-2"
-            elevation="0"
-          >
+          <v-sheet class="pa-2" elevation="0">
             <div class="sheet-body">
               <div class="inventory-with-pack">
-                <div
-                  v-if="packContainer"
-                  class="pack-area"
-                >
+                <div v-if="packContainer" class="pack-area">
                   <div
                     :class="[
                       'pack-slot',
@@ -50,24 +44,13 @@
     </div>
 
     <div v-else>
-      <div class="no-containers">
-        No containers equipped
-      </div>
+      <div class="no-containers">No containers equipped</div>
     </div>
 
-    <v-snackbar
-      v-model="errorVisible"
-      color="error"
-      timeout="6000"
-    >
+    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
       {{ errorMsg }}
       <template #action>
-        <v-btn
-          text
-          @click="() => (errorVisible = false)"
-        >
-          Close
-        </v-btn>
+        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -256,13 +239,15 @@ async function onDropToPack(e) {
       try {
         const newInv = JSON.parse(JSON.stringify(userStore.inventory || []));
         const itemId = payload.item && payload.item.id;
-  const packC = packContainer.value || null;
+        const packC = packContainer.value || null;
         if (itemId != null && packC) {
           // remove from source container
           for (const c of newInv) {
             if (!c || !Array.isArray(c.items)) continue;
             const idx = c.items.findIndex(
-              (it) => String(it.id) === String(itemId) || it.containerIndex === payload.source.localIndex
+              (it) =>
+                String(it.id) === String(itemId) ||
+                it.containerIndex === payload.source.localIndex
             );
             if (idx !== -1) {
               c.items.splice(idx, 1);
@@ -274,7 +259,9 @@ async function onDropToPack(e) {
           const moved = { ...(payload.item || {}), containerIndex: 0 };
           if (target) {
             // ensure no duplicate at the containerIndex
-            target.items = (target.items || []).filter((it) => String(it.id) !== String(itemId));
+            target.items = (target.items || []).filter(
+              (it) => String(it.id) !== String(itemId)
+            );
             // find a free index (simple heuristic: push)
             moved.containerIndex = (target.items && target.items.length) || 0;
             target.items.push(moved);
@@ -356,10 +343,14 @@ async function onMoveItem(payload) {
 
       // remove from source container if present
       if (source && source.containerId != null) {
-        const src = newInv.find((c) => String(c.id) === String(source.containerId));
+        const src = newInv.find(
+          (c) => String(c.id) === String(source.containerId)
+        );
         if (src && Array.isArray(src.items)) {
           const idx = src.items.findIndex(
-            (it) => String(it.id) === String(itemId) || it.containerIndex === source.localIndex
+            (it) =>
+              String(it.id) === String(itemId) ||
+              it.containerIndex === source.localIndex
           );
           if (idx !== -1) movedItem = src.items.splice(idx, 1)[0];
         }
@@ -369,7 +360,9 @@ async function onMoveItem(payload) {
       if (!movedItem) {
         for (const c of newInv) {
           if (!c || !Array.isArray(c.items)) continue;
-          const idx = c.items.findIndex((it) => String(it.id) === String(itemId));
+          const idx = c.items.findIndex(
+            (it) => String(it.id) === String(itemId)
+          );
           if (idx !== -1) {
             movedItem = c.items.splice(idx, 1)[0];
             break;
@@ -377,19 +370,28 @@ async function onMoveItem(payload) {
         }
       }
 
-      if (!movedItem) movedItem = { id: itemId, containerIndex: target.localIndex };
+      if (!movedItem)
+        movedItem = { id: itemId, containerIndex: target.localIndex };
       // set the new index for the moved item
       movedItem.containerIndex = target.localIndex;
 
       if (target && target.containerId != null) {
-        const tgt = newInv.find((c) => String(c.id) === String(target.containerId));
+        const tgt = newInv.find(
+          (c) => String(c.id) === String(target.containerId)
+        );
         if (tgt) {
           // remove any item occupying the target slot
-          tgt.items = (tgt.items || []).filter((it) => it.containerIndex !== target.localIndex);
+          tgt.items = (tgt.items || []).filter(
+            (it) => it.containerIndex !== target.localIndex
+          );
           tgt.items.push(movedItem);
         } else {
           // append a simple container entry if missing
-          newInv.push({ id: target.containerId, items: [movedItem], capacity: 1 });
+          newInv.push({
+            id: target.containerId,
+            items: [movedItem],
+            capacity: 1,
+          });
         }
       }
 
@@ -399,14 +401,14 @@ async function onMoveItem(payload) {
       try {
         const src = source || {};
         if (src && (src.equip || src.slot)) {
-          const slotKey = String(src.slot || '').toLowerCase();
+          const slotKey = String(src.slot || "").toLowerCase();
           const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
           if (!newChar.equipped) newChar.equipped = {};
           if (slotKey) newChar.equipped[slotKey] = null;
           if (userStore.setCharacter) userStore.setCharacter(newChar);
         }
       } catch (e) {
-        console.warn('optimistic character update failed', e);
+        console.warn("optimistic character update failed", e);
       }
     } catch (err) {
       console.warn("Optimistic update error", err);
@@ -422,9 +424,13 @@ async function onMoveItem(payload) {
         const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
         if (!newChar.equipped) newChar.equipped = {};
         res.equipment.forEach((eq) => {
-          const key = String(eq.slot || '').toLowerCase();
+          const key = String(eq.slot || "").toLowerCase();
           if (eq.Item) {
-            newChar.equipped[key] = { ...eq.Item, img: eq.Item.image || eq.Item.img || '/img/debug/placeholder.png', label: eq.Item.label || eq.Item.name || null };
+            newChar.equipped[key] = {
+              ...eq.Item,
+              img: eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
+              label: eq.Item.label || eq.Item.name || null,
+            };
           } else if (eq.itemId) {
             newChar.equipped[key] = { id: eq.itemId };
           } else {
@@ -433,7 +439,7 @@ async function onMoveItem(payload) {
         });
         if (userStore.setCharacter) userStore.setCharacter(newChar);
       } catch (e) {
-        console.warn('Failed to sync equipment from server', e);
+        console.warn("Failed to sync equipment from server", e);
       }
     } else if (userStore && userStore.ensureInventory) {
       await userStore.ensureInventory(true);
@@ -448,7 +454,7 @@ async function onMoveItem(payload) {
     try {
       if (userStore.setCharacter) userStore.setCharacter(prevChar);
     } catch (rerr) {
-      console.error('Failed to revert optimistic character', rerr);
+      console.error("Failed to revert optimistic character", rerr);
     }
     console.error("Failed to move item", err);
     errorMsg.value = "Failed to move item";

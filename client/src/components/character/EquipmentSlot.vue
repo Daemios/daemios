@@ -1,6 +1,13 @@
 <template>
   <div
-    :class="['equipment-slot', { 'doll-left': left, 'doll-right': right, 'drag-glow': isDragHighlighted }]"
+    :class="[
+      'equipment-slot',
+      {
+        'doll-left': left,
+        'doll-right': right,
+        'drag-glow': isDragHighlighted,
+      },
+    ]"
     style="position: relative"
     @dragover.prevent
     @drop="onDrop"
@@ -16,10 +23,7 @@
       />
     </template>
     <template v-else>
-      <div
-        class="empty-slot d-flex align-center justify-center"
-        role="button"
-      >
+      <div class="empty-slot d-flex align-center justify-center" role="button">
         <v-icon class="empty-icon">
           {{ mdiClose }}
         </v-icon>
@@ -28,11 +32,7 @@
 
     <!-- slot name chips intentionally removed to keep paper-doll slots visually minimal -->
     <!-- highlight overlay — placed above contents so glow is visible even when occupied -->
-    <div
-      v-if="isDragHighlighted"
-      class="drag-highlight"
-      aria-hidden="true"
-    />
+    <div v-if="isDragHighlighted" class="drag-highlight" aria-hidden="true" />
   </div>
 </template>
 
@@ -72,7 +72,10 @@ function onGlobalDragStart(payload) {
     const item = payload.item;
     // Prefer explicit equipmentSlot match when available
     if (item.equipmentSlot) {
-      const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const norm = (s) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "");
       const es = norm(item.equipmentSlot);
       const s = norm(slotId.value);
       if (es && s && (es === s || es.includes(s) || s.includes(es))) {
@@ -135,7 +138,13 @@ function allowedForSlot(item, slotName) {
     // Prefer explicit equipmentSlot set on items; fall back to itemType or isContainer
     if (item.equipmentSlot) {
       const es = String(item.equipmentSlot || "").toLowerCase();
-      if (es.includes("pack") || es.includes("back") || es.includes("belt") || es.includes("bandolier")) return true;
+      if (
+        es.includes("pack") ||
+        es.includes("back") ||
+        es.includes("belt") ||
+        es.includes("bandolier")
+      )
+        return true;
     }
     // fallback to old itemType heuristics if equipmentSlot not present
     if (item.itemType) {
@@ -160,7 +169,9 @@ function allowedForSlot(item, slotName) {
     }
     // fallback: if no equipmentSlot present, use itemType heuristics to decide
     if (item.itemType) {
-      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(String(item.itemType));
+      return /weapon|sword|axe|mace|dagger|bow|spear|staff/i.test(
+        String(item.itemType)
+      );
     }
     return true;
   }
@@ -175,9 +186,15 @@ async function onDrop(e) {
     if (!payload || payload.type !== "item") return;
     // Guard: if the dropped item is the same as the currently equipped item in this slot, ignore
     try {
-      const droppedId = payload.item && (payload.item.id || payload.item.itemId);
-      const currentEquippedId = props.item && (props.item.id || props.item.itemId);
-      if (droppedId != null && currentEquippedId != null && String(droppedId) === String(currentEquippedId)) {
+      const droppedId =
+        payload.item && (payload.item.id || payload.item.itemId);
+      const currentEquippedId =
+        props.item && (props.item.id || props.item.itemId);
+      if (
+        droppedId != null &&
+        currentEquippedId != null &&
+        String(droppedId) === String(currentEquippedId)
+      ) {
         // nothing to do — user dropped the same equipped item back onto its slot
         emit("invalid-drop", {
           reason: "Item already equipped in this slot",
@@ -293,7 +310,8 @@ function onClick() {
   inset: 0;
   border-radius: 6px;
   pointer-events: none;
-  box-shadow: inset 0 0 0 4px rgba(30, 144, 255, 0.18), inset 0 0 18px rgba(30, 144, 255, 0.35);
+  box-shadow: inset 0 0 0 4px rgba(30, 144, 255, 0.18),
+    inset 0 0 18px rgba(30, 144, 255, 0.35);
   transition: opacity 120ms ease-in-out;
 }
 </style>

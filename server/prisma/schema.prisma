@@ -86,14 +86,14 @@ model ArchetypeRole {
 }
 
 model Item {
-  id                    Int          @id @default(autoincrement())
+  id                    Int            @id @default(autoincrement())
   name                  String
   // locationId removed: locations are represented by ephemeral loot items
   // produced by a loot generator; Items no longer belong directly to Locations.
   containerId           Int?
   characterId           Int
   createdBy             Int?
-  createdOn             DateTime?    @default(now())
+  createdOn             DateTime?      @default(now())
   description           String?
   image                 String?
   itemEffectId          Int?
@@ -102,18 +102,18 @@ model Item {
   lastUpdate            Int?
   quantity              Int?
   containerIndex        Int?
-  isContainer           Boolean?     @default(false)
+  isContainer           Boolean?       @default(false)
   capacity              Int?
-  removable             Boolean?     @default(true)
+  removable             Boolean?       @default(true)
   parentContainerItemId Int?
-  RepresentedContainer  Container?   @relation("Container_ItemObject")
+  RepresentedContainer  Container?     @relation("Container_ItemObject")
   equippedIn            Equipment[]
-  character             Character    @relation(fields: [characterId], references: [id])
-  Container             Container?   @relation("Container_Items", fields: [containerId], references: [id], onDelete: SetNull)
-  itemEffect            Effect?      @relation(fields: [itemEffectId], references: [id])
+  character             Character      @relation(fields: [characterId], references: [id])
+  Container             Container?     @relation("Container_Items", fields: [containerId], references: [id], onDelete: SetNull)
+  itemEffect            Effect?        @relation(fields: [itemEffectId], references: [id])
   // Location relation removed
-  ParentContainerItem   Item?        @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
-  ChildContainerItems   Item[]       @relation("ParentContainer")
+  ParentContainerItem   Item?          @relation("ParentContainer", fields: [parentContainerItemId], references: [id])
+  ChildContainerItems   Item[]         @relation("ParentContainer")
   itemEffects           ItemEffect[]
   Reward                Reward[]
 
