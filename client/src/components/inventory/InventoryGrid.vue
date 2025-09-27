@@ -30,7 +30,17 @@
             :label="slot.item && slot.item.name"
             :slot-id="slot.containerId ? String(slot.containerId) : 'pack'"
             type="pack"
-            @dropped="(p) => emit('move-item', { item: p.payload.item, source: p.payload.source, target: { containerId: slot.containerId, localIndex: slot.localIndex } })"
+            @dropped="
+              (p) =>
+                emit('move-item', {
+                  item: p.payload.item,
+                  source: p.payload.source,
+                  target: {
+                    containerId: slot.containerId,
+                    localIndex: slot.localIndex,
+                  },
+                })
+            "
             @click="() => $emit('click-item', slot.item)"
           />
         </template>
@@ -50,12 +60,7 @@
               :height="'100%'"
             />
           </div>
-          <div
-            v-else
-            class="slot-empty"
-          >
-            &nbsp;
-          </div>
+          <div v-else class="slot-empty">&nbsp;</div>
         </template>
       </div>
     </div>
