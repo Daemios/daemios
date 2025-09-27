@@ -24,22 +24,39 @@
           </v-icon>
         </div>
 
-        <div
-          v-if="slot.item"
-          class="slot-item d-flex align-center justify-center"
-        >
-          <DraggableItem
+        <template v-if="slot.isPack">
+          <SlotCell
             :item="slot.item"
-            :label="slot.item.name"
-            :source="{
-              containerId: slot.containerId,
-              localIndex: slot.localIndex,
-            }"
-            :width="'100%'"
-            :height="'100%'"
+            :label="slot.item && slot.item.name"
+            :slot-id="slot.containerId ? String(slot.containerId) : 'pack'"
+            type="pack"
+            @dropped="(p) => emit('move-item', { item: p.payload.item, source: p.payload.source, target: { containerId: slot.containerId, localIndex: slot.localIndex } })"
+            @click="() => $emit('click-item', slot.item)"
           />
-        </div>
-        <div v-else class="slot-empty">&nbsp;</div>
+        </template>
+        <template v-else>
+          <div
+            v-if="slot.item"
+            class="slot-item d-flex align-center justify-center"
+          >
+            <DraggableItem
+              :item="slot.item"
+              :label="slot.item.name"
+              :source="{
+                containerId: slot.containerId,
+                localIndex: slot.localIndex,
+              }"
+              :width="'100%'"
+              :height="'100%'"
+            />
+          </div>
+          <div
+            v-else
+            class="slot-empty"
+          >
+            &nbsp;
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -47,6 +64,7 @@
 
 <script setup>
 import DraggableItem from "@/components/inventory/DraggableItem.vue";
+import SlotCell from "@/components/shared/SlotCell.vue";
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import dragEventBus from "@/lib/dragEventBus";
 // Import the whole mdi namespace and pick the exact exported names that exist

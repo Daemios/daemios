@@ -9,7 +9,10 @@
             cols="3"
             class="d-flex flex-column align-center"
           >
-            <v-btn class="ability-item ma-1" dense>
+            <v-btn
+              class="ability-item ma-1"
+              dense
+            >
               <div
                 class="ability-item-inner d-flex align-center justify-center"
                 style="position: relative"
@@ -33,6 +36,14 @@
         </v-row>
       </v-col>
     </v-row>
+    <v-row class="mt-4">
+      <v-col>
+        <AbilitiesSlots
+          @ability-drop="(p) => $emit('ability-drop', p)"
+          @ability-click="(i) => $emit('ability-click', i)"
+        />
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
@@ -42,6 +53,8 @@ import { useAbilityStore } from "@/stores/abilityStore";
 import { useUserStore } from "@/stores/userStore";
 import VesselMini from "@/components/ability/VesselMini.vue";
 import AbilityMockup from "@/components/ability/AbilityMockup.vue";
+import AbilitiesSlots from "@/components/abilities/AbilitiesSlots.vue";
+defineEmits(['ability-drop', 'ability-click']);
 
 const abilityStore = useAbilityStore();
 const userStore = useUserStore();
