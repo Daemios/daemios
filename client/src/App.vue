@@ -59,7 +59,12 @@ function keybindEnable() {
 }
 
 function setupKeybinds() {
-  const actions = createKeybindActions({ dialogs, arenaStore, chatStore, user });
+  const actions = createKeybindActions({
+    dialogs,
+    arenaStore,
+    chatStore,
+    user,
+  });
   // Register actions from config and wire to central actions
   keybindsConfig.forEach((entry) => {
     const handler = () => {

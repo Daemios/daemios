@@ -1,8 +1,6 @@
 <template>
   <div>
-    <div class="text-h6 mb-4">
-      Keybinds
-    </div>
+    <div class="text-h6 mb-4">Keybinds</div>
     <v-row>
       <v-col cols="12">
         <v-expansion-panels v-model="expanded" multiple>
@@ -76,9 +74,13 @@ import keybindsConfig from "@/config/keybindsConfig";
 const categories = keybindsConfig.reduce((acc, entry) => {
   // infer category by a simple rule: ids with move* -> movement else interface
   const catKey = entry.id.startsWith("move") ? "movement" : "interface";
-  let cat = acc.find(c => c.key === catKey);
+  let cat = acc.find((c) => c.key === catKey);
   if (!cat) {
-    cat = { key: catKey, title: catKey === "movement" ? "Movement" : "Interface", bindings: [] };
+    cat = {
+      key: catKey,
+      title: catKey === "movement" ? "Movement" : "Interface",
+      bindings: [],
+    };
     acc.push(cat);
   }
   cat.bindings.push({ id: entry.id, label: entry.label });
