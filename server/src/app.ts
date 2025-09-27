@@ -7,14 +7,14 @@ import expressSession from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';
 
 import openRouter from './routes/open';
-import userRouter from './routes/user';
-import dataRouter from './routes/data';
-import inventoryRouter from './routes/inventory';
-import abilityRouter from './routes/ability';
-import arenaRouter from './routes/arena';
-import worldRouter from './routes/world';
-import dmRouter from './routes/dm';
-import equipmentRouter from './routes/equipment';
+import { userRouter } from './modules/user';
+import { dataRouter } from './modules/data';
+import { inventoryRouter } from './modules/inventory';
+import { abilityRouter } from './modules/ability';
+import { arenaRouter } from './modules/arena';
+import { worldRouter } from './modules/world';
+import { dmRouter } from './modules/dm';
+import { equipmentRouter } from './modules/equipment';
 
 import initializePassport from './passport-config';
 import { isAuth } from './middlewares/user';
