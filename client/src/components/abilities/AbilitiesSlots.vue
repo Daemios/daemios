@@ -1,12 +1,13 @@
 <template>
   <div class="abilities-root d-flex">
     <SlotCell
-      v-for="s in slots"
+      v-for="s in resolvedSlots"
       :key="s.id"
       :slot-id="s.id"
       type="ability"
       :item="s.item"
       :label="s.label"
+      :source="s.source || null"
       @dropped="onDropped"
       @click="onClick"
     />
@@ -15,16 +16,28 @@
 
 <script setup>
 import SlotCell from "@/components/shared/SlotCell.vue";
-import { reactive } from "vue";
+import { computed } from "vue";
+
+const props = defineProps({
+  slots: {
+    type: Array,
+    default: () => [],
+  },
+});
 
 const emit = defineEmits(["ability-drop", "ability-click"]);
 
-// simple local placeholder for three ability slots; parent can pass real data
-const slots = reactive([
-  { id: "ability1", label: "Ability 1", item: null },
-  { id: "ability2", label: "Ability 2", item: null },
-  { id: "ability3", label: "Ability 3", item: null },
-]);
+const resolvedSlots = computed(() => {
+  if (Array.isArray(props.slots) && props.slots.length > 0) return props.slots;
+  return [
+    {
+      id: "ability",
+      label: "Ability Slot",
+      item: null,
+      source: null,
+    },
+  ];
+});
 
 function onDropped(payload) {
   emit("ability-drop", payload);
