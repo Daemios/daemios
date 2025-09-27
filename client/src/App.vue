@@ -35,6 +35,9 @@ import { useSocketStore } from "@/stores/socketStore";
 import { useUserStore } from "@/stores/userStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useArenaStore } from "@/stores/arenaStore";
+import { keybinds } from "@/utils/keybinds";
+import keybindsConfig from "@/config/keybindsConfig";
+import createKeybindActions from "@/utils/keybindActions";
 
 const dialogs = useDialogsStore();
 const socket = useSocketStore();
@@ -45,38 +48,6 @@ const arenaStore = useArenaStore();
 const keybindsEnabled = ref(true);
 let ws = null;
 
-function handleKeypress(event) {
-  if (!keybindsEnabled.value) return;
-  switch (event.code) {
-    case "Escape":
-      if (
-        dialogs.isEquipmentOpen ||
-        dialogs.isInventoryOpen ||
-        dialogs.isAbilitiesOpen ||
-        dialogs.isSettingsOpen
-      ) {
-        dialogs.closeEquipment();
-        dialogs.closeInventory();
-        dialogs.closeAbilities();
-        dialogs.closeSettings();
-      } else {
-        dialogs.toggleSettings();
-      }
-      break;
-    case "KeyC":
-      dialogs.toggleCharacter();
-      break;
-    case "KeyA":
-      dialogs.toggleCharacter();
-      break;
-    case "KeyI":
-      dialogs.toggleCharacter();
-      break;
-    default:
-      break;
-  }
-}
-
 function keybindDisable(event) {
   if (event.target.tagName.toUpperCase() === "INPUT") {
     keybindsEnabled.value = false;
@@ -85,6 +56,26 @@ function keybindDisable(event) {
 
 function keybindEnable() {
   keybindsEnabled.value = true;
+}
+
+function setupKeybinds() {
+  const actions = createKeybindActions({ dialogs, arenaStore, chatStore, user });
+  // Register actions from config and wire to central actions
+  keybindsConfig.forEach((entry) => {
+    const handler = () => {
+      if (!keybindsEnabled.value) return;
+      const fn = actions[entry.id];
+      if (fn) fn();
+    };
+
+    keybinds.registerAction(entry.id, {
+      handler,
+      label: entry.label,
+      defaultCombo: entry.defaultCombo,
+    });
+  });
+
+  keybinds.start();
 }
 
 function connect() {
@@ -130,7 +121,7 @@ const route = useRoute();
 
 onMounted(() => {
   connect();
-  document.addEventListener("keyup", handleKeypress);
+  setupKeybinds();
   document.addEventListener("focusin", keybindDisable);
   document.addEventListener("focusout", keybindEnable);
 
@@ -146,7 +137,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener("keyup", handleKeypress);
+  keybinds.stop();
   document.removeEventListener("focusin", keybindDisable);
   document.removeEventListener("focusout", keybindEnable);
 });
