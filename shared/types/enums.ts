@@ -29,3 +29,7 @@ export type EquipmentSlot = (typeof EquipmentSlot)[number];
 export const WorldLocationTypes = ['TOWN', 'DUNGEON', 'QUEST'] as const;
 
 export type WorldLocationType = (typeof WorldLocationTypes)[number];
+
+export const ItemTypes = ['LIQUID', 'CONSUMABLE', 'FOOD', 'WEAPON', 'ARMOR', 'CONTAINER', 'PACK', 'GENERIC'] as const;
+
+export type ItemType = (typeof ItemTypes)[number];
