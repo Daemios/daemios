@@ -1,6 +1,5 @@
 import app from './app';
-import { createServer } from 'http';
-import createWSServer from './lib/socket';
+import './lib/socket';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
