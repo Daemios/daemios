@@ -8,6 +8,7 @@
         :class="{
           highlighted: slot.containerId === highlightedContainerId,
           'pack-slot': slot.isPack,
+          'pack-highlight': slot.isPack && packDragActive,
         }"
         @click="() => $emit('click-item', slot.item)"
         @dragover.prevent
@@ -46,7 +47,8 @@
 
 <script setup>
 import DraggableItem from "@/components/inventory/DraggableItem.vue";
-import { computed } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount } from "vue";
+import dragEventBus from "@/lib/dragEventBus";
 // Import the whole mdi namespace and pick the exact exported names that exist
 import * as mdi from "@mdi/js";
 
@@ -65,6 +67,35 @@ const props = defineProps({
   },
 });
 
+// Track when a dragged item that is a pack is active (for highlighting pack cell)
+const packDragActive = ref(false);
+
+function onGlobalDragStart(payload) {
+  try {
+    const eq = payload?.item?.equipmentSlot;
+    packDragActive.value = Array.isArray(eq)
+      ? eq.includes("pack")
+      : typeof eq === "string"
+      ? eq === "pack"
+      : false;
+  } catch (err) {
+    // swallow - defensive
+  }
+}
+
+function onGlobalDragEnd() {
+  packDragActive.value = false;
+}
+
+onMounted(() => {
+  dragEventBus.on("drag-start", onGlobalDragStart);
+  dragEventBus.on("drag-end", onGlobalDragEnd);
+});
+
+onBeforeUnmount(() => {
+  dragEventBus.off("drag-start", onGlobalDragStart);
+  dragEventBus.off("drag-end", onGlobalDragEnd);
+});
 // Build a unified slots array combining containers in order. Each slot
 // includes: globalIndex, containerId, localIndex, and item (or null).
 const slots = computed(() => {
@@ -239,6 +270,12 @@ function onDrop(e, slot) {
   grid-row: span 2;
   min-height: 104px;
   transition: all 160ms ease-in-out;
+}
+
+/* Blue inner glow when dragging a pack over the special pack cell */
+.inventory-slot.pack-highlight {
+  box-shadow: inset 0 0 0 3px rgba(33, 150, 243, 0.85);
+  background: rgba(33, 150, 243, 0.06);
 }
 
 @media (max-width: 640px) {

@@ -85,10 +85,10 @@ function onGlobalDragStart(payload) {
       // if equipmentSlot is present but doesn't match, do not highlight
       return;
     }
-    // fallback: if no explicit equipmentSlot provided on item, use heuristic
-    if (allowedForSlot(item, slotId.value)) {
-      isDragHighlighted.value = true;
-    }
+    // Do NOT fallback to heuristics here. If equipmentSlot is absent, we don't
+    // consider the item equipable for highlighting — equipmentSlot is authoritative.
+    // This prevents items like vials (liquids) from highlighting.
+    return;
   } catch (err) {
     // ignore
   }
