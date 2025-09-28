@@ -1,10 +1,17 @@
 import { Router } from 'express';
-import { getInventory, postMove, postAction } from './inventory.controller';
+import { createInventoryController, InventoryControllerDependencies } from './inventory.controller';
 
-const router = Router();
+export type InventoryRouterDependencies = InventoryControllerDependencies;
 
-router.get('/', getInventory);
-router.post('/move', postMove);
-router.post('/action', postAction);
+export function createInventoryRouter(deps: InventoryRouterDependencies) {
+  const router = Router();
+  const controller = createInventoryController(deps);
 
-export default router;
+  router.get('/', controller.getInventory);
+  router.post('/move', controller.postMove);
+  router.post('/action', controller.postAction);
+
+  return router;
+}
+
+export default createInventoryRouter;

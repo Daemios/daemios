@@ -1,3 +1,4 @@
-export { characterService, buildCharacterWithEquipment } from './character.service';
-export { characterController } from './character.controller';
-export { characterRouter } from './character.routes';
+export { createCharacterApplicationService, CharacterApplicationService } from './application/character.service';
+export { PrismaCharacterRepository } from './infrastructure/prisma/character.repository';
+export { createCharacterController } from './character.controller';
+export { createCharacterRouter } from './character.routes';

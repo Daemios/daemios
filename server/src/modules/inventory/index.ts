@@ -1,3 +1,4 @@
-export { default as inventoryRouter } from './inventory.routes';
-export * from './inventory.service';
-export * from './inventory.controller';
+export { createInventoryApplicationService, InventoryApplicationService } from './application/inventory.service';
+export { PrismaInventoryRepository } from './infrastructure/prisma/inventory.repository';
+export { createInventoryController } from './inventory.controller';
+export { createInventoryRouter } from './inventory.routes';

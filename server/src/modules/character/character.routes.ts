@@ -1,13 +1,20 @@
 import { Router } from 'express';
-import { characterController } from './character.controller';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createCharacterController, CharacterControllerDependencies } from './character.controller';
 
-export const characterRouter = Router();
+export type CharacterRouterDependencies = CharacterControllerDependencies;
 
-characterRouter.post('/logout', asyncHandler(characterController.logout));
-characterRouter.get('/refresh', asyncHandler(characterController.refresh));
-characterRouter.post('/character/select', asyncHandler(characterController.selectCharacter));
-characterRouter.post('/character/create', asyncHandler(characterController.createCharacter));
-characterRouter.get('/characters', asyncHandler(characterController.listCharacters));
+export function createCharacterRouter(deps: CharacterRouterDependencies) {
+  const router = Router();
+  const controller = createCharacterController(deps);
 
-export default characterRouter;
+  router.post('/logout', asyncHandler(controller.logout));
+  router.get('/refresh', asyncHandler(controller.refresh));
+  router.post('/character/select', asyncHandler(controller.selectCharacter));
+  router.post('/character/create', asyncHandler(controller.createCharacter));
+  router.get('/characters', asyncHandler(controller.listCharacters));
+
+  return router;
+}
+
+export default createCharacterRouter;

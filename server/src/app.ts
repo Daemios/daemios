@@ -9,12 +9,11 @@ import { PrismaSessionStore } from '@quixo3/prisma-session-store';
 import openRouter from './routes/open';
 import { userRouter } from './modules/user';
 import { dataRouter } from './modules/data';
-import { inventoryRouter } from './modules/inventory';
 import { abilityRouter } from './modules/ability';
 import { arenaRouter } from './modules/arena';
 import { worldRouter } from './modules/world';
 import { dmRouter } from './modules/dm';
-import { equipmentRouter } from './modules/equipment';
+import { appContainer } from './container';
 
 import initializePassport from './passport-config';
 import { isAuth } from './middlewares/user';
@@ -55,12 +54,12 @@ app.use(isAuth);
 
 app.use('/user', userRouter);
 app.use('/data', dataRouter);
-app.use('/inventory', inventoryRouter);
+app.use('/inventory', appContainer.routers.inventoryRouter);
 app.use('/ability', abilityRouter);
 app.use('/arena', arenaRouter);
 app.use('/world', worldRouter);
 app.use('/dm', dmRouter);
-app.use('/character', equipmentRouter);
+app.use('/character', appContainer.routers.characterRouter);
 
 app.get('/_health', (_req, res) => res.json({ ok: true }));
 

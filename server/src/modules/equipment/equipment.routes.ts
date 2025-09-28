@@ -1,10 +1,17 @@
 import { Router } from 'express';
-import { postEquip, postUnequip, getList } from './equipment.controller';
+import { createEquipmentController, EquipmentControllerDependencies } from './equipment.controller';
 
-const router = Router();
+export type EquipmentRouterDependencies = EquipmentControllerDependencies;
 
-router.post('/equip', postEquip);
-router.post('/unequip', postUnequip);
-router.get('/', getList);
+export function createEquipmentRouter(deps: EquipmentRouterDependencies) {
+  const router = Router();
+  const controller = createEquipmentController(deps);
 
-export default router;
+  router.post('/equip', controller.postEquip);
+  router.post('/unequip', controller.postUnequip);
+  router.get('/', controller.getList);
+
+  return router;
+}
+
+export default createEquipmentRouter;
