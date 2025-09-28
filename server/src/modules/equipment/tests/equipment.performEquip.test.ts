@@ -5,6 +5,7 @@ const mockTx: any = {
   equipment: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
   },
@@ -27,11 +28,11 @@ const mockTx: any = {
 const mockPrisma: any = {
   character: { findUnique: vi.fn() },
   item: { findUnique: vi.fn() },
-  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
-  equipment: { findMany: vi.fn() },
-  $transaction: vi.fn(async (cb: any) => cb(mockTx)),
+  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
+  equipment: { findMany: vi.fn(), findUnique: vi.fn() },
   // the top-level container findFirst should also be available
   // container.findFirst will be stubbed per-test as needed
+  $transaction: vi.fn(async (cb: any) => { return await cb(mockTx); }),
 };
 
 vi.mock('../../../db/prisma', () => ({ prisma: mockPrisma }));
@@ -39,6 +40,8 @@ vi.mock('../../../db/prisma', () => ({ prisma: mockPrisma }));
 describe('performEquipForCharacter - container equip flow', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Re-bind transaction mock after resetting mocks
+    mockPrisma.$transaction = vi.fn(async (cb: any) => { return await cb(mockTx); });
   });
 
   it('equips a container item, updates capacity and returns annotated payload', async () => {
@@ -61,10 +64,13 @@ describe('performEquipForCharacter - container equip flow', () => {
     mockTx.equipment.findFirst.mockResolvedValue(null);
     mockTx.equipment.upsert.mockResolvedValue({ id: 11, characterId, slot: 'PACK', itemId });
     mockTx.item.update.mockResolvedValue({ id: itemId, containerId: null, containerIndex: null });
+  // tx-level final reads should return the post-transaction state
+  mockTx.equipment.findMany.mockResolvedValue([{ id: 11, characterId, slot: 'PACK', itemId, Item: { id: itemId } }]);
+  mockTx.container.findMany.mockResolvedValue([{ id: containerId, name: 'Pack', containerType: 'PACK', items: [] }]);
 
-    // After tx: prisma.equipment.findMany and prisma.container.findMany return values
-    mockPrisma.equipment.findMany.mockResolvedValue([{ id: 11, characterId, slot: 'PACK', itemId, Item: { id: itemId } }]);
-    mockPrisma.container.findMany.mockResolvedValue([{ id: containerId, name: 'Pack', containerType: 'PACK', items: [] }]);
+  // After tx: prisma.* readers should return the same post-transaction values
+  mockPrisma.equipment.findMany.mockResolvedValue([{ id: 11, characterId, slot: 'PACK', itemId, Item: { id: itemId } }]);
+  mockPrisma.container.findMany.mockResolvedValue([{ id: containerId, name: 'Pack', containerType: 'PACK', items: [] }]);
     // final check for linked container
     mockPrisma.container.findFirst.mockResolvedValueOnce({ id: containerId, itemId }).mockResolvedValueOnce({ id: containerId, itemId });
 

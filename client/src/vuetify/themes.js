@@ -7,10 +7,10 @@ export default {
       colors: {
         primary: "#ffffffff",
         secondary: "#7a7a7a6c",
-        tertiary: "#292929ff",
+        tertiary: "#1f1e1eff",
 
         surface: "#121212ff",
-        "surface-variant": "#1E1E1Eff",
+        "surface-variant": "#161616ff",
 
         // Entity colors tuned for fantasy readability
         enemy: "#B33A3A",

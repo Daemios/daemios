@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Shared prisma mock shape used across equipment tests
 const mockTx: any = {
-  equipment: { findUnique: vi.fn(), findFirst: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  equipment: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
   item: { findUnique: vi.fn(), update: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   container: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), create: vi.fn(), findMany: vi.fn() },
 };
@@ -10,8 +10,8 @@ const mockTx: any = {
 const mockPrisma: any = {
   character: { findUnique: vi.fn() },
   item: { findUnique: vi.fn() },
-  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
-  equipment: { findMany: vi.fn() },
+  container: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
+  equipment: { findMany: vi.fn(), findUnique: vi.fn() },
   $transaction: vi.fn(async (cb: any) => cb(mockTx)),
 };
 
@@ -20,6 +20,8 @@ vi.mock('../../../db/prisma', () => ({ prisma: mockPrisma }));
 describe('performEquipForCharacter - relocation and pockets edge cases', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Re-bind transaction mock after resetting mocks so tx functions are present
+    mockPrisma.$transaction = vi.fn(async (cb: any) => { return await cb(mockTx); });
     // safe defaults
     mockTx.equipment.findUnique.mockResolvedValue(null);
     mockTx.equipment.findFirst.mockResolvedValue(null);
@@ -52,7 +54,10 @@ describe('performEquipForCharacter - relocation and pockets edge cases', () => {
 
     mockPrisma.character.findUnique.mockResolvedValue({ id: characterId });
     // equip target item (non-container) so oldItem will be processed
-    mockPrisma.item.findUnique.mockResolvedValue({ id: 500, characterId, isContainer: false, equipmentSlot: 'HAND' });
+    // Pre-tx lookup: item exists and belongs to character; post-tx lookup
+    // should show containerId cleared. Provide two sequential responses.
+    mockPrisma.item.findUnique.mockResolvedValueOnce({ id: 500, characterId, isContainer: false, equipmentSlot: 'HAND', containerId: 77 })
+      .mockResolvedValueOnce({ id: 500, characterId, isContainer: false, equipmentSlot: 'HAND', containerId: null });
 
     // inside transaction: there is an oldItem which is a container and represented by a PACK container
     mockTx.equipment.findUnique.mockResolvedValue(null);
@@ -88,9 +93,13 @@ describe('performEquipForCharacter - relocation and pockets edge cases', () => {
     // Ensure upsert and updates resolve
     mockTx.equipment.upsert.mockResolvedValue({ id: 99, characterId, slot: 'HAND', itemId: 500 });
     mockTx.item.update.mockResolvedValue({ id: oldItemId });
+  // tx-level final reads
+  mockTx.equipment.findMany.mockResolvedValue([{ id: 99, characterId, slot: 'HAND', itemId: 500, Item: { id: 500 } }]);
+  mockTx.container.findMany.mockResolvedValue([{ id: representedContainerId, itemId: oldItemId, items: [{ id: oldItemId }, { id: 777 }] }, { id: pocketsId, name: 'Pockets', items: [{ containerIndex: 0 }] }]);
 
-    mockPrisma.equipment.findMany.mockResolvedValue([{ id: 99, characterId, slot: 'HAND', itemId: 500, Item: { id: 500 } }]);
-    mockPrisma.container.findMany.mockResolvedValue([{ id: representedContainerId, itemId: oldItemId, items: [{ id: oldItemId }, { id: 777 }] }, { id: pocketsId, name: 'Pockets', items: [{ containerIndex: 0 }] }]);
+  // after tx readers
+  mockPrisma.equipment.findMany.mockResolvedValue([{ id: 99, characterId, slot: 'HAND', itemId: 500, Item: { id: 500 } }]);
+  mockPrisma.container.findMany.mockResolvedValue([{ id: representedContainerId, itemId: oldItemId, items: [{ id: oldItemId }, { id: 777 }] }, { id: pocketsId, name: 'Pockets', items: [{ containerIndex: 0 }] }]);
 
     const svc = await import('../equipment.service');
     const res = await svc.performEquipForCharacter(characterId, 500, 'HAND');
@@ -161,6 +170,9 @@ describe('performEquipForCharacter - relocation and pockets edge cases', () => {
     mockTx.equipment.upsert.mockResolvedValue({ id: 333, characterId, slot: 'HAND', itemId });
 
     mockPrisma.equipment.findMany.mockResolvedValue([{ id: 333, characterId, slot: 'HAND', itemId, Item: { id: itemId } }]);
+  // tx-level final reads for this case
+  mockTx.equipment.findMany.mockResolvedValue([{ id: 333, characterId, slot: 'HAND', itemId, Item: { id: itemId } }]);
+  mockTx.container.findMany.mockResolvedValue([]);
 
     const svc = await import('../equipment.service');
     const res = await svc.performEquipForCharacter(characterId, itemId, 'HAND');
