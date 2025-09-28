@@ -1,5 +1,4 @@
 import { prisma } from '../../db/prisma';
-import { characterService } from '../character/character.service';
 import { validateMovePayload, ensureValidTargetIndex, DomainError } from './inventory.domain';
 import * as equipmentService from '../equipment/equipment.service';
 
@@ -15,11 +14,13 @@ export async function fetchContainersWithItems(characterId: number) {
 
 export function mapItemForClient(it: any) {
   if (!it) return null;
+  // TODO(cleanup): consolidate with character.module mapItemForClient to avoid diverging payloads.
   return { ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null, itemType: it.itemType ? String(it.itemType) : null };
 }
 
 export function iconForContainerType(type: any) {
   const t = String(type || 'BASIC').toUpperCase();
+  // TODO(cleanup): share this mapping with equipment.domain to keep icon logic centralized.
   switch (t) {
     case 'LIQUID': return 'water';
     case 'CONSUMABLES': return 'food-apple';

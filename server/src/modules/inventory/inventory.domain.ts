@@ -29,34 +29,4 @@ export function ensureValidTargetIndex(tgt: any) {
   if (!Number.isInteger(tgt.localIndex) || tgt.localIndex < 0) throw new DomainError('INVALID_TARGET_INDEX', 'Invalid target index');
 }
 
-// Domain helper: find item occupying a container slot
-export async function findContainerSlot(tx: any, containerId: number, index: number) {
-  return tx.item.findFirst({ where: { containerId, containerIndex: index } });
-}
 
-// Domain helper: set an item's container position
-export async function setItemContainerPosition(tx: any, itemId: number, containerId: number | null, index: number | null) {
-  return tx.item.update({ where: { id: itemId }, data: { containerId: containerId ?? null, containerIndex: index ?? null } });
-}
-
-// Domain helper: clear a container index and optionally shift items - minimal behavior: just null the slot
-export async function clearContainerIndexAndShiftIfNeeded(tx: any, containerId: number, index: number) {
-  const occupying = await tx.item.findFirst({ where: { containerId, containerIndex: index } });
-  if (occupying) {
-    await tx.item.update({ where: { id: occupying.id }, data: { containerId: null, containerIndex: null } });
-  }
-  return true;
-}
-
-// Domain helper: compact container indices to remove gaps (naive implementation)
-export async function compactContainerIndices(tx: any, containerId: number) {
-  const items = await tx.item.findMany({ where: { containerId }, orderBy: { containerIndex: 'asc' } });
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    if (it.containerIndex !== i) {
-      // eslint-disable-next-line no-await-in-loop
-      await tx.item.update({ where: { id: it.id }, data: { containerIndex: i } });
-    }
-  }
-  return true;
-}
