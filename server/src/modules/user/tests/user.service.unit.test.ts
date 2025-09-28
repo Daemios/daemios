@@ -36,14 +36,7 @@ describe('user.service unit', () => {
 
   it('createUser rejects when domain validation fails', async () => {
     vi.spyOn(repo.userRepository, 'findByEmail').mockResolvedValue(null as any);
-    try {
-      await userService.createUser('not-an-email', 'secret', 'AB');
-      throw new Error('expected createUser to throw');
-    } catch (err: any) {
-      expect(err).toBeInstanceOf(DomainError);
-      expect(err.code).toBe('INVALID_EMAIL');
-      expect(err.message).toBe('Email is invalid');
-    }
+    await expect(userService.createUser('not-an-email', 'secret', 'AB')).rejects.toEqual(new DomainError('INVALID_EMAIL', 'Email is invalid'));
   });
 
   it('createUser calls repository.create with normalized email and hashed password', async () => {

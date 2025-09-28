@@ -7,7 +7,6 @@ export async function fetchContainersWithItems(characterId: number) {
     return prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
   } catch (err: any) {
     if (err && err.code === 'P2022') {
-      console.warn('fetchContainersWithItems: schema mismatch, falling back to basic container fetch');
       return prisma.container.findMany({ where: { characterId } });
     }
     throw err;

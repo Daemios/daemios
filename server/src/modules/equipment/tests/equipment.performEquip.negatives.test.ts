@@ -96,14 +96,7 @@ describe('performEquipForCharacter negative flows', () => {
     // containerIsDescendantOfItem will call tx.container.findUnique and see itemId === oldItem.id, so we simulate that by having findUnique return itemId equal to oldItem id
 
     const svc = await import('../equipment.service');
-    try {
-      await svc.performEquipForCharacter(1, 80, 'PACK');
-      throw new Error('expected throw');
-    } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.log('CANNOT_PLACE_CONTAINER_IN_SELF error ->', err && err.stack ? err.stack : err);
-      expect(err).toHaveProperty('code', 'CANNOT_PLACE_CONTAINER_IN_SELF');
-    }
+    await expect(svc.performEquipForCharacter(1, 80, 'PACK')).rejects.toHaveProperty('code', 'CANNOT_PLACE_CONTAINER_IN_SELF');
   });
 
   // Removed: POCKETS_FULL negative test (deleted per request)
