@@ -9,10 +9,7 @@
             cols="3"
             class="d-flex flex-column align-center"
           >
-            <v-btn
-              class="ability-item ma-1"
-              dense
-            >
+            <v-btn class="ability-item ma-1" dense>
               <div
                 class="ability-item-inner d-flex align-center justify-center"
                 style="position: relative"
@@ -80,7 +77,8 @@ const abilitySlots = computed(() => {
   return [
     {
       id: "ability",
-      label: item && (item.label || item.name) ? item.label || item.name : "Ability",
+      label:
+        item && (item.label || item.name) ? item.label || item.name : "Ability",
       item,
       source:
         item && item.id != null
@@ -141,7 +139,8 @@ function applyEquipmentResponse(res, fallbackItem) {
       capacityUpdated: res.capacityUpdated,
       updatedContainerIds: res.updatedContainerIds,
     });
-    if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+    if (Array.isArray(res.nestableContainers))
+      userStore.nestableInventory = res.nestableContainers;
   } else {
     userStore.setCharacter(updated);
   }

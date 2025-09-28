@@ -49,16 +49,17 @@
             <div class="nestable-area d-flex align-center">
               <div
                 class="nestable-cells"
-                style="flex:1; display:flex; gap:8px; align-items:center;"
+                style="flex: 1; display: flex; gap: 8px; align-items: center"
               >
                 <template
                   v-for="(n, idx) in nestableItems"
-                  :key="n && n.container && n.container.id ? String(n.container.id) : idx"
+                  :key="
+                    n && n.container && n.container.id
+                      ? String(n.container.id)
+                      : idx
+                  "
                 >
-                  <div
-                    class="nestable-item"
-                    style="width:64px; height:64px;"
-                  >
+                  <div class="nestable-item" style="width: 64px; height: 64px">
                     <DraggableItem
                       :item="n.item"
                       :label="n.item && (n.item.label || n.item.name)"
@@ -72,7 +73,7 @@
               <div
                 v-if="packContainer"
                 class="pack-area pack-at-bottom"
-                style="margin-left:1rem"
+                style="margin-left: 1rem"
               >
                 <div
                   :class="[
@@ -101,24 +102,13 @@
     </div>
 
     <div v-else>
-      <div class="no-containers">
-        No containers equipped
-      </div>
+      <div class="no-containers">No containers equipped</div>
     </div>
 
-    <v-snackbar
-      v-model="errorVisible"
-      color="error"
-      timeout="6000"
-    >
+    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
       {{ errorMsg }}
       <template #action>
-        <v-btn
-          text
-          @click="() => (errorVisible = false)"
-        >
-          Close
-        </v-btn>
+        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -136,7 +126,13 @@ import api from "@/utils/api.js";
 const userStore = useUserStore();
 const { inventory, character } = storeToRefs(userStore);
 
-const packItem = computed(() => (character.value && character.value.equipped && character.value.equipped.pack) || null);
+const packItem = computed(
+  () =>
+    (character.value &&
+      character.value.equipped &&
+      character.value.equipped.pack) ||
+    null
+);
 
 // nestable containers returned by server or derived from inventory
 const nestable = computed(() => {
@@ -160,7 +156,9 @@ const nestableItems = computed(() => {
       if (c && c.itemId != null) {
         for (const cont of inv) {
           if (!cont || !Array.isArray(cont.items)) continue;
-          const found = cont.items.find((it) => String(it.id) === String(c.itemId));
+          const found = cont.items.find(
+            (it) => String(it.id) === String(c.itemId)
+          );
           if (found) {
             rep = found;
             source = { containerId: cont.id, localIndex: found.containerIndex };
@@ -172,7 +170,10 @@ const nestableItems = computed(() => {
         rep = c.items[0];
         source = { containerId: c.id, localIndex: rep.containerIndex || 0 };
       }
-      const mapped = typeof userStore.mapItemForClient === "function" ? userStore.mapItemForClient(rep) : rep;
+      const mapped =
+        typeof userStore.mapItemForClient === "function"
+          ? userStore.mapItemForClient(rep)
+          : rep;
       return { container: c, item: mapped, source };
     });
   } catch (e) {
@@ -251,12 +252,18 @@ const containersForGrid = computed(() => {
     });
 
     // Build a set of item ids that are represented in the lower nestable row
-    const nestableIds = new Set((nestableItems.value || []).map((n) => (n && n.item && n.item.id ? String(n.item.id) : null)).filter((v) => v != null));
+    const nestableIds = new Set(
+      (nestableItems.value || [])
+        .map((n) => (n && n.item && n.item.id ? String(n.item.id) : null))
+        .filter((v) => v != null)
+    );
 
     // Remove any items from transformed containers that are shown in the nestable row
     const transformedFiltered = transformed.map((c) => {
       if (!c || !Array.isArray(c.items)) return c;
-      const items = c.items.filter((it) => !nestableIds.has(String(it && it.id)));
+      const items = c.items.filter(
+        (it) => !nestableIds.has(String(it && it.id))
+      );
       return { ...c, items };
     });
 
@@ -264,14 +271,17 @@ const containersForGrid = computed(() => {
     const nestables = Array.isArray(nestable.value) ? nestable.value : [];
     for (const nc of nestables) {
       if (!nc) continue;
-      const exists = transformedFiltered.some((c) => c && String(c.id) === String(nc.id));
+      const exists = transformedFiltered.some(
+        (c) => c && String(c.id) === String(nc.id)
+      );
       if (!exists) {
         transformedFiltered.push(nc);
       }
     }
     // If pack wasn't present in the transformed list, include it and mark hiddenFirstCell
     const hasPackInTransformed = transformedFiltered.some(
-      (c) => c && (String(c.id) === packId || String(c.itemId || "") === packItemId)
+      (c) =>
+        c && (String(c.id) === packId || String(c.itemId || "") === packItemId)
     );
     if (!hasPackInTransformed && packContainer.value) {
       const c = packContainer.value;
@@ -403,7 +413,8 @@ async function onDropToPack(e) {
       });
       if (res && res.containers) {
         userStore.setInventory(res.containers);
-        if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+        if (Array.isArray(res.nestableContainers))
+          userStore.nestableInventory = res.nestableContainers;
       } else if (userStore && userStore.ensureInventory) {
         await userStore.ensureInventory(true);
       }
@@ -430,7 +441,8 @@ async function onDropToPack(e) {
       if (res && res.character) userStore.setCharacter(res.character);
       if (res && res.containers) {
         userStore.setInventory(res.containers);
-        if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+        if (Array.isArray(res.nestableContainers))
+          userStore.nestableInventory = res.nestableContainers;
       }
     } catch (err) {
       console.error("Failed to equip pack", err);
@@ -542,8 +554,9 @@ async function onMoveItem(payload) {
 
     const res = await api.post("/inventory/move", postPayload);
     if (res && res.containers) {
-  userStore.setInventory(res.containers);
-  if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+      userStore.setInventory(res.containers);
+      if (Array.isArray(res.nestableContainers))
+        userStore.nestableInventory = res.nestableContainers;
     }
     // if server returned authoritative equipment rows, sync the paper-doll
     if (res && res.equipment) {
