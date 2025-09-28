@@ -52,10 +52,35 @@ describe('character.service', () => {
     expect(result.equipped.pocket.label).toBe('Pockets');
   });
 
+  it('buildCharacterWithEquipment maps actual pockets item when present', async () => {
+    const char = { id: 25, name: 'Rogue' } as any;
+    const pocketItem = { id: 401, name: 'Handkerchief', image: '/img/hankie.png' };
+    (prisma.equipment.findMany as any) = vi.fn().mockResolvedValue([]);
+    (prisma.container.findFirst as any) = vi.fn().mockResolvedValue({ id: 55, name: 'Pockets', itemId: pocketItem.id, capacity: 2 });
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValue(pocketItem);
+    const result = await buildCharacterWithEquipment(char);
+    expect(result.equipped.pocket).toEqual(expect.objectContaining({ id: pocketItem.id, label: pocketItem.name, img: pocketItem.image }));
+  });
+
+  it('buildCharacterWithEquipment sets pocket to null when container missing', async () => {
+    const char = { id: 30, name: 'Mage' } as any;
+    (prisma.equipment.findMany as any) = vi.fn().mockResolvedValue([]);
+    (prisma.container.findFirst as any) = vi.fn().mockResolvedValue(null);
+    const result = await buildCharacterWithEquipment(char);
+    expect(result.equipped.pocket).toBeNull();
+  });
+
   it('getContainersForCharacter returns containers with mapped items', async () => {
     (prisma.container.findMany as any) = vi.fn().mockResolvedValue([{ id: 1, containerType: 'POCKETS', items: [{ id: 5, name: 'Coin' }] }]);
     const css = await getContainersForCharacter(1);
     expect(css[0]).toHaveProperty('items');
     expect(css[0].items[0]).toHaveProperty('label');
+  });
+
+  it('getContainersForCharacter applies fallback icon and containerType defaults', async () => {
+    (prisma.container.findMany as any) = vi.fn().mockResolvedValue([{ id: 2, containerType: null, items: [] }]);
+    const css = await getContainersForCharacter(9);
+    expect(css[0].containerType).toBe('BASIC');
+    expect(css[0].icon).toBeNull();
   });
 });
