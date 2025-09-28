@@ -1,9 +1,9 @@
 <template>
   <div
     :class="[
-        'slot',
-        type ? `slot-type-${type}` : '',
-        { 'has-item': !!item, 'is-small': small },
+      'slot',
+      type ? `slot-type-${type}` : '',
+      { 'has-item': !!item, 'is-small': small },
     ]"
     :style="slotStyle"
     @dragover.prevent
@@ -19,21 +19,14 @@
       />
     </template>
     <template v-else>
-      <div
-        class="empty-slot d-flex align-center justify-center"
-        role="button"
-      >
+      <div class="empty-slot d-flex align-center justify-center" role="button">
         <v-icon class="empty-icon">
           {{ icon || mdiClose }}
         </v-icon>
       </div>
     </template>
 
-    <div
-      v-if="isDragHighlighted"
-      class="drag-highlight"
-      aria-hidden="true"
-    />
+    <div v-if="isDragHighlighted" class="drag-highlight" aria-hidden="true" />
   </div>
 </template>
 

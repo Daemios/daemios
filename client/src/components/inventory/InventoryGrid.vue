@@ -10,8 +10,8 @@
           'pack-slot': slot.isPack,
           'pack-highlight': slot.isPack && packDragActive,
         }"
-  @click="() => $emit('click-item', slot.item)"
-  @dragover.prevent
+        @click="() => $emit('click-item', slot.item)"
+        @dragover.prevent
       >
         <!-- container icon is passed into Slot as the 'icon' prop to avoid duplicate icons -->
 
@@ -214,7 +214,6 @@ const slots = computed(() => {
     out.push({ globalIndex: 0, containerId: null, localIndex: 0, item: null });
   return out;
 });
-
 </script>
 
 <style scoped>
