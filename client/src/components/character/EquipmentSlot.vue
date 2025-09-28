@@ -1,24 +1,26 @@
 <template>
-  <div :class="['equipment-slot', { 'doll-left': left, 'doll-right': right }]">
-    <SlotCell
-      :item="safeItem"
-      :label="displayLabel"
-      :slot-id="slotId"
-      type="equipment"
-      :source="
-        safeItem
-          ? { equip: true, slot: slotId, equippedItemId: safeItem.id }
-          : null
-      "
-      @dropped="onSlotDropped"
-      @click="onClick"
-    />
-  </div>
+  <Slot
+    class="equipment-slot"
+    :class="{ 'doll-left': left, 'doll-right': right }"
+    :item="safeItem"
+    :label="displayLabel"
+    :slot-id="slotId"
+    type="equipment"
+    :width="width"
+    :height="height"
+    :source="
+      safeItem
+        ? { equip: true, slot: slotId, equippedItemId: safeItem.id }
+        : null
+    "
+    @dropped="onSlotDropped"
+    @click="onClick"
+  />
 </template>
 
 <script setup>
 import { computed } from "vue";
-import SlotCell from "@/components/shared/SlotCell.vue";
+import Slot from "@/components/shared/Slot.vue";
 import { useUserStore } from "@/stores/userStore";
 import api from "@/utils/api.js";
 
@@ -28,6 +30,9 @@ const props = defineProps({
   slotName: { type: String, default: null },
   left: { type: Boolean, default: false },
   right: { type: Boolean, default: false },
+  // optional sizing forwarded to inner Slot
+  width: { type: [Number, String], default: undefined },
+  height: { type: [Number, String], default: undefined },
 });
 
 const emit = defineEmits(["click", "equip-success", "invalid-drop"]);
@@ -349,22 +354,6 @@ function onClick() {
 </script>
 
 <style scoped>
-.equipment-slot .empty-slot {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  overflow: hidden;
-}
-.equipment-slot .empty-slot .v-icon__svg {
-  width: 60% !important;
-  height: 60% !important;
-  opacity: 0.12;
-}
-.equipment-slot .empty-icon {
-  width: 60%;
-  height: 60%;
-}
-
 /* Blue inner glow when a draggable item is eligible for this slot */
 .equipment-slot.drag-glow {
   /* Legacy highlight removed — visual handled by the .drag-highlight overlay */

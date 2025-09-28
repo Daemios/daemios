@@ -1,6 +1,6 @@
 <template>
   <div class="abilities-root d-flex">
-    <SlotCell
+    <Slot
       v-for="s in resolvedSlots"
       :key="s.id"
       :slot-id="s.id"
@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import SlotCell from "@/components/shared/SlotCell.vue";
+import Slot from "@/components/shared/Slot.vue";
 import { computed } from "vue";
 
 const props = defineProps({

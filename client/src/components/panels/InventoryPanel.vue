@@ -50,6 +50,7 @@
                 <EquipmentSlot
                   slot-name="pack"
                   :item="packItem"
+                  :height="'64px'"
                   @equip-success="onEquipSuccess"
                 />
               </div>
@@ -745,6 +746,20 @@ async function onMoveItem(payload) {
 .bottom-slot.pack-slot {
   grid-column: span 2;
   /* only span horizontally; do not span multiple rows */
+}
+
+/* Cap pack visual height and make its content stretch to avoid growing the row */
+.bottom-slot.pack-slot {
+  max-height: 64px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.bottom-slot.pack-slot > * {
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 640px) {

@@ -14,20 +14,13 @@
         @dragover.prevent
         @drop="onDrop($event, slot)"
       >
-        <div
-          v-if="slot.containerIconSvg"
-          class="slot-icon-bg d-flex align-center justify-center"
-        >
-          <!-- Pass the SVG path (from @mdi/js) as slot content to v-icon so mdi-svg renders it -->
-          <v-icon class="slot-icon d-inline-flex align-center justify-center">
-            {{ slot.containerIconSvg }}
-          </v-icon>
-        </div>
+        <!-- container icon is passed into Slot as the 'icon' prop to avoid duplicate icons -->
 
         <template v-if="slot.isPack">
-          <SlotCell
+          <Slot
             :item="slot.item"
             :label="slot.item && slot.item.name"
+            :icon="slot.containerIconSvg"
             :slot-id="slot.containerId ? String(slot.containerId) : 'pack'"
             type="pack"
             @dropped="
@@ -45,22 +38,32 @@
           />
         </template>
         <template v-else>
-          <div
-            v-if="slot.item"
-            class="slot-item d-flex align-center justify-center"
-          >
-            <DraggableItem
-              :item="slot.item"
-              :label="slot.item.name"
-              :source="{
-                containerId: slot.containerId,
-                localIndex: slot.localIndex,
-              }"
-              :width="'100%'"
-              :height="'100%'"
-            />
-          </div>
-          <div v-else class="slot-empty">&nbsp;</div>
+          <Slot
+            :item="slot.item"
+            :label="slot.item && slot.item.name"
+            :icon="slot.containerIconSvg"
+            :slot-id="
+              slot.containerId
+                ? String(slot.containerId) + '-' + slot.localIndex
+                : String(slot.globalIndex)
+            "
+            :source="{
+              containerId: slot.containerId,
+              localIndex: slot.localIndex,
+            }"
+            @dropped="
+              (p) =>
+                emit('move-item', {
+                  item: p.payload.item,
+                  source: p.payload.source,
+                  target: {
+                    containerId: slot.containerId,
+                    localIndex: slot.localIndex,
+                  },
+                })
+            "
+            @click="() => $emit('click-item', slot.item)"
+          />
         </template>
       </div>
     </div>
@@ -68,8 +71,7 @@
 </template>
 
 <script setup>
-import DraggableItem from "@/components/inventory/DraggableItem.vue";
-import SlotCell from "@/components/shared/SlotCell.vue";
+import Slot from "@/components/shared/Slot.vue";
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import dragEventBus from "@/lib/dragEventBus";
 // Import the whole mdi namespace and pick the exact exported names that exist
@@ -271,11 +273,20 @@ function onDrop(e, slot) {
     inset 0 0 18px rgba(33, 150, 243, 0.35);
   background: rgba(33, 150, 243, 0.06);
 }
-.slot-item img {
+.inventory-slot:not(.pack-slot) .slot-item img {
   max-width: 100%;
   max-height: 36px;
   display: block;
   margin: 0 auto;
+}
+
+/* Pack slot: let the item image fill the entire pack cell */
+.inventory-slot.pack-slot .slot-item img {
+  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .slot-item {
   width: 100%;
@@ -293,14 +304,32 @@ function onDrop(e, slot) {
   opacity: 0.25;
 }
 .inventory-slot.pack-slot {
-  /* larger visual slot: span two grid cells horizontally and vertically
-     reduced size so it doesn't overpower the grid; add responsive rules
-     to collapse to a single cell on small screens */
+  /* Pack occupies two columns horizontally but only one row vertically.
+     Cap the visual height so it doesn't grow taller than normal slots. */
   grid-column: span 2;
-  grid-row: span 2;
-  min-height: 104px;
+  grid-row: span 1;
+  max-height: 64px;
+  min-height: 0;
+  overflow: hidden;
   transition: all 160ms ease-in-out;
 }
+
+/* Make the content of the pack slot stretch to fill the entire 2x cell */
+.inventory-slot.pack-slot {
+  display: flex;
+  justify-content: stretch;
+  align-items: stretch;
+}
+.inventory-slot.pack-slot > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* If the Slot is wrapped in an equipment-slot element (legacy wrapper),
+   force that wrapper to stretch to the full pack cell too. This uses
+   targeted selectors and !important to override utility classes like
+   'd-flex align-center' that may prevent stretching. */
+/* legacy wrapper overrides removed: Slot now constrains its own height */
 
 /* Blue inner glow when dragging a pack over the special pack cell */
 .inventory-slot.pack-highlight {
@@ -313,7 +342,7 @@ function onDrop(e, slot) {
   .inventory-slot.pack-slot {
     grid-column: span 1;
     grid-row: span 1;
-    min-height: 96px;
+    max-height: 64px;
   }
 }
 </style>
