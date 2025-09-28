@@ -2,13 +2,12 @@ import { prisma } from '../../db/prisma';
 import { characterService } from '../character/character.service';
 import { validateMovePayload, ensureValidTargetIndex, DomainError } from './inventory.domain';
 
+// Fetch containers and their items, fall back on P2022 schema mismatch
 export async function fetchContainersWithItems(characterId: number) {
   try {
-    return prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
+    return await prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
   } catch (err: any) {
-    if (err && err.code === 'P2022') {
-      return prisma.container.findMany({ where: { characterId } });
-    }
+    if (err && err.code === 'P2022') return prisma.container.findMany({ where: { characterId } });
     throw err;
   }
 }
@@ -34,12 +33,11 @@ export async function containerIsDescendantOfItem(containerId: number | null, an
   let curr: number | null = containerId as any;
   while (curr) {
     const c = await prisma.container.findUnique({ where: { id: curr }, select: { itemId: true } });
-  if (!c) return false;
-  if (!c.itemId) return false;
-  if (c.itemId === ancestorItemId) return true;
-  const rep = await prisma.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
-  if (!rep) return false;
-  curr = (rep.containerId ?? null) as any;
+    if (!c || !c.itemId) return false;
+    if (c.itemId === ancestorItemId) return true;
+    const rep = await prisma.item.findUnique({ where: { id: c.itemId }, select: { containerId: true } });
+    if (!rep) return false;
+    curr = (rep.containerId ?? null) as any;
   }
   return false;
 }
