@@ -1,6 +1,10 @@
 import { defineStore } from "pinia";
 import api from "@/utils/api";
 import router from "@/router/index.js";
+import {
+  mapContainerForClient,
+  mapContainersForClient,
+} from "@/utils/containerPresentation";
 
 export const useUserStore = defineStore("user", {
   state: () => ({
@@ -67,23 +71,22 @@ export const useUserStore = defineStore("user", {
         label: it.label || it.name || it.displayName || null,
       };
     },
+    mapContainerForClient(container) {
+      return mapContainerForClient(container, this.mapItemForClient);
+    },
+    setNestableInventory(containers) {
+      this.nestableInventory = mapContainersForClient(
+        containers,
+        this.mapItemForClient
+      );
+    },
     setInventory(inventory) {
       if (!Array.isArray(inventory)) {
         this.inventory = inventory || [];
         return;
       }
       // Normalize each container and its items so the UI can rely on label/img
-      const mapped = inventory.map((c) => {
-        const items = Array.isArray(c.items)
-          ? c.items.map((it) => this.mapItemForClient(it))
-          : [];
-        items.sort(
-          (a, b) =>
-            (Number.isInteger(a && a.containerIndex) ? a.containerIndex : 0) -
-            (Number.isInteger(b && b.containerIndex) ? b.containerIndex : 0)
-        );
-        return { ...c, items };
-      });
+      const mapped = mapContainersForClient(inventory, this.mapItemForClient);
       try {
         console.debug(
           "[userStore] setInventory mapped containers",
@@ -118,7 +121,10 @@ export const useUserStore = defineStore("user", {
         ) {
           // Map incoming containers for easy lookup (use string keys to
           // avoid mismatches between number/string ids coming from server)
-          const incoming = (inventory || []).map((c) => ({ ...c }));
+          const incoming = mapContainersForClient(
+            inventory,
+            this.mapItemForClient
+          );
           const incomingById = new Map();
           incoming.forEach((c) => incomingById.set(String(c.id), c));
 
@@ -135,19 +141,7 @@ export const useUserStore = defineStore("user", {
             if (updatedSet.has(key) && incomingById.has(key)) {
               // normalize the server container before inserting
               const srv = incomingById.get(key);
-              const items = Array.isArray(srv.items)
-                ? srv.items.map((it) => this.mapItemForClient(it))
-                : [];
-              items.sort(
-                (a, b) =>
-                  (Number.isInteger(a && a.containerIndex)
-                    ? a.containerIndex
-                    : 0) -
-                  (Number.isInteger(b && b.containerIndex)
-                    ? b.containerIndex
-                    : 0)
-              );
-              return { ...srv, items };
+              return srv ? this.mapContainerForClient(srv) : c;
             }
             return c;
           });
@@ -156,19 +150,8 @@ export const useUserStore = defineStore("user", {
           incoming.forEach((c) => {
             const key = String(c.id);
             if (!existing.find((e) => String(e.id) === key)) {
-              const items = Array.isArray(c.items)
-                ? c.items.map((it) => this.mapItemForClient(it))
-                : [];
-              items.sort(
-                (a, b) =>
-                  (Number.isInteger(a && a.containerIndex)
-                    ? a.containerIndex
-                    : 0) -
-                  (Number.isInteger(b && b.containerIndex)
-                    ? b.containerIndex
-                    : 0)
-              );
-              replaced.push({ ...c, items });
+              const normalized = this.mapContainerForClient(c);
+              replaced.push(normalized || c);
             }
           });
 
@@ -219,7 +202,7 @@ export const useUserStore = defineStore("user", {
           this.setInventory(response.containers || []);
           // optional new groups
           if (Array.isArray(response.nestableContainers))
-            this.nestableInventory = response.nestableContainers;
+            this.setNestableInventory(response.nestableContainers);
           if (Array.isArray(response.equippedContainers)) {
             // replace inventory with equipped containers for canonical equipped view
             // keep legacy behavior of setInventory for main grid

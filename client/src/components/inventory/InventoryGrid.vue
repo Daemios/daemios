@@ -73,6 +73,7 @@
 import Slot from "@/components/shared/Slot.vue";
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import dragEventBus from "@/lib/dragEventBus";
+import { iconForContainerType } from "@/utils/containerPresentation";
 // Import the whole mdi namespace and pick the exact exported names that exist
 import * as mdi from "@mdi/js";
 
@@ -167,10 +168,14 @@ const slots = computed(() => {
         itemsByIndex[it.containerIndex] = it;
     });
 
+    const iconName =
+      (c && typeof c.icon === "string" && c.icon) ||
+      iconForContainerType(c?.containerType);
+
     // heuristics to detect backpack-like containers so we can render a larger slot
     const isBackpackContainer = Boolean(
       c &&
-        (c.icon === "backpack" ||
+        (iconName === "backpack" ||
           String(c.containerType || "").toUpperCase() === "BACKPACK" ||
           String(c.name || "")
             .toLowerCase()
@@ -202,7 +207,10 @@ const slots = computed(() => {
         containerId: c.id,
         localIndex: i,
         item: itemsByIndex[i] || null,
-        containerIconSvg: c && c.icon ? iconMap[c.icon] || null : null,
+        containerIconSvg:
+          iconName && Object.prototype.hasOwnProperty.call(iconMap, iconName)
+            ? iconMap[iconName]
+            : null,
         // only treat the first cell as the special pack cell when the container
         // isn't using hiddenFirstCell (we render the visual pack slot separately)
         isPack: isBackpackContainer && !c.hiddenFirstCell && i === 0,

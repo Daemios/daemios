@@ -140,7 +140,7 @@ function applyEquipmentResponse(res, fallbackItem) {
       updatedContainerIds: res.updatedContainerIds,
     });
     if (Array.isArray(res.nestableContainers))
-      userStore.nestableInventory = res.nestableContainers;
+      userStore.setNestableInventory(res.nestableContainers);
   } else {
     userStore.setCharacter(updated);
   }

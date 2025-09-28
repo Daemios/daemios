@@ -19,10 +19,12 @@ describe('inventory.service', () => {
     expect(inventoryService.mapItemForClient(null)).toBeNull();
   });
 
-  it('iconForContainerType recognizes types', () => {
-    expect(inventoryService.iconForContainerType('POCKETS')).toBe('hand');
-    expect(inventoryService.iconForContainerType('LIQUID')).toBe('water');
-    expect(inventoryService.iconForContainerType(null)).toBeNull();
+  it('mapItemForClient normalizes presentation fields', () => {
+    const mapped = inventoryService.mapItemForClient({ id: 3, image: null, label: null, name: null, displayName: 'Fancy Flask', itemType: 42 } as any);
+    expect(mapped).not.toBeNull();
+    expect(mapped?.img).toBe('/img/debug/placeholder.png');
+    expect(mapped?.label).toBe('Fancy Flask');
+    expect(mapped?.itemType).toBe('42');
   });
 
   it('fetchContainersWithItems falls back on P2022 schema mismatch', async () => {

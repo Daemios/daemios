@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, iconForContainerType, placeItem } from './inventory.service';
+import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, placeItem } from './inventory.service';
 import { characterService } from '../character/character.service';
 import { prisma } from '../../db/prisma';
 
@@ -11,7 +11,7 @@ export const getInventory = asyncHandler(async (req: express.Request, res: expre
   const character = await characterService.getActiveCharacterForUser(userId);
   if (!character) return res.status(200).json([]);
   const containers = await fetchContainersWithItems(character.id);
-  const out = containers.map((c: any) => ({ id: c.id, name: c.name || null, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', nestable: !!c.nestable, itemId: c.itemId ?? null, icon: iconForContainerType(c.containerType), items: (c.items || []).map(mapItemForClient) }));
+  const out = containers.map((c: any) => ({ id: c.id, name: c.name || null, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', nestable: !!c.nestable, itemId: c.itemId ?? null, items: (c.items || []).map(mapItemForClient) }));
 
   // Determine which containers are equipped for this character so the client
   // can receive an explicit list of equipped containers and nestable
@@ -86,7 +86,6 @@ export const postAction = asyncHandler(async (req: express.Request, res: express
     containerType: c.containerType || 'BASIC',
     nestable: !!c.nestable,
     itemId: c.itemId ?? null,
-    icon: iconForContainerType(c.containerType),
     items: (c.items || []).map(mapItemForClient),
   }));
 

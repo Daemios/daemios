@@ -170,7 +170,7 @@ async function onSlotDropped({ payload }) {
           updatedContainerIds: res.updatedContainerIds,
         });
         if (Array.isArray(res.nestableContainers))
-          userStore.nestableInventory = res.nestableContainers;
+          userStore.setNestableInventory(res.nestableContainers);
         try {
           console.debug(
             "[EquipmentSlot] post-setCharacterAndInventory inventory",
@@ -250,7 +250,7 @@ async function onSlotDropped({ payload }) {
             updatedContainerIds: res.updatedContainerIds,
           });
           if (Array.isArray(res.nestableContainers))
-            userStore.nestableInventory = res.nestableContainers;
+          userStore.setNestableInventory(res.nestableContainers);
           try {
             console.debug(
               "[EquipmentSlot] post-setCharacterAndInventory inventory",

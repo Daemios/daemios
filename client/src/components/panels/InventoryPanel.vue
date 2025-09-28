@@ -118,6 +118,7 @@ import EquipmentSlot from "@/components/character/EquipmentSlot.vue";
 import dragEventBus from "@/lib/dragEventBus";
 import { useUserStore } from "@/stores/userStore";
 import api from "@/utils/api.js";
+import { iconForContainerType } from "@/utils/containerPresentation";
 
 const userStore = useUserStore();
 const { inventory, character } = storeToRefs(userStore);
@@ -137,8 +138,11 @@ const currentDragItem = ref(null);
 
 function isPackContainer(c) {
   if (!c) return false;
+  const icon =
+    (typeof c.icon === "string" && c.icon) ||
+    iconForContainerType(c?.containerType);
   return Boolean(
-    c.icon === "backpack" ||
+    icon === "backpack" ||
       String(c.containerType || "").toUpperCase() === "PACK" ||
       String(c.containerType || "").toUpperCase() === "BACKPACK" ||
       String(c.name || "")
@@ -525,7 +529,7 @@ async function onDropToPack(e) {
       if (res && res.containers) {
         userStore.setInventory(res.containers);
         if (Array.isArray(res.nestableContainers))
-          userStore.nestableInventory = res.nestableContainers;
+          userStore.setNestableInventory(res.nestableContainers);
       } else if (userStore && userStore.ensureInventory) {
         await userStore.ensureInventory(true);
       }
@@ -553,7 +557,7 @@ async function onDropToPack(e) {
       if (res && res.containers) {
         userStore.setInventory(res.containers);
         if (Array.isArray(res.nestableContainers))
-          userStore.nestableInventory = res.nestableContainers;
+          userStore.setNestableInventory(res.nestableContainers);
       }
     } catch (err) {
       console.error("Failed to equip pack", err);
@@ -675,7 +679,7 @@ async function onMoveItem(payload) {
     if (res && res.containers) {
       userStore.setInventory(res.containers);
       if (Array.isArray(res.nestableContainers))
-        userStore.nestableInventory = res.nestableContainers;
+        userStore.setNestableInventory(res.nestableContainers);
     }
     // if server returned authoritative equipment rows, sync the paper-doll
     if (res && res.equipment) {

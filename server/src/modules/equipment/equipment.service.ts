@@ -1,6 +1,6 @@
 import { prisma } from '../../db/prisma';
 import { EquipmentSlot } from '@prisma/client';
-import { ensureItemBelongsToCharacter, DomainError, iconForContainerType, containerIsDescendantOfItem, isValidForSlot, swapEquipmentAndContainer } from './equipment.domain';
+import { ensureItemBelongsToCharacter, DomainError, containerIsDescendantOfItem, isValidForSlot, swapEquipmentAndContainer } from './equipment.domain';
 
 export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
   // Use a transaction so we both upsert the equipment and clear any
@@ -157,18 +157,14 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
 
   const { equipment, containers, capacityUpdated, updatedContainerIds } = txResult;
 
-  const annotatedContainers = containers.map((c: any) => {
-    const type = c.containerType ?? 'BASIC';
-    return {
-      ...c,
-      containerType: type,
-      icon: iconForContainerType(type),
-      items: (c.items ?? []).map((it: any) => ({
-        ...it,
-        image: it.image ?? '/img/debug/placeholder.png',
-      })),
-    };
-  });
+  const annotatedContainers = containers.map((c: any) => ({
+    ...c,
+    containerType: c.containerType ?? 'BASIC',
+    items: (c.items ?? []).map((it: any) => ({
+      ...it,
+      image: it.image ?? '/img/debug/placeholder.png',
+    })),
+  }));
 
   // Provide grouped containers for client: equippedContainers (containers that are equipped or pockets)
   // and nestableContainers (containers marked nestable) while keeping `containers` for compatibility.

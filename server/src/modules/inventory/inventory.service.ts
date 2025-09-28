@@ -1,6 +1,7 @@
 import { prisma } from '../../db/prisma';
 import { validateMovePayload, ensureValidTargetIndex, DomainError } from './inventory.domain';
 import * as equipmentService from '../equipment/equipment.service';
+import { mapItemForClient as baseMapItemForClient } from '../common/presentation';
 
 // Fetch containers and their items, fall back on P2022 schema mismatch
 export async function fetchContainersWithItems(characterId: number) {
@@ -12,24 +13,7 @@ export async function fetchContainersWithItems(characterId: number) {
   }
 }
 
-export function mapItemForClient(it: any) {
-  if (!it) return null;
-  // TODO(cleanup): consolidate with character.module mapItemForClient to avoid diverging payloads.
-  return { ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null, itemType: it.itemType ? String(it.itemType) : null };
-}
-
-export function iconForContainerType(type: any) {
-  const t = String(type || 'BASIC').toUpperCase();
-  // TODO(cleanup): share this mapping with equipment.domain to keep icon logic centralized.
-  switch (t) {
-    case 'LIQUID': return 'water';
-    case 'CONSUMABLES': return 'food-apple';
-    case 'PACK': return 'backpack';
-    case 'POCKETS': return 'hand';
-    case 'BASIC':
-    default: return null;
-  }
-}
+export const mapItemForClient = baseMapItemForClient;
 
 export async function containerIsDescendantOfItem(containerId: number | null, ancestorItemId: number) {
   let curr: number | null = containerId as any;
@@ -109,7 +93,7 @@ export async function moveItemForCharacter(character: any, payload: any) {
   }
 
   const containers = await fetchContainersWithItems(character.id);
-  return containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', icon: iconForContainerType(c.containerType), items: (c.items || []).map(mapItemForClient) }));
+  return containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', items: (c.items || []).map(mapItemForClient) }));
 }
 
 // Place an item to a destination which may be equipment or a container.
