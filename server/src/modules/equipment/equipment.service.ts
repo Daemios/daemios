@@ -66,10 +66,6 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     if (containedCount > 0) throw new DomainError('CANNOT_EQUIP_CONTAINER_WITH_ITEMS', 'Cannot equip a container that has items inside it');
   }
 
-  // Execute the mutation and final reads inside a single transaction so the
-  // final container payload reflects the post-transaction state (i.e. the
-  // item.containerId updates performed above). This avoids returning stale
-  // container membership to the client.
   const txResult = await prisma.$transaction(async (tx: any) => {
 
     // The existing equipment must take the position of the incoming item in the container hierarchy
@@ -99,9 +95,7 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     // The incoming item must be set as the equipment for the target slot
     await tx.equipment.upsert({ where: { characterId_slot: { characterId, slot: normalizedSlot } }, update: { itemId }, create: { characterId, slot: normalizedSlot, itemId } });
 
-    // Determine if a reciprocal container row exists for the item (i.e. a
-    // container record whose itemId references this item). We use this to
-    // set capacityUpdated in the returned payload.
+    // If the item is a container, ensure its capacity is reflected in its container record
     const reciprocal = item && item.isContainer ? await tx.container.findFirst({ where: { itemId: item.id } }) : null;
 
     const equipment = await tx.equipment.findMany({ where: { characterId }, include: { Item: true } });
