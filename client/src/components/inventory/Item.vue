@@ -209,18 +209,38 @@ const itemLabelClasses = computed(() => ({
 }));
 
 const safeImg = computed(() => {
-  if (props.item && props.item.img) return props.item.img;
-  // fallback to debug placeholder in client public
-  return "/img/debug/placeholder.png";
+  const raw = props.item && props.item.img;
+  if (!raw) return "/img/debug/placeholder.png";
+  try {
+    // If the image is a remote URL (http(s):) or data URI, return as-is.
+    const lower = String(raw).toLowerCase();
+    if (
+      lower.startsWith("http://") ||
+      lower.startsWith("https://") ||
+      lower.startsWith("data:")
+    ) {
+      return raw;
+    }
+    // If the path is already absolute within the app (starts with /), return as-is.
+    if (String(raw).startsWith("/")) return raw;
+    // Otherwise assume it's a local path missing a leading slash and normalize it
+    return `/${raw}`;
+  } catch (e) {
+    return "/img/debug/placeholder.png";
+  }
 });
 
 function onImgError(e) {
   try {
     const src = (e && e.target && e.target.currentSrc) || safeImg.value;
+    // Provide more context for debugging common failures (relative paths, missing files)
     console.debug("[Item] image load failed", {
       id: props.item && props.item.id,
       label: props.item && props.item.label,
-      src,
+      rawImgProp: props.item && props.item.img,
+      resolvedSrc: src,
+      elementSrcAttr:
+        e && e.target && e.target.getAttribute && e.target.getAttribute("src"),
     });
   } catch (err) {
     console.warn("Item image error handler failed", err);

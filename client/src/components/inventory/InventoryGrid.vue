@@ -75,7 +75,12 @@ import dragEventBus from "@/lib/dragEventBus";
 // Import the whole mdi namespace and pick the exact exported names that exist
 import * as mdi from "@mdi/js";
 
-const emit = defineEmits(["click-item", "move-item"]);
+const emit = defineEmits([
+  "click-item",
+  "move-item",
+  "hover-container",
+  "leave-container",
+]);
 
 const props = defineProps({
   // accept an array of containers to render as a unified grid
@@ -261,7 +266,9 @@ function onDrop(e, slot) {
   opacity: 1 !important;
 }
 .inventory-slot.highlighted {
-  outline: 2px solid rgba(33, 150, 243, 0.5);
+  /* Match equipment-slot inner glow for consistency when hovering a container */
+  box-shadow: inset 0 0 0 4px rgba(33, 150, 243, 0.85),
+    inset 0 0 18px rgba(33, 150, 243, 0.35);
   background: rgba(33, 150, 243, 0.06);
 }
 .slot-item img {

@@ -4,6 +4,8 @@
     draggable
     @dragstart="onDragStart"
     @dragend="onDragEnd"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
   >
     <Item
       :item="item"
@@ -122,6 +124,32 @@ function onDragEnd() {
     dragEventBus.emit("drag-end", {});
   } catch (_) {
     /* ignore drag event bus errors */
+  }
+}
+
+function onMouseEnter() {
+  try {
+    // determine a container id associated with this item where possible
+    const cid =
+      (props.source && props.source.containerId) ||
+      (props.item &&
+        (props.item.containerId ||
+          (props.item.container && props.item.container.id))) ||
+      null;
+    dragEventBus.emit("container-hover", {
+      containerId: cid,
+      item: props.item,
+    });
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function onMouseLeave() {
+  try {
+    dragEventBus.emit("container-leave", {});
+  } catch (e) {
+    /* ignore */
   }
 }
 </script>

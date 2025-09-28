@@ -8,32 +8,15 @@
           <v-sheet class="pa-2" elevation="0">
             <div class="sheet-body">
               <div class="inventory-with-pack">
-                <div v-if="packContainer" class="pack-area">
-                  <div
-                    :class="[
-                      'pack-slot',
-                      'd-flex',
-                      'align-center',
-                      'justify-center',
-                      { 'drag-over': packDragOver },
-                    ]"
-                    @dragover.prevent
-                    @drop.prevent="onDropToPack"
-                    @dragenter.prevent="onPackDragEnter"
-                    @dragleave.prevent="onPackDragLeave"
-                  >
-                    <EquipmentSlot
-                      slot-name="pack"
-                      :item="packItem"
-                      @equip-success="onEquipSuccess"
-                    />
-                  </div>
-                </div>
+                <!-- top pack-area removed; pack is rendered at bottom in nestable row -->
 
                 <div class="inventory-grid">
                   <InventoryGrid
                     :containers="containersForGrid"
+                    :highlighted-container-id="hoveredContainerId"
                     @move-item="onMoveItem"
+                    @hover-container="(id) => (hoveredContainerId = id)"
+                    @leave-container="() => (hoveredContainerId = null)"
                   />
                 </div>
               </div>
@@ -43,23 +26,57 @@
       </v-row>
 
       <!-- Nestable containers row: less prominent cells (e.g. vials) and pack rendered here -->
-      <v-row dense v-if="Array.isArray(nestable) && nestable.length">
+      <v-row v-if="Array.isArray(nestable) && nestable.length" dense>
         <v-col cols="12">
           <v-sheet class="pa-2" elevation="0">
-            <div class="nestable-area d-flex align-center">
+            <!-- bottom grid: small, local grid to mirror column sizing of the top grid -->
+            <div class="bottom-grid">
+              <!-- pack cell: first cell, spans 2 columns to remain visually distinct -->
               <div
-                class="nestable-cells"
-                style="flex: 1; display: flex; gap: 8px; align-items: center"
+                v-if="packContainer"
+                class="bottom-slot pack-slot d-flex align-center justify-center"
+                :class="{
+                  'drag-over': packDragOver,
+                  highlighted:
+                    String(packContainer.id) === String(hoveredContainerId),
+                }"
+                @dragover.prevent
+                @drop.prevent="onDropToPack"
+                @dragenter.prevent="onPackDragEnter"
+                @dragleave.prevent="onPackDragLeave"
+                @mouseenter="() => onContainerMouseEnter(packContainer)"
+                @mouseleave="onContainerMouseLeave"
               >
-                <template
-                  v-for="(n, idx) in nestableItems"
-                  :key="
-                    n && n.container && n.container.id
-                      ? String(n.container.id)
-                      : idx
-                  "
+                <EquipmentSlot
+                  slot-name="pack"
+                  :item="packItem"
+                  @equip-success="onEquipSuccess"
+                />
+              </div>
+
+              <!-- nestable items follow; each is one grid cell -->
+              <template
+                v-for="(n, idx) in nestableItems"
+                :key="
+                  n && n.container && n.container.id
+                    ? String(n.container.id)
+                    : idx
+                "
+              >
+                <div
+                  class="bottom-slot d-flex align-center justify-center"
+                  :class="{
+                    highlighted:
+                      n.container &&
+                      String(n.container.id) === String(hoveredContainerId),
+                  }"
+                  @mouseenter="() => onContainerMouseEnter(n.container)"
+                  @mouseleave="onContainerMouseLeave"
                 >
-                  <div class="nestable-item" style="width: 64px; height: 64px">
+                  <div
+                    v-if="n.item"
+                    class="slot-item d-flex align-center justify-center"
+                  >
                     <DraggableItem
                       :item="n.item"
                       :label="n.item && (n.item.label || n.item.name)"
@@ -68,33 +85,10 @@
                       :height="'100%'"
                     />
                   </div>
-                </template>
-              </div>
-              <div
-                v-if="packContainer"
-                class="pack-area pack-at-bottom"
-                style="margin-left: 1rem"
-              >
-                <div
-                  :class="[
-                    'pack-slot',
-                    'd-flex',
-                    'align-center',
-                    'justify-center',
-                    { 'drag-over': packDragOver },
-                  ]"
-                  @dragover.prevent
-                  @drop.prevent="onDropToPack"
-                  @dragenter.prevent="onPackDragEnter"
-                  @dragleave.prevent="onPackDragLeave"
-                >
-                  <EquipmentSlot
-                    slot-name="pack"
-                    :item="packItem"
-                    @equip-success="onEquipSuccess"
-                  />
+
+                  <div v-else class="slot-empty">&nbsp;</div>
                 </div>
-              </div>
+              </template>
             </div>
           </v-sheet>
         </v-col>
@@ -120,6 +114,7 @@ import { storeToRefs } from "pinia";
 import InventoryGrid from "@/components/inventory/InventoryGrid.vue";
 import DraggableItem from "@/components/inventory/DraggableItem.vue";
 import EquipmentSlot from "@/components/character/EquipmentSlot.vue";
+import dragEventBus from "@/lib/dragEventBus";
 import { useUserStore } from "@/stores/userStore";
 import api from "@/utils/api.js";
 
@@ -133,6 +128,116 @@ const packItem = computed(
       character.value.equipped.pack) ||
     null
 );
+
+// hovered container id for highlighting its cells in the grid
+const hoveredContainerId = ref(null);
+// track current dragged item (if any) so we can restrict highlights when dragging
+const currentDragItem = ref(null);
+
+function isPackContainer(c) {
+  if (!c) return false;
+  return Boolean(
+    c.icon === "backpack" ||
+      String(c.containerType || "").toUpperCase() === "PACK" ||
+      String(c.containerType || "").toUpperCase() === "BACKPACK" ||
+      String(c.name || "")
+        .toLowerCase()
+        .includes("pack")
+  );
+}
+
+function containerAcceptsItem(c, item) {
+  // conservative heuristic: if the dragged item explicitly targets 'pack'
+  // only accept for pack-like containers. If no explicit equipmentSlot
+  // is present, we allow highlighting so the user gets visual feedback.
+  if (!item) return true;
+  const eq = item.equipmentSlot;
+  if (!eq) return true;
+  if (Array.isArray(eq)) {
+    if (eq.includes("pack") && isPackContainer(c)) return true;
+  } else if (typeof eq === "string") {
+    const es = eq.toLowerCase();
+    if (es.includes("pack") && isPackContainer(c)) return true;
+  }
+  // unknown mapping: fallback to false when dragging an explicitly targeted item
+  return false;
+}
+
+function onContainerMouseEnter(c) {
+  try {
+    if (!c) return;
+    // if currently dragging, only highlight if container accepts the dragged item
+    if (currentDragItem.value) {
+      if (containerAcceptsItem(c, currentDragItem.value))
+        hoveredContainerId.value = c.id;
+      else hoveredContainerId.value = null;
+      return;
+    }
+    hoveredContainerId.value = c.id;
+  } catch (e) {
+    hoveredContainerId.value = null;
+  }
+}
+
+function onContainerMouseLeave() {
+  hoveredContainerId.value = null;
+}
+
+function onGlobalDragStart(payload) {
+  try {
+    currentDragItem.value = payload && payload.item ? payload.item : null;
+  } catch (e) {
+    currentDragItem.value = null;
+  }
+}
+
+function onGlobalDragEnd() {
+  currentDragItem.value = null;
+  // clear hover highlight when drag ends
+  hoveredContainerId.value = null;
+}
+
+// register drag event listeners
+try {
+  dragEventBus.on("drag-start", onGlobalDragStart);
+  dragEventBus.on("drag-end", onGlobalDragEnd);
+  dragEventBus.on("container-hover", (p) => {
+    try {
+      const cid = p && p.containerId ? p.containerId : null;
+      if (!cid) return;
+      // if there's a dragged item active, ensure acceptance heuristics
+      if (currentDragItem.value) {
+        // find container object from inventory to validate
+        const all = Array.isArray(inventory.value) ? inventory.value : [];
+        const c = all.find((x) => String(x.id) === String(cid));
+        if (c && containerAcceptsItem(c, currentDragItem.value))
+          hoveredContainerId.value = cid;
+        else hoveredContainerId.value = null;
+        return;
+      }
+      hoveredContainerId.value = cid;
+    } catch (e) {
+      /* ignore */
+    }
+  });
+  dragEventBus.on("container-leave", () => {
+    hoveredContainerId.value = null;
+  });
+} catch (e) {
+  /* ignore */
+}
+
+import { onBeforeUnmount } from "vue";
+onBeforeUnmount(() => {
+  try {
+    dragEventBus.off("drag-start", onGlobalDragStart);
+    dragEventBus.off("drag-end", onGlobalDragEnd);
+    dragEventBus.off("container-hover");
+    dragEventBus.off("container-leave");
+  } catch (e) {
+    /* ignore */
+  }
+});
 
 // nestable containers returned by server or derived from inventory
 const nestable = computed(() => {
@@ -604,13 +709,8 @@ async function onMoveItem(payload) {
 </script>
 
 <style scoped>
-.pack-area {
-  margin-bottom: 1rem;
-}
 .pack-slot {
   /* Match the paper-doll slot sizing and appearance */
-  width: 100px;
-  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -622,5 +722,35 @@ async function onMoveItem(payload) {
 /* pack-slot.drag-over behavior moved to EquipmentSlot overlay */
 .empty-slot {
   color: #888;
+}
+
+/* Bottom-grid: small, local grid used only for the nestable/pack row. Left-aligns cells and
+   gives the pack a 2-column visual span. Kept scoped to avoid changing InventoryGrid.vue. */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+  justify-content: start; /* left-align cells */
+  align-items: start;
+}
+.bottom-slot {
+  border: 1px dashed rgba(0, 0, 0, 0.08);
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0;
+}
+.bottom-slot.pack-slot {
+  grid-column: span 2;
+  /* only span horizontally; do not span multiple rows */
+}
+
+@media (max-width: 640px) {
+  .bottom-slot.pack-slot {
+    grid-column: span 1;
+    grid-row: span 1;
+  }
 }
 </style>
