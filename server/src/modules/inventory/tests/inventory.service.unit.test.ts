@@ -4,16 +4,23 @@ vi.mock('../../../db/prisma', () => ({
   prisma: {
     container: { findMany: vi.fn(), findUnique: vi.fn() },
     item: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    equipment: { findFirst: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn(),
   },
+}));
+
+vi.mock('../../equipment/equipment.service', () => ({
+  performEquipForCharacter: vi.fn(),
+  unequipItemToContainer: vi.fn(),
 }));
 
 // Note: the module under test imports prisma from ../../db/prisma; adjust import path resolution used in tests by importing module normally so mocks apply.
 import * as inventoryService from '../inventory.service';
 import { prisma } from '../../../db/prisma';
+import * as equipmentService from '../../equipment/equipment.service';
 
 describe('inventory.service', () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('mapItemForClient returns null on empty', () => {
     expect(inventoryService.mapItemForClient(null)).toBeNull();
@@ -79,5 +86,79 @@ describe('inventory.service', () => {
     const char = { id: 30 } as any;
     const res = await inventoryService.moveItemForCharacter(char, { itemId: 20, target: { containerId: 9, localIndex: 2 } });
     expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('containerIsDescendantOfItem detects nested ancestry', async () => {
+    (prisma.container.findUnique as any) = vi.fn()
+      .mockResolvedValueOnce({ itemId: 30 })
+      .mockResolvedValueOnce({ itemId: 10 });
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValueOnce({ containerId: 4 });
+    const res = await inventoryService.containerIsDescendantOfItem(5, 10);
+    expect(res).toBe(true);
+    expect(prisma.container.findUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it('containerIsDescendantOfItem returns false when chain breaks', async () => {
+    (prisma.container.findUnique as any) = vi.fn()
+      .mockResolvedValueOnce({ itemId: 30 })
+      .mockResolvedValueOnce(null);
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValueOnce({ containerId: null });
+    const res = await inventoryService.containerIsDescendantOfItem(5, 10);
+    expect(res).toBe(false);
+  });
+
+  it('placeItem rejects invalid payload', async () => {
+    await expect(inventoryService.placeItem({ id: 1 }, null)).rejects.toHaveProperty('status', 400);
+  });
+
+  it('placeItem delegates to equipment service', async () => {
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValue({ id: 1, characterId: 1 });
+    (equipmentService.performEquipForCharacter as any) = vi.fn().mockResolvedValue({ ok: true });
+    const res = await inventoryService.placeItem(
+      { id: 1 },
+      { itemId: 1, destination: { type: 'equipment', slotId: 'hand' } }
+    );
+    expect(equipmentService.performEquipForCharacter).toHaveBeenCalledWith(1, 1, 'hand');
+    expect(res).toEqual({ ok: true });
+  });
+
+  it('placeItem unequips to container when item is equipped', async () => {
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValue({ id: 2, characterId: 1 });
+    (prisma.equipment.findFirst as any) = vi.fn().mockResolvedValue({ characterId: 1 });
+    (prisma.container.findMany as any) = vi.fn().mockResolvedValue([{ id: 10, items: [] }]);
+    (prisma.equipment.findMany as any) = vi.fn().mockResolvedValue([{ id: 99 }]);
+    (equipmentService.unequipItemToContainer as any) = vi.fn().mockResolvedValue({ ok: true });
+
+    const res = await inventoryService.placeItem(
+      { id: 1 },
+      { itemId: 2, destination: { type: 'container', containerId: 5, index: 0 } }
+    );
+
+    expect(equipmentService.unequipItemToContainer).toHaveBeenCalledWith(1, 2, 5, 0);
+    expect(res).toEqual({ equipment: [{ id: 99 }], containers: [{ id: 10, items: [] }] });
+  });
+
+  it('placeItem moves unequipped item via container flow', async () => {
+    (prisma.item.findUnique as any) = vi.fn().mockResolvedValue({
+      id: 3,
+      characterId: 1,
+      containerId: null,
+      containerIndex: null,
+      isContainer: false,
+      itemType: 'BASIC',
+    });
+    (prisma.equipment.findFirst as any) = vi.fn().mockResolvedValue(null);
+    (prisma.container.findUnique as any) = vi.fn().mockResolvedValue({ id: 7, capacity: 5, containerType: 'BASIC' });
+    (prisma.item.findFirst as any) = vi.fn().mockResolvedValue(null);
+    (prisma.item.update as any) = vi.fn().mockResolvedValue(true);
+    (prisma.container.findMany as any) = vi.fn().mockResolvedValue([]);
+
+    const res = await inventoryService.placeItem(
+      { id: 1 },
+      { itemId: 3, destination: { type: 'container', containerId: 7, localIndex: 2 } }
+    );
+
+    expect(prisma.item.update).toHaveBeenCalled();
+    expect(res).toEqual({ containers: [] });
   });
 });
