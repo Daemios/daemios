@@ -147,8 +147,71 @@ async function onSlotDropped({ payload }) {
     };
     try {
       const res = await api.post("/character/equip", body);
-      if (res && res.character) {
+      // Debug: log response to help diagnose capacity/container updates
+      try {
+        console.debug(
+          "[EquipmentSlot] equip response",
+          res && typeof res === "object" ? JSON.parse(JSON.stringify(res)) : res
+        );
+      } catch (e) {
+        console.debug("[EquipmentSlot] equip response (raw)", res);
+      }
+      // If server returned both a character and canonical containers, use
+      // setCharacterAndInventory so the store can apply selective container
+      // replacement or capacity updates (capacityUpdated/updatedContainerIds).
+      if (res && res.character && Array.isArray(res.containers)) {
+        userStore.setCharacterAndInventory(res.character, res.containers, {
+          capacityUpdated: res.capacityUpdated,
+          updatedContainerIds: res.updatedContainerIds,
+        });
+        if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+        try {
+          console.debug(
+            "[EquipmentSlot] post-setCharacterAndInventory inventory",
+            JSON.parse(JSON.stringify(userStore.inventory || []))
+          );
+        } catch (e) {
+          /* ignore */
+        }
+        try {
+          const total = (userStore.inventory || []).reduce(
+            (acc, c) => acc + (Number(c.capacity) || 0),
+            0
+          );
+          console.debug(
+            "[EquipmentSlot] totalInventoryCapacity after set",
+            total
+          );
+        } catch (e) {
+          /* ignore */
+        }
+        try {
+          console.debug(
+            "[EquipmentSlot] post-setCharacterAndInventory character",
+            JSON.parse(JSON.stringify(userStore.character || {}))
+          );
+        } catch (e) {
+          /* ignore */
+        }
+      } else if (res && res.character) {
         userStore.setCharacter(res.character);
+        // If server indicates a capacity update but didn't return containers,
+        // re-fetch canonical inventory so the UI reflects new capacities.
+        if (res.capacityUpdated && userStore && userStore.ensureInventory) {
+          try {
+            await userStore.ensureInventory(true);
+            try {
+              console.debug(
+                "[EquipmentSlot] post-ensureInventory inventory",
+                JSON.parse(JSON.stringify(userStore.inventory || []))
+              );
+            } catch (e) {
+              /* ignore */
+            }
+          } catch (e) {
+            /* non-fatal: best-effort refresh */
+          }
+        }
       } else if (res && (res.containers || res.equipment)) {
         const newChar = {
           ...(userStore.character || {}),
@@ -180,6 +243,35 @@ async function onSlotDropped({ payload }) {
             capacityUpdated: res.capacityUpdated,
             updatedContainerIds: res.updatedContainerIds,
           });
+          if (Array.isArray(res.nestableContainers)) userStore.nestableInventory = res.nestableContainers;
+          try {
+            console.debug(
+              "[EquipmentSlot] post-setCharacterAndInventory inventory",
+              JSON.parse(JSON.stringify(userStore.inventory || []))
+            );
+          } catch (e) {
+            /* ignore */
+          }
+          try {
+            const total = (userStore.inventory || []).reduce(
+              (acc, c) => acc + (Number(c.capacity) || 0),
+              0
+            );
+            console.debug(
+              "[EquipmentSlot] totalInventoryCapacity after set",
+              total
+            );
+          } catch (e) {
+            /* ignore */
+          }
+          try {
+            console.debug(
+              "[EquipmentSlot] post-setCharacterAndInventory character",
+              JSON.parse(JSON.stringify(userStore.character || {}))
+            );
+          } catch (e) {
+            /* ignore */
+          }
         } else {
           // If no containers were returned but equipment array is missing, this may be an unequip that moved the item into an existing container.
           // Remove the slot locally if the server did not return an explicit equipment entry for it.
@@ -206,6 +298,34 @@ async function onSlotDropped({ payload }) {
             userStore.setCharacter(newChar);
           }
         }
+      }
+      try {
+        // Log slot equipped id and total capacity to help debug unequip flows
+        const equipKey = String(slotId.value || "").toLowerCase();
+        const equippedObj =
+          (userStore.character &&
+            userStore.character.equipped &&
+            userStore.character.equipped[equipKey]) ||
+          null;
+        const equippedId =
+          equippedObj && (equippedObj.id || equippedObj.itemId)
+            ? equippedObj.id || equippedObj.itemId
+            : null;
+        const totalCap = (userStore.inventory || []).reduce(
+          (acc, c) => acc + (Number(c.capacity) || 0),
+          0
+        );
+        try {
+          console.debug("[EquipmentSlot] post-action slot state", {
+            slot: equipKey,
+            equippedId,
+            totalInventoryCapacity: totalCap,
+          });
+        } catch (e) {
+          /* ignore */
+        }
+      } catch (e) {
+        /* ignore */
       }
       emit("equip-success", { slot: slotId.value });
     } catch (err) {

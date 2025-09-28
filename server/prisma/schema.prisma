@@ -281,6 +281,7 @@ model Container {
   locationId    Int?
   characterId   Int?
   removable     Boolean       @default(true)
+  nestable      Boolean       @default(false)
   itemId        Int?          @unique
   containerType ContainerType @default(BASIC)
   ItemObject    Item?         @relation("Container_ItemObject", fields: [itemId], references: [id], onDelete: Cascade)

@@ -39,6 +39,7 @@ export const useUserStore = defineStore("user", {
       equipped: {},
     },
     inventory: [],
+    nestableInventory: [],
   }),
   actions: {
     setCharacters(characters) {
@@ -154,6 +155,13 @@ export const useUserStore = defineStore("user", {
         if (response && response.success) {
           // response.containers is the canonical structure
           this.setInventory(response.containers || []);
+          // optional new groups
+          if (Array.isArray(response.nestableContainers)) this.nestableInventory = response.nestableContainers;
+          if (Array.isArray(response.equippedContainers)) {
+            // replace inventory with equipped containers for canonical equipped view
+            // keep legacy behavior of setInventory for main grid
+            this.setInventory(response.containers || []);
+          }
           return this.inventory;
         }
       } catch (e) {

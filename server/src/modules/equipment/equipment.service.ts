@@ -78,12 +78,26 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
       if (wouldDescend) throw new DomainError('CANNOT_PLACE_CONTAINER_IN_SELF', 'Cannot place container inside itself or its descendants');
     }
 
-    // The item must remove any container reference so it is not also listed in a container
+    // Read the current container position of the incoming item inside the tx so
+    // we can place the outgoing (previously equipped) item into the same
+    // slot if appropriate. If the incoming item came from a container (e.g.
+    // pockets index 0) we want the old equipped item to inherit that
+    // containerId/containerIndex. If the incoming item had no container, the
+    // old item should be cleared (no container refs).
+    const movingItem = await tx.item.findUnique({ where: { id: itemId }, select: { containerId: true, containerIndex: true } });
+    const src = movingItem ? { containerId: movingItem.containerId ?? null, localIndex: movingItem.containerIndex ?? null } : { containerId: null, localIndex: null };
+
+    // Remove container refs from the incoming item so it isn't listed twice
     await tx.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
 
-    // The existing equipment, if any, must have its item removed
+    // The existing equipment, if any, should be relocated into the source
+    // slot of the incoming item (if any). Otherwise clear its container refs.
     if (existingEquip) {
-      await tx.item.update({ where: { id: existingEquip.itemId }, data: { containerId: null, containerIndex: null } });
+      if (src.containerId != null) {
+        await tx.item.update({ where: { id: existingEquip.itemId }, data: { containerId: src.containerId, containerIndex: src.localIndex } });
+      } else {
+        await tx.item.update({ where: { id: existingEquip.itemId }, data: { containerId: null, containerIndex: null } });
+      }
     }
 
     // The incoming item must remove all other equipment references (no duplicate usage)
@@ -119,5 +133,17 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     };
   });
 
-  return { equipment, containers: annotatedContainers, capacityUpdated, updatedContainerIds };
+  // Provide grouped containers for client: equippedContainers (containers that are equipped or pockets)
+  // and nestableContainers (containers marked nestable) while keeping `containers` for compatibility.
+  const equippedItemIds = new Set((equipment || []).map((e: any) => e.itemId).filter((id: any) => id != null));
+  const equippedContainers = annotatedContainers.filter((c: any) => {
+    if (!c) return false;
+    const name = String(c.name || '').toLowerCase();
+    if (name === 'pockets' || String(c.containerType || '').toUpperCase() === 'POCKETS') return true;
+    if (c.itemId != null && equippedItemIds.has(c.itemId)) return true;
+    return false;
+  });
+  const nestableContainers = annotatedContainers.filter((c: any) => !!c.nestable);
+
+  return { equipment, containers: annotatedContainers, equippedContainers, nestableContainers, capacityUpdated, updatedContainerIds };
 }
