@@ -216,7 +216,17 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
 
     const equipment = await prisma.equipment.findMany({ where: { characterId }, include: { Item: true } });
   const containers = await prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
-  const annotatedContainers = containers.map((c: any) => ({ ...c, containerType: c.containerType || 'BASIC', icon: iconForContainerType(c.containerType) }));
+  const annotatedContainers = containers.map((c: any) => ({
+    ...c,
+    containerType: c.containerType || 'BASIC',
+    icon: iconForContainerType(c.containerType),
+    items: (c.items || []).map((it: any) => ({ ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null })),
+  }));
+  // Remove the item that was just equipped from any container listing so the
+  // inventory response does not still show it as present in a container.
+  for (const c of annotatedContainers) {
+    c.items = (c.items || []).filter((it: any) => Number(it.id) !== Number(itemId));
+  }
   const updatedContainerIds: any[] = [];
   if (item.isContainer) {
     const linked = await prisma.container.findFirst({ where: { itemId } });

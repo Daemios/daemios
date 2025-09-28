@@ -21,6 +21,18 @@ export async function listAbilityElements() {
   return prisma.abilityElement.findMany();
 }
 
+export async function listAbilityShapes() {
+  return prisma.abilityShape.findMany();
+}
+
+export async function listAbilityRanges() {
+  return prisma.abilityRange.findMany();
+}
+
+export async function listAbilityTypes() {
+  return prisma.abilityType.findMany();
+}
+
 export async function getAbilityElement(id: number) {
   return prisma.abilityElement.findUnique({ where: { id } });
 }

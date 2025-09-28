@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { equipItemToCharacter, unequipItemFromSlot, listEquipmentForCharacter } from './equipment.service';
+import { equipItemToCharacter, unequipItemFromSlot, listEquipmentForCharacter, performEquipForCharacter } from './equipment.service';
 import { characterService } from '../character/character.service';
 import { EquipmentSlot } from '@prisma/client';
 import { DomainError } from './equipment.domain';
@@ -20,8 +20,10 @@ export const postEquip = asyncHandler(async (req: Request, res: Response) => {
   }
 
   try {
-    const updated = await equipItemToCharacter(character.id, Number(itemId), slot as EquipmentSlot);
-    res.json(updated);
+  // Use performEquipForCharacter so we return the full envelope the client
+  // expects (equipment rows + containers + capacity metadata).
+  const updated = await performEquipForCharacter(character.id, Number(itemId), slot as any);
+  res.json(updated);
   } catch (err: any) {
     // If it's a domain error, surface its code to the client for clearer handling.
     if (err instanceof DomainError) {
@@ -43,7 +45,11 @@ export const postUnequip = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'invalid slot', slot });
   }
   const removed = await unequipItemFromSlot(character.id, slot as EquipmentSlot);
-  res.json(removed);
+  // After unequipping, return current equipment list and containers so the
+  // client can refresh the paper-doll and inventory atomically.
+  const equipment = await listEquipmentForCharacter(character.id);
+  const containers = await characterService.getContainersForCharacter(character.id);
+  res.json({ equipment, containers });
 });
 
 export const getList = asyncHandler(async (req: Request, res: Response) => {

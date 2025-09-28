@@ -3,6 +3,9 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import {
   createAbilityElement,
   listAbilityElements,
+  listAbilityShapes,
+  listAbilityRanges,
+  listAbilityTypes,
   getAbilityElement,
   updateAbilityElement,
   deleteAbilityElement,
@@ -23,6 +26,21 @@ export const postCreate = asyncHandler(async (req: Request, res: Response) => {
 
 export const getList = asyncHandler(async (_req: Request, res: Response) => {
   const list = await listAbilityElements();
+  res.json(list);
+});
+
+export const getShapes = asyncHandler(async (_req: Request, res: Response) => {
+  const list = await listAbilityShapes();
+  res.json(list);
+});
+
+export const getRanges = asyncHandler(async (_req: Request, res: Response) => {
+  const list = await listAbilityRanges();
+  res.json(list);
+});
+
+export const getTypes = asyncHandler(async (_req: Request, res: Response) => {
+  const list = await listAbilityTypes();
   res.json(list);
 });
 
