@@ -9,7 +9,7 @@ The golden rule: When encountering code that violates any of the following instr
 - Do not suggest code that has been deleted from the files.
 - There should be a strong emphasis on readability, maintainability, and performance.
 - When there is a mismatch between client, server, and database (Prisma schema), ask the user what they prefer to follow; do not create mappings between client, server, and database.
-- When summarizing your changes, be concise, direct and specific about what was changed and why.
+- When you choose to communicate what you did and why, do so in a concise manner. Summarize with a single paragraph, and only add critical details beyond the summary paragraph.
 
 ## Client-Side Code Guidelines
 
