@@ -7,11 +7,12 @@ describe('character.domain utilities', () => {
   });
 
   it('mapItemForClient selects image and label properly', () => {
-    const it = { id: 1, name: 'Sword', displayName: 'The Blade', img: null };
+    const it = { id: 1, name: 'Sword', displayName: 'The Blade', img: null, itemType: 7 };
     const mapped = mapItemForClient(it as any);
     expect(mapped).toHaveProperty('img');
     expect(mapped.img).toBe('/img/debug/placeholder.png');
     expect(mapped.label).toBe('Sword');
+    expect(mapped.itemType).toBe('7');
   });
 
   it('mapItemForClient prefers provided image and display name', () => {

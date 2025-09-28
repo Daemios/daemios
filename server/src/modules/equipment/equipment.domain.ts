@@ -11,24 +11,6 @@ export function ensureItemBelongsToCharacter(item: any, characterId: number) {
 }
 
 /**
- * Map a containerType (stored on the container) to a UI icon key.
- * Why: UI representation is a presentation concern but the mapping
- * is stable domain knowledge used by multiple places; keep it
- * centralized so changes happen in one place.
- */
-export function iconForContainerType(type: any) {
-  const t = String(type || 'BASIC').toUpperCase();
-  // TODO(cleanup): consolidate icon mapping with inventory/character modules.
-  switch (t) {
-    case 'LIQUID': return 'water';
-    case 'CONSUMABLES': return 'food-apple';
-    case 'PACK': return 'backpack';
-    case 'POCKETS': return 'hand';
-    default: return null;
-  }
-}
-
-/**
  * Recursively checks whether containerId is a descendant (nested inside)
  * the item tree under ancestorItemId.
  * Why: This protects from creating cycles (placing a container inside

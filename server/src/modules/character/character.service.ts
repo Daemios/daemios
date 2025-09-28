@@ -22,24 +22,13 @@ export async function buildCharacterWithEquipment(character: any) {
   return { ...character, equipped };
 }
 
-// Fetch containers for character and map items/icons for client
+// Fetch containers for character and map items for client
 export async function getContainersForCharacter(characterId: number) {
   const containers = await prisma.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });
   return containers.map((c: any) => ({
     ...c,
     containerType: c.containerType || 'BASIC',
-    // TODO(cleanup): reuse inventory/equipment icon mapping instead of duplicating switch logic here.
-    icon: ((tpe: any) => {
-      const tstr = String(tpe || 'BASIC').toUpperCase();
-      switch (tstr) {
-        case 'LIQUID': return 'water';
-        case 'CONSUMABLES': return 'food-apple';
-        case 'PACK': return 'backpack';
-        case 'POCKETS': return 'hand';
-        default: return null;
-      }
-    })(c.containerType),
-    items: (c.items || []).map((it: any) => ({ ...it, img: it.image || it.img || '/img/debug/placeholder.png', label: it.label || it.name || null })),
+    items: (c.items || []).map(mapItemForClient),
   }));
 }
 
