@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, iconForContainerType } from './inventory.service';
+import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, iconForContainerType, placeItem } from './inventory.service';
 import { characterService } from '../character/character.service';
 import { prisma } from '../../db/prisma';
 
@@ -56,4 +56,50 @@ export const postMove = asyncHandler(async (req: express.Request, res: express.R
   const nestableContainers = (updated || []).filter((c: any) => !!c.nestable);
 
   res.json({ success: true, containers: updated, equippedContainers, nestableContainers });
+});
+
+export const postAction = asyncHandler(async (req: express.Request, res: express.Response) => {
+  const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
+  if (!rawUserId) return res.status(400).json({ error: 'No active character' });
+  const userId = Number(rawUserId);
+  const character = await characterService.getActiveCharacterForUser(userId);
+  if (!character) return res.status(400).json({ error: 'No active character' });
+  const payload = req.body;
+
+  // Delegate to placeItem which will route to equipment or container handlers.
+  const result = await placeItem(character, payload);
+
+  // Normalize result into { containers, equippedContainers, nestableContainers }
+  let containers: any[] = [];
+  let equipment: any[] = [];
+  if (result) {
+    if (result.containers) containers = result.containers;
+    else if (Array.isArray(result)) containers = result as any[];
+    if (result.equipment) equipment = result.equipment;
+  }
+
+  const mapped = (containers || []).map((c: any) => ({
+    id: c.id,
+    name: c.name || null,
+    label: c.label || null,
+    capacity: c.capacity || 0,
+    containerType: c.containerType || 'BASIC',
+    nestable: !!c.nestable,
+    itemId: c.itemId ?? null,
+    icon: iconForContainerType(c.containerType),
+    items: (c.items || []).map(mapItemForClient),
+  }));
+
+  const equippedIds = new Set((equipment || []).map((e: any) => e.itemId).filter((id: any) => id != null));
+  const equippedContainers = mapped.filter((c: any) => {
+    if (!c) return false;
+    const name = String(c.name || '').toLowerCase();
+    if (name === 'pockets' || String(c.containerType || '').toUpperCase() === 'POCKETS') return true;
+    if (c.itemId != null && equippedIds.has(c.itemId)) return true;
+    return false;
+  });
+
+  const nestableContainers = mapped.filter((c: any) => !!c.nestable);
+
+  res.json({ success: true, containers: mapped, equippedContainers, nestableContainers });
 });

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
-import { equipItemToCharacter, unequipItemFromSlot, listEquipmentForCharacter, performEquipForCharacter } from './equipment.service';
+import { equipItemToCharacter, unequipItemFromSlot, listEquipmentForCharacter, performEquipForCharacter, unequipItemToContainer } from './equipment.service';
 import { characterService } from '../character/character.service';
 import { EquipmentSlot } from '@prisma/client';
 import { DomainError } from './equipment.domain';
@@ -39,17 +39,20 @@ export const postUnequip = asyncHandler(async (req: Request, res: Response) => {
   const userId = Number(rawUserId);
   const character = await characterService.getActiveCharacterForUser(userId);
   if (!character) return res.status(400).json({ error: 'No active character' });
-  const { slot } = req.body;
-  if (!slot) return res.status(400).json({ error: 'slot required' });
-  if (!Object.prototype.hasOwnProperty.call(EquipmentSlot, slot)) {
-    return res.status(400).json({ error: 'invalid slot', slot });
+
+  // Minimal trusted payload from client
+  const { itemId, containerId, containerIndex } = req.body || {};
+  if (!itemId) return res.status(400).json({ error: 'itemId required' });
+  if (typeof containerId === 'undefined') return res.status(400).json({ error: 'containerId required' });
+  if (typeof containerIndex === 'undefined') return res.status(400).json({ error: 'containerIndex required' });
+
+  try {
+    const result = await unequipItemToContainer(character.id, Number(itemId), Number(containerId), Number(containerIndex));
+    return res.json({ success: true, item: result.item, changed: result.changed });
+  } catch (err: any) {
+    if (err instanceof DomainError) return res.status(400).json({ error: err.message, code: err.code });
+    throw err;
   }
-  const removed = await unequipItemFromSlot(character.id, slot as EquipmentSlot);
-  // After unequipping, return current equipment list and containers so the
-  // client can refresh the paper-doll and inventory atomically.
-  const equipment = await listEquipmentForCharacter(character.id);
-  const containers = await characterService.getContainersForCharacter(character.id);
-  res.json({ equipment, containers });
 });
 
 export const getList = asyncHandler(async (req: Request, res: Response) => {

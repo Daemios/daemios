@@ -10,9 +10,8 @@
           'pack-slot': slot.isPack,
           'pack-highlight': slot.isPack && packDragActive,
         }"
-        @click="() => $emit('click-item', slot.item)"
-        @dragover.prevent
-        @drop="onDrop($event, slot)"
+  @click="() => $emit('click-item', slot.item)"
+  @dragover.prevent
       >
         <!-- container icon is passed into Slot as the 'icon' prop to avoid duplicate icons -->
 
@@ -216,24 +215,6 @@ const slots = computed(() => {
   return out;
 });
 
-function onDrop(e, slot) {
-  try {
-    const raw = e.dataTransfer.getData("application/json");
-    if (!raw) return;
-    const payload = JSON.parse(raw);
-    // payload expected: { type: 'item', item: {...}, source: { containerId, localIndex } }
-    if (payload && payload.type === "item") {
-      const target = {
-        containerId: slot.containerId,
-        localIndex: slot.localIndex,
-      };
-      // emit move-item so parent can handle the actual swap/move
-      emit("move-item", { item: payload.item, source: payload.source, target });
-    }
-  } catch (err) {
-    console.warn("drop parse failed", err);
-  }
-}
 </script>
 
 <style scoped>

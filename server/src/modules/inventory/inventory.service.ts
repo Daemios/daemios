@@ -1,6 +1,7 @@
 import { prisma } from '../../db/prisma';
 import { characterService } from '../character/character.service';
 import { validateMovePayload, ensureValidTargetIndex, DomainError } from './inventory.domain';
+import * as equipmentService from '../equipment/equipment.service';
 
 // Fetch containers and their items, fall back on P2022 schema mismatch
 export async function fetchContainersWithItems(characterId: number) {
@@ -108,4 +109,49 @@ export async function moveItemForCharacter(character: any, payload: any) {
 
   const containers = await fetchContainersWithItems(character.id);
   return containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', icon: iconForContainerType(c.containerType), items: (c.items || []).map(mapItemForClient) }));
+}
+
+// Place an item to a destination which may be equipment or a container.
+// This is the orchestrator used by the HTTP `POST /inventory/action` route.
+export async function placeItem(character: any, payload: any) {
+  if (!payload || !payload.itemId || !payload.destination) throw Object.assign(new Error('Invalid payload'), { status: 400 });
+
+  const itemId = Number(payload.itemId);
+  const dest = payload.destination;
+
+  const moving = await prisma.item.findUnique({ where: { id: itemId } });
+  if (!moving) throw Object.assign(new Error('Item not found'), { status: 404 });
+  if (moving.characterId !== character.id) throw Object.assign(new Error('Item does not belong to the active character'), { status: 403 });
+
+  // Route to equipment or container handlers
+  if (dest.type === 'equipment') {
+    if (!dest.slotId) throw Object.assign(new Error('Missing target slotId'), { status: 400 });
+    // Delegate to equipment service which returns annotated equipment + containers
+    const result = await equipmentService.performEquipForCharacter(character.id, itemId, dest.slotId);
+    // performEquipForCharacter already returns { equipment, containers, ... }
+    return result;
+  }
+
+  // Container destination
+  if (dest.type === 'container') {
+    if (!dest.containerId) throw Object.assign(new Error('Missing containerId'), { status: 400 });
+    const targetIndex = typeof dest.index === 'number' ? dest.index : dest.localIndex;
+
+    // If item is currently equipped, delegate to unequip helper which will place it into container inside a tx
+    const equipRow = await prisma.equipment.findFirst({ where: { itemId } });
+    if (equipRow) {
+      const uneq = await equipmentService.unequipItemToContainer(equipRow.characterId, itemId, Number(dest.containerId), Number(targetIndex));
+      // After unequip we want to return up-to-date containers and equipment
+      const containers = await fetchContainersWithItems(character.id);
+      return { equipment: await prisma.equipment.findMany({ where: { characterId: character.id }, include: { Item: true } }), containers };
+    }
+
+    // Otherwise perform a normal container->container move using existing moveItemForCharacter
+    const movePayload = { itemId: itemId, source: null, target: { containerId: Number(dest.containerId), localIndex: Number(targetIndex) } };
+    const moved = await moveItemForCharacter(character, movePayload);
+    // moveItemForCharacter returns annotated containers array
+    return { containers: moved };
+  }
+
+  throw Object.assign(new Error('Invalid destination type'), { status: 400 });
 }

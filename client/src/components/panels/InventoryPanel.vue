@@ -469,15 +469,16 @@ async function onDropToPack(e) {
     return;
   }
 
-  if (payload.source === "inventory") {
+    if (payload.source === "inventory") {
     // optimistic update: move item into the current pack container immediately
     const prevInv = JSON.parse(JSON.stringify(userStore.inventory || []));
     try {
       // apply optimistic move locally so UI is snappy
+      let packC = packContainer.value || null;
+      let moved = null;
       try {
         const newInv = JSON.parse(JSON.stringify(userStore.inventory || []));
         const itemId = payload.item && payload.item.id;
-        const packC = packContainer.value || null;
         if (itemId != null && packC) {
           // remove from source container
           for (const c of newInv) {
@@ -494,7 +495,7 @@ async function onDropToPack(e) {
           }
           // insert into pack container with target index = first available (append)
           const target = newInv.find((c) => String(c.id) === String(packC.id));
-          const moved = { ...(payload.item || {}), containerIndex: 0 };
+            moved = { ...(payload.item || {}), containerIndex: 0 };
           if (target) {
             // ensure no duplicate at the containerIndex
             target.items = (target.items || []).filter(
@@ -513,10 +514,10 @@ async function onDropToPack(e) {
         console.warn("Optimistic update failed (non-fatal)", err);
       }
 
-      const res = await api.post("/inventory/move", {
-        itemId: payload.item.id,
-        toContainer: "pack",
-      });
+      const res = await api.post("/inventory/action", {
+          itemId: payload.item.id,
+          destination: { type: 'container', containerId: packC ? packC.id : null, index: moved ? moved.containerIndex : null },
+        });
       if (res && res.containers) {
         userStore.setInventory(res.containers);
         if (Array.isArray(res.nestableContainers))
@@ -658,7 +659,9 @@ async function onMoveItem(payload) {
       console.warn("Optimistic update error", err);
     }
 
-    const res = await api.post("/inventory/move", postPayload);
+  const destination = postPayload.target ? { type: 'container', containerId: postPayload.target.containerId, index: postPayload.target.localIndex } : null;
+  const actionPayload = { itemId: postPayload.itemId, destination };
+  const res = await api.post("/inventory/action", actionPayload);
     if (res && res.containers) {
       userStore.setInventory(res.containers);
       if (Array.isArray(res.nestableContainers))
