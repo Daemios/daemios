@@ -28,6 +28,7 @@ export async function getContainersForCharacter(characterId: number) {
   return containers.map((c: any) => ({
     ...c,
     containerType: c.containerType || 'BASIC',
+    // TODO(cleanup): reuse inventory/equipment icon mapping instead of duplicating switch logic here.
     icon: ((tpe: any) => {
       const tstr = String(tpe || 'BASIC').toUpperCase();
       switch (tstr) {

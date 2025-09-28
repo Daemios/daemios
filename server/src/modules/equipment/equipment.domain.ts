@@ -18,6 +18,7 @@ export function ensureItemBelongsToCharacter(item: any, characterId: number) {
  */
 export function iconForContainerType(type: any) {
   const t = String(type || 'BASIC').toUpperCase();
+  // TODO(cleanup): consolidate icon mapping with inventory/character modules.
   switch (t) {
     case 'LIQUID': return 'water';
     case 'CONSUMABLES': return 'food-apple';
@@ -57,11 +58,6 @@ export function isValidForSlot(item: any, containerRow: any, slot: any) {
   return declared === s;
 }
 
-// Domain helper: find equipment row referencing an item
-export async function findEquipmentRowForItem(tx: any, itemId: number) {
-  return tx.equipment.findFirst({ where: { itemId } });
-}
-
 // Domain helper: lock items deterministically - lightweight implementation
 // For now this sorts IDs and performs a dummy select to ensure a consistent
 // access order inside transactions. If your DB supports FOR UPDATE you can
@@ -74,15 +70,6 @@ export async function lockItems(tx: any, itemIds: number[]) {
     await tx.item.findUnique({ where: { id }, select: { id: true } });
   }
   return ids;
-}
-
-// Domain helper: validate equip policy - simple wrapper for existing checks
-export function validateEquipPolicy(characterId: number, item: any, slot: any) {
-  if (!isValidForSlot(item, null, slot)) throw new DomainError('INVALID_SLOT', 'Item cannot be equipped to this slot');
-}
-
-export async function buildEquipmentView(tx: any, characterId: number) {
-  return tx.equipment.findMany({ where: { characterId }, include: { Item: true } });
 }
 
 // Domain helper: perform atomic swap between an equipment slot and a container slot

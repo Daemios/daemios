@@ -1,6 +1,6 @@
 import { prisma } from '../../db/prisma';
 import { EquipmentSlot } from '@prisma/client';
-import { ensureItemBelongsToCharacter, DomainError, iconForContainerType, containerIsDescendantOfItem, isValidForSlot, swapEquipmentAndContainer, lockItems } from './equipment.domain';
+import { ensureItemBelongsToCharacter, DomainError, iconForContainerType, containerIsDescendantOfItem, isValidForSlot, swapEquipmentAndContainer } from './equipment.domain';
 
 export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
   // Use a transaction so we both upsert the equipment and clear any
