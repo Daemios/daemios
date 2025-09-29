@@ -153,43 +153,77 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Square+Peg&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Spectral:wght@300;400;600&family=Uncial+Antiqua&display=swap");
 
-/* Fonts */
-.v-application .permanent-marker {
-  font-family: "Permanent Marker", cursive !important;
-}
-.v-application .square-peg {
-  font-family: "Square Peg", sans-serif, cursive !important;
-}
-.v-application .colors-of-autumn {
-  font-family: "Colors Of Autumn", sans-serif !important;
-}
-
-/* Opacity workaround since vuetify doesn't support this */
-.glass {
-  background: rgba(0, 0, 0, 0.5) !important;
+:root {
+  --fantasy-bg: radial-gradient(circle at top, rgba(136, 91, 222, 0.28) 0%, rgba(7, 4, 21, 0) 55%),
+    radial-gradient(circle at 20% 80%, rgba(91, 167, 222, 0.24) 0%, rgba(7, 4, 21, 0) 60%),
+    linear-gradient(180deg, #05030d 0%, #0f0420 60%, #1a0b33 100%);
+  --fantasy-surface: rgba(18, 10, 33, 0.8);
+  --fantasy-highlight: rgba(243, 210, 106, 0.85);
+  --fantasy-border: rgba(233, 198, 120, 0.55);
+  --fantasy-text: #f8f5ff;
+  --fantasy-text-muted: #c7bde4;
+  color-scheme: dark;
 }
 
-/* Overflow overrides to hide scrollbar */
-html {
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Spectral", "Cinzel", serif;
+  background: var(--fantasy-bg);
+  color: var(--fantasy-text);
   overflow-y: auto !important;
 }
 
-/* iOS Fix height */
 html,
 body,
 .v-application,
 .v-application--wrap {
   min-height: 100%;
-  margin: 0;
 }
 
-/* General global styling */
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  position: relative;
+  font-family: "Spectral", "Cinzel", serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.08)' stroke-width='1'%3E%3Cpath d='M0 40h320M0 80h320M0 120h320M0 160h320M0 200h320M0 240h320M0 280h320M40 0v320M80 0v320M120 0v320M160 0v320M200 0v320M240 0v320M280 0v320'/%3E%3Ccircle cx='20' cy='20' r='1.2'/%3E%3Ccircle cx='100' cy='260' r='1.2'/%3E%3Ccircle cx='280' cy='140' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.35;
+  mix-blend-mode: screen;
+}
+
+.v-application {
+  background: transparent !important;
+  color: var(--fantasy-text);
+}
+
+.v-main {
+  background: transparent !important;
+}
+
+.v-application .fantasy-heading {
+  font-family: "Cinzel", "Spectral", serif !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.v-application .fantasy-script {
+  font-family: "Uncial Antiqua", "Cinzel", serif !important;
+  letter-spacing: 0.1em;
+}
+
+.glass {
+  background: var(--fantasy-surface) !important;
+  border: 1px solid rgba(233, 198, 120, 0.25);
+  box-shadow: 0 20px 40px rgba(3, 0, 12, 0.55);
+  backdrop-filter: blur(12px);
 }
 </style>

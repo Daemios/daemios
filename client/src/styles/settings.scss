@@ -1,18 +1,21 @@
 @use 'vuetify/settings' with (
+  $body-font-family: ('Spectral', serif),
+  $heading-font-family: ('Cinzel', serif),
+  $button-font-weight: 600,
   // Reduce default root font size slightly so rem-based typography scales down.
   // Vuetify's typography map can be customized; here we set display and body sizes.
   $typography: (
-    'display-4': (size: 3.5rem),
-    'display-3': (size: 3rem),
-    'display-2': (size: 2.5rem),
-    'display-1': (size: 2rem),
-    'headline': (size: 1.5rem),
-    'title': (size: 1.25rem),
-    'subtitle-1': (size: 1rem),
-    'subtitle-2': (size: 0.9rem),
-    'body-1': (size: 0.95rem),
-    'body-2': (size: 0.85rem),
-    'caption': (size: 0.7rem),
-    'overline': (size: 0.65rem),
+    'display-4': (size: 3.75rem, weight: 700, letter-spacing: 0.08em),
+    'display-3': (size: 3.25rem, weight: 700),
+    'display-2': (size: 2.75rem, weight: 600),
+    'display-1': (size: 2.25rem, weight: 600),
+    'headline': (size: 1.75rem, weight: 600),
+    'title': (size: 1.35rem, weight: 600),
+    'subtitle-1': (size: 1.05rem, weight: 500),
+    'subtitle-2': (size: 0.95rem, weight: 500),
+    'body-1': (size: 0.98rem, line-height: 1.6),
+    'body-2': (size: 0.88rem, line-height: 1.6),
+    'caption': (size: 0.72rem, letter-spacing: 0.14em),
+    'overline': (size: 0.68rem, letter-spacing: 0.2em, text-transform: uppercase),
   ),
 );

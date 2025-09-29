@@ -5,20 +5,26 @@ export default {
   themes: {
     dark: {
       colors: {
-        primary: "#ffffffff",
-        secondary: "#7a7a7a6c",
-        tertiary: "#1f1e1eff",
-
-        surface: "#121212ff",
-        "surface-variant": "#161616ff",
+        primary: "#f3d26aff",
+        "on-primary": "#2b1a08ff",
+        secondary: "#6d59cfff",
+        "on-secondary": "#f6efffff",
+        tertiary: "#3fb7b6ff",
+        background: "#0c081bff",
+        surface: "#160d2cff",
+        "surface-variant": "#1f143cff",
+        outline: "#6f5a2dff",
+        success: "#8fdcc2ff",
+        warning: "#f2b56cff",
+        error: "#ff6b7dff",
 
         // Entity colors tuned for fantasy readability
-        enemy: "#B33A3A",
-        "enemy-border": "#D9534F",
-        ally: "#3B82A1",
-        "ally-border": "#5FB4D1",
-        player: "#8BC34A",
-        "player-border": "#B9F6AE",
+        enemy: "#f05d73",
+        "enemy-border": "#ff92a3",
+        ally: "#5fc2e2",
+        "ally-border": "#9fe2f5",
+        player: "#d0f17d",
+        "player-border": "#f2ffc3",
       },
     },
   },

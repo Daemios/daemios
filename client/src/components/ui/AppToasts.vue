@@ -11,6 +11,7 @@
           variant="elevated"
           location="bottom"
           multi-line
+          class="fantasy-toast"
           @update:modelValue="(value) => handleVisibilityChange(toast.id, value)"
         >
           <div class="d-flex align-center justify-space-between w-100">
@@ -88,5 +89,23 @@ function handleVisibilityChange(id, value) {
 
 .app-toast-container :deep(.v-snackbar) {
   pointer-events: all;
+}
+
+.app-toast-container :deep(.fantasy-toast .v-overlay__content) {
+  transform-origin: bottom center;
+}
+
+.app-toast-container :deep(.fantasy-toast .v-snackbar__wrapper) {
+  background: linear-gradient(135deg, rgba(23, 13, 42, 0.92), rgba(48, 23, 82, 0.96));
+  border: 1px solid rgba(233, 198, 120, 0.35);
+  box-shadow: 0 22px 40px rgba(6, 0, 18, 0.65), inset 0 0 20px rgba(243, 210, 106, 0.12);
+  backdrop-filter: blur(14px);
+  color: var(--fantasy-text);
+  font-family: "Spectral", serif;
+  letter-spacing: 0.05em;
+}
+
+.app-toast-container :deep(.fantasy-toast .v-btn) {
+  color: var(--fantasy-highlight) !important;
 }
 </style>

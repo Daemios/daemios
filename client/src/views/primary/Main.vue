@@ -31,4 +31,32 @@ const { character } = storeToRefs(userStore);
   width: 100%;
   max-width: 100%;
 }
+
+.left-drawer,
+.right-drawer {
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  gap: 18px;
+}
+
+.left-drawer::before,
+.right-drawer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(233, 198, 120, 0.12);
+  background: linear-gradient(135deg, rgba(18, 10, 33, 0.55), rgba(43, 23, 78, 0.35));
+  filter: blur(0.5px);
+  opacity: 0.85;
+  z-index: -1;
+}
+
+.left-drawer,
+.right-drawer {
+  position: relative;
+}
 </style>
