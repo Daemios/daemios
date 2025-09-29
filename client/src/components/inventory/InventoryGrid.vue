@@ -8,7 +8,7 @@
         :class="{
           highlighted: slot.containerId === highlightedContainerId,
           'pack-slot': slot.isPack,
-          'pack-highlight': slot.isPack && packDragActive,
+          'pack-highlight': slot.isPack && isPackHighlighted(slot),
         }"
         @click="() => $emit('click-item', slot.item)"
         @dragover.prevent
@@ -34,6 +34,7 @@
                 })
             "
             @click="() => $emit('click-item', slot.item)"
+            @highlight-change="(state) => setPackHighlight(slot, state)"
           />
         </template>
         <template v-else>
@@ -71,8 +72,7 @@
 
 <script setup>
 import Slot from "@/components/shared/Slot.vue";
-import { computed, ref, onMounted, onBeforeUnmount } from "vue";
-import dragEventBus from "@/lib/dragEventBus";
+import { computed, reactive } from "vue";
 import { iconForContainerType } from "@/utils/containerPresentation";
 // Import the whole mdi namespace and pick the exact exported names that exist
 import * as mdi from "@mdi/js";
@@ -97,35 +97,29 @@ const props = defineProps({
   },
 });
 
-// Track when a dragged item that is a pack is active (for highlighting pack cell)
-const packDragActive = ref(false);
+const packHighlightStates = reactive({});
 
-function onGlobalDragStart(payload) {
-  try {
-    const eq = payload?.item?.equipmentSlot;
-    packDragActive.value = Array.isArray(eq)
-      ? eq.includes("pack")
-      : typeof eq === "string"
-      ? eq === "pack"
-      : false;
-  } catch (err) {
-    // swallow - defensive
+function packSlotKey(slot) {
+  if (slot?.containerId !== undefined && slot?.containerId !== null) {
+    return `container-${slot.containerId}`;
+  }
+  return `slot-${slot?.globalIndex ?? "unknown"}`;
+}
+
+function setPackHighlight(slot, highlighted) {
+  const key = packSlotKey(slot);
+  if (!key) return;
+  if (highlighted) {
+    packHighlightStates[key] = true;
+  } else {
+    delete packHighlightStates[key];
   }
 }
 
-function onGlobalDragEnd() {
-  packDragActive.value = false;
+function isPackHighlighted(slot) {
+  const key = packSlotKey(slot);
+  return Boolean(key && packHighlightStates[key]);
 }
-
-onMounted(() => {
-  dragEventBus.on("drag-start", onGlobalDragStart);
-  dragEventBus.on("drag-end", onGlobalDragEnd);
-});
-
-onBeforeUnmount(() => {
-  dragEventBus.off("drag-start", onGlobalDragStart);
-  dragEventBus.off("drag-end", onGlobalDragEnd);
-});
 // Build a unified slots array combining containers in order. Each slot
 // includes: globalIndex, containerId, localIndex, and item (or null).
 const slots = computed(() => {
