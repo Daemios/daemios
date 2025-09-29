@@ -21,6 +21,7 @@
       />
 
       <EquipmentSlot
+        slot-name="hands"
         label="Hands"
         :item="equipped.hands"
         class="left-row-3"
@@ -47,6 +48,7 @@
       />
 
       <EquipmentSlot
+        slot-name="head"
         label="Head"
         :item="equipped.head"
         class="right-row-1"
@@ -55,6 +57,7 @@
       />
 
       <EquipmentSlot
+        slot-name="chest"
         label="Chest"
         :item="equipped.chest"
         class="right-row-2"
@@ -63,6 +66,7 @@
       />
 
       <EquipmentSlot
+        slot-name="waist"
         label="Waist"
         :item="equipped.waist"
         class="right-row-3"
@@ -71,6 +75,7 @@
       />
 
       <EquipmentSlot
+        slot-name="leg"
         label="Legs"
         :item="equipped.leg"
         class="right-row-4"
@@ -79,6 +84,7 @@
       />
 
       <EquipmentSlot
+        slot-name="feet"
         label="Boots"
         :item="equipped.feet"
         class="right-row-5"
