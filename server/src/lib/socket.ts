@@ -4,9 +4,14 @@ export interface Broadcastable {
   send(type: string, body: any): void;
 }
 
-const wss = new WebSocketServer({ port: 3001 }) as WebSocketServer & Broadcastable;
+// Allow test runners to allocate distinct ports per worker to avoid EADDRINUSE
+const basePort = process.env.SOCKET_PORT ? Number(process.env.SOCKET_PORT) : 3001;
+const workerId = process.env.VITEST_WORKER_ID || process.env.JEST_WORKER_ID;
+const port = workerId ? basePort + Number(workerId) : basePort;
 
-console.log('starting socket server');
+const wss = new WebSocketServer({ port }) as WebSocketServer & Broadcastable;
+
+console.log('starting socket server on port', port);
 
 wss.on('connection', (socket: WS) => {
   socket.on('message', (data: any) => {
