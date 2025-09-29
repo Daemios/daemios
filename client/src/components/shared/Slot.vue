@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import DraggableItem from "@/components/inventory/DraggableItem.vue";
 import { mdiClose } from "@mdi/js";
 import dragEventBus from "@/lib/dragEventBus";
@@ -48,9 +48,13 @@ const props = defineProps({
   icon: { type: String, default: null },
 });
 
-const emit = defineEmits(["click", "dropped"]);
+const emit = defineEmits(["click", "dropped", "highlight-change"]);
 
 const isDragHighlighted = ref(false);
+
+watch(isDragHighlighted, (highlighted) => {
+  emit("highlight-change", highlighted);
+});
 
 const slotStyle = computed(() => {
   const s = { position: "relative", width: "100%", height: "100%" };
