@@ -11,19 +11,19 @@ export const useAbilityStore = defineStore("ability", {
   actions: {
     async getElements() {
       const response = await api.get("ability/elements");
-      this.elements = response;
+      this.elements = response.data ?? response;
     },
     async getShapes() {
       const response = await api.get("ability/shapes");
-      this.shapes = response;
+      this.shapes = response.data ?? response;
     },
     async getTypes() {
       const response = await api.get("ability/types");
-      this.types = response;
+      this.types = response.data ?? response;
     },
     async getRanges() {
       const response = await api.get("ability/ranges");
-      this.ranges = response;
+      this.ranges = response.data ?? response;
     },
     async loadAll() {
       // simple parallel load
@@ -33,10 +33,10 @@ export const useAbilityStore = defineStore("ability", {
         api.get("ability/types"),
         api.get("ability/ranges"),
       ]);
-      this.elements = els;
-      this.shapes = shapes;
-      this.types = types;
-      this.ranges = ranges;
+      this.elements = els.data ?? els;
+      this.shapes = shapes.data ?? shapes;
+      this.types = types.data ?? types;
+      this.ranges = ranges.data ?? ranges;
     },
   },
 });

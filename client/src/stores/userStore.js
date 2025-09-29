@@ -186,9 +186,9 @@ export const useUserStore = defineStore("user", {
     // (normalized setInventory defined above)
     async getUser() {
       const response = await api.get("user/refresh");
-      this.setCharacter(response.character);
-      // some endpoints may include inventory, but ensure cached inventory is set
-      if (response.inventory) this.setInventory(response.inventory);
+      const payload = (response && response.data) || {};
+      if (payload.character) this.setCharacter(payload.character);
+      if (payload.inventory) this.setInventory(payload.inventory);
     },
     async ensureInventory(force = false) {
       // Do not re-fetch if we already have inventory unless forced
@@ -198,16 +198,19 @@ export const useUserStore = defineStore("user", {
         // The server endpoint is /inventory/ (session-backed)
         const response = await api.get("inventory");
         if (response && response.success) {
-          // response.containers is the canonical structure
-          this.setInventory(response.containers || []);
-          // optional new groups
-          if (Array.isArray(response.nestableContainers))
-            this.setNestableInventory(response.nestableContainers);
-          if (Array.isArray(response.equippedContainers)) {
-            // replace inventory with equipped containers for canonical equipped view
-            // keep legacy behavior of setInventory for main grid
-            this.setInventory(response.containers || []);
-          }
+          const payload = response.data || {};
+          const containers = Array.isArray(payload.containers)
+            ? payload.containers
+            : Array.isArray(payload.inventory)
+            ? payload.inventory
+            : Array.isArray(payload)
+            ? payload
+            : [];
+          this.setInventory(containers || []);
+          if (Array.isArray(payload.nestableContainers))
+            this.setNestableInventory(payload.nestableContainers);
+          if (Array.isArray(payload.equippedContainers))
+            this.setInventory(containers || []);
           return this.inventory;
         }
       } catch (e) {
@@ -217,37 +220,48 @@ export const useUserStore = defineStore("user", {
     },
     async getCharacters() {
       const response = await api.get("user/characters");
-      this.setCharacters(response.characters);
+      const payload = (response && response.data) || {};
+      this.setCharacters(payload.characters || payload);
     },
     async getCharacter() {
       const response = await api.get("user/character");
-      this.setCharacter(response.data);
+      const payload = (response && response.data) || {};
+      this.setCharacter(payload.character || payload);
     },
     async getInventory() {
       const response = await api.get("user/inventory");
-      this.setInventory(response.data);
+      const payload = (response && response.data) || {};
+      const containers = Array.isArray(payload.containers)
+        ? payload.containers
+        : Array.isArray(payload.inventory)
+        ? payload.inventory
+        : Array.isArray(payload)
+        ? payload
+        : [];
+      this.setInventory(containers);
     },
     // bootstrap helper to fetch user context at app mount
     async bootstrapOnMount() {
       try {
         // Try to refresh user and active character
         const response = await api.get("user/refresh");
-        if (!response || !response.character) {
+        const payload = (response && response.data) || {};
+        if (!payload || !payload.character) {
           // No active character present; force logout
           await api.post("user/logout");
           return null;
         }
         console.debug(
           "[userStore] bootstrapOnMount received character",
-          response.character && {
-            id: response.character.id,
-            equipped: response.character.equipped,
+          payload.character && {
+            id: payload.character.id,
+            equipped: payload.character.equipped,
           }
         );
-        this.setCharacter(response.character);
+        this.setCharacter(payload.character);
         // ensure inventory is fetched once and cached
         await this.ensureInventory();
-        return response.character;
+        return payload.character;
       } catch (e) {
         // If unauthorized or other error, let the api helper route to login
         console.warn("bootstrap failed", e);
@@ -257,19 +271,22 @@ export const useUserStore = defineStore("user", {
     async selectCharacter(characterId) {
       const response = await api.post("user/character/select", { characterId });
       if (response.success) {
+        const payload = response.data || {};
         router.push("/");
-        this.setCharacter(response.character);
-        // server may return canonical containers under `containers` (new) or
-        // `inventory` (legacy). Accept either to remain compatible.
-        this.setInventory(response.containers || response.inventory || []);
-      } else {
-        console.log(response.error);
+        if (payload.character) this.setCharacter(payload.character);
+        const containers = Array.isArray(payload.containers)
+          ? payload.containers
+          : Array.isArray(payload.inventory)
+          ? payload.inventory
+          : Array.isArray(payload.equippedContainers)
+          ? payload.equippedContainers
+          : [];
+        if (Array.isArray(containers)) this.setInventory(containers);
       }
     },
     async logout() {
       const response = await api.post("user/logout");
       if (response.success) router.push("/login");
-      else console.log(response.error);
     },
   },
 });

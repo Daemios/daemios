@@ -1,41 +1,43 @@
 import passport from 'passport';
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import { registrationValidator } from '../middlewares/user';
 import { userService } from '../modules/user/user.service';
+import { respondError, respondSuccess } from '../utils/apiResponse';
 
 const router = express.Router();
 
-router.post('/login', passport.authenticate('local'), (req: Request, res: Response) => {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - passport augments req.user at runtime
-  if (req.user) {
-    // @ts-ignore
-    res.send({
-      success: true,
-      // @ts-ignore
-      displayName: req.user.displayName,
+router.post('/login', (req: Request, res: Response, next: NextFunction) => {
+  passport.authenticate('local', (err: unknown, user: Express.User | false, info?: { message?: string }) => {
+    if (err) return next(err);
+
+    if (!user) {
+      const message = info?.message ?? 'Invalid credentials';
+      return respondError(res, 401, 'unauthorized', message);
+    }
+
+    req.logIn(user, (loginErr) => {
+      if (loginErr) return next(loginErr);
+
+      const { displayName } = user as { displayName: string };
+      return respondSuccess(res, 200, { displayName }, 'Login successful');
     });
-  } else {
-    res.status(401).send({ success: false });
-  }
+
+    return undefined;
+  })(req, res, next);
 });
 
 // Register user route
 router.post('/register', registrationValidator, async (req: Request, res: Response) => {
   console.log('registering user');
   try {
-  const { email, password, displayName } = req.body as any;
-  const newUser = await userService.createUser(email, password, displayName);
+    const { email, password, displayName } = req.body as any;
+    const newUser = await userService.createUser(email, password, displayName);
 
-    res.status(200).json({
-      success: 'User created',
-      user: newUser,
-    });
+    respondSuccess(res, 201, { user: newUser }, 'User created');
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    respondError(res, 500, 'internal_error', 'Internal server error');
   }
 });
 
 export default router;
-

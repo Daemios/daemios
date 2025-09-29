@@ -43,6 +43,7 @@
     "eslint-config-airbnb": "^19.0.4",
     "eslint-plugin-import": "^2.29.0",
     "nodemon": "^3.1.0",
+    "supertest": "^7.1.1",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",

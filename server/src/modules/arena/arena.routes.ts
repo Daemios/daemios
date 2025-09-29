@@ -1,19 +1,21 @@
 import { Router } from 'express';
 import * as controller from './arena.controller';
+import { respondError, respondSuccess } from '../../utils/apiResponse';
 
 const router = Router();
 
-router.post('/move', (req, res) => {
+router.post('/move', (_req, res) => {
   // Movement validation was legacy; stubbed to return false/accepted false for now
-  res.send(false);
+  respondSuccess(res, 200, false);
 });
 
 router.get('/terrain', (req, res) => {
   if (req.app && req.app.locals && req.app.locals.arena && req.app.locals.arena.seed) {
-    res.json({ seed: req.app.locals.arena.seed });
-  } else {
-    res.status(404).send('arena seed not set');
+    respondSuccess(res, 200, { seed: req.app.locals.arena.seed });
+    return;
   }
+
+  respondError(res, 404, 'not_found', 'Arena seed not set');
 });
 
 router.get('/list', controller.list);

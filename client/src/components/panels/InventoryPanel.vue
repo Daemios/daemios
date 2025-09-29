@@ -518,7 +518,7 @@ async function onDropToPack(e) {
         console.warn("Optimistic update failed (non-fatal)", err);
       }
 
-      const res = await api.post("/inventory/action", {
+      const response = await api.post("/inventory/action", {
         itemId: payload.item.id,
         destination: {
           type: "container",
@@ -526,6 +526,7 @@ async function onDropToPack(e) {
           index: moved ? moved.containerIndex : null,
         },
       });
+      const res = (response && response.data) || {};
       if (res && res.containers) {
         userStore.setInventory(res.containers);
         if (Array.isArray(res.nestableContainers))
@@ -549,10 +550,11 @@ async function onDropToPack(e) {
 
   if (payload.source === "equip" || payload.source === "container") {
     try {
-      const res = await api.post("/character/equip", {
+      const response = await api.post("/character/equip", {
         slot: "PACK",
         itemId: payload.item.id,
       });
+      const res = (response && response.data) || {};
       if (res && res.character) userStore.setCharacter(res.character);
       if (res && res.containers) {
         userStore.setInventory(res.containers);
@@ -675,7 +677,8 @@ async function onMoveItem(payload) {
         }
       : null;
     const actionPayload = { itemId: postPayload.itemId, destination };
-    const res = await api.post("/inventory/action", actionPayload);
+    const response = await api.post("/inventory/action", actionPayload);
+    const res = (response && response.data) || {};
     if (res && res.containers) {
       userStore.setInventory(res.containers);
       if (Array.isArray(res.nestableContainers))

@@ -23,7 +23,8 @@ export const useWorldStore = defineStore("world", {
       try {
         this.lastError = null;
         const res = await api.get("world/seed");
-        this.worldSeed = res?.seed ?? null;
+        const payload = (res && res.data) || {};
+        this.worldSeed = payload?.seed ?? null;
       } catch (e) {
         this.lastError = e?.message || String(e);
         this.worldSeed = null;
@@ -36,8 +37,13 @@ export const useWorldStore = defineStore("world", {
         this.locationsLoading = true;
         this.lastError = null;
         const res = await api.get("world/locations");
-        // Accept either array or { locations: [...] }
-        this.locations = Array.isArray(res) ? res : res?.locations ?? [];
+        const payload = (res && res.data) || {};
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.locations)
+          ? payload.locations
+          : [];
+        this.locations = list;
       } catch (e) {
         this.lastError = e?.message || String(e);
         this.locations = this.locations ?? [];

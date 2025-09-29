@@ -151,7 +151,8 @@ async function onSlotDropped({ payload }) {
       slot: String(slotId.value).toUpperCase(),
     };
     try {
-      const res = await api.post("/character/equip", body);
+      const response = await api.post("/character/equip", body);
+      const res = (response && response.data) || {};
       // Debug: log response to help diagnose capacity/container updates
       try {
         console.debug(

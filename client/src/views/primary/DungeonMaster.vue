@@ -112,48 +112,64 @@ const create = reactive({
   calling: false,
 });
 
-onMounted(() => {
-  api.get("arena/list").then((response) => {
-    active_arena_history_id.value = response.active_arena_history_id;
-    saved_arenas.value = response.saved_arenas;
-  });
+onMounted(async () => {
+  try {
+    const response = await api.get("arena/list");
+    const payload = (response && response.data) || {};
+    if (Array.isArray(payload)) {
+      saved_arenas.value = payload;
+      active_arena_history_id.value = null;
+    } else {
+      active_arena_history_id.value =
+        payload.active_arena_history_id ?? active_arena_history_id.value;
+      saved_arenas.value = Array.isArray(payload.saved_arenas)
+        ? payload.saved_arenas
+        : saved_arenas.value;
+    }
+  } catch (err) {
+    console.warn("Failed to load arenas", err);
+  }
 });
 
-function createArena() {
+async function createArena() {
   const body = { name: create.name, size: create.size };
   if (create.calling) return;
   create.calling = true;
-  api.post("arena/create", body).then((response) => {
-    if (response) {
+  try {
+    const response = await api.post("arena/create", body);
+    if (response && response.success) {
+      const payload = response.data;
       create.status = "Created";
       setTimeout(() => {
-        saved_arenas.value = response;
+        if (Array.isArray(payload)) saved_arenas.value = payload;
         create.calling = false;
         create.show = false;
         create.name = null;
         create.size = 16;
         create.status = null;
       }, 1000);
-    } else {
-      create.status = "Error";
     }
-  });
+  } catch (err) {
+    console.warn("Failed to create arena", err);
+    create.status = "Error";
+    create.calling = false;
+  }
 }
 
-function startCombat() {
-  api.post("dm/combat/start").then((response) => {
-    if (response) {
-      console.log(response);
-    }
-  });
+async function startCombat() {
+  try {
+    await api.post("dm/combat/start");
+  } catch (err) {
+    console.warn("Failed to start combat", err);
+  }
 }
 
-function endCombat() {
-  api.post("dm/combat/end").then((response) => {
-    if (response) {
-      console.log(response);
-    }
-  });
+async function endCombat() {
+  try {
+    await api.post("dm/combat/end");
+  } catch (err) {
+    console.warn("Failed to end combat", err);
+  }
 }
 
 // loadArena and deleteArena were removed from the template; keep API helpers here if needed later
