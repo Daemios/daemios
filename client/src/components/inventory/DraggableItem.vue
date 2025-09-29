@@ -138,15 +138,28 @@ function onMouseEnter() {
         ((props.item.container && props.item.container.id) ||
           props.item.providesContainerId)) ||
       null;
+    const isContainerItem = Boolean(
+      props.item &&
+        (props.item.isContainer ||
+          props.item.container ||
+          props.item.providesContainerId != null)
+    );
     const sourceContainerId =
       (props.source && props.source.containerId) ||
       (props.item && props.item.containerId) ||
       null;
-    const cid = providedContainerId != null ? providedContainerId : sourceContainerId;
-    dragEventBus.emit("container-hover", {
-      containerId: cid,
-      item: props.item,
-    });
+    const cid =
+      providedContainerId != null
+        ? providedContainerId
+        : !isContainerItem
+        ? sourceContainerId
+        : null;
+    if (cid != null) {
+      dragEventBus.emit("container-hover", {
+        containerId: cid,
+        item: props.item,
+      });
+    }
   } catch (e) {
     /* ignore */
   }
