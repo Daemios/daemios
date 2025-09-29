@@ -8,7 +8,8 @@ export const useDataStore = defineStore("data", {
   actions: {
     async getRaces() {
       const response = await api.get("data/races");
-      this.races = response.races;
+      const payload = (response && response.data) || {};
+      this.races = payload.races || payload;
     },
   },
 });

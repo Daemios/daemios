@@ -28,6 +28,7 @@ export async function getContainersForCharacter(characterId: number) {
   return containers.map((c: any) => ({
     ...c,
     containerType: c.containerType || 'BASIC',
+    icon: c.icon ?? null,
     items: (c.items || []).map(mapItemForClient),
   }));
 }

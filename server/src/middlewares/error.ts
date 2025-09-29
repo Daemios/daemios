@@ -1,15 +1,18 @@
 import { NextFunction, Request, Response } from 'express';
-import { HttpError } from '../utils/httpError';
 import { Prisma } from '@prisma/client';
+import { HttpError } from '../utils/httpError';
+import { respondError } from '../utils/apiResponse';
 
 export function errorMiddleware(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === 'P2002') return res.status(409).json({ error: 'Unique constraint failed' });
-    return res.status(400).json({ error: 'Database error' });
+    if (err.code === 'P2002') {
+      return respondError(res, 409, 'unique_constraint_failed', 'Unique constraint failed');
+    }
+    return respondError(res, 400, 'database_error', 'Database error');
   }
   if (err instanceof HttpError) {
-    return res.status(err.status).json({ error: err.message });
+    return respondError(res, err.status, 'http_error', err.message);
   }
   console.error(err);
-  return res.status(500).json({ error: 'Internal server error' });
+  return respondError(res, 500, 'internal_error', 'Internal server error');
 }

@@ -21,6 +21,9 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- Toast notifications -->
+    <AppToasts />
   </v-app>
 </template>
 
@@ -30,6 +33,7 @@ import { useRoute } from "vue-router";
 import CharacterPanel from "@/components/dialogs/CharacterPanel.vue";
 import Settings from "@/components/dialogs/Settings.vue";
 import MicroMenu from "@/components/overlay/MicroMenu.vue";
+import AppToasts from "@/components/ui/AppToasts.vue";
 import { useDialogsStore } from "@/stores/dialogsStore";
 import { useSocketStore } from "@/stores/socketStore";
 import { useUserStore } from "@/stores/userStore";

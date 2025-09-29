@@ -234,17 +234,16 @@ function setAvatar(image_index) {
   currentStage.value = "finish";
 }
 
-function createCharacter() {
+async function createCharacter() {
   const req = { name: name.value, raceId: race_id.value, image: avatar.value };
-  api.post("user/character/create", req).then((response) => {
-    if (response.success) {
+  try {
+    const response = await api.post("user/character/create", req);
+    if (response && response.success) {
       router.push("/characters");
-    } else {
-      console.log("Character creation failed!");
-      console.log(response.status);
-      console.log(typeof response.status);
     }
-  });
+  } catch (err) {
+    console.warn("Character creation failed", err);
+  }
 }
 </script>
 

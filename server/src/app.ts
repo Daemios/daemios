@@ -15,6 +15,8 @@ import { arenaRouter } from './modules/arena';
 import { worldRouter } from './modules/world';
 import { dmRouter } from './modules/dm';
 import { equipmentRouter } from './modules/equipment';
+import { respondError, respondSuccess } from './utils/apiResponse';
+import { errorMiddleware } from './middlewares/error';
 
 import initializePassport from './passport-config';
 import { isAuth } from './middlewares/user';
@@ -50,6 +52,8 @@ app.use(passport.initialize());
 app.use(passport.session());
 initializePassport(passport);
 
+app.get('/_health', (_req, res) => respondSuccess(res, 200, { ok: true }, 'Healthy'));
+
 app.use('/open', openRouter);
 app.use(isAuth);
 
@@ -62,7 +66,8 @@ app.use('/world', worldRouter);
 app.use('/dm', dmRouter);
 app.use('/character', equipmentRouter);
 
-app.get('/_health', (_req, res) => res.json({ ok: true }));
+app.use((req, res) => respondError(res, 404, 'not_found', `Route not found: ${req.method} ${req.path}`));
+app.use(errorMiddleware);
 
 export default app;
 

@@ -1,15 +1,16 @@
 import express from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { respondError, respondSuccess } from '../../utils/apiResponse';
 import { fetchContainersWithItems, mapItemForClient, moveItemForCharacter, placeItem } from './inventory.service';
 import { characterService } from '../character/character.service';
 import { prisma } from '../../db/prisma';
 
 export const getInventory = asyncHandler(async (req: express.Request, res: express.Response) => {
   const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
-  if (!rawUserId) return res.status(200).json([]);
+  if (!rawUserId) return respondSuccess(res, 200, []);
   const userId = Number(rawUserId);
   const character = await characterService.getActiveCharacterForUser(userId);
-  if (!character) return res.status(200).json([]);
+  if (!character) return respondSuccess(res, 200, []);
   const containers = await fetchContainersWithItems(character.id);
   const out = containers.map((c: any) => ({ id: c.id, name: c.name || null, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', nestable: !!c.nestable, itemId: c.itemId ?? null, items: (c.items || []).map(mapItemForClient) }));
 
@@ -29,15 +30,15 @@ export const getInventory = asyncHandler(async (req: express.Request, res: expre
 
   const nestableContainers = out.filter((c: any) => !!c.nestable);
 
-  res.json({ success: true, containers: out, equippedContainers, nestableContainers });
+  respondSuccess(res, 200, { containers: out, equippedContainers, nestableContainers });
 });
 
 export const postMove = asyncHandler(async (req: express.Request, res: express.Response) => {
   const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
-  if (!rawUserId) return res.status(400).json({ error: 'No active character' });
+  if (!rawUserId) return respondError(res, 400, 'no_active_character', 'No active character');
   const userId = Number(rawUserId);
   const character = await characterService.getActiveCharacterForUser(userId);
-  if (!character) return res.status(400).json({ error: 'No active character' });
+  if (!character) return respondError(res, 400, 'no_active_character', 'No active character');
   const payload = req.body;
   const updated = await moveItemForCharacter(character, payload);
   // updated is canonical containers array; compute groups using current equipment
@@ -55,15 +56,15 @@ export const postMove = asyncHandler(async (req: express.Request, res: express.R
 
   const nestableContainers = (updated || []).filter((c: any) => !!c.nestable);
 
-  res.json({ success: true, containers: updated, equippedContainers, nestableContainers });
+  respondSuccess(res, 200, { containers: updated, equippedContainers, nestableContainers }, 'Inventory updated');
 });
 
 export const postAction = asyncHandler(async (req: express.Request, res: express.Response) => {
   const rawUserId = req.user && (req.user as any).id ? (req.user as any).id : null;
-  if (!rawUserId) return res.status(400).json({ error: 'No active character' });
+  if (!rawUserId) return respondError(res, 400, 'no_active_character', 'No active character');
   const userId = Number(rawUserId);
   const character = await characterService.getActiveCharacterForUser(userId);
-  if (!character) return res.status(400).json({ error: 'No active character' });
+  if (!character) return respondError(res, 400, 'no_active_character', 'No active character');
   const payload = req.body;
 
   // Delegate to placeItem which will route to equipment or container handlers.
@@ -100,5 +101,5 @@ export const postAction = asyncHandler(async (req: express.Request, res: express
 
   const nestableContainers = mapped.filter((c: any) => !!c.nestable);
 
-  res.json({ success: true, containers: mapped, equippedContainers, nestableContainers });
+  respondSuccess(res, 200, { containers: mapped, equippedContainers, nestableContainers }, 'Inventory updated');
 });
