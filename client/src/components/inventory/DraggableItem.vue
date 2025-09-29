@@ -130,12 +130,19 @@ function onDragEnd() {
 function onMouseEnter() {
   try {
     // determine a container id associated with this item where possible
-    const cid =
-      (props.source && props.source.containerId) ||
+    // Prefer the container provided *by* the item (when it is itself a
+    // container) so hovering a stowed container highlights its internal
+    // slots instead of the pockets it's currently sitting in.
+    const providedContainerId =
       (props.item &&
-        (props.item.containerId ||
-          (props.item.container && props.item.container.id))) ||
+        ((props.item.container && props.item.container.id) ||
+          props.item.providesContainerId)) ||
       null;
+    const sourceContainerId =
+      (props.source && props.source.containerId) ||
+      (props.item && props.item.containerId) ||
+      null;
+    const cid = providedContainerId != null ? providedContainerId : sourceContainerId;
     dragEventBus.emit("container-hover", {
       containerId: cid,
       item: props.item,
