@@ -1,0 +1,37 @@
+/* Registers Cinzel Decorative fonts from public/font and provides a helper class */
+@font-face {
+  font-family: 'Cinzel Decorative';
+  src: url('/font/CinzelDecorative-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cinzel Decorative';
+  src: url('/font/CinzelDecorative-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cinzel Decorative';
+  src: url('/font/CinzelDecorative-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Utility class to apply the Cinzel font with sensible fallbacks */
+.cinzel {
+  font-family: 'Cinzel Decorative', CinzelDecorative, 'Cinzel', serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Optional: a small variant for headings to use heavier weight */
+.cinzel--heading {
+  font-family: 'Cinzel Decorative', serif;
+  font-weight: 700;
+}

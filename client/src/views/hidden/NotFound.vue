@@ -1,33 +1,24 @@
 <template>
   <v-container
     fluid
-    class="overlay"
+    class="overlay fill-height"
   >
-    <v-layout
-      d-flex
-      column
-      align-center
-      justify-center
-    >
-      <v-icon
-        size="48"
-        class="mb-2"
+    <v-row class="d-flex flex-column align-center justify-center">
+      <v-col
+        cols="12"
+        class="text-center"
       >
-        {{ mdiAlertCircleOutline }}
-      </v-icon>
-      <h3>
-        This page could not be found
-      </h3>
-      <!--suppress HtmlUnknownTarget -->
-      <a
-        @click="$router.go(-1)"
-      >
-        Go Back
-      </a>
-    </v-layout>
+        <h1 class="mb-4 cinzel--heading">
+          This page could not be found
+        </h1>
+        <v-btn
+          size="large"
+          variant="outlined"
+          @click.prevent="$router.go(-1)"
+        >
+          Go Back
+        </v-btn>
+      </v-col>
+    </v-row>
   </v-container>
 </template>
-
-<script setup>
-import { mdiAlertCircleOutline } from "@mdi/js";
-</script>

@@ -159,6 +159,6 @@ describe('inventory.service', () => {
     );
 
     expect(prisma.item.update).toHaveBeenCalled();
-    expect(res).toEqual({ containers: [] });
+    expect(res).toEqual({ containers: [], updatedContainerIds: [7] });
   });
 });

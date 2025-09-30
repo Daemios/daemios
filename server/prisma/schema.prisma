@@ -10,7 +10,7 @@ datasource db {
 model AbilityElement {
   id             Int             @id @default(autoincrement())
   name           String?
-  icon           String?
+  img            String?
   effect         String?
   tag            String?
   damage         Decimal?

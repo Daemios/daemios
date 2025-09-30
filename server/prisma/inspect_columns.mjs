@@ -1,1 +1,0 @@
-﻿// Stubbed maintenance script: raw SQL queries were removed per migration cleanup.\n// If you need to inspect DB columns, reintroduce a safe implementation or\n// run ad-hoc queries in a controlled environment.\nconsole.info('inspect_columns script is stubbed and intentionally no-op.');\n

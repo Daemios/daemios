@@ -11,6 +11,7 @@ The golden rule: When encountering code that violates any of the following instr
 - When there is a mismatch between client, server, and database (Prisma schema), ask the user what they prefer to follow; do not create mappings between client, server, and database.
 - Do not attempt to run the client or server Vite servers, or build.
 - When you choose to communicate what you did and why, do so in a concise manner. Summarize with a single paragraph, and only add critical details beyond the summary paragraph.
+- If you believe a test is out of date, verify the logic / goal of the test with the user before making changes.
 
 ## Client-Side Code Guidelines
 

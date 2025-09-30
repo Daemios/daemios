@@ -147,7 +147,11 @@ export async function performEquipForCharacter(characterId: number, itemId: numb
     await tx.equipment.upsert({ where: { characterId_slot: { characterId, slot: normalizedSlot } }, update: { itemId }, create: { characterId, slot: normalizedSlot, itemId } });
 
     // If the item is a container, ensure its capacity is reflected in its container record
-    const reciprocal = item && item.isContainer ? await tx.container.findFirst({ where: { itemId: item.id } }) : null;
+    let reciprocal = item && item.isContainer ? await tx.container.findFirst({ where: { itemId: item.id } }) : null;
+    if (reciprocal && item && typeof item.capacity === 'number') {
+      await tx.container.update({ where: { id: reciprocal.id }, data: { capacity: Number(item.capacity) } });
+      reciprocal.capacity = Number(item.capacity);
+    }
 
     const equipment = await tx.equipment.findMany({ where: { characterId }, include: { Item: true } });
     const containers = await tx.container.findMany({ where: { characterId }, include: { items: { orderBy: { containerIndex: 'asc' } } } });

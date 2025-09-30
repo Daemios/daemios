@@ -1,9 +1,5 @@
 <template>
-  <v-layout
-    align-center
-    column
-    class="pa-4"
-  >
+  <v-layout class="pa-4 flex-column align-center">
     <!-- Stage Selector -->
     <v-row class="mt-12">
       <v-col
@@ -31,9 +27,6 @@
         cols="auto"
         class="d-flex flex-column align-center"
       >
-        <h1 class="mb-12">
-          Character Creator
-        </h1>
         <CharacterSlide
           :name="name"
           :color="race.color"

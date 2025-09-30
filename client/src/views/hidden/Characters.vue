@@ -1,18 +1,7 @@
 <template>
-  <v-layout
-    justify-center
-    align-center
-    column
-    class="login"
-  >
+  <v-layout class="login flex-column justify-center align-center">
     <!-- Character Select -->
-    <v-layout
-      column
-      align-center
-      justify-center
-      class="flex-grow-0"
-      style="height: 584px"
-    >
+    <v-layout class="flex-grow-0 flex-column align-center justify-center">
       <v-btn
         v-if="characters && characters.length > 5"
         class="pane flex-grow-0 pa-2 mb-2"

@@ -5,7 +5,10 @@
     <div v-if="Array.isArray(containers) && containers.length">
       <v-row dense>
         <v-col cols="12">
-          <v-sheet class="pa-2" elevation="0">
+          <v-sheet
+            class="pa-2"
+            elevation="0"
+          >
             <div class="sheet-body">
               <div class="inventory-with-pack">
                 <!-- top pack-area removed; pack is rendered at bottom in nestable row -->
@@ -19,6 +22,7 @@
                     @leave-container="() => (hoveredContainerId = null)"
                   />
                 </div>
+                <!-- Divider between main grid and pack/nestable row (moved to bottom sheet) -->
               </div>
             </div>
           </v-sheet>
@@ -26,19 +30,40 @@
       </v-row>
 
       <!-- Nestable containers row: less prominent cells (e.g. vials) and pack rendered here -->
-      <v-row v-if="Array.isArray(nestable) && nestable.length" dense>
+      <v-row
+        v-if="Array.isArray(nestable) && nestable.length"
+        dense
+      >
         <v-col cols="12">
-          <v-sheet class="pa-2" elevation="0">
+          <v-sheet
+            class="pa-2"
+            elevation="0"
+          >
+            <!-- Divider between main grid and pack/nestable row (moved here) -->
+            <div
+              class="inventory-divider d-flex align-center justify-center my-2"
+            >
+              <v-divider class="flex-grow-1" />
+              <div
+                class="mx-2 text-caption grey--text text--darken-1 no-wrap-caption"
+              >
+                Pack and Nestable Containers
+              </div>
+              <v-divider class="flex-grow-1" />
+            </div>
             <!-- bottom grid: small, local grid to mirror column sizing of the top grid -->
             <div class="bottom-grid">
-              <!-- pack cell: first cell, spans 2 columns to remain visually distinct -->
+              <!-- pack cell: dedicated slot (always present). If no pack is equipped
+                   it will render an empty EquipmentSlot so users see the dedicated
+                   space and can drop/equip into it. -->
               <div
-                v-if="packContainer"
                 class="bottom-slot pack-slot d-flex align-center justify-center"
                 :class="{
                   'drag-over': packDragOver,
                   highlighted:
+                    packContainer &&
                     String(packContainer.id) === String(hoveredContainerId),
+                  'empty-pack': !packContainer,
                 }"
                 @dragover.prevent
                 @drop.prevent="onDropToPack"
@@ -87,7 +112,12 @@
                     />
                   </div>
 
-                  <div v-else class="slot-empty">&nbsp;</div>
+                  <div
+                    v-else
+                    class="slot-empty"
+                  >
+&nbsp;
+                  </div>
                 </div>
               </template>
             </div>
@@ -97,13 +127,24 @@
     </div>
 
     <div v-else>
-      <div class="no-containers">No containers equipped</div>
+      <div class="no-containers">
+        No containers equipped
+      </div>
     </div>
 
-    <v-snackbar v-model="errorVisible" color="error" timeout="6000">
+    <v-snackbar
+      v-model="errorVisible"
+      color="error"
+      timeout="6000"
+    >
       {{ errorMsg }}
       <template #action>
-        <v-btn text @click="() => (errorVisible = false)"> Close </v-btn>
+        <v-btn
+          text
+          @click="() => (errorVisible = false)"
+        >
+          Close
+        </v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -118,6 +159,7 @@ import EquipmentSlot from "@/components/character/EquipmentSlot.vue";
 import dragEventBus from "@/lib/dragEventBus";
 import { useUserStore } from "@/stores/userStore";
 import api from "@/utils/api.js";
+import { applyInventoryDiff } from "@/utils/inventoryDiff";
 import { iconForContainerType } from "@/utils/containerPresentation";
 
 const userStore = useUserStore();
@@ -263,7 +305,12 @@ const nestableItems = computed(() => {
     return (nestable.value || []).map((c) => {
       let rep = null;
       let source = null;
-      if (c && c.itemId != null) {
+      if (Array.isArray(c.items) && c.items.length) {
+        rep = c.items[0];
+        source = { containerId: c.id, localIndex: rep.containerIndex || 0 };
+      }
+
+      if (!rep && c && c.itemId != null) {
         for (const cont of inv) {
           if (!cont || !Array.isArray(cont.items)) continue;
           const found = cont.items.find(
@@ -276,14 +323,20 @@ const nestableItems = computed(() => {
           }
         }
       }
-      if (!rep && Array.isArray(c.items) && c.items.length) {
-        rep = c.items[0];
-        source = { containerId: c.id, localIndex: rep.containerIndex || 0 };
-      }
-      const mapped =
+
+      let mapped =
         typeof userStore.mapItemForClient === "function"
           ? userStore.mapItemForClient(rep)
           : rep;
+
+      if (!mapped && c && c.itemId != null) {
+        mapped = {
+          id: c.itemId,
+          label: (c && (c.label || c.name)) || "Item",
+          img: "/img/debug/placeholder.png",
+        };
+      }
+
       return { container: c, item: mapped, source };
     });
   } catch (e) {
@@ -354,19 +407,33 @@ const containersForGrid = computed(() => {
     // internal slots appear in the grid.
     const transformed = all.map((c) => {
       if (!c) return c;
-      if (String(c.id) === packId || String(c.itemId || "") === packItemId) {
+      // only hide the first visual cell when there is an actual equipped pack
+      // to avoid accidentally hiding slots when the pack is not equipped
+      if (
+        packItem.value &&
+        (String(c.id) === packId || String(c.itemId || "") === packItemId)
+      ) {
         // mark this container so the grid will hide its first visual cell
         return { ...c, hiddenFirstCell: true };
       }
       return c;
     });
 
-    // Build a set of item ids that are represented in the lower nestable row
-    const nestableIds = new Set(
-      (nestableItems.value || [])
-        .map((n) => (n && n.item && n.item.id ? String(n.item.id) : null))
-        .filter((v) => v != null)
-    );
+    const nestableIds = new Set();
+    try {
+      const rawNestables = Array.isArray(nestable.value) ? nestable.value : [];
+      for (const nc of rawNestables) {
+        if (!nc) continue;
+        if (Array.isArray(nc.items)) {
+          for (const it of nc.items) {
+            if (it && it.id != null) nestableIds.add(String(it.id));
+          }
+        }
+        if (nc.itemId != null) nestableIds.add(String(nc.itemId));
+      }
+    } catch (err) {
+      /* ignore and continue with empty set */
+    }
 
     // Remove any items from transformed containers that are shown in the nestable row
     const transformedFiltered = transformed.map((c) => {
@@ -393,7 +460,7 @@ const containersForGrid = computed(() => {
       (c) =>
         c && (String(c.id) === packId || String(c.itemId || "") === packItemId)
     );
-    if (!hasPackInTransformed && packContainer.value) {
+    if (!hasPackInTransformed && packContainer.value && packItem.value) {
       const c = packContainer.value;
       transformedFiltered.push({ ...c, hiddenFirstCell: true });
     }
@@ -527,12 +594,17 @@ async function onDropToPack(e) {
         },
       });
       const res = (response && response.data) || {};
-      if (res && res.containers) {
-        userStore.setInventory(res.containers);
-        if (Array.isArray(res.nestableContainers))
-          userStore.setNestableInventory(res.nestableContainers);
-      } else if (userStore && userStore.ensureInventory) {
-        await userStore.ensureInventory(true);
+      try {
+        await applyInventoryDiff(res, userStore);
+      } catch (err) {
+        // fallback: older endpoints returned full containers array directly
+        if (res && res.containers) {
+          userStore.setInventory(res.containers);
+          if (Array.isArray(res.nestableContainers))
+            userStore.setNestableInventory(res.nestableContainers);
+        } else if (userStore && userStore.ensureInventory) {
+          await userStore.ensureInventory(true);
+        }
       }
     } catch (err) {
       // revert optimistic state on failure
@@ -555,11 +627,15 @@ async function onDropToPack(e) {
         itemId: payload.item.id,
       });
       const res = (response && response.data) || {};
-      if (res && res.character) userStore.setCharacter(res.character);
-      if (res && res.containers) {
-        userStore.setInventory(res.containers);
-        if (Array.isArray(res.nestableContainers))
-          userStore.setNestableInventory(res.nestableContainers);
+      try {
+        await applyInventoryDiff(res, userStore);
+      } catch (err) {
+        if (res && res.character) userStore.setCharacter(res.character);
+        if (res && res.containers) {
+          userStore.setInventory(res.containers);
+          if (Array.isArray(res.nestableContainers))
+            userStore.setNestableInventory(res.nestableContainers);
+        }
       }
     } catch (err) {
       console.error("Failed to equip pack", err);
@@ -679,36 +755,41 @@ async function onMoveItem(payload) {
     const actionPayload = { itemId: postPayload.itemId, destination };
     const response = await api.post("/inventory/action", actionPayload);
     const res = (response && response.data) || {};
-    if (res && res.containers) {
-      userStore.setInventory(res.containers);
-      if (Array.isArray(res.nestableContainers))
-        userStore.setNestableInventory(res.nestableContainers);
-    }
-    // if server returned authoritative equipment rows, sync the paper-doll
-    if (res && res.equipment) {
-      try {
-        const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
-        if (!newChar.equipped) newChar.equipped = {};
-        res.equipment.forEach((eq) => {
-          const key = String(eq.slot || "").toLowerCase();
-          if (eq.Item) {
-            newChar.equipped[key] = {
-              ...eq.Item,
-              img: eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
-              label: eq.Item.label || eq.Item.name || null,
-            };
-          } else if (eq.itemId) {
-            newChar.equipped[key] = { id: eq.itemId };
-          } else {
-            newChar.equipped[key] = null;
-          }
-        });
-        if (userStore.setCharacter) userStore.setCharacter(newChar);
-      } catch (e) {
-        console.warn("Failed to sync equipment from server", e);
+    try {
+      await applyInventoryDiff(res, userStore);
+    } catch (err) {
+      // fallback to legacy behaviour
+      if (res && res.containers) {
+        userStore.setInventory(res.containers);
+        if (Array.isArray(res.nestableContainers))
+          userStore.setNestableInventory(res.nestableContainers);
       }
-    } else if (userStore && userStore.ensureInventory) {
-      await userStore.ensureInventory(true);
+      if (res && res.equipment) {
+        try {
+          const newChar = JSON.parse(JSON.stringify(userStore.character || {}));
+          if (!newChar.equipped) newChar.equipped = {};
+          res.equipment.forEach((eq) => {
+            const key = String(eq.slot || "").toLowerCase();
+            if (eq.Item) {
+              newChar.equipped[key] = {
+                ...eq.Item,
+                img:
+                  eq.Item.image || eq.Item.img || "/img/debug/placeholder.png",
+                label: eq.Item.label || eq.Item.name || null,
+              };
+            } else if (eq.itemId) {
+              newChar.equipped[key] = { id: eq.itemId };
+            } else {
+              newChar.equipped[key] = null;
+            }
+          });
+          if (userStore.setCharacter) userStore.setCharacter(newChar);
+        } catch (e) {
+          console.warn("Failed to sync equipment from server", e);
+        }
+      } else if (userStore && userStore.ensureInventory) {
+        await userStore.ensureInventory(true);
+      }
     }
   } catch (err) {
     // revert optimistic state on failure (inventory + character)
@@ -749,6 +830,9 @@ async function onMoveItem(payload) {
    gives the pack a 2-column visual span. Kept scoped to avoid changing InventoryGrid.vue. */
 .bottom-grid {
   display: grid;
+  /* Use a flexible column template so the bottom-grid adapts to available
+    width; pack will span two columns via its own rule but we avoid fixing
+    the first column to a pixel width. */
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
   gap: 6px;
   justify-content: start; /* left-align cells */
@@ -763,9 +847,16 @@ async function onMoveItem(payload) {
   background: rgba(255, 255, 255, 0.02);
   padding: 0;
 }
-.bottom-slot.pack-slot {
+/* The main inventory grid allows pack cells to span 2 columns, however
+   the small bottom-grid used for nestable containers should render the
+   pack as a single compact cell to avoid overlaying adjacent cells and
+   capturing drops incorrectly. The specific override below targets only
+   the bottom-grid pack cell. */
+.bottom-grid .bottom-slot.pack-slot {
+  /* Pack visually spans two columns in the bottom grid to match the
+     main inventory styling while staying contained in the bottom-grid's
+     explicit column layout. */
   grid-column: span 2;
-  /* only span horizontally; do not span multiple rows */
 }
 
 /* Cap pack visual height and make its content stretch to avoid growing the row */
@@ -787,5 +878,20 @@ async function onMoveItem(payload) {
     grid-column: span 1;
     grid-row: span 1;
   }
+}
+
+/* prevent the divider caption from wrapping */
+.no-wrap-caption {
+  /* Force no wrapping even if parent/sibling styles try to break the line.
+     Use inline-block so the element can overflow gracefully instead of
+     breaking to multiple lines. The !important helps override Vuetify
+     utilities that may otherwise force wrapping. */
+  display: inline-block;
+  white-space: nowrap !important;
+  overflow: visible;
+  max-width: none;
+  /* Prevent flex containers from shrinking the caption to a smaller width */
+  flex-shrink: 0 !important;
+  padding: 0 6px;
 }
 </style>

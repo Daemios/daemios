@@ -93,7 +93,20 @@ export async function moveItemForCharacter(character: any, payload: any) {
   }
 
   const containers = await fetchContainersWithItems(character.id);
-  return containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', items: (c.items || []).map(mapItemForClient) }));
+  const mapped = containers.map((c: any) => ({ id: c.id, label: c.label || null, capacity: c.capacity || 0, containerType: c.containerType || 'BASIC', items: (c.items || []).map(mapItemForClient) }));
+
+  // Determine which containers were affected by this move so the caller can
+  // emit a minimal diff. Prefer reporting source and target container ids.
+  const updatedIds = new Set<string|number>();
+  try {
+    if (src && src.containerId != null) updatedIds.add(src.containerId);
+    if (tgt && tgt.containerId != null) updatedIds.add(tgt.containerId);
+    if (typeof occupied !== 'undefined' && occupied && occupied.containerId != null) updatedIds.add(occupied.containerId);
+  } catch (e) {
+    /* ignore */
+  }
+
+  return { containers: mapped, updatedContainerIds: Array.from(updatedIds) };
 }
 
 // Place an item to a destination which may be equipment or a container.
@@ -125,7 +138,16 @@ export async function placeItem(character: any, payload: any) {
     // If item is currently equipped, delegate to unequip helper which will place it into container inside a tx
     const equipRow = await prisma.equipment.findFirst({ where: { itemId } });
     if (equipRow) {
-      const uneq = await equipmentService.unequipItemToContainer(equipRow.characterId, itemId, Number(dest.containerId), Number(targetIndex));
+      // Ensure targetIndex is a valid finite number. If not provided, compute next available index.
+      let finalIndex: number | null = null;
+      if (typeof targetIndex === 'number' && Number.isFinite(targetIndex)) finalIndex = Number(targetIndex);
+      else {
+        // find highest containerIndex in the destination container and append
+        const highest = await prisma.item.findFirst({ where: { containerId: Number(dest.containerId) }, orderBy: { containerIndex: 'desc' }, select: { containerIndex: true } });
+        finalIndex = highest && typeof highest.containerIndex === 'number' ? Number(highest.containerIndex) + 1 : 0;
+      }
+
+      const uneq = await equipmentService.unequipItemToContainer(equipRow.characterId, itemId, Number(dest.containerId), finalIndex as number);
       // After unequip we want to return up-to-date containers and equipment
       const containers = await fetchContainersWithItems(character.id);
       return { equipment: await prisma.equipment.findMany({ where: { characterId: character.id }, include: { Item: true } }), containers };
@@ -134,7 +156,9 @@ export async function placeItem(character: any, payload: any) {
     // Otherwise perform a normal container->container move using existing moveItemForCharacter
     const movePayload = { itemId: itemId, source: null, target: { containerId: Number(dest.containerId), localIndex: Number(targetIndex) } };
     const moved = await moveItemForCharacter(character, movePayload);
-    // moveItemForCharacter returns annotated containers array
+    // moveItemForCharacter may return { containers, updatedContainerIds }
+    if (moved && moved.containers) return { containers: moved.containers, updatedContainerIds: moved.updatedContainerIds || [] };
+    // fallback: moved may be an array
     return { containers: moved };
   }
 

@@ -1,11 +1,12 @@
 import { createApp } from "vue";
 import App from "./App.vue";
+import "@/styles/cinzel.css";
 
 import router from "@/router/index.js";
 import { createPinia } from "pinia";
 import vuetify from "@/vuetify";
 import { profiler } from "@/utils/profiler";
-import { useUserStore } from '@/stores/userStore';
+import { useUserStore } from "@/stores/userStore";
 
 // Startup timing bootstrap
 if (typeof window !== "undefined") {
