@@ -3,9 +3,17 @@
     class="stats-window position-absolute"
     style="right: 12px; top: 32px; min-width: 320px; max-width: 420px"
   >
-    <v-tabs v-model="tab" background-color="grey lighten-4" grow>
-      <v-tab value="general"> General </v-tab>
-      <v-tab value="chunk"> Chunk </v-tab>
+    <v-tabs
+      v-model="tab"
+      background-color="grey lighten-4"
+      grow
+    >
+      <v-tab value="general">
+        General
+      </v-tab>
+      <v-tab value="chunk">
+        Chunk
+      </v-tab>
       <!-- Add more tabs here -->
     </v-tabs>
     <v-tabs-items v-model="tab">

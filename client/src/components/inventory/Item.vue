@@ -27,12 +27,18 @@
       />
     </v-btn>
 
-    <div class="item-label" :class="itemLabelClasses">
+    <div
+      class="item-label"
+      :class="itemLabelClasses"
+    >
       {{ safeItem.label }}
       <span v-if="safeItem.quantity">- {{ safeItem.quantity }}</span>
     </div>
     <teleport :to="portalSelector">
-      <div v-if="showStats" :style="panelStyle">
+      <div
+        v-if="showStats"
+        :style="panelStyle"
+      >
         <ItemTooltip :item="statsItem" />
       </div>
     </teleport>

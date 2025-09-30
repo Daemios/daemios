@@ -1,7 +1,10 @@
 <template>
   <teleport to="body">
     <div class="app-toast-container">
-      <transition-group name="app-toast" tag="div">
+      <transition-group
+        name="app-toast"
+        tag="div"
+      >
         <v-snackbar
           v-for="toast in toasts"
           :key="toast.id"

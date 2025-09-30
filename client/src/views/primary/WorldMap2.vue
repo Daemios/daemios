@@ -1,5 +1,8 @@
 <template>
-  <div ref="sceneContainer" class="world-map position-relative w-100 h-screen">
+  <div
+    ref="sceneContainer"
+    class="world-map position-relative w-100 h-screen"
+  >
     <!-- Scene fills the container -->
     <div
       class="scene-fill"

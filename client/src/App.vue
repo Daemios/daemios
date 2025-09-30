@@ -13,10 +13,18 @@
     <MicroMenu />
 
     <!-- Websocket lock -->
-    <v-dialog :model-value="!socket.connection" persistent max-width="400">
+    <v-dialog
+      :model-value="!socket.connection"
+      persistent
+      max-width="400"
+    >
       <v-card class="pa-4">
         <v-card-text class="pa-0 d-flex align-center justify-center">
-          <v-progress-circular size="20" indeterminate class="mr-4" />
+          <v-progress-circular
+            size="20"
+            indeterminate
+            class="mr-4"
+          />
           Attempting to reconnect to Websocket server...
         </v-card-text>
       </v-card>

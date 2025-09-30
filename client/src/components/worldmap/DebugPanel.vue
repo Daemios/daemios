@@ -25,63 +25,91 @@
         margin-bottom: 6px;
       "
     >
-      <div style="font-size: 13px; font-weight: 600">World Debug</div>
-      <div style="font-size: 11px; opacity: 0.8">Debug tools</div>
+      <div style="font-size: 13px; font-weight: 600">
+        World Debug
+      </div>
+      <div style="font-size: 11px; opacity: 0.8">
+        Debug tools
+      </div>
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px">
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.clutter"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.clutter"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Clutter
       </label>
 
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.shadows"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.shadows"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Shadows
       </label>
 
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.water"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.water"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Water
       </label>
 
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.chunkColors"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.chunkColors"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Chunk colors
       </label>
 
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.wireframe"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.wireframe"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Show wireframe
       </label>
 
       <!-- showChunkBorders option removed -->
 
-      <label class="d-flex align-center cursor-pointer"
-        style="gap: 6px">
-        <input v-model="state.directions"
+      <label
+        class="d-flex align-center cursor-pointer"
+        style="gap: 6px"
+      >
+        <input
+          v-model="state.directions"
           type="checkbox"
-          @change="applyImmediate">
+          @change="applyImmediate"
+        >
         </input>
         Directions
       </label>
@@ -94,7 +122,9 @@
         margin-top: 8px;
       "
     >
-      <div style="font-size: 12px; margin-bottom: 6px">Map size presets</div>
+      <div style="font-size: 12px; margin-bottom: 6px">
+        Map size presets
+      </div>
 
       <div style="display: flex; gap: 6px; flex-wrap: wrap">
         <button
@@ -167,7 +197,7 @@
             color: inherit;
           "
           @input="applyImmediate"
-        />
+        >
         <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7)">
           radius
         </div>

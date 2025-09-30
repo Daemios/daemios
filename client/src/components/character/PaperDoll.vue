@@ -92,17 +92,32 @@
         @equip-success="onEquipSuccess"
       />
 
-      <v-card class="avatar d-flex align-center justify-center" flat>
+      <v-card
+        class="avatar d-flex align-center justify-center"
+        flat
+      >
         <v-icon>{{ mdiClose }}</v-icon>
       </v-card>
     </div>
 
-    <ItemDialog :item="selected" @close="selected = null" />
+    <ItemDialog
+      :item="selected"
+      @close="selected = null"
+    />
 
-    <v-snackbar v-model="equipErrorVisible" color="error" timeout="6000">
+    <v-snackbar
+      v-model="equipErrorVisible"
+      color="error"
+      timeout="6000"
+    >
       {{ equipErrorMsg }}
       <template #action>
-        <v-btn text @click="() => (equipErrorVisible = false)"> Close </v-btn>
+        <v-btn
+          text
+          @click="() => (equipErrorVisible = false)"
+        >
+          Close
+        </v-btn>
       </template>
     </v-snackbar>
   </div>

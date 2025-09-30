@@ -1,8 +1,20 @@
 <template>
-  <v-dialog v-model="isInventoryOpen" app fullscreen persistent>
+  <v-dialog
+    v-model="isInventoryOpen"
+    app
+    fullscreen
+    persistent
+  >
     <v-card>
-      <v-toolbar dark color="primary">
-        <v-btn icon dark @click="toggleInventory()">
+      <v-toolbar
+        dark
+        color="primary"
+      >
+        <v-btn
+          icon
+          dark
+          @click="toggleInventory()"
+        >
           <v-icon>
             {{ mdiClose }}
           </v-icon>
@@ -10,7 +22,13 @@
         <v-toolbar-title> Inventory (I) </v-toolbar-title>
         <v-spacer />
         <v-toolbar-items>
-          <v-btn dark text @click="dialog = false"> Add </v-btn>
+          <v-btn
+            dark
+            text
+            @click="dialog = false"
+          >
+            Add
+          </v-btn>
         </v-toolbar-items>
       </v-toolbar>
       <v-data-iterator
@@ -23,7 +41,11 @@
         class="overflow-hidden"
       >
         <template #header>
-          <v-toolbar dark color="primary" class="mb-1">
+          <v-toolbar
+            dark
+            color="primary"
+            class="mb-1"
+          >
             <v-text-field
               v-model="search"
               clearable
@@ -45,11 +67,24 @@
                 label="Sort by"
               />
               <v-spacer />
-              <v-btn-toggle v-model="sortDesc" mandatory>
-                <v-btn large depressed color="blue" :value="false">
+              <v-btn-toggle
+                v-model="sortDesc"
+                mandatory
+              >
+                <v-btn
+                  large
+                  depressed
+                  color="blue"
+                  :value="false"
+                >
                   <v-icon>{{ mdiArrowUp }}</v-icon>
                 </v-btn>
-                <v-btn large depressed color="blue" :value="true">
+                <v-btn
+                  large
+                  depressed
+                  color="blue"
+                  :value="true"
+                >
                   <v-icon>{{ mdiArrowDown }}</v-icon>
                 </v-btn>
               </v-btn-toggle>
@@ -57,7 +92,10 @@
           </v-toolbar>
         </template>
         <template #default>
-          <v-row dense class="pa-2">
+          <v-row
+            dense
+            class="pa-2"
+          >
             <v-col
               v-for="(item, n) in inventory"
               :key="n"
@@ -77,7 +115,10 @@
       </v-data-iterator>
 
       <!-- Inventory Item Dialog -->
-      <ItemDialog :item="selected" @close="selected = null" />
+      <ItemDialog
+        :item="selected"
+        @close="selected = null"
+      />
     </v-card>
   </v-dialog>
 </template>

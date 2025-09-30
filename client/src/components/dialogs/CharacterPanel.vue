@@ -1,9 +1,18 @@
 <template>
-  <v-dialog v-model="isCharacterOpen" scrollable>
+  <v-dialog
+    v-model="isCharacterOpen"
+    scrollable
+  >
     <v-container fluid>
       <v-row dense>
-        <v-col cols="12" class="d-flex justify-end">
-          <v-btn icon @click="close">
+        <v-col
+          cols="12"
+          class="d-flex justify-end"
+        >
+          <v-btn
+            icon
+            @click="close"
+          >
             <v-icon>
               {{ mdiClose }}
             </v-icon>
@@ -13,8 +22,15 @@
 
       <v-row dense>
         <!-- Left: Equipment Card -->
-        <v-col cols="12" md="auto">
-          <v-card class="pa-2 overflow-visible" dense flat>
+        <v-col
+          cols="12"
+          md="auto"
+        >
+          <v-card
+            class="pa-2 overflow-visible"
+            dense
+            flat
+          >
             <v-card-title>Equipment</v-card-title>
             <v-card-text>
               <PaperDoll />
@@ -23,13 +39,40 @@
         </v-col>
 
         <!-- Right: Contextual (Inventory or Abilities) -->
-        <v-col cols="12" md="auto" class="flex-grow-1">
-          <v-card class="pa-2" dense flat>
+        <v-col
+          cols="12"
+          md="auto"
+          class="flex-grow-1"
+        >
+          <v-card
+            class="pa-2"
+            dense
+            flat
+          >
             <v-card-title>
-              <v-btn-toggle v-model="mode" mandatory dense>
-                <v-btn value="inventory" dense> Inventory </v-btn>
-                <v-btn value="abilities" dense> Abilities </v-btn>
-                <v-btn value="stats" dense> Stats </v-btn>
+              <v-btn-toggle
+                v-model="mode"
+                mandatory
+                dense
+              >
+                <v-btn
+                  value="inventory"
+                  dense
+                >
+                  Inventory
+                </v-btn>
+                <v-btn
+                  value="abilities"
+                  dense
+                >
+                  Abilities
+                </v-btn>
+                <v-btn
+                  value="stats"
+                  dense
+                >
+                  Stats
+                </v-btn>
               </v-btn-toggle>
             </v-card-title>
             <v-card-text>

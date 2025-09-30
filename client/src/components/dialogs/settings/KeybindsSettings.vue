@@ -1,9 +1,14 @@
 <template>
   <div>
-    <div class="text-h6 mb-4">Keybinds</div>
+    <div class="text-h6 mb-4">
+      Keybinds
+    </div>
     <v-row>
       <v-col cols="12">
-        <v-expansion-panels v-model="expanded" multiple>
+        <v-expansion-panels
+          v-model="expanded"
+          multiple
+        >
           <v-expansion-panel
             v-for="cat in categories"
             :key="cat.key"
@@ -20,7 +25,11 @@
             </v-expansion-panel-title>
             <v-expansion-panel-text>
               <div>
-                <div v-for="kb in cat.bindings" :key="kb.id" class="py-1">
+                <div
+                  v-for="kb in cat.bindings"
+                  :key="kb.id"
+                  class="py-1"
+                >
                   <div class="d-flex align-center">
                     <div
                       class="pl-6 py-0 text-body-2"

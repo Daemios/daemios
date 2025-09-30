@@ -1,7 +1,17 @@
 <template>
-  <div class="d-flex" style="min-width: 640px">
-    <div class="pa-2 d-flex flex-column" style="width: 200px; gap: 12px">
-      <div v-for="item in items" :key="item.key" style="width: 100%">
+  <div
+    class="d-flex"
+    style="min-width: 640px"
+  >
+    <div
+      class="pa-2 d-flex flex-column"
+      style="width: 200px; gap: 12px"
+    >
+      <div
+        v-for="item in items"
+        :key="item.key"
+        style="width: 100%"
+      >
         <v-card
           :elevation="active === item.key ? 8 : 2"
           class="pa-3 d-flex flex-column"
@@ -20,7 +30,10 @@
     </div>
 
     <div class="pa-4 flex-grow-1">
-      <component :is="currentComponent" @close="close" />
+      <component
+        :is="currentComponent"
+        @close="close"
+      />
     </div>
   </div>
 </template>

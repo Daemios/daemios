@@ -1,14 +1,32 @@
 <template>
-  <v-card class="item-stats-panel pa-2" elevation="2" style="min-width: 160px">
-    <v-card-title class="py-1" style="font-size: 14px; font-weight: 600">
+  <v-card
+    class="item-stats-panel pa-2"
+    elevation="2"
+    style="min-width: 160px"
+  >
+    <v-card-title
+      class="py-1"
+      style="font-size: 14px; font-weight: 600"
+    >
       {{ itemName }}
     </v-card-title>
     <v-card-text class="py-1">
-      <v-row align="center" class="py-0">
-        <v-col cols="6" class="text--secondary" style="font-size: 12px">
+      <v-row
+        align="center"
+        class="py-0"
+      >
+        <v-col
+          cols="6"
+          class="text--secondary"
+          style="font-size: 12px"
+        >
           Capacity
         </v-col>
-        <v-col cols="6" class="text-right" style="font-weight: 600">
+        <v-col
+          cols="6"
+          class="text-right"
+          style="font-weight: 600"
+        >
           {{ capacityDisplay }}
         </v-col>
       </v-row>

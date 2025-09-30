@@ -1,7 +1,19 @@
 <template>
-  <v-container class="fill-height pa-0 login" fluid>
-    <v-row class="fill-height" align="center" justify="center">
-      <v-col cols="12" md="8" lg="6" class="d-flex justify-center">
+  <v-container
+    class="fill-height pa-0 login"
+    fluid
+  >
+    <v-row
+      class="fill-height"
+      align="center"
+      justify="center"
+    >
+      <v-col
+        cols="12"
+        md="8"
+        lg="6"
+        class="d-flex justify-center"
+      >
         <v-row
           class="ma-0"
           align="center"
@@ -9,13 +21,28 @@
           style="width: 100%"
         >
           <!-- Left: Splash / branding -->
-          <v-col cols="12" md="6" class="d-flex justify-center">
-            <v-img src="/img/branding/splash.png" class="splash-img" contain />
+          <v-col
+            cols="12"
+            md="6"
+            class="d-flex justify-center"
+          >
+            <v-img
+              src="/img/branding/splash.png"
+              class="splash-img"
+              contain
+            />
           </v-col>
 
           <!-- Right: Card with login/register -->
-          <v-col cols="12" md="6" class="d-flex align-center">
-            <v-card class="pa-6 login-card" elevation="6">
+          <v-col
+            cols="12"
+            md="6"
+            class="d-flex align-center"
+          >
+            <v-card
+              class="pa-6 login-card"
+              elevation="6"
+            >
               <v-card-title class="justify-center">
                 <span class="text-h5">Welcome to Daemios</span>
               </v-card-title>
@@ -69,7 +96,10 @@
               </v-card-text>
 
               <v-card-actions class="justify-space-between">
-                <v-btn text @click="showRegister = !showRegister">
+                <v-btn
+                  text
+                  @click="showRegister = !showRegister"
+                >
                   {{ showRegister ? "Back" : "Register" }}
                 </v-btn>
 
@@ -85,14 +115,27 @@
 
               <v-divider class="my-3" />
 
-              <v-row align="center" justify="space-between" class="px-2">
-                <v-col cols="6" class="d-flex align-center">
-                  <v-icon class="mr-2" @click="toggleMute">
+              <v-row
+                align="center"
+                justify="space-between"
+                class="px-2"
+              >
+                <v-col
+                  cols="6"
+                  class="d-flex align-center"
+                >
+                  <v-icon
+                    class="mr-2"
+                    @click="toggleMute"
+                  >
                     {{ mdiVolumeSource }}
                   </v-icon>
                   <span class="text-caption">Volume</span>
                 </v-col>
-                <v-col cols="6" class="d-flex justify-end">
+                <v-col
+                  cols="6"
+                  class="d-flex justify-end"
+                >
                   <v-text-field
                     type="number"
                     density="compact"

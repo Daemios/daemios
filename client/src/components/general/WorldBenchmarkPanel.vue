@@ -43,17 +43,26 @@
         Water
       </v-tab>
     </v-tabs>
-    <div v-if="tab === 'general'" class="pa-2">
+    <div
+      v-if="tab === 'general'"
+      class="pa-2"
+    >
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         generalStatsDisplay
       }}</pre>
     </div>
-    <div v-else-if="tab === 'chunk'" class="pa-2">
+    <div
+      v-else-if="tab === 'chunk'"
+      class="pa-2"
+    >
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         chunkStatsDisplay
       }}</pre>
     </div>
-    <div v-else-if="tab === 'water'" class="pa-2">
+    <div
+      v-else-if="tab === 'water'"
+      class="pa-2"
+    >
       <pre style="white-space: pre-wrap; word-break: break-word">{{
         waterStatsDisplay
       }}</pre>

@@ -1,5 +1,8 @@
 <template>
-  <v-dialog v-model="isSettingsOpen" max-width="980">
+  <v-dialog
+    v-model="isSettingsOpen"
+    max-width="980"
+  >
     <div
       class="d-flex"
       style="align-items: flex-start; gap: 16px; padding: 12px; height: 70vh"
@@ -14,7 +17,11 @@
           overflow: auto;
         "
       >
-        <div v-for="item in items" :key="item.key" style="width: 100%">
+        <div
+          v-for="item in items"
+          :key="item.key"
+          style="width: 100%"
+        >
           <v-card
             :elevation="active === item.key ? 8 : 2"
             class="pa-3 d-flex flex-column"
@@ -47,7 +54,11 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn color="green darken-1" variant="text" @click="close">
+          <v-btn
+            color="green darken-1"
+            variant="text"
+            @click="close"
+          >
             Close
           </v-btn>
         </v-card-actions>

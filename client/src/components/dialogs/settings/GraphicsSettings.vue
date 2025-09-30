@@ -1,11 +1,17 @@
 <template>
   <div>
-    <div class="mb-1 mt-1 text-body-1 font-weight-medium">General</div>
-    <div class="text-grey mb-4">No general graphics settings yet.</div>
+    <div class="mb-1 mt-1 text-body-1 font-weight-medium">
+      General
+    </div>
+    <div class="text-grey mb-4">
+      No general graphics settings yet.
+    </div>
 
     <v-divider class="my-4" />
 
-    <div class="mb-1 mt-1 text-body-1 font-weight-medium">World Map</div>
+    <div class="mb-1 mt-1 text-body-1 font-weight-medium">
+      World Map
+    </div>
 
     <v-switch
       v-model="waterEnabled"

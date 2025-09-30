@@ -1,6 +1,8 @@
 <template>
   <div>
-    <div class="mb-1 mt-1 text-body-1 font-weight-medium">Volume</div>
+    <div class="mb-1 mt-1 text-body-1 font-weight-medium">
+      Volume
+    </div>
     <div class="d-flex align-center my-2">
       <v-slider
         v-model="masterVolume"
@@ -19,16 +21,21 @@
         icon
         size="small"
         class="ml-2"
-        @click="muteMaster = !muteMaster"
         :color="muteMaster ? 'red' : 'grey'"
         variant="text"
+        @click="muteMaster = !muteMaster"
       >
-        <v-icon size="small">{{
-          muteMaster ? mdiVolumeOff : mdiVolumeHigh
-        }}</v-icon>
+        <v-icon size="small">
+          {{
+            muteMaster ? mdiVolumeOff : mdiVolumeHigh
+          }}
+        </v-icon>
       </v-btn>
     </div>
-    <div class="d-flex align-baseline my-2 ml-0.5" style="min-height: 36px">
+    <div
+      class="d-flex align-baseline my-2 ml-0.5"
+      style="min-height: 36px"
+    >
       <span
         class="pl-6 py-0 text-body-2"
         style="
@@ -37,8 +44,7 @@
           max-width: 140px;
           display: inline-block;
         "
-        >Tile Ambiance</span
-      >
+      >Tile Ambiance</span>
       <v-slider
         v-model="tileAmbianceVolume"
         min="0"
@@ -54,16 +60,21 @@
         icon
         size="small"
         class="ml-2"
-        @click="muteTileAmbiance = !muteTileAmbiance"
         :color="muteTileAmbiance ? 'red' : 'grey'"
         variant="text"
+        @click="muteTileAmbiance = !muteTileAmbiance"
       >
-        <v-icon size="small">{{
-          muteTileAmbiance ? mdiVolumeOff : mdiVolumeHigh
-        }}</v-icon>
+        <v-icon size="small">
+          {{
+            muteTileAmbiance ? mdiVolumeOff : mdiVolumeHigh
+          }}
+        </v-icon>
       </v-btn>
     </div>
-    <div class="d-flex align-baseline my-2 ml-0.5" style="min-height: 36px">
+    <div
+      class="d-flex align-baseline my-2 ml-0.5"
+      style="min-height: 36px"
+    >
       <span
         class="pl-6 py-0 text-body-2"
         style="
@@ -72,8 +83,7 @@
           max-width: 140px;
           display: inline-block;
         "
-        >Combat</span
-      >
+      >Combat</span>
       <v-slider
         v-model="combatVolume"
         min="0"
@@ -89,17 +99,21 @@
         icon
         size="small"
         class="ml-2"
-        @click="muteCombat = !muteCombat"
         :color="muteCombat ? 'red' : 'grey'"
         variant="text"
+        @click="muteCombat = !muteCombat"
       >
-        <v-icon size="small">{{
-          muteCombat ? mdiVolumeOff : mdiVolumeHigh
-        }}</v-icon>
+        <v-icon size="small">
+          {{
+            muteCombat ? mdiVolumeOff : mdiVolumeHigh
+          }}
+        </v-icon>
       </v-btn>
     </div>
     <v-divider class="my-4" />
-    <div class="mb-1 mt-1 text-body-1 font-weight-medium">Notifications</div>
+    <div class="mb-1 mt-1 text-body-1 font-weight-medium">
+      Notifications
+    </div>
     <v-switch
       v-model="turnAlert"
       label="Turn Alert"

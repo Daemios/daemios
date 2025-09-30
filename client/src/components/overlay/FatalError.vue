@@ -1,6 +1,13 @@
 <template>
-  <v-layout align-center justify-center class="fill-height background">
-    <v-alert prominent type="error">
+  <v-layout
+    align-center
+    justify-center
+    class="fill-height background"
+  >
+    <v-alert
+      prominent
+      type="error"
+    >
       <h3>Oops!</h3>
       <div>A server error has occurred.</div>
       <a @click="reload"> Try to reload the page </a>

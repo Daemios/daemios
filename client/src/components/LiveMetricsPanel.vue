@@ -13,18 +13,34 @@
       style="width: 180px; cursor: pointer"
       @click="toggleExpanded"
     >
-      <v-row class="ma-0 pa-0" align="center">
-        <v-col class="d-flex align-center" cols="3">
+      <v-row
+        class="ma-0 pa-0"
+        align="center"
+      >
+        <v-col
+          class="d-flex align-center"
+          cols="3"
+        >
           <div class="text-subtitle-2 font-weight-bold">
             {{ fpsDisplay }}
           </div>
         </v-col>
 
-        <v-col class="d-flex align-center" cols="9">
-          <canvas ref="spark" height="14" class="w-100" />
+        <v-col
+          class="d-flex align-center"
+          cols="9"
+        >
+          <canvas
+            ref="spark"
+            height="14"
+            class="w-100"
+          />
         </v-col>
 
-        <v-col class="d-flex justify-space-between" cols="12">
+        <v-col
+          class="d-flex justify-space-between"
+          cols="12"
+        >
           <div>
             ms: <b>{{ lastFrameMs }}</b>
           </div>
@@ -38,9 +54,17 @@
       </v-row>
     </v-card>
 
-    <v-card v-if="expanded" class="pa-3 mt-2" flat color="#041219" dark>
+    <v-card
+      v-if="expanded"
+      class="pa-3 mt-2"
+      flat
+      color="#041219"
+      dark
+    >
       <div class="d-flex align-center justify-space-between">
-        <div class="text-h6">Live Metrics</div>
+        <div class="text-h6">
+          Live Metrics
+        </div>
         <div class="d-flex align-center">
           <v-tabs
             v-model="activeTab"
@@ -49,16 +73,30 @@
             background-color="transparent"
             color="#6be1ff"
           >
-            <v-tab value="overview"> Overview </v-tab>
-            <v-tab value="breakdown"> Breakdown </v-tab>
+            <v-tab value="overview">
+              Overview
+            </v-tab>
+            <v-tab value="breakdown">
+              Breakdown
+            </v-tab>
           </v-tabs>
         </div>
       </div>
 
-      <v-row class="ma-0 mt-3" dense>
+      <v-row
+        class="ma-0 mt-3"
+        dense
+      >
         <template v-if="activeTab === 'overview'">
-          <v-col cols="12" md="3">
-            <v-card flat class="pa-3" color="transparent">
+          <v-col
+            cols="12"
+            md="3"
+          >
+            <v-card
+              flat
+              class="pa-3"
+              color="transparent"
+            >
               <div
                 class="text-subtitle-2"
                 style="color: #8ff; margin-bottom: 6px"
@@ -82,16 +120,26 @@
             </v-card>
           </v-col>
 
-          <v-col cols="12" md="3">
-            <v-card flat class="pa-3" color="transparent">
-              <div class="text-subtitle-2" style="color: #8ff; margin-bottom: 6px">
+          <v-col
+            cols="12"
+            md="3"
+          >
+            <v-card
+              flat
+              class="pa-3"
+              color="transparent"
+            >
+              <div
+                class="text-subtitle-2"
+                style="color: #8ff; margin-bottom: 6px"
+              >
                 Diagnostics
               </div>
               <div style="font-size: 12px; color: #dfe; max-height: 160px; overflow: auto;">
                 <div>
                   GPU timer available: <b>{{ profilerHasGPU ? 'yes' : 'no' }}</b>
                 </div>
-                <div style="height:6px"></div>
+                <div style="height:6px" />
                 <div>
                   CPU frame (last / avg):
                   <b>{{ diagnostics.cpu ? fmt(diagnostics.cpu.last,2) + ' / ' + fmt(diagnostics.cpu.avg,2) : '—' }}</b>
@@ -100,14 +148,25 @@
                   GPU frame (last / avg):
                   <b>{{ diagnostics.gpu ? fmt(diagnostics.gpu.last,2) + ' / ' + fmt(diagnostics.gpu.avg,2) : 'n/a' }}</b>
                 </div>
-                <div style="margin-top:8px; color:#9fe;">Top profiler entries (by avg)</div>
+                <div style="margin-top:8px; color:#9fe;">
+                  Top profiler entries (by avg)
+                </div>
                 <table style="width:100%; font-size:12px; color:#dfe; margin-top:6px">
                   <thead>
-                    <tr><th style="text-align:left">label</th><th>avg ms</th><th>last</th></tr>
+                    <tr>
+                      <th style="text-align:left">
+                        label
+                      </th><th>avg ms</th><th>last</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="r in diagnostics.top" :key="r.label">
-                      <td style="text-align:left">{{ r.label }}</td>
+                    <tr
+                      v-for="r in diagnostics.top"
+                      :key="r.label"
+                    >
+                      <td style="text-align:left">
+                        {{ r.label }}
+                      </td>
                       <td>{{ fmt(r.avg,2) }}</td>
                       <td>{{ fmt(r.last,2) }}</td>
                     </tr>
@@ -117,8 +176,15 @@
             </v-card>
           </v-col>
 
-          <v-col cols="12" md="6">
-            <v-card flat class="pa-3" color="transparent">
+          <v-col
+            cols="12"
+            md="6"
+          >
+            <v-card
+              flat
+              class="pa-3"
+              color="transparent"
+            >
               <div
                 class="text-subtitle-2"
                 style="color: #8ff; margin-bottom: 6px"
@@ -145,7 +211,11 @@
 
         <template v-else-if="activeTab === 'breakdown'">
           <v-col cols="12">
-            <v-card flat class="pa-3" color="transparent">
+            <v-card
+              flat
+              class="pa-3"
+              color="transparent"
+            >
               <div
                 class="text-subtitle-2"
                 style="color: #8ff; margin-bottom: 6px"

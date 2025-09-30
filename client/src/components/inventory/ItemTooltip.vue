@@ -1,12 +1,30 @@
 <template>
-  <v-card class="item-tooltip pa-2" elevation="2" color="primary">
-    <v-card-title class="py-1" style="font-size: 14px; font-weight: 600">
+  <v-card
+    class="item-tooltip pa-2"
+    elevation="2"
+    color="primary"
+  >
+    <v-card-title
+      class="py-1"
+      style="font-size: 14px; font-weight: 600"
+    >
       {{ itemName }}
     </v-card-title>
     <v-card-text class="py-1">
-      <v-row align="center" class="py-0">
-        <v-col cols="6" class="stat-label"> Capacity </v-col>
-        <v-col cols="6" class="stat-value text-right">
+      <v-row
+        align="center"
+        class="py-0"
+      >
+        <v-col
+          cols="6"
+          class="stat-label"
+        >
+          Capacity
+        </v-col>
+        <v-col
+          cols="6"
+          class="stat-value text-right"
+        >
           {{ capacityDisplay }}
         </v-col>
       </v-row>

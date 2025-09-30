@@ -15,7 +15,11 @@
       <v-card-actions>
         <slot name="actions" />
         <v-spacer />
-        <v-btn color="green darken-1" variant="text" @click="closeDialog">
+        <v-btn
+          color="green darken-1"
+          variant="text"
+          @click="closeDialog"
+        >
           Close
         </v-btn>
       </v-card-actions>
