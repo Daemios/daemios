@@ -15,7 +15,3 @@ export const isAuth = (req: Request, res: Response, next: NextFunction) => {
   respondError(res, 401, 'unauthorized', 'You are not authorized to view this resource');
 };
 
-export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (req.user && (req.user as any).admin) return next();
-  respondError(res, 401, 'unauthorized', 'You are not authorized to view this resource');
-};

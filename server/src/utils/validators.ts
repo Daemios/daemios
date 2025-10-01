@@ -1,7 +1,5 @@
 export const isEmail = (v: unknown) => typeof v === 'string' && /.+@.+\..+/.test(v);
 export const isNonEmptyString = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
-export const isCuidLike = (v: unknown) => typeof v === 'string' && /^[a-z0-9]{25,}$/i.test(v);
-
 export type Rule = {
   in: 'body' | 'params' | 'query';
   key: string;
