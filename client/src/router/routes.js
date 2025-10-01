@@ -20,6 +20,15 @@ export default [
     },
   },
   {
+    path: "/builder2",
+    name: "Builder2",
+    component: () => import("@/views/primary/Builder2.vue"),
+    meta: {
+      overlay: false,
+      combat_lock: false,
+    },
+  },
+  {
     path: "/",
     name: "DnDaemios",
     component: () => import("@/views/primary/Main.vue"),
