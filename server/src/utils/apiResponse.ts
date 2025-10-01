@@ -17,8 +17,6 @@ export type ApiErrorResponse = {
   meta?: Record<string, unknown>;
 };
 
-export type ApiResponse<TData = unknown> = ApiSuccessResponse<TData> | ApiErrorResponse;
-
 export const buildSuccess = <TData>(
   data: TData,
   message?: string,

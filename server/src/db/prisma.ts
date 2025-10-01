@@ -9,4 +9,3 @@ export const prisma: any = global.__daemiosPrisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') global.__daemiosPrisma = prisma;
 
-export default prisma;
