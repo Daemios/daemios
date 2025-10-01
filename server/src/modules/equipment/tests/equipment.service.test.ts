@@ -50,34 +50,6 @@ describe('equipment.service basic ops (mocked prisma)', () => {
     }));
   });
 
-  it('equipItemToCharacter calls prisma.upsert and returns value', async () => {
-    const svc = await import('../equipment.service');
-    mockPrisma.equipment.upsert.mockResolvedValue({ id: 1, characterId: 2, slot: 'HEAD', itemId: 5 });
-    mockPrisma.item.update.mockResolvedValueOnce({});
-    const out = await svc.equipItemToCharacter(2, 5, 'HEAD' as any);
-    expect(mockPrisma.equipment.upsert).toHaveBeenCalled();
-    expect(mockPrisma.item.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { containerId: null, containerIndex: null } });
-    expect(out).toEqual({ id: 1, characterId: 2, slot: 'HEAD', itemId: 5 });
-  });
-
-  it('unequipItemFromSlot deletes existing row and returns it', async () => {
-    const svc = await import('../equipment.service');
-    mockPrisma.equipment.findUnique.mockResolvedValue({ id: 10, characterId: 3, slot: 'HAND', itemId: 7 });
-    mockPrisma.equipment.delete.mockResolvedValue({ id: 10 });
-    const out = await svc.unequipItemFromSlot(3, 'HAND' as any);
-    expect(mockPrisma.equipment.findUnique).toHaveBeenCalled();
-    expect(mockPrisma.equipment.delete).toHaveBeenCalledWith({ where: { id: 10 } });
-    expect(out).toEqual({ id: 10, characterId: 3, slot: 'HAND', itemId: 7 });
-  });
-
-  it('unequipItemFromSlot returns null when nothing is equipped', async () => {
-    const svc = await import('../equipment.service');
-    mockPrisma.equipment.findUnique.mockResolvedValue(null);
-    const out = await svc.unequipItemFromSlot(42, 'HEAD' as any);
-    expect(mockPrisma.equipment.delete).not.toHaveBeenCalled();
-    expect(out).toBeNull();
-  });
-
   it('listEquipmentForCharacter forwards to prisma.findMany', async () => {
     const svc = await import('../equipment.service');
     mockPrisma.equipment.findMany.mockResolvedValue([{ id: 3 }]);

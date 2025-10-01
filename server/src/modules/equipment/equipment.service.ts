@@ -1,36 +1,5 @@
 import { prisma } from '../../db/prisma';
-import { EquipmentSlot } from '@prisma/client';
 import { ensureItemBelongsToCharacter, DomainError, containerIsDescendantOfItem, isValidForSlot, swapEquipmentAndContainer } from './equipment.domain';
-
-export async function equipItemToCharacter(characterId: number, itemId: number, slot: EquipmentSlot) {
-  // Use a transaction so we both upsert the equipment and clear any
-  // container references atomically. This mirrors the behavior in
-  // performEquipForCharacter so all equip code paths leave the DB in a
-  // consistent state (item.containerId cleared and any container that
-  // represented the item unlinked).
-  // Upsert the equipment row and clear any container references for the item.
-  // Using a plain sequence here keeps the operation simple and makes it easy
-  // to mock in tests. In the future this can be converted back to a
-  // transaction if atomicity across multiple tables becomes necessary.
-  const upserted = await prisma.equipment.upsert({
-    where: { characterId_slot: { characterId, slot } as any },
-    create: { characterId, slot, itemId },
-    update: { itemId },
-  });
-
-  // Clear the item's container reference so it is not also listed in a container
-  await prisma.item.update({ where: { id: itemId }, data: { containerId: null, containerIndex: null } });
-
-  return upserted;
-}
-
-export async function unequipItemFromSlot(characterId: number, slot: EquipmentSlot) {
-  // Find existing equipment row for the character+slot, delete it by id and return the deleted row.
-  const existing = await prisma.equipment.findUnique({ where: { characterId_slot: { characterId, slot } as any } });
-  if (!existing) return null;
-  await prisma.equipment.delete({ where: { id: existing.id } });
-  return existing;
-}
 
 export async function listEquipmentForCharacter(characterId: number) {
   return prisma.equipment.findMany({ where: { characterId }, include: { Item: true } });
