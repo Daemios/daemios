@@ -34,19 +34,22 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(logger('dev'));
 
-app.use(
-  expressSession({
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
-    secret: process.env.SESSION_SECRET || 'a santa at nasa',
-    resave: true,
-    saveUninitialized: true,
-    store: new PrismaSessionStore(prisma as any, {
-      checkPeriod: 2 * 60 * 1000,
-      dbRecordIdIsSessionId: true,
-      dbRecordIdFunction: undefined,
-    }),
-  }),
-);
+const sessionOptions: expressSession.SessionOptions = {
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
+  secret: process.env.SESSION_SECRET || 'a santa at nasa',
+  resave: true,
+  saveUninitialized: true,
+};
+
+if (process.env.DATABASE_URL) {
+  sessionOptions.store = new PrismaSessionStore(prisma as any, {
+    checkPeriod: 2 * 60 * 1000,
+    dbRecordIdIsSessionId: true,
+    dbRecordIdFunction: undefined,
+  });
+}
+
+app.use(expressSession(sessionOptions));
 
 app.use(passport.initialize());
 app.use(passport.session());
